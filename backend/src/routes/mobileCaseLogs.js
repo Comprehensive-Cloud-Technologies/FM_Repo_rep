@@ -56,6 +56,8 @@ const router = Router();
     `ALTER TABLE work_orders MODIFY COLUMN asset_id INT NULL`,
     // Allow 'closed' status for asset_queries (staff can close resolved QR-scan requests)
     `ALTER TABLE asset_queries MODIFY COLUMN status ENUM('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open'`,
+    // Ensure updated_at exists (old tables created before this column was in CREATE TABLE)
+    `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT NOW()`,
   ];
   for (const sql of cols) {
     try { await pool.query(sql); } catch (_) { /* column already exists or other benign error */ }
@@ -381,7 +383,7 @@ router.patch("/:id/status", async (req, res, next) => {
       if (!aq) return res.status(404).json({ message: "Request not found" });
 
       await pool.query(
-        "UPDATE asset_queries SET status = ?, resolution_note = COALESCE(?, resolution_note), updated_at = NOW() WHERE id = ?",
+        "UPDATE asset_queries SET status = ?, resolution_note = COALESCE(?, resolution_note) WHERE id = ?",
         [status, remarks || null, id]
       );
       return res.json({ message: "Status updated", status });

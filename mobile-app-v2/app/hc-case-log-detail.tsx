@@ -19,14 +19,6 @@ const STATUS_COLOR: Record<string, string> = {
   resolved: '#059669', closed: '#64748B',
 };
 
-const STATUS_FLOW = [
-  { key: 'open',        label: 'Open' },
-  { key: 'assigned',    label: 'Assigned' },
-  { key: 'in_progress', label: 'In Progress' },
-  { key: 'resolved',    label: 'Resolved' },
-  { key: 'closed',      label: 'Closed' },
-];
-
 export default function HCCaseLogDetail() {
   const { theme } = useTheme();
   const { capabilities, user } = useAuth();
@@ -148,7 +140,6 @@ export default function HCCaseLogDetail() {
   }
 
   const color = STATUS_COLOR[wo.status] || '#64748B';
-  const currentStepIdx = STATUS_FLOW.findIndex(s => s.key === wo.status);
 
   return (
     <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
@@ -165,26 +156,6 @@ export default function HCCaseLogDetail() {
         </View>
 
         <ScrollView ref={scrollRef} contentContainerStyle={ss.scroll} showsVerticalScrollIndicator={false}>
-          {/* Status Timeline */}
-          <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>STATUS TIMELINE</Text>
-            <View style={ss.timeline}>
-              {(isAQ ? STATUS_FLOW.filter(s => !['assigned','closed'].includes(s.key)) : STATUS_FLOW).map((s, i, arr) => {
-                const done = s.key === wo.status || (STATUS_FLOW.findIndex(x => x.key === s.key) <= currentStepIdx);
-                const c = done ? STATUS_COLOR[s.key] || theme.primary : theme.border;
-                return (
-                  <View key={s.key} style={ss.timelineItem}>
-                    <View style={{ alignItems: 'center' }}>
-                      <View style={[ss.dot, { backgroundColor: done ? c : theme.background, borderColor: c }]} />
-                      {i < arr.length - 1 && <View style={[ss.line, { backgroundColor: done && STATUS_FLOW.findIndex(x => x.key === s.key) < currentStepIdx ? c : theme.border }]} />}
-                    </View>
-                    <Text style={[ss.timelineLabel, { color: done ? c : theme.textMuted, fontWeight: done ? '700' : '400' }]}>{s.label}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
           {/* Details */}
           <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>DETAILS</Text>

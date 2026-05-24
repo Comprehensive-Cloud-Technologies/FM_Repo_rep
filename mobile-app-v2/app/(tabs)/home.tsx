@@ -120,12 +120,6 @@ function HCStaffHome({ user }: { user: any }) {
           </TouchableOpacity>
         </View>
 
-        {/* Raise Case Log CTA */}
-        <TouchableOpacity style={[ss.raiseCta, { backgroundColor: theme.primary }]} onPress={() => router.push('/hc-raise-case-log')} activeOpacity={0.85}>
-          <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
-          <Text style={ss.raiseCtaText}>Raise New Case Log</Text>
-        </TouchableOpacity>
-
         {/* Dashboard summary */}
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
           <>
