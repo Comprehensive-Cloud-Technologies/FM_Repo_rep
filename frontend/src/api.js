@@ -59,6 +59,25 @@ export const createAsset = (token, data) => request("POST", "/api/assets", data,
 export const updateAsset = (token, id, data) => request("PUT", `/api/assets/${id}`, data, { authToken: token });
 export const deleteAsset = (token, id) => request("DELETE", `/api/assets/${id}`, undefined, { authToken: token });
 
+/** Bulk-import assets from an Excel/CSV file (multipart upload). */
+export const bulkImportAssets = async (token, file, companyId) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(
+    `${BASE}/api/assets/bulk-import?companyId=${companyId}`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+};
+
+/** Download the Excel template for bulk asset import. */
+export const getAssetImportTemplateUrl = () => `${BASE}/api/assets/bulk-import/template`;
+
+// Asset Queries (public scan-page submissions)
+export const updateAssetQuery = (token, id, data) => request("PATCH", `/api/asset-queries/${id}`, data, { authToken: token });
+
 // Departments
 export const getDepartments = (token, params = "") => request("GET", `/api/departments${params ? `?${params}` : ""}`, undefined, { authToken: token });
 export const createDepartment = (token, data) => request("POST", "/api/departments", data, { authToken: token });
@@ -125,10 +144,40 @@ export const createCompanyPortalDepartment = (token, data) => request("POST", "/
 export const updateCompanyPortalDepartment = (token, id, data) => request("PUT", `/api/company-portal/departments/${id}`, data, { authToken: token });
 export const deleteCompanyPortalDepartment = (token, id) => request("DELETE", `/api/company-portal/departments/${id}`, undefined, { authToken: token });
 export const getCompanyPortalAssetTypes = (token) => request("GET", "/api/company-portal/asset-types", undefined, { authToken: token });
-export const getCompanyPortalAssets = (token) => request("GET", "/api/company-portal/assets", undefined, { authToken: token });
+export const getCompanyPortalAssets = (token, params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request("GET", `/api/company-portal/assets${qs ? "?" + qs : ""}`, undefined, { authToken: token });
+};
 export const createCompanyPortalAsset = (token, data) => request("POST", "/api/company-portal/assets", data, { authToken: token });
 export const updateCompanyPortalAsset = (token, id, data) => request("PUT", `/api/company-portal/assets/${id}`, data, { authToken: token });
 export const deleteCompanyPortalAsset = (token, id) => request("DELETE", `/api/company-portal/assets/${id}`, undefined, { authToken: token });
+export const bulkDeleteCompanyPortalAssets = (token, ids) => request("DELETE", "/api/company-portal/assets/bulk", { ids }, { authToken: token });
+export const bulkDeleteCompanyPortalPreQr = (token, ids) => request("DELETE", "/api/company-portal/pre-qr/bulk", { ids }, { authToken: token });
+export const assignCompanyPortalAsset = (token, assetId, userId) => request("PATCH", `/api/company-portal/assets/${assetId}/assign`, { userId }, { authToken: token });
+export const getAssetByBarcode = (token, barcode) => request("GET", `/api/company-portal/assets/by-barcode/${encodeURIComponent(barcode)}`, undefined, { authToken: token });
+
+/** Bulk-import assets from Excel/CSV via the company portal endpoint. */
+export const bulkImportCompanyPortalAssets = async (token, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(
+    `${BASE}/api/company-portal/assets/bulk-import`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+};
+
+/** Template download URL for company portal bulk import. */
+export const getCompanyPortalImportTemplateUrl = () => `${BASE}/api/company-portal/assets/bulk-import/template`;
+export const getAssetQueries = (token, params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request("GET", `/api/company-portal/asset-queries${qs ? "?" + qs : ""}`, undefined, { authToken: token });
+};
+export const createAssetQuery = (token, data) => request("POST", "/api/company-portal/asset-queries", data, { authToken: token });
+export const resolveAssetQuery = (token, id, resolutionNote) => request("PATCH", `/api/company-portal/asset-queries/${id}/resolve`, { resolutionNote }, { authToken: token });
+export const escalateAssetQuery = (token, id) => request("PATCH", `/api/company-portal/asset-queries/${id}/escalate`, {}, { authToken: token });
 export const getCompanyPortalChecklists = (token) => request("GET", "/api/company-portal/checklists", undefined, { authToken: token });
 export const createCompanyPortalChecklist = (token, data) => request("POST", "/api/company-portal/checklists", data, { authToken: token });
 export const updateCompanyPortalChecklist = (token, id, data) => request("PUT", `/api/company-portal/checklists/${id}`, data, { authToken: token });
@@ -143,6 +192,13 @@ export const getCompanyPortalRecentLogsheetEntries = (token) => request("GET", "
 export const getCompanyPortalRecentChecklistSubmissions = (token) => request("GET", "/api/company-portal/checklist-submissions/recent", undefined, { authToken: token });
 export const createCompanyPortalLogsheetTemplate = (token, data) => request("POST", "/api/company-portal/logsheet-templates", data, { authToken: token });
 export const assignCompanyPortalLogsheetTemplate = (token, templateId, assetId) => request("POST", `/api/company-portal/logsheet-templates/${templateId}/assign`, { assetId }, { authToken: token });
+// Pre-generated QR codes
+export const getPreQrCodes = (token) => request("GET", "/api/company-portal/pre-qr", undefined, { authToken: token });
+export const generatePreQrCodes = (token, count) => request("POST", "/api/company-portal/pre-qr/generate", { count }, { authToken: token });
+export const linkPreQrCode = (token, id, assetId) => request("PATCH", `/api/company-portal/pre-qr/${id}/link`, { assetId }, { authToken: token });
+export const getPreQrByUid = (uid) => request("GET", `/api/company-portal/pre-qr/by-uid/${encodeURIComponent(uid)}`, undefined, {});
+export const registerPreQrAsset = (token, qrId, data) => request("POST", `/api/company-portal/pre-qr/${qrId}/register-asset`, data, { authToken: token });
+export const deletePreQrCode = (token, id) => request("DELETE", `/api/company-portal/pre-qr/${id}`, undefined, { authToken: token });
 export const getCompanyPortalEmployees = (token) => request("GET", "/api/company-portal/employees", undefined, { authToken: token });
 export const createCompanyPortalEmployee = (token, data) => request("POST", "/api/company-portal/employees", data, { authToken: token });
 export const updateCompanyPortalEmployee = (token, id, data) => request("PUT", `/api/company-portal/employees/${id}`, data, { authToken: token });
@@ -248,6 +304,29 @@ export const getCPAssetDashboardAlerts       = (token, params = "") => request("
 export const getCPAssetDashboardHistory      = (token, assetId)     => request("GET", `${cpAD}/${assetId}/history`,                             undefined, { authToken: token });
 export const getCPAssetDashboardCompare      = (token, params = "") => request("GET", `${cpAD}/compare${params ? `?${params}` : ""}`,           undefined, { authToken: token });
 export const getCPAssetDashboardPredictive   = (token, params = "") => request("GET", `${cpAD}/predictive${params ? `?${params}` : ""}`,        undefined, { authToken: token });
+
+// ── Healthcare Asset Management Dashboard ─────────────────────────────────────
+const hcBase = "/api/company-portal/healthcare";
+export const getHCSnapshot        = (token, params = "") => request("GET", `${hcBase}/snapshot${params ? `?${params}` : ""}`,          undefined, { authToken: token });
+export const getHCCharts          = (token, params = "") => request("GET", `${hcBase}/charts${params ? `?${params}` : ""}`,            undefined, { authToken: token });
+export const getHCAssets          = (token, params = "") => request("GET", `${hcBase}/assets${params ? `?${params}` : ""}`,            undefined, { authToken: token });
+export const getHCFilterOptions   = (token)              => request("GET", `${hcBase}/filter-options`,                                 undefined, { authToken: token });
+export const getHCRequests        = (token, params = "") => request("GET", `${hcBase}/requests${params ? `?${params}` : ""}`,          undefined, { authToken: token });
+export const updateHCAsset        = (token, id, data)    => request("PATCH", `${hcBase}/assets/${id}`,                                data,      { authToken: token });
+export const getHCCallLogs        = (token, params = "") => request("GET", `${hcBase}/records/call-logs${params ? `?${params}` : ""}`, undefined, { authToken: token });
+export const createHCCallLog      = (token, data)        => request("POST",  `${hcBase}/records/call-logs`,                           data,      { authToken: token });
+export const getHCPmsRecords      = (token, params = "") => request("GET", `${hcBase}/records/pms${params ? `?${params}` : ""}`,       undefined, { authToken: token });
+export const createHCPmsRecord    = (token, data)        => request("POST",  `${hcBase}/records/pms`,                                 data,      { authToken: token });
+export const getHCCalibration     = (token, params = "") => request("GET", `${hcBase}/records/calibration${params ? `?${params}` : ""}`, undefined, { authToken: token });
+export const createHCCalibration  = (token, data)        => request("POST",  `${hcBase}/records/calibration`,                         data,      { authToken: token });
+export const getHCTraining        = (token, params = "") => request("GET", `${hcBase}/records/training${params ? `?${params}` : ""}`,  undefined, { authToken: token });
+export const createHCTraining     = (token, data)        => request("POST",  `${hcBase}/records/training`,                            data,      { authToken: token });
+export const getHCRber            = (token, params = "") => request("GET", `${hcBase}/records/rber${params ? `?${params}` : ""}`,      undefined, { authToken: token });
+export const createHCRber         = (token, data)        => request("POST",  `${hcBase}/records/rber`,                                data,      { authToken: token });
+export const getHCWORemarks       = (token, woId)        => request("GET", `${hcBase}/work-orders/${woId}/remarks`,                   undefined, { authToken: token });
+export const addHCWORemark        = (token, woId, data)  => request("POST",  `${hcBase}/work-orders/${woId}/remarks`,                 data,      { authToken: token });
+export const getHCWOActivity      = (token, woId)        => request("GET", `${hcBase}/work-orders/${woId}/activity`,                  undefined, { authToken: token });
+export const getHCExportUrl       = (BASE_URL, type, params = "") => `${BASE_URL}${hcBase}/export?type=${type}${params ? `&${params}` : ""}`;
 
 // ── Shift Management ──────────────────────────────────────────────────────────
 export const getShifts             = (token)          => request("GET",    "/api/shifts",                          undefined, { authToken: token });

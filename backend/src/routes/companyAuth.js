@@ -7,15 +7,7 @@ import { validate } from "../validators.js";
 
 const router = Router();
 
-// Auto-add role column if it doesn't exist yet
-(async () => {
-  try {
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS role VARCHAR(60) NOT NULL DEFAULT 'employee'`);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("[company-auth] migration:", err.message);
-  }
-})();
+// Note: company_users column migrations are handled by companyUsers.js to avoid concurrent ALTER TABLE deadlocks.
 
 /**
  * POST /api/company-auth/login

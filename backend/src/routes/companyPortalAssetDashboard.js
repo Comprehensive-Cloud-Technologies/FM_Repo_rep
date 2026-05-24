@@ -628,11 +628,11 @@ router.get("/alerts", validate(cpParam), async (req, res, next) => {
     // Stale open work orders (> 7 days)
     const [staleWO] = await pool.query(
       `SELECT a.id, a.asset_name AS assetName, wo.work_order_number AS woNumber,
-              wo.priority, DATE_PART('day', NOW() - wo.created_at) AS ageDays
+              wo.priority, DATEDIFF(NOW(), wo.created_at) AS ageDays
        FROM work_orders wo
        JOIN assets a ON wo.asset_id = a.id
        WHERE a.company_id = ? AND wo.status IN ('open','in_progress')
-         AND wo.created_at < NOW() - INTERVAL '7 days'
+         AND wo.created_at < NOW() - INTERVAL 7 DAY
        ORDER BY ageDays DESC LIMIT 20`,
       [companyId]
     );

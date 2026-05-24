@@ -57,17 +57,14 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: apiTarget,
           changeOrigin: true,
-          headers: { host: "fm.catalystsolutions.eco" },
         },
         "/health": {
           target: apiTarget,
           changeOrigin: true,
-          headers: { host: "fm.catalystsolutions.eco" },
         },
         "/uploads": {
           target: apiTarget,
           changeOrigin: true,
-          headers: { host: "fm.catalystsolutions.eco" },
         },
       },
     },

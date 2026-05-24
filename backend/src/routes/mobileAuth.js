@@ -51,14 +51,27 @@ router.post("/verify-company", async (req, res, next) => {
 
 /* ── Helper: fetch role capabilities from company_roles table ─────────────── */
 async function getRoleCapabilities(companyId, roleKey) {
-  const empty = { canRaiseSoftIssue: false, canResolveSoftIssue: false, isSoftManager: false, isTechnicalSupervisor: false, isTechnician: false };
+  const empty = {
+    canRaiseSoftIssue: false, canResolveSoftIssue: false, isSoftManager: false,
+    isTechnicalSupervisor: false, isTechnician: false,
+    isHCStaff: false, isHCEngineer: false, isHCAdmin: false,
+  };
   if (!roleKey) return empty;
 
-  // Legacy built-in role keys that are always technical
   const legacyRole = roleKey.toLowerCase();
+
+  // ── Healthcare roles ─────────────────────────────────────────────────────
+  if (['nurse', 'doctor', 'ward_boy'].includes(legacyRole))
+    return { ...empty, isHCStaff: true, canRaiseSoftIssue: true };
+  if (legacyRole === 'engineer')
+    return { ...empty, isHCEngineer: true, isTechnician: true };
+  if (legacyRole === 'admin')
+    return { ...empty, isHCAdmin: true, isTechnicalSupervisor: true };
+
+  // ── Legacy built-in role keys ────────────────────────────────────────────
   if (legacyRole === 'supervisor') return { ...empty, isTechnicalSupervisor: true };
   if (legacyRole === 'technician') return { ...empty, isTechnician: true };
-  if (legacyRole === 'admin' || legacyRole === 'technical_lead') return { ...empty, isTechnicalSupervisor: true };
+  if (legacyRole === 'technical_lead') return { ...empty, isTechnicalSupervisor: true };
 
   // Custom role — look up in company_roles
   let row;
@@ -75,7 +88,6 @@ async function getRoleCapabilities(companyId, roleKey) {
       [companyId, roleKey]
     );
   } catch {
-    // Columns may not be migrated yet on some instances — fall back gracefully
     [[row]] = await pool.query(
       `SELECT can_raise_soft_issue   AS "canRaiseSoftIssue",
               can_resolve_soft_issue AS "canResolveSoftIssue",
@@ -94,6 +106,9 @@ async function getRoleCapabilities(companyId, roleKey) {
     isSoftManager:         Boolean(row.isSoftManager),
     isTechnicalSupervisor: Boolean(row.isTechnicalSupervisor),
     isTechnician:          Boolean(row.isTechnician),
+    isHCStaff:             false,
+    isHCEngineer:          false,
+    isHCAdmin:             false,
   };
 }
 

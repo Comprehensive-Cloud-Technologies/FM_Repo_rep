@@ -14,6 +14,7 @@
 
 import { Router } from "express";
 import pool from "../db.js";
+import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 
 const router = Router();
@@ -46,7 +47,7 @@ const slugify = (s) =>
     `);
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error("[company-roles] migration:", err.message);
+    if (!isMigrationSafeError(err)) console.error("[company-roles] migration:", err.message);
   }
 })();
 

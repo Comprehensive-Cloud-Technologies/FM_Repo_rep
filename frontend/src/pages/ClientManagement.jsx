@@ -6,7 +6,7 @@ import {
 
 const emptyClient = {
   clientName: "", email: "", phone: "", state: "",
-  pincode: "", gst: "", company: "", address: "", status: "Active",
+  pincode: "", gst: "", address: "", status: "Active",
 };
 
 const ClientManagement = ({ clients, onAddClient, onEditClient, onDeleteClient }) => {
@@ -59,7 +59,6 @@ const ClientManagement = ({ clients, onAddClient, onEditClient, onDeleteClient }
       state: c.state || c.state_name || "",
       pincode: c.pincode || "",
       gst: c.gst || c.gst_number || "",
-      company: c.company || c.company_name || "",
       address: c.address || "",
       status: c.status || "Active",
     });
@@ -276,17 +275,10 @@ const ClientManagement = ({ clients, onAddClient, onEditClient, onDeleteClient }
                   {fieldErrors.phone && <span className="field-error">{fieldErrors.phone}</span>}
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div className="form-group">
-                  <label>Company Name</label>
-                  <input name="company" placeholder="Acme Ltd." value={form.company}
-                    onChange={handleChange} className="form-input" />
-                </div>
-                <div className="form-group">
-                  <label>GST Number</label>
-                  <input name="gst" placeholder="22AAAAA0000A1Z5" value={form.gst}
-                    onChange={handleChange} className="form-input" />
-                </div>
+              <div className="form-group">
+                <label>GST Number</label>
+                <input name="gst" placeholder="22AAAAA0000A1Z5" value={form.gst}
+                  onChange={handleChange} className="form-input" />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <div className="form-group">

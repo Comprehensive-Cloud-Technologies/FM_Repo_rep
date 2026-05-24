@@ -1,10 +1,7 @@
-/**
+﻿/**
  * AssetScanPage
- *
- * When a user scans an asset QR code, this page immediately attempts to
- * open the Klean mobile app via deep link (klean://asset-scan?assetId=X).
- * If the app is not installed, it shows a fallback with Play Store link.
- * The Catalyst logo is shown prominently at the top.
+ * Public page shown when a QR / barcode is scanned.
+ * Shows full asset details + "Raise a Query" form.
  */
 
 import { useState, useEffect } from "react";
@@ -13,124 +10,259 @@ import { getApiBaseUrl } from "../utils/runtimeConfig";
 import catalystLogo from "../images/image.png";
 
 const BASE = getApiBaseUrl();
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.cct123.mobileapp";
+
+const DEFAULT_QUERIES_FALLBACK = [
+  "Equipment not working",
+  "Maintenance required",
+  "Calibration needed",
+  "Accessories missing",
+  "Physical damage observed",
+  "Other",
+];
+
+function InfoRow({ label, value }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f1f5f9", gap: "12px" }}>
+      <span style={{ fontSize: "12px", color: "#64748b", flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", textAlign: "right", wordBreak: "break-word" }}>{value}</span>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>{title}</div>
+      {children}
+    </div>
+  );
+}
 
 export default function AssetScanPage() {
   const { assetId } = useParams();
 
   const [asset, setAsset] = useState(null);
   const [assetLoading, setAssetLoading] = useState(true);
-  const [showFallback, setShowFallback] = useState(false);
+  const [assetError, setAssetError] = useState(null);
+  const [defaultQueries, setDefaultQueries] = useState(DEFAULT_QUERIES_FALLBACK);
 
-  // Fetch asset info for display
+  const [showQueryForm, setShowQueryForm] = useState(false);
+  const [queryForm, setQueryForm] = useState({ requesterName: "", requesterPhone: "", requesterEmail: "", queryType: "", message: "" });
+  const [querySubmitting, setQuerySubmitting] = useState(false);
+  const [querySuccess, setQuerySuccess] = useState(false);
+  const [queryError, setQueryError] = useState(null);
+
   useEffect(() => {
     if (!assetId) return;
     fetch(`${BASE}/api/asset-qr/${assetId}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.asset) setAsset(data.asset); })
-      .catch(() => {})
+      .then((r) => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then((data) => { if (data?.asset) setAsset(data.asset); else setAssetError("Asset not found."); })
+      .catch(() => setAssetError("Failed to load asset details."))
       .finally(() => setAssetLoading(false));
+
+    fetch(`${BASE}/api/asset-qr/${assetId}/queries/defaults`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.questions?.length) setDefaultQueries(data.questions); })
+      .catch(() => {});
   }, [assetId]);
 
-  // Immediately try to open the Klean app via deep link
-  useEffect(() => {
-    if (!assetId) return;
-    window.location.href = `mobileapp://asset-scan?assetId=${assetId}`;
-    const timer = setTimeout(() => setShowFallback(true), 2500);
-    return () => clearTimeout(timer);
-  }, [assetId]);
+  const handleQueryChange = (field, value) => setQueryForm((prev) => ({ ...prev, [field]: value }));
 
-  const handleOpenApp = () => {
-    window.location.href = `mobileapp://asset-scan?assetId=${assetId}`;
-    setTimeout(() => setShowFallback(true), 2000);
+  const handleQuerySubmit = async (e) => {
+    e.preventDefault();
+    if (!queryForm.requesterName.trim()) { setQueryError("Please enter your name."); return; }
+    setQuerySubmitting(true); setQueryError(null);
+    try {
+      const resp = await fetch(`${BASE}/api/asset-qr/${assetId}/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(queryForm),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "Submission failed");
+      setQuerySuccess(true);
+    } catch (err) {
+      setQueryError(err.message);
+    } finally {
+      setQuerySubmitting(false);
+    }
+  };
+
+  const meta = asset?.metadata || {};
+
+  const maintenanceLabel = () => {
+    const map = { warranty: "Warranty", amc: "AMC", cmc: "CMC", inhouse: "In-House", catalyst: "Catalyst FM" };
+    return map[meta.maintenanceType] || meta.maintenanceType;
+  };
+
+  const maintenanceDates = () => {
+    const t = meta.maintenanceType;
+    if (!t) return null;
+    const start = meta[`${t}Start`], end = meta[`${t}End`];
+    if (start && end) return `${start} → ${end}`;
+    if (start) return `From ${start}`;
+    return null;
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 20px" }}>
-      <div style={{ maxWidth: "420px", width: "100%", background: "#fff", borderRadius: "20px", boxShadow: "0 20px 60px rgba(0,0,0,0.12)", overflow: "hidden" }}>
-
-        {/* Header with Catalyst logo */}
-        <div style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)", padding: "28px 24px", textAlign: "center" }}>
-          <div style={{ background: "#fff", borderRadius: "10px", padding: "10px 20px", display: "inline-block", marginBottom: "16px" }}>
-            <img src={catalystLogo} alt="Catalyst" style={{ height: "40px", display: "block" }} />
-          </div>
-          <h1 style={{ color: "#fff", fontSize: "20px", fontWeight: 800, margin: 0, marginBottom: "6px" }}>QR Code Scanned</h1>
-          <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "14px", margin: 0 }}>Open in the Klean app to fill templates</p>
-        </div>
-
-        <div style={{ padding: "28px 24px" }}>
-
-          {/* Asset info (if loaded) */}
-          {!assetLoading && asset && (
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", marginBottom: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" />
-                  </svg>
-                </div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", margin: 0 }}>{asset.assetName}</p>
-                  <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>{asset.assetType}{asset.assetUniqueId ? ` · ${asset.assetUniqueId}` : ""}</p>
-                </div>
-              </div>
-              {(asset.building || asset.floor) && (
-                <p style={{ fontSize: "12px", color: "#94a3b8", margin: 0, paddingTop: "8px", borderTop: "1px solid #e2e8f0" }}>
-                  📍 {[asset.building, asset.floor, asset.room].filter(Boolean).join(" · ")}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Launching indicator */}
-          {!showFallback && (
-            <div style={{ textAlign: "center", padding: "12px 0 24px" }}>
-              <div style={{ display: "inline-block", width: "36px", height: "36px", border: "3px solid #e2e8f0", borderTop: "3px solid #2563eb", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: "14px" }} />
-              <p style={{ fontSize: "15px", fontWeight: 600, color: "#0f172a", marginBottom: "4px" }}>Opening Klean App…</p>
-              <p style={{ fontSize: "13px", color: "#94a3b8" }}>If the app doesn't open, it may not be installed.</p>
-            </div>
-          )}
-
-          {/* Open in app button */}
-          <button
-            onClick={handleOpenApp}
-            style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #1e3a8a, #2563eb)", color: "#fff", border: "none", borderRadius: "10px", fontSize: "16px", fontWeight: 700, cursor: "pointer", marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="5" y="2" width="14" height="20" rx="2" />
-              <line x1="12" y1="18" x2="12.01" y2="18" />
-            </svg>
-            Open in Klean App
-          </button>
-
-          {/* Play Store fallback */}
-          {showFallback && (
-            <div style={{ marginTop: "4px" }}>
-              <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: "8px", padding: "12px 14px", marginBottom: "16px" }}>
-                <p style={{ fontSize: "13px", color: "#92400e", margin: 0, fontWeight: 500 }}>
-                  ⚠️ App didn't open — Klean may not be installed on this device.
-                </p>
-              </div>
-              <a
-                href={PLAY_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", width: "100%", padding: "13px", background: "#fff", border: "2px solid #16a34a", borderRadius: "10px", textDecoration: "none", color: "#16a34a", fontSize: "15px", fontWeight: 700 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-                Download from Google Play Store
-              </a>
-            </div>
-          )}
-        </div>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px 48px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+        <img src={catalystLogo} alt="Catalyst FM" style={{ height: "36px", objectFit: "contain" }} />
+        <span style={{ fontSize: "15px", fontWeight: 800, color: "#1e3a8a" }}>Catalyst FM</span>
       </div>
 
-      <p style={{ marginTop: "20px", fontSize: "12px", color: "#94a3b8", textAlign: "center" }}>
-        Powered by <strong style={{ color: "#2563eb" }}>Catalyst</strong> — Partnering for Sustainability
-      </p>
+      <div style={{ width: "100%", maxWidth: "460px" }}>
+        {assetLoading && (
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "40px", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
+            <div style={{ width: "36px", height: "36px", border: "4px solid #e0f2fe", borderTop: "4px solid #2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+            <p style={{ color: "#64748b", margin: 0 }}>Loading asset details…</p>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        {assetError && !assetLoading && (
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px 24px", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
+            <div style={{ fontSize: "40px", marginBottom: "12px" }}>⚠️</div>
+            <h3 style={{ margin: "0 0 8px", color: "#dc2626" }}>Asset Not Found</h3>
+            <p style={{ color: "#64748b", fontSize: "14px", margin: 0 }}>{assetError}</p>
+          </div>
+        )}
+
+        {asset && !assetLoading && !querySuccess && (
+          <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(135deg, #1e3a8a, #2563eb)", padding: "20px 20px 16px" }}>
+              <div style={{ fontSize: "11px", color: "#93c5fd", marginBottom: "4px", fontWeight: 600 }}>ASSET DETAILS</div>
+              <h2 style={{ margin: 0, color: "#fff", fontSize: "18px", fontWeight: 800 }}>{asset.assetName}</h2>
+              {asset.assetUniqueId && (
+                <div style={{ marginTop: "6px", fontFamily: "monospace", fontSize: "12px", background: "rgba(255,255,255,0.15)", color: "#e0f2fe", padding: "3px 8px", borderRadius: "6px", display: "inline-block" }}>
+                  {asset.assetUniqueId}
+                </div>
+              )}
+              {asset.departmentName && (
+                <div style={{ marginTop: "10px", fontSize: "12px", color: "#bfdbfe" }}>
+                  📍 {[asset.building, asset.floor, asset.room, asset.departmentName].filter(Boolean).join(" · ")}
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: "20px" }}>
+              {!showQueryForm ? (
+                <>
+                  {/* Equipment photos */}
+                  {Array.isArray(meta.hcImages) && meta.hcImages.length > 0 && (
+                    <Section title="Equipment Photos">
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {meta.hcImages.map((img, i) => (
+                          <a key={i} href={img.url} target="_blank" rel="noreferrer">
+                            <img src={img.url} alt={img.name || `photo-${i+1}`} style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0", cursor: "pointer" }} />
+                          </a>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+
+                  <Section title="Equipment Information">
+                    <InfoRow label="Make / Brand" value={meta.make || meta.manufacturer} />
+                    <InfoRow label="Model" value={meta.model} />
+                    <InfoRow label="Serial No." value={meta.serialNo} />
+                    <InfoRow label="Accessories" value={meta.accessories} />
+                    <InfoRow label="Dealer / Distributor" value={meta.dealer} />
+                    <InfoRow label="Mfg. Year" value={meta.manufacturingYear} />
+                    <InfoRow label="Installation Date" value={meta.installationDate || meta.hcInstallationDate} />
+                    <InfoRow label="Invoice No." value={meta.invoiceNo} />
+                    <InfoRow label="Purchase Cost" value={meta.purchaseCost ? `₹ ${Number(meta.purchaseCost).toLocaleString("en-IN")}` : null} />
+                    {meta.hcInvoiceUrl && (
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f1f5f9", gap: "12px" }}>
+                        <span style={{ fontSize: "12px", color: "#64748b", flexShrink: 0 }}>Invoice Document</span>
+                        <a href={meta.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "13px", fontWeight: 600, color: "#2563eb" }}>📄 View</a>
+                      </div>
+                    )}
+                  </Section>
+
+                  {meta.maintenanceType && (
+                    <Section title="Maintenance Status">
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                        <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ede9fe" }}>{maintenanceLabel()}</span>
+                        {meta.rber && <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>RBER</span>}
+                      </div>
+                      {maintenanceDates() && <InfoRow label="Period" value={maintenanceDates()} />}
+                    </Section>
+                  )}
+
+                  {meta.remarks && (
+                    <Section title="Remarks">
+                      <p style={{ margin: 0, fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>{meta.remarks}</p>
+                    </Section>
+                  )}
+
+                  {asset.companyName && (
+                    <Section title="Facility">
+                      <InfoRow label="Facility" value={asset.companyName} />
+                    </Section>
+                  )}
+
+                  <button onClick={() => setShowQueryForm(true)} style={{ width: "100%", marginTop: "8px", padding: "14px", borderRadius: "12px", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Raise a Query / Request Service
+                  </button>
+                </>
+              ) : (
+                <form onSubmit={handleQuerySubmit}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                    <button type="button" onClick={() => { setShowQueryForm(false); setQueryError(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "13px", padding: "4px 0" }}>← Back</button>
+                    <span style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Raise a Query</span>
+                  </div>
+
+                  <div style={{ marginBottom: "14px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "5px" }}>Your Name *</label>
+                    <input type="text" required value={queryForm.requesterName} onChange={(e) => handleQueryChange("requesterName", e.target.value)} placeholder="Full name" style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+
+                  <div style={{ marginBottom: "14px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "5px" }}>Phone Number</label>
+                    <input type="tel" value={queryForm.requesterPhone} onChange={(e) => handleQueryChange("requesterPhone", e.target.value)} placeholder="Mobile number" style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+
+                  <div style={{ marginBottom: "14px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "5px" }}>Query Type</label>
+                    <select value={queryForm.queryType} onChange={(e) => handleQueryChange("queryType", e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", background: "#fff", boxSizing: "border-box" }}>
+                      <option value="">Select issue type…</option>
+                      {defaultQueries.map((q) => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: "14px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "5px" }}>Additional Details</label>
+                    <textarea value={queryForm.message} onChange={(e) => handleQueryChange("message", e.target.value)} placeholder="Describe the issue in more detail…" rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                  </div>
+
+                  {queryError && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "10px 12px", borderRadius: "8px", fontSize: "13px", marginBottom: "12px" }}>{queryError}</div>}
+
+                  <button type="submit" disabled={querySubmitting} style={{ width: "100%", padding: "14px", borderRadius: "12px", background: querySubmitting ? "#94a3b8" : "linear-gradient(135deg, #16a34a, #15803d)", color: "#fff", border: "none", cursor: querySubmitting ? "not-allowed" : "pointer", fontSize: "15px", fontWeight: 700 }}>
+                    {querySubmitting ? "Submitting…" : "Submit Query"}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
+        {querySuccess && (
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "40px 24px", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
+            <div style={{ width: "64px", height: "64px", background: "#f0fdf4", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: "32px" }}>✅</div>
+            <h3 style={{ margin: "0 0 8px", color: "#16a34a", fontSize: "18px" }}>Query Submitted!</h3>
+            <p style={{ color: "#64748b", fontSize: "14px", lineHeight: "1.6", margin: "0 0 20px" }}>Our team has been notified and will reach out to you shortly.</p>
+            <button onClick={() => { setQuerySuccess(false); setShowQueryForm(false); setQueryForm({ requesterName: "", requesterPhone: "", requesterEmail: "", queryType: "", message: "" }); }} style={{ padding: "10px 24px", borderRadius: "10px", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
+              Back to Asset Details
+            </button>
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: "24px", fontSize: "11px", color: "#94a3b8" }}>
+          Powered by <strong>Catalyst FM</strong> · Facility Management Platform
+        </div>
+      </div>
     </div>
   );
 }

@@ -5,13 +5,16 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import multer from "multer";
 import pool from "../db.js";
+import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
+const queryImagesDir = path.join(__dirname, "../../uploads/query-images");
 fs.mkdirSync(uploadsDir, { recursive: true }); // ensure directory exists
+fs.mkdirSync(queryImagesDir, { recursive: true });
 
 const ojtStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -61,7 +64,132 @@ const uploadLogo = multer({
 });
 
 const router = Router();
+
+// ── GET /assets/bulk-import/template  (public — no auth needed) ──────────────
+// This route MUST be before router.use(requireCompanyAuth).
+router.get("/assets/bulk-import/template", (_req, res) => {
+  import("xlsx").then((XLSX) => {
+    const wb = XLSX.utils.book_new();
+    const headers = [
+      "assetName*", "assetType", "departmentName",
+      "building", "floor", "room", "assetUniqueId", "status",
+    ];
+    const example  = ["Machine A",   "general",    "ICU",   "Block A", "1", "101", "", "Active"];
+    const example2 = ["Ventilator B", "healthcare", "OPD",   "Block B", "2", "202", "", "Active"];
+    const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
+    ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 2, 20) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Assets");
+
+    const notes = [
+      ["Column",         "Required?", "Notes"],
+      ["assetName",      "Yes",       "Name / Equipment Name / Item Name"],
+      ["assetType",      "No",        "e.g. general, healthcare, fleet — defaults to 'general'"],
+      ["departmentName", "No",        "Exact department name. Leave blank if unknown."],
+      ["building",       "No",        "Building / Location label"],
+      ["floor",          "No",        "Floor number or label"],
+      ["room",           "No",        "Room / Ward number"],
+      ["assetUniqueId",  "No",        "Leave blank to auto-generate a unique QR code ID"],
+      ["status",         "No",        "Active or Inactive — defaults to Active"],
+    ];
+    const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+    wsNotes["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 55 }];
+    XLSX.utils.book_append_sheet(wb, wsNotes, "Instructions");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", 'attachment; filename="asset-import-template.xlsx"');
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  }).catch((err) => {
+    console.error("Template generation error:", err);
+    res.status(500).json({ message: "Failed to generate template" });
+  });
+});
+
 router.use(requireCompanyAuth);
+
+// ── Startup migrations ────────────────────────────────────────────────────────
+(async () => {
+  const migrations = [
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS cp_assigned_to INT DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS cp_created_by INT DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS assigned_note TEXT DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS escalation_level INT DEFAULT 0`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS expected_completion_at DATETIME DEFAULT NULL`,
+    `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS shift VARCHAR(60) DEFAULT NULL`,
+    `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(60) DEFAULT 'technical'`,
+    `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS supervisor_id INT DEFAULT NULL`,
+    // Asset assignment
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS assigned_to INT DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS assigned_by INT DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS assigned_at DATETIME DEFAULT NULL`,
+    // Asset queries / requests (raised via barcode scan)
+    `CREATE TABLE IF NOT EXISTS asset_queries (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      company_id INT NOT NULL,
+      asset_id INT NOT NULL,
+      raised_by INT NOT NULL,
+      assigned_to INT DEFAULT NULL,
+      title VARCHAR(500) NOT NULL,
+      description TEXT,
+      images JSON,
+      status VARCHAR(30) DEFAULT 'open',
+      priority VARCHAR(20) DEFAULT 'normal',
+      escalation_level INT DEFAULT 0,
+      cutoff_hours INT DEFAULT 24,
+      resolved_by INT DEFAULT NULL,
+      resolved_at DATETIME DEFAULT NULL,
+      resolution_note TEXT DEFAULT NULL,
+      created_at DATETIME DEFAULT NOW(),
+      updated_at DATETIME DEFAULT NOW()
+    )`,
+  // Patch columns missing from the old asset_queries table schema (IF NOT EXISTS skips CREATE if old table exists)
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS raised_by INT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS description TEXT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS images JSON DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS escalation_level INT DEFAULT 0`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_hours INT DEFAULT 24`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolved_by INT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS close_code VARCHAR(10) DEFAULT NULL`,
+  // Ensure notifications table has the right columns (may have been created by old flag engine)
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT DEFAULT NULL,
+    recipient_id INT DEFAULT NULL,
+    flag_id INT DEFAULT NULL,
+    type VARCHAR(60) DEFAULT 'flag_raised',
+    title VARCHAR(500),
+    message TEXT,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT NOW()
+  )`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS company_id INT DEFAULT NULL`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_id INT DEFAULT NULL`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS flag_id INT DEFAULT NULL`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(60) DEFAULT 'flag_raised'`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT NULL`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT DEFAULT NULL`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read TINYINT(1) NOT NULL DEFAULT 0`,
+  // Pre-generated QR codes (printed & pasted on machines before asset registration)
+  `CREATE TABLE IF NOT EXISTS asset_pre_qr (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    qr_unique_id VARCHAR(60) NOT NULL,
+    asset_id INT DEFAULT NULL,
+    linked_at DATETIME DEFAULT NULL,
+    created_at DATETIME DEFAULT NOW(),
+    UNIQUE KEY uq_qr_uid (qr_unique_id)
+  )`,
+  ];
+  for (const sql of migrations) {
+    try { await pool.query(sql); } catch (err) {
+      if (!isMigrationSafeError(err)) console.warn("[company-portal] migration:", err.message);
+    }
+  }
+})();
 
 const cid = (req) => req.companyUser.companyId;
 
@@ -419,21 +547,19 @@ router.get("/dashboard/chart-stats", async (req, res, next) => {
       [companyId]
     ));
     const [[subLSRows]] = await safe(() => pool.query(
-      // logsheet_entries.submitted_at is NOT NULL — safe to cast directly
       `SELECT COUNT(*) AS cnt
        FROM logsheet_entries le
        JOIN logsheet_templates lt ON lt.id = le.template_id
        WHERE lt.company_id = ?
-         AND le.submitted_at::date BETWEEN ? AND ?`,
+         AND DATE(le.submitted_at) BETWEEN ? AND ?`,
       [companyId, dateFrom, dateTo]
     ));
     const [[subCSRows]] = await safe(() => pool.query(
-      // checklist_submissions.submitted_at IS nullable — fall back to created_at
       `SELECT COUNT(*) AS cnt
        FROM checklist_submissions cs
        JOIN checklist_templates ct ON ct.id = cs.template_id
        WHERE ct.company_id = ?
-         AND COALESCE(cs.submitted_at, cs.created_at)::date BETWEEN ? AND ?`,
+         AND DATE(cs.submitted_at) BETWEEN ? AND ?`,
       [companyId, dateFrom, dateTo]
     ));
 
@@ -642,13 +768,17 @@ router.get("/assets", async (req, res, next) => {
     }
     // 'both' domain or admin role → no filter
 
-    const { search, type, assignedOnly } = req.query;
+    const { search, type, assignedOnly, assignedToMe } = req.query;
     const params = [cid(req)];
     let extraFilters = softFilter;
     if (type) { extraFilters += ` AND a.asset_type = ?`; params.push(type); }
     if (search) {
-      extraFilters += ` AND (a.asset_name ILIKE ? OR a.asset_unique_id ILIKE ?)`;
+      extraFilters += ` AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
+    }
+    if (assignedToMe === 'true' && req.companyUser?.id) {
+      extraFilters += ` AND a.assigned_to = ?`;
+      params.push(req.companyUser.id);
     }
     if (assignedOnly === 'true' && req.companyUser?.id) {
       extraFilters += `
@@ -668,11 +798,15 @@ router.get("/assets", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.department_id AS "departmentId",
+              a.assigned_to AS "assignedTo",
+              a.assigned_at AS "assignedAt",
+              cu.full_name AS "assignedToName",
               d.name AS "departmentName",
               ad.metadata, ad.documents
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       LEFT JOIN company_users cu ON cu.id = a.assigned_to
        WHERE a.company_id = ? ${extraFilters}
        ORDER BY a.asset_name`,
       params
@@ -686,6 +820,213 @@ router.get("/assets", async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Multer instance for Excel uploads (memory, no disk write)
+const excelAssetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    /\.(xlsx|xls|csv)$/i.test(file.originalname) ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
+  },
+});
+
+// ── POST /assets/bulk-import ──────────────────────────────────────────────────
+// Upload Excel/CSV to bulk-register assets for this company (admin/supervisor only).
+// Form fields (multipart): file (required)
+// Department is resolved per-row from the "departmentName" column (optional).
+// Each row auto-generates a unique asset ID + QR entry.
+router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, res, next) => {
+  try {
+    const role = req.companyUser.role;
+    if (role !== "admin" && role !== "supervisor")
+      return res.status(403).json({ message: "Admin or supervisor access required" });
+
+    if (!req.file) return res.status(400).json({ message: "Excel file is required" });
+
+    const [[co]] = await pool.query("SELECT sector, sectors FROM companies WHERE id = ?", [cid(req)]);
+    const sectors = co?.sectors
+      ? (typeof co.sectors === "string" ? JSON.parse(co.sectors) : co.sectors)
+      : (co?.sector ? [co.sector] : []);
+    const isHC = sectors.includes("healthcare");
+
+    // Cache department lookups by name (case-insensitive) to avoid N+1 queries
+    const [allDepts] = await pool.query(
+      "SELECT id, name FROM departments WHERE company_id = ?", [cid(req)]
+    );
+    const deptByName = new Map(
+      allDepts.map((d) => [d.name.toLowerCase().trim(), d.id])
+    );
+
+    const generateUniqueId = () => {
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      return isHC ? `HC-${dateStr}-${rand}` : `AST-${Date.now().toString(36).toUpperCase()}-${rand}`;
+    };
+
+    const { read, utils } = await import("xlsx");
+    const wb      = read(req.file.buffer, { type: "buffer" });
+    const ws      = wb.Sheets[wb.SheetNames[0]];
+    const rawRows = utils.sheet_to_json(ws, { defval: "" });
+
+    if (!rawRows.length) return res.status(400).json({ message: "The file has no data rows" });
+
+    const normalise = (row) => {
+      const n = {};
+      for (const [k, v] of Object.entries(row))
+        n[k.replace(/[*\s]/g, "").toLowerCase()] = String(v ?? "").trim();
+      return n;
+    };
+
+    // Helper: pick first non-empty value from a list of candidate keys
+    const pick = (row, ...keys) => {
+      for (const k of keys) { const v = row[k]; if (v) return v; }
+      return "";
+    };
+
+    const created = [];
+    const skipped = [];
+
+    for (let i = 0; i < rawRows.length; i++) {
+      const row    = normalise(rawRows[i]);
+      const rowNum = i + 2;
+
+      // Asset name — accept many real-world column names
+      const assetName = pick(row,
+        "assetname", "asset_name", "name", "equipmentname", "equipment_name",
+        "itemname", "item_name", "description", "equipmentdescription",
+        "assetdescription", "machinename", "devicename"
+      );
+      if (!assetName) { skipped.push({ row: rowNum, reason: "Asset name column is empty" }); continue; }
+
+      // Asset type
+      const assetType = pick(row,
+        "assettype", "asset_type", "type", "category", "equipmenttype",
+        "equipment_type", "itemtype", "assetcategory"
+      ) || "general";
+
+      // Location fields
+      const building = pick(row, "building", "block", "location", "site", "campus", "area") || null;
+      const floor    = pick(row, "floor", "level", "storey") || null;
+      const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station") || null;
+
+      // Status
+      const rawStatus = pick(row, "status", "condition", "state");
+      const status = rawStatus && rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active";
+
+      // Unique ID / QR
+      const providedUniqueId = pick(row,
+        "assetuniqueid", "asset_unique_id", "uniqueid", "qrcode", "qr_code",
+        "barcode", "assetcode", "asset_code", "assetid", "equipmentid",
+        "equipmentno", "tagno", "tagnumber", "assettag"
+      );
+      const uniqueIdToUse = providedUniqueId || generateUniqueId();
+
+      // Department: look up or auto-create (dedup by name)
+      const deptNameRaw = pick(row,
+        "departmentname", "department_name", "department", "dept",
+        "ward", "unit", "section", "division"
+      );
+      let departmentId = null;
+      if (deptNameRaw) {
+        const key = deptNameRaw.toLowerCase().trim();
+        if (deptByName.has(key)) {
+          departmentId = deptByName.get(key);
+        } else {
+          const [deptResult] = await pool.execute(
+            "INSERT IGNORE INTO departments (company_id, name) VALUES (?, ?)",
+            [cid(req), deptNameRaw.trim()]
+          );
+          let newId = deptResult.insertId;
+          if (!newId) {
+            // IGNORE triggered — fetch existing id
+            const [[existing]] = await pool.query(
+              "SELECT id FROM departments WHERE company_id = ? AND name = ? LIMIT 1",
+              [cid(req), deptNameRaw.trim()]
+            );
+            newId = existing?.id ?? null;
+          }
+          if (newId) {
+            deptByName.set(key, newId);
+            departmentId = newId;
+          }
+        }
+      }
+
+      try {
+        // Duplicate guard: skip if this uniqueId is already registered for this company
+        const [[existing]] = await pool.query(
+          "SELECT id FROM assets WHERE asset_unique_id = ? AND company_id = ? LIMIT 1",
+          [uniqueIdToUse, cid(req)]
+        );
+        if (existing) {
+          skipped.push({ row: rowNum, assetName, reason: `Duplicate: asset_unique_id '${uniqueIdToUse}' already exists` });
+          continue;
+        }
+
+        const [result] = await pool.execute(
+          `INSERT INTO assets
+             (company_id, department_id, asset_name, asset_unique_id, asset_type,
+              building, floor, room, status, qr_code)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [cid(req), departmentId, assetName, uniqueIdToUse, assetType,
+           building, floor, room, status, uniqueIdToUse]
+        );
+        const assetId = result.insertId;
+
+        // Save all metadata fields picked from the Excel row
+        const meta = {};
+        const mp = pick(row,
+          "make", "manufacturer", "manufacturername", "brand", "mfg", "madeby", "makeby");
+        if (mp) meta.make = mp;
+        const mdl = pick(row, "model", "modelno", "model_no", "modelname", "modelno");
+        if (mdl) meta.model = mdl;
+        const sn = pick(row, "serialno", "serial_no", "serialnumber", "srnumber", "srno", "sr_no", "serialnum");
+        if (sn) meta.serialNo = sn;
+        const acc = pick(row, "accessories", "accessory", "attachments");
+        if (acc) meta.accessories = acc;
+        const pd = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate");
+        if (pd) meta.purchaseDate = pd;
+        const id2 = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate");
+        if (id2) meta.installationDate = id2;
+        const inv = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum");
+        if (inv) meta.invoiceNo = inv;
+        const pc = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue");
+        if (pc) meta.purchaseCost = pc;
+        const my = pick(row, "mfgyear", "mfg_year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year");
+        if (my) meta.manufacturingYear = my;
+        const dl = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername");
+        if (dl) meta.dealer = dl;
+        const rm = pick(row, "remarks", "notes", "comment", "comments", "note", "remark");
+        if (rm) meta.remarks = rm;
+        const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport");
+        if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
+        const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract");
+        if (mn) meta.maintenanceType = mn;
+        await pool.execute("INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?)", [assetId, JSON.stringify(meta)]);
+
+        await pool.execute(
+          `INSERT INTO asset_pre_qr (company_id, qr_unique_id, asset_id, linked_at)
+           VALUES (?, ?, ?, NOW())
+           ON DUPLICATE KEY UPDATE asset_id = VALUES(asset_id), linked_at = NOW()`,
+          [cid(req), uniqueIdToUse, assetId]
+        );
+
+        created.push({
+          row: rowNum, id: assetId, assetName, assetUniqueId: uniqueIdToUse,
+          assetType, qrCode: uniqueIdToUse, building, floor, room, status,
+          departmentName: deptNameRaw || null,
+        });
+      } catch (rowErr) {
+        skipped.push({ row: rowNum, assetName, reason: rowErr.message });
+      }
+    }
+
+    res.status(201).json({
+      total: rawRows.length, created: created.length, skipped: skipped.length,
+      assets: created, errors: skipped,
+    });
+  } catch (err) { next(err); }
 });
 
 router.get("/assets/:id", async (req, res, next) => {
@@ -757,19 +1098,27 @@ router.post("/assets", async (req, res, next) => {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status = "Active", metadata = {} } = req.body;
     if (!assetName?.trim() || !assetType) return res.status(400).json({ message: "assetName and assetType are required" });
-    const [rows] = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO assets (company_id, department_id, asset_name, asset_unique_id, asset_type, building, floor, room, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       RETURNING id, asset_name AS "assetName", asset_unique_id AS "assetUniqueId", asset_type AS "assetType", status, building, floor, room, department_id AS "departmentId"`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [cid(req), departmentId || null, assetName.trim(), assetUniqueId || null, assetType, building || null, floor || null, room || null, status]
     );
-    const asset = rows[0];
+    const newId = result.insertId;
+    // Auto-generate barcode number for healthcare assets when not supplied
+    if (!assetUniqueId && assetType === "healthcare") {
+      const barcodeNo = `HC-${String(newId).padStart(6, "0")}`;
+      await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
+    }
+    const [[asset]] = await pool.query(
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status, building, floor, room, department_id AS departmentId FROM assets WHERE id = ?`,
+      [newId]
+    );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
        ON CONFLICT (asset_id) DO UPDATE SET metadata = EXCLUDED.metadata, documents = EXCLUDED.documents`,
-      [asset.id, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
+      [newId, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
     res.status(201).json({ ...asset, metadata });
   } catch (err) { next(err); }
@@ -782,7 +1131,7 @@ router.put("/assets/:id", async (req, res, next) => {
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status, metadata = {} } = req.body;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
-    const [rows] = await pool.query(
+    await pool.query(
       `UPDATE assets SET
          asset_name = COALESCE(?, asset_name),
          asset_unique_id = COALESCE(?, asset_unique_id),
@@ -791,9 +1140,12 @@ router.put("/assets/:id", async (req, res, next) => {
          building = ?, floor = ?, room = ?,
          status = COALESCE(?, status),
          updated_at = NOW()
-       WHERE id = ?
-       RETURNING id, asset_name AS "assetName", asset_unique_id AS "assetUniqueId", asset_type AS "assetType", status, building, floor, room, department_id AS "departmentId"`,
+       WHERE id = ?`,
       [assetName || null, assetUniqueId || null, assetType || null, departmentId || null, building || null, floor || null, room || null, status || null, id]
+    );
+    const [[asset]] = await pool.query(
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status, building, floor, room, department_id AS departmentId FROM assets WHERE id = ?`,
+      [id]
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
@@ -802,7 +1154,26 @@ router.put("/assets/:id", async (req, res, next) => {
        ON CONFLICT (asset_id) DO UPDATE SET metadata = EXCLUDED.metadata, documents = EXCLUDED.documents`,
       [id, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
-    res.json({ ...rows[0], metadata });
+    res.json({ ...asset, metadata });
+  } catch (err) { next(err); }
+});
+
+// DELETE /assets/bulk  — delete multiple assets at once (must be before /:id)
+router.delete("/assets/bulk", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const ids = req.body.ids;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ message: "ids array is required" });
+    if (ids.length > 500) return res.status(400).json({ message: "Maximum 500 assets per bulk delete" });
+    const placeholders = ids.map(() => "?").join(",");
+    // Cascade: delete linked QR codes first
+    await pool.query(`DELETE FROM asset_pre_qr WHERE asset_id IN (${placeholders}) AND company_id = ?`, [...ids, cid(req)]);
+    const [result] = await pool.query(
+      `DELETE FROM assets WHERE id IN (${placeholders}) AND company_id = ?`,
+      [...ids, cid(req)]
+    );
+    res.json({ deleted: result.affectedRows });
   } catch (err) { next(err); }
 });
 
@@ -812,8 +1183,241 @@ router.delete("/assets/:id", async (req, res, next) => {
     const { id } = req.params;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
+    // Cascade: delete linked QR code
+    await pool.query("DELETE FROM asset_pre_qr WHERE asset_id = ? AND company_id = ?", [id, cid(req)]);
     await pool.query("DELETE FROM assets WHERE id = ?", [id]);
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset assignment ────────────────────────────────────────────────────────── */
+router.patch("/assets/:id/assign", async (req, res, next) => {
+  try {
+    if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin or supervisor only" });
+    const { id } = req.params;
+    const { userId } = req.body; // null to unassign
+    const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
+    if (!check) return res.status(404).json({ message: "Asset not found" });
+    if (userId) {
+      await pool.query(
+        "UPDATE assets SET assigned_to = ?, assigned_by = ?, assigned_at = NOW(), updated_at = NOW() WHERE id = ?",
+        [userId, req.companyUser.id, id]
+      );
+    } else {
+      await pool.query(
+        "UPDATE assets SET assigned_to = NULL, assigned_by = NULL, assigned_at = NULL, updated_at = NOW() WHERE id = ?",
+        [id]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset lookup by barcode ─────────────────────────────────────────────────── */
+router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
+  try {
+    const { barcode } = req.params;
+    const [[asset]] = await pool.query(
+      `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.assigned_to AS "assignedTo",
+              cu.full_name AS "assignedToName",
+              d.name AS "departmentName",
+              ad.metadata, ad.documents
+       FROM assets a
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       LEFT JOIN company_users cu ON cu.id = a.assigned_to
+       WHERE a.company_id = ? AND a.asset_unique_id = ?`,
+      [cid(req), barcode]
+    );
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    const meta = asset.metadata == null ? {} : (typeof asset.metadata === "string" ? JSON.parse(asset.metadata) : asset.metadata);
+    const docs = asset.documents == null ? undefined : (typeof asset.documents === "string" ? JSON.parse(asset.documents) : asset.documents);
+    res.json({ ...asset, metadata: docs ? { ...meta, documents: docs } : meta, documents: undefined });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset Queries (raised from barcode scan) ────────────────────────────────── */
+router.get("/asset-queries", async (req, res, next) => {
+  try {
+    const { assetId, status, assignedTo } = req.query;
+    const params = [cid(req)];
+    let where = "WHERE aq.company_id = ?";
+    if (assetId)    { where += " AND aq.asset_id = ?";    params.push(Number(assetId)); }
+    if (status)     { where += " AND aq.status = ?";      params.push(status); }
+    if (assignedTo) { where += " AND aq.assigned_to = ?"; params.push(Number(assignedTo)); }
+    // Non-admin employees only see queries raised by them OR assigned to them
+    const isAdmin = ["admin", "supervisor", "catalyst_admin"].includes(req.companyUser.role);
+    if (!isAdmin) {
+      where += " AND (aq.raised_by = ? OR aq.assigned_to = ?)";
+      params.push(req.companyUser.id, req.companyUser.id);
+    }
+    const [rows] = await pool.query(
+      `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
+              a.asset_unique_id AS "assetUniqueId",
+              aq.raised_by AS "raisedBy", cu_r.full_name AS "raisedByName",
+              aq.assigned_to AS "assignedTo", cu_a.full_name AS "assignedToName",
+              aq.title, aq.description, aq.images, aq.status, aq.priority,
+              aq.escalation_level AS "escalationLevel",
+              aq.cutoff_hours AS "cutoffHours",
+              aq.resolved_by AS "resolvedBy", cu_res.full_name AS "resolvedByName",
+              aq.resolved_at AS "resolvedAt", aq.resolution_note AS "resolutionNote",
+              aq.created_at AS "createdAt", aq.updated_at AS "updatedAt"
+       FROM asset_queries aq
+       JOIN assets a ON a.id = aq.asset_id
+       LEFT JOIN company_users cu_r   ON cu_r.id  = aq.raised_by
+       LEFT JOIN company_users cu_a   ON cu_a.id  = aq.assigned_to
+       LEFT JOIN company_users cu_res ON cu_res.id = aq.resolved_by
+       ${where}
+       ORDER BY aq.created_at DESC`,
+      params
+    );
+    const normalized = rows.map(r => ({
+      ...r,
+      images: r.images ? (typeof r.images === "string" ? JSON.parse(r.images) : r.images) : [],
+    }));
+    res.json(normalized);
+  } catch (err) { next(err); }
+});
+
+router.post("/asset-queries", async (req, res, next) => {
+  try {
+    const { assetId, title, description, images, priority = "normal", cutoffHours = 24 } = req.body;
+    if (!assetId || !title?.trim()) return res.status(400).json({ message: "assetId and title required" });
+    // Find the asset and its current assigned_to (routes query to that person)
+    const [[asset]] = await pool.query(
+      "SELECT id, assigned_to FROM assets WHERE id = ? AND company_id = ?",
+      [assetId, cid(req)]
+    );
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    // Fetch requester's name for the requester_name column
+    const [[requester]] = await pool.query(
+      "SELECT full_name FROM company_users WHERE id = ?",
+      [req.companyUser.id]
+    );
+    const requesterName = requester?.full_name || "";
+    const [result] = await pool.query(
+      `INSERT INTO asset_queries
+         (company_id, asset_id, raised_by, assigned_to, title, description, images, priority, cutoff_hours, requester_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid(req), assetId, req.companyUser.id, asset.assigned_to || null,
+       title.trim(), description || null,
+       images?.length ? JSON.stringify(images) : null,
+       priority, cutoffHours, requesterName]
+    );
+    const [[query]] = await pool.query(
+      `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
+              aq.raised_by AS "raisedBy", cu_r.full_name AS "raisedByName",
+              aq.assigned_to AS "assignedTo", cu_a.full_name AS "assignedToName",
+              aq.title, aq.description, aq.images, aq.status, aq.priority,
+              aq.created_at AS "createdAt"
+       FROM asset_queries aq
+       JOIN assets a ON a.id = aq.asset_id
+       LEFT JOIN company_users cu_r ON cu_r.id = aq.raised_by
+       LEFT JOIN company_users cu_a ON cu_a.id = aq.assigned_to
+       WHERE aq.id = ?`,
+      [result.insertId]
+    );
+    res.status(201).json({ ...query, images: query.images ? (typeof query.images === "string" ? JSON.parse(query.images) : query.images) : [] });
+  } catch (err) { next(err); }
+});
+
+router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { resolutionNote } = req.body;
+    const [[query]] = await pool.query(
+      "SELECT id, raised_by, company_id, title FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+    );
+    if (!query) return res.status(404).json({ message: "Query not found" });
+
+    // Generate a 6-digit close code
+    const closeCode = String(Math.floor(100000 + Math.random() * 900000));
+
+    await pool.query(
+      `UPDATE asset_queries SET status = 'resolved', resolved_by = ?, resolved_at = NOW(),
+       resolution_note = ?, close_code = ?, updated_at = NOW() WHERE id = ?`,
+      [req.companyUser.id, resolutionNote || null, closeCode, id]
+    );
+
+    // Notify the requester with the close code
+    if (query.raised_by) {
+      try {
+        const { createNotification } = await import("../utils/notificationsHelper.js");
+        await createNotification({
+          companyId: query.company_id || cid(req),
+          recipientId: query.raised_by,
+          type: "request_resolved",
+          title: "Your request has been resolved",
+          message: `Request "${query.title}" has been resolved. Your close code is: ${closeCode}. Enter this code to close the request.`,
+        });
+      } catch (notifErr) {
+        console.warn("[asset-queries] notification failed:", notifErr.message);
+      }
+    }
+
+    res.json({ success: true, closeCode });
+  } catch (err) { next(err); }
+});
+
+router.patch("/asset-queries/:id/escalate", async (req, res, next) => {
+  try {
+    if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin/supervisor only" });
+    const { id } = req.params;
+    const [[check]] = await pool.query(
+      "SELECT id, escalation_level FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+    );
+    if (!check) return res.status(404).json({ message: "Query not found" });
+    await pool.query(
+      "UPDATE asset_queries SET escalation_level = escalation_level + 1, updated_at = NOW() WHERE id = ?",
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// Close a resolved request by submitting the close code (requester only)
+router.patch("/asset-queries/:id/close", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { closeCode } = req.body;
+    if (!closeCode) return res.status(400).json({ message: "closeCode is required" });
+    const [[query]] = await pool.query(
+      "SELECT id, raised_by, status, close_code FROM asset_queries WHERE id = ? AND company_id = ?",
+      [id, cid(req)]
+    );
+    if (!query) return res.status(404).json({ message: "Request not found" });
+    if (query.status !== "resolved") return res.status(400).json({ message: "Request is not resolved yet" });
+    if (String(query.close_code) !== String(closeCode).trim()) {
+      return res.status(400).json({ message: "Invalid close code" });
+    }
+    await pool.query(
+      "UPDATE asset_queries SET status = 'closed', updated_at = NOW() WHERE id = ?",
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset Queries — fetch my raised queries (for mobile requester) ─── */
+router.get("/my-queries", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
+              aq.title, aq.description, aq.status, aq.priority,
+              aq.resolution_note AS "resolutionNote",
+              aq.close_code IS NOT NULL AS "hasCloseCode",
+              aq.assigned_to AS "assignedTo", cu_a.full_name AS "assignedToName",
+              aq.created_at AS "createdAt", aq.resolved_at AS "resolvedAt"
+       FROM asset_queries aq
+       JOIN assets a ON a.id = aq.asset_id
+       LEFT JOIN company_users cu_a ON cu_a.id = aq.assigned_to
+       WHERE aq.company_id = ? AND aq.raised_by = ?
+       ORDER BY aq.created_at DESC`,
+      [cid(req), req.companyUser.id]
+    );
+    res.json(rows);
   } catch (err) { next(err); }
 });
 
@@ -1665,8 +2269,10 @@ router.post("/employees", async (req, res, next) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    if (err.code === "23505") {
-      if (err.constraint === "uq_company_users_username") return res.status(409).json({ message: "Username already exists" });
+    if (err.code === "23505" || err.code === "ER_DUP_ENTRY") {
+      if ((err.constraint || "").includes("username") || (err.message || "").includes("username")) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
       return res.status(409).json({ message: "Email already exists" });
     }
     next(err);
@@ -1736,8 +2342,10 @@ router.put("/employees/:id", async (req, res, next) => {
     );
     res.json(rows[0]);
   } catch (err) {
-    if (err.code === "23505") {
-      if (err.constraint === "uq_company_users_username") return res.status(409).json({ message: "Username already exists" });
+    if (err.code === "23505" || err.code === "ER_DUP_ENTRY") {
+      if ((err.constraint || "").includes("username") || (err.message || "").includes("username")) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
       return res.status(409).json({ message: "Email already exists" });
     }
     next(err);
@@ -1804,7 +2412,8 @@ router.get("/me", async (req, res, next) => {
     const [[row]] = await pool.query(
       `SELECT cu.id, cu.full_name AS "fullName", cu.email, cu.phone, cu.designation, cu.role,
               cu.status, cu.company_id AS "companyId", c.company_name AS "companyName",
-              c.enabled_modules AS "enabledModules", c.logo_url AS "logoUrl"
+              c.enabled_modules AS "enabledModules", c.logo_url AS "logoUrl",
+              c.sector, c.sectors, c.public_token AS "publicToken"
        FROM company_users cu
        JOIN companies c ON c.id = cu.company_id
        WHERE cu.id = ?`,
@@ -1814,10 +2423,44 @@ router.get("/me", async (req, res, next) => {
     row.enabledModules = row.enabledModules
       ? (typeof row.enabledModules === "string" ? JSON.parse(row.enabledModules) : row.enabledModules)
       : null;
+    row.sectors = row.sectors
+      ? (typeof row.sectors === "string" ? JSON.parse(row.sectors) : row.sectors)
+      : (row.sector ? [row.sector] : []);
     res.json(row);
   } catch (err) {
     next(err);
   }
+});
+
+/* GET /public-link – get public dashboard token for this company */
+router.get("/public-link", async (req, res, next) => {
+  try {
+    const [[row]] = await pool.query(
+      "SELECT public_token FROM companies WHERE id = ?", [cid(req)]
+    );
+    if (!row) return res.status(404).json({ message: "Company not found" });
+
+    // Auto-generate token if missing
+    if (!row.public_token) {
+      const { randomUUID } = await import("crypto");
+      const token = randomUUID().replace(/-/g, "");
+      await pool.execute("UPDATE companies SET public_token = ? WHERE id = ?", [token, cid(req)]);
+      row.public_token = token;
+    }
+    res.json({ publicToken: row.public_token });
+  } catch (err) { next(err); }
+});
+
+/* POST /public-link/regenerate – regenerate the public token (admin only) */
+router.post("/public-link/regenerate", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin")
+      return res.status(403).json({ message: "Admin only" });
+    const { randomUUID } = await import("crypto");
+    const token = randomUUID().replace(/-/g, "");
+    await pool.execute("UPDATE companies SET public_token = ? WHERE id = ?", [token, cid(req)]);
+    res.json({ publicToken: token });
+  } catch (err) { next(err); }
 });
 
 /* ── Recent filled logsheet entries (company portal) ───────────────────────── */
@@ -2346,6 +2989,91 @@ router.put("/work-orders/:id/assign", async (req, res, next) => {
   }
 });
 
+/* PATCH /asset-queries/:id/assign  – assign a QR-scan request to a company user */
+router.patch("/asset-queries/:id/assign", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor") {
+      return res.status(403).json({ message: "Not authorised" });
+    }
+    const aqId = Number(req.params.id);
+    const { assignedTo } = req.body;
+    if (!assignedTo) return res.status(400).json({ message: "assignedTo is required" });
+
+    const [[aq]] = await pool.query(
+      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
+      [aqId, companyId]
+    );
+    if (!aq) return res.status(404).json({ message: "Asset query not found" });
+
+    const [[assignee]] = await pool.query(
+      "SELECT id, full_name AS fullName FROM company_users WHERE id = ? AND company_id = ?",
+      [assignedTo, companyId]
+    );
+    if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
+
+    await pool.execute(
+      "UPDATE asset_queries SET assigned_to = ?, status = IF(status = 'open', 'in_progress', status) WHERE id = ?",
+      [assignedTo, aqId]
+    );
+    res.json({ message: "Assigned", assignedTo: Number(assignedTo), assigneeName: assignee.fullName });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /asset-queries/:id/status  – update QR-scan request status */
+router.patch("/asset-queries/:id/status", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor") {
+      return res.status(403).json({ message: "Not authorised" });
+    }
+    const aqId = Number(req.params.id);
+    const { status } = req.body;
+    const VALID_AQ = ["open", "in_progress", "resolved"];
+    if (!VALID_AQ.includes(status)) return res.status(400).json({ message: `Invalid status. Must be one of: ${VALID_AQ.join(", ")}` });
+
+    const [[aq]] = await pool.query(
+      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
+      [aqId, companyId]
+    );
+    if (!aq) return res.status(404).json({ message: "Asset query not found" });
+
+    await pool.execute("UPDATE asset_queries SET status = ? WHERE id = ?", [status, aqId]);
+    res.json({ message: "Status updated", status });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /asset-queries/:id/cutoff  – set cutoff datetime for a QR-scan request */
+router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor") {
+      return res.status(403).json({ message: "Not authorised" });
+    }
+    const aqId = Number(req.params.id);
+    const { cutoffTime } = req.body;
+
+    const [[aq]] = await pool.query(
+      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
+      [aqId, companyId]
+    );
+    if (!aq) return res.status(404).json({ message: "Asset query not found" });
+
+    // Store cutoff as computed hours from now, or just track in a note
+    // Since asset_queries has cutoff_hours (INT), compute hours from now
+    let hoursFromNow = null;
+    if (cutoffTime) {
+      const diff = new Date(cutoffTime).getTime() - Date.now();
+      hoursFromNow = Math.max(1, Math.round(diff / 3600000));
+    }
+    await pool.execute("UPDATE asset_queries SET cutoff_hours = ?, updated_at = NOW() WHERE id = ?", [hoursFromNow, aqId]);
+    res.json({ message: "Cutoff updated", cutoffTime });
+  } catch (err) { next(err); }
+});
+
 /* PUT /work-orders/:id/status  – update work order status */
 router.put("/work-orders/:id/status", async (req, res, next) => {
   try {
@@ -2400,6 +3128,71 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
   }
 });
 
+/* PATCH /work-orders/:id/status – alias for PUT (same handler) */
+router.patch("/work-orders/:id/status", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const { role, id: userId } = req.companyUser;
+    const woId = Number(req.params.id);
+
+    if (role !== "admin" && role !== "supervisor") {
+      const [[assigned]] = await pool.query(
+        "SELECT id FROM work_orders WHERE id = ? AND company_id = ? AND cp_assigned_to = ?",
+        [woId, companyId, userId]
+      );
+      if (!assigned) return res.status(403).json({ message: "Not authorised" });
+    }
+
+    const { status, remark } = req.body;
+    const VALID = ["open", "in_progress", "completed", "closed"];
+    if (!VALID.includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+    const [[wo]] = await pool.query(
+      "SELECT id, flag_id AS `flagId` FROM work_orders WHERE id = ? AND company_id = ?",
+      [woId, companyId]
+    );
+    if (!wo) return res.status(404).json({ message: "Work order not found" });
+
+    const closedAt = (status === "completed" || status === "closed") ? new Date() : null;
+    await pool.execute(`UPDATE work_orders SET status = ?, closed_at = ? WHERE id = ?`, [status, closedAt, woId]);
+    await pool.execute(
+      `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks) VALUES (?, ?, NULL, ?)`,
+      [woId, status, remark || null]
+    );
+    if (wo.flagId && (status === "completed" || status === "closed")) {
+      await pool.execute(
+        "UPDATE flags SET status = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = ? AND status IN ('open','in_progress')",
+        [wo.flagId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /work-orders/:id/priority – admin/supervisor can set priority */
+router.patch("/work-orders/:id/priority", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor")
+      return res.status(403).json({ message: "Not authorised" });
+
+    const woId = Number(req.params.id);
+    const { priority } = req.body;
+    if (!["low","medium","high","critical"].includes(priority))
+      return res.status(400).json({ message: "Invalid priority" });
+
+    const [[wo]] = await pool.query(
+      "SELECT id FROM work_orders WHERE id = ? AND company_id = ?",
+      [woId, companyId]
+    );
+    if (!wo) return res.status(404).json({ message: "Work order not found" });
+
+    await pool.execute("UPDATE work_orders SET priority = ? WHERE id = ?", [priority, woId]);
+    res.json({ success: true, priority });
+  } catch (err) { next(err); }
+});
+
 /* PATCH /work-orders/:id/cutoff  – admin/supervisor can set or update the cutoff deadline */
 router.patch("/work-orders/:id/cutoff", async (req, res, next) => {
   try {
@@ -2429,11 +3222,11 @@ router.patch("/work-orders/:id/cutoff", async (req, res, next) => {
     if (!wo) return res.status(404).json({ message: "Work order not found" });
 
     await pool.execute(
-      "UPDATE work_orders SET expected_completion_at = ? WHERE id = ?",
-      [resolvedDeadline, woId]
+      "UPDATE work_orders SET expected_completion_at = ?, cutoff_time = ? WHERE id = ?",
+      [resolvedDeadline, resolvedDeadline, woId]
     );
 
-    res.json({ success: true, expectedCompletionAt: resolvedDeadline });
+    res.json({ success: true, cutoffTime: resolvedDeadline });
   } catch (err) {
     next(err);
   }
@@ -3557,6 +4350,36 @@ router.post("/upload-image", (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* POST /upload-query-image – upload an image attachment for a query/issue report */
+const queryImageStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, queryImagesDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    cb(null, `query_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadQueryImage = multer({
+  storage: queryImageStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files are allowed"));
+  },
+});
+router.post("/upload-query-image", (req, res, next) => {
+  uploadQueryImage.single("image")(req, res, (err) => {
+    if (err instanceof multer.MulterError) return res.status(400).json({ message: err.message });
+    if (err) return res.status(400).json({ message: err.message });
+    next();
+  });
+}, async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No image provided" });
+    const url = `/uploads/query-images/${req.file.filename}`;
+    res.json({ url });
+  } catch (err) { next(err); }
+});
+
 /* POST /upload-logo – upload company client logo (admin only) */
 router.post("/upload-logo", (req, res, next) => {
   uploadLogo.single("logo")(req, res, (err) => {
@@ -3904,6 +4727,216 @@ router.get("/ojt/mobile/test-attempts/:trainingId", async (req, res, next) => {
       [trainingId, userId]
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+/* ── Pre-generated QR Codes ───────────────────────────────────────────────────
+ * Flow: Admin generates N QR codes → prints → pastes on machines.
+ * Mobile user scans → if unlinked: register/link asset; if linked: view details & log query.
+ */
+
+// Helper: next sequential QR UID for this company (handles mixed HC-/QR- formats)
+async function nextQrUid(companyId) {
+  const [[row]] = await pool.query(
+    `SELECT MAX(CAST(SUBSTRING(qr_unique_id, 4) AS UNSIGNED)) AS maxNum
+     FROM asset_pre_qr
+     WHERE company_id = ? AND qr_unique_id REGEXP '^QR-[0-9]+$'`,
+    [companyId]
+  );
+  const last = row?.maxNum || 0;
+  return `QR-${String(last + 1).padStart(6, "0")}`;
+}
+
+// POST /pre-qr/generate  – generate N pre-QR codes
+router.post("/pre-qr/generate", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin" && req.companyUser.role !== "supervisor")
+      return res.status(403).json({ message: "Admin only" });
+    const count = Math.max(Number(req.body.count) || 1, 1);
+    const created = [];
+    for (let i = 0; i < count; i++) {
+      const uid = await nextQrUid(cid(req));
+      await pool.query(
+        "INSERT INTO asset_pre_qr (company_id, qr_unique_id) VALUES (?, ?)",
+        [cid(req), uid]
+      );
+      const [[row]] = await pool.query(
+        `SELECT id, qr_unique_id AS qrUniqueId, asset_id AS assetId,
+                NULL AS assetName, linked_at AS linkedAt, created_at AS createdAt
+         FROM asset_pre_qr WHERE qr_unique_id = ?`, [uid]
+      );
+      created.push(row);
+    }
+    res.status(201).json(created);
+  } catch (err) { next(err); }
+});
+
+// GET /pre-qr  – list all pre-QR codes for this company
+router.get("/pre-qr", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
+              a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              q.linked_at AS linkedAt, q.created_at AS createdAt
+       FROM asset_pre_qr q
+       LEFT JOIN assets a ON a.id = q.asset_id
+       WHERE q.company_id = ?
+       ORDER BY q.id DESC`,
+      [cid(req)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /pre-qr/by-uid/:uid  – lookup by QR unique ID (used by mobile scanner, no auth required)
+router.get("/pre-qr/by-uid/:uid", async (req, res, next) => {
+  try {
+    const [[qr]] = await pool.query(
+      `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
+              q.company_id AS companyId,
+              a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              a.status, a.department_id AS departmentId,
+              d.name AS departmentName, a.metadata,
+              q.linked_at AS linkedAt
+       FROM asset_pre_qr q
+       LEFT JOIN assets a ON a.id = q.asset_id
+       LEFT JOIN departments d ON d.id = a.department_id
+       WHERE q.qr_unique_id = ?`,
+      [req.params.uid]
+    );
+    if (!qr) return res.status(404).json({ message: "QR code not found" });
+    if (qr.metadata && typeof qr.metadata === "string") {
+      try { qr.metadata = JSON.parse(qr.metadata); } catch {}
+    }
+    res.json(qr);
+  } catch (err) { next(err); }
+});
+
+// PATCH /pre-qr/:id/link  – link a QR code to an existing asset
+router.patch("/pre-qr/:id/link", async (req, res, next) => {
+  try {
+    const { assetId } = req.body;
+    if (!assetId) return res.status(400).json({ message: "assetId required" });
+    const [[qr]] = await pool.query(
+      "SELECT id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
+      [req.params.id, cid(req)]
+    );
+    if (!qr) return res.status(404).json({ message: "QR not found" });
+    await pool.query(
+      "UPDATE asset_pre_qr SET asset_id = ?, linked_at = NOW() WHERE id = ?",
+      [assetId, req.params.id]
+    );
+    const [[updated]] = await pool.query(
+      `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
+              a.asset_name AS assetName, q.linked_at AS linkedAt
+       FROM asset_pre_qr q LEFT JOIN assets a ON a.id = q.asset_id WHERE q.id = ?`,
+      [req.params.id]
+    );
+    res.json(updated);
+  } catch (err) { next(err); }
+});
+
+// POST /pre-qr/:id/register-asset – mobile scan flow: create a brand-new asset and link this QR to it
+router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
+  try {
+    const {
+      assetName, assetType = "healthcare", location, notes,
+      // Healthcare / detailed fields
+      make, manufacturerCompany, model, serialNo, accessories, dealer,
+      mfgYear, installationDate, invoiceNo, purchaseDate, purchaseCost,
+      maintenance, rber, remarks,
+      floor, room,
+    } = req.body;
+    if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
+
+    const [[qr]] = await pool.query(
+      "SELECT id, asset_id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
+      [req.params.id, cid(req)]
+    );
+    if (!qr) return res.status(404).json({ message: "QR not found" });
+    if (qr.asset_id) return res.status(409).json({ message: "This QR code is already linked to an asset" });
+
+    // Create the new asset
+    const [result] = await pool.query(
+      `INSERT INTO assets (company_id, asset_name, asset_type, building, floor, room, status) VALUES (?, ?, ?, ?, ?, ?, 'Active')`,
+      [cid(req), assetName.trim(), assetType, location || null, floor || null, room || null]
+    );
+    const newAssetId = result.insertId;
+
+    // Auto-generate unique ID using the QR uid
+    const [[qrRow]] = await pool.query("SELECT qr_unique_id FROM asset_pre_qr WHERE id = ?", [req.params.id]);
+    const uniqueId = qrRow?.qr_unique_id ?? `ASSET-${String(newAssetId).padStart(6, "0")}`;
+    await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [uniqueId, newAssetId]);
+
+    // Store all detailed metadata in asset_details
+    const metadata = {
+      make: make || null, manufacturerCompany: manufacturerCompany || null,
+      model: model || null, serialNo: serialNo || null,
+      accessories: accessories || null, dealer: dealer || null,
+      mfgYear: mfgYear || null, installationDate: installationDate || null,
+      invoiceNo: invoiceNo || null, purchaseDate: purchaseDate || null,
+      purchaseCost: purchaseCost || null,
+      maintenance: Array.isArray(maintenance) ? maintenance : [],
+      rber: !!rber, remarks: remarks || null, notes: notes || null,
+    };
+    await pool.query(
+      `INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = VALUES(metadata)`,
+      [newAssetId, JSON.stringify(metadata)]
+    );
+
+    // Link QR to the new asset
+    await pool.query(
+      "UPDATE asset_pre_qr SET asset_id = ?, linked_at = NOW() WHERE id = ?",
+      [newAssetId, req.params.id]
+    );
+
+    res.status(201).json({
+      assetId: newAssetId,
+      assetName: assetName.trim(),
+      assetUniqueId: uniqueId,
+    });
+  } catch (err) { next(err); }
+});
+
+// DELETE /pre-qr/bulk – delete multiple pre-QR codes at once (must be before /:id)
+router.delete("/pre-qr/bulk", async (req, res, next) => {
+  try {
+    const ids = req.body.ids;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ message: "ids array is required" });
+    const placeholders = ids.map(() => "?").join(",");
+    // Cascade: also delete linked assets
+    const [qrs] = await pool.query(
+      `SELECT asset_id FROM asset_pre_qr WHERE id IN (${placeholders}) AND company_id = ? AND asset_id IS NOT NULL`,
+      [...ids, cid(req)]
+    );
+    const linkedAssetIds = qrs.map(q => q.asset_id).filter(Boolean);
+    if (linkedAssetIds.length > 0) {
+      const ap = linkedAssetIds.map(() => "?").join(",");
+      await pool.query(`DELETE FROM assets WHERE id IN (${ap}) AND company_id = ?`, [...linkedAssetIds, cid(req)]);
+    }
+    const [result] = await pool.query(
+      `DELETE FROM asset_pre_qr WHERE id IN (${placeholders}) AND company_id = ?`,
+      [...ids, cid(req)]
+    );
+    res.json({ deleted: result.affectedRows });
+  } catch (err) { next(err); }
+});
+
+// DELETE /pre-qr/:id – remove a pre-generated QR code and its linked asset
+router.delete("/pre-qr/:id", async (req, res, next) => {
+  try {
+    const [[qr]] = await pool.query(
+      "SELECT id, asset_id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
+      [req.params.id, cid(req)]
+    );
+    if (!qr) return res.status(404).json({ message: "QR not found" });
+    // Cascade: delete the linked asset if any
+    if (qr.asset_id) {
+      await pool.query("DELETE FROM assets WHERE id = ? AND company_id = ?", [qr.asset_id, cid(req)]);
+    }
+    await pool.query("DELETE FROM asset_pre_qr WHERE id = ?", [req.params.id]);
+    res.json({ message: "Deleted" });
   } catch (err) { next(err); }
 });
 

@@ -21,6 +21,7 @@ import companyAuthRouter from "./routes/companyAuth.js";
 import companyPortalRouter from "./routes/companyPortal.js";
 import companyRolesRouter from "./routes/companyRoles.js";
 import assetQRRouter from "./routes/assetQR.js";
+import assetQueriesRouter from "./routes/assetQueries.js";
 import mobileAuthRouter from "./routes/mobileAuth.js";
 import templateAssignmentsRouter from "./routes/templateAssignments.js";
 import submissionReportsRouter from "./routes/submissionReports.js";
@@ -31,8 +32,11 @@ import notificationsRouter from "./routes/notifications.js";
 import templateImportRouter from "./routes/templateImport.js";
 import assetDashboardRouter from "./routes/assetDashboard.js";
 import companyPortalAssetDashboardRouter from "./routes/companyPortalAssetDashboard.js";
+import healthcareDashboardRouter from "./routes/healthcareDashboard.js";
 import uploadRouter from "./routes/upload.js";
 import softServiceRequestsRouter from "./routes/softServiceRequests.js";
+import publicDashboardRouter from "./routes/publicDashboard.js";
+import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -77,6 +81,7 @@ app.use("/api/company-auth", companyAuthRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);
+app.use("/api", assetQueriesRouter);
 app.use("/api/mobile-auth", mobileAuthRouter);
 // Submission reports – accepts both company JWT and main-platform JWT (must be BEFORE templateAssignmentsRouter)
 app.use("/api/template-assignments", submissionReportsRouter);
@@ -88,8 +93,11 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/template-import", templateImportRouter);
 app.use("/api/asset-dashboard", assetDashboardRouter);
 app.use("/api/company-portal/asset-dashboard", companyPortalAssetDashboardRouter);
+app.use("/api/company-portal/healthcare", healthcareDashboardRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/soft-service", softServiceRequestsRouter);
+app.use("/api/public", publicDashboardRouter);
+app.use("/api/mobile/case-logs", mobileCaseLogsRouter);
 
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");

@@ -13,6 +13,7 @@
 
 import { Router } from "express";
 import pool from "../db.js";
+import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 
 const router = Router();
@@ -34,7 +35,7 @@ router.use(requireCompanyAuth);
       )
     `);
   } catch (e) {
-    console.warn('[soft-service] migration warning:', e.message);
+    if (!isMigrationSafeError(e)) console.warn('[soft-service] migration warning:', e.message);
   }
 })();
 

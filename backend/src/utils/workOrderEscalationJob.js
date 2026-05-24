@@ -45,9 +45,10 @@ async function runWorkOrderEscalationCheck() {
        WHERE wo.status IN ('open', 'in_progress')
          AND wo.expected_completion_at IS NOT NULL
          AND wo.escalation_level < ?
-         AND NOW() >= wo.expected_completion_at
-                     + (wo.escalation_interval_minutes * (wo.escalation_level + 1))
-                     * INTERVAL '1 minute'`,
+         AND NOW() >= DATE_ADD(
+               wo.expected_completion_at,
+               INTERVAL (COALESCE(wo.escalation_interval_minutes, 60) * (wo.escalation_level + 1)) MINUTE
+             )`,
       [MAX_ESCALATION_LEVEL]
     );
 
@@ -101,8 +102,7 @@ async function runWorkOrderEscalationCheck() {
           `UPDATE work_orders
            SET escalation_level = ?,
                cp_assigned_to   = COALESCE(?, cp_assigned_to),
-               escalation_note  = ?,
-               updated_at       = NOW()
+               escalation_note  = ?
            WHERE id = ?`,
           [newLevel, newAssigneeId, reason, wo.id]
         );

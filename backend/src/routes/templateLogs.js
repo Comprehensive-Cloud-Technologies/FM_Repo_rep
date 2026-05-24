@@ -1,12 +1,27 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import pool from "../db.js";
+import { isMigrationSafeError } from "../db.js";
 import { validate } from "../validators.js";
 import { requireAuth } from "../middleware/auth.js";
 import { orchestrateFlag } from "../utils/flagOrchestrator.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// ── Startup migration: add missing columns ────────────────────────────────────
+(async () => {
+  const migrations = [
+    `ALTER TABLE logsheet_entries ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'submitted'`,
+    `ALTER TABLE logsheet_questions ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT NULL`,
+  ];
+  for (const sql of migrations) {
+    try { await pool.query(sql); } catch (err) {
+      // eslint-disable-next-line no-console
+      if (!isMigrationSafeError(err)) console.warn("[template-logs] migration:", err.message);
+    }
+  }
+})();
 
 const assetTypes = ["soft", "technical", "fleet"];
 const answerTypes = ["yes_no", "text", "number"];

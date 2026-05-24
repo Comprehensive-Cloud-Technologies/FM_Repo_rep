@@ -15,7 +15,7 @@ import type { RoleCapabilities } from './permissions';
 // ─── Config ───────────────────────────────────────────────────────────────────
 export const API_BASE: string =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
-  'http://3.110.166.39';  // EC2 IP — update DNS for catalystservices.eco to point here for HTTPS
+  'http://10.222.32.15:4000';  // Central backend IP — update .env.local for a different IP
 
 // ─── Error class ──────────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -257,21 +257,224 @@ export async function registerPushToken(token: string, platform: string): Promis
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
-export async function fetchAssets(params?: { search?: string; type?: string; assignedOnly?: boolean }) {
+export async function fetchAssets(params?: { search?: string; type?: string; assignedOnly?: boolean; assignedToMe?: boolean }) {
   const q = new URLSearchParams();
   if (params?.search)       q.set('search', params.search);
   if (params?.type)         q.set('type', params.type);
   if (params?.assignedOnly) q.set('assignedOnly', 'true');
+  if (params?.assignedToMe) q.set('assignedToMe', 'true');
   const qs = q.toString() ? `?${q}` : '';
   return apiGet<unknown[]>(`/api/company-portal/assets${qs}`, true);
+}
+
+// ─── Healthcare Requests (QR queries + work orders) ───────────────────────────
+export async function fetchHCRequests(params?: {
+  status?: string; search?: string; page?: number; limit?: number;
+}) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set('status', params.status);
+  if (params?.search) q.set('search', params.search);
+  q.set('page',  String(params?.page  ?? 1));
+  q.set('limit', String(params?.limit ?? 30));
+  return apiGet<{ data: unknown[]; summary: unknown; pagination: unknown }>(
+    `/api/company-portal/healthcare/requests?${q}`
+  );
+}
+
+export async function fetchHCAssets(params?: { search?: string; assignedToMe?: boolean }) {
+  const q = new URLSearchParams();
+  if (params?.search)       q.set('search', params.search);
+  if (params?.assignedToMe) q.set('assignedToMe', 'true');
+  return apiGet<{ data: unknown[]; pagination: unknown }>(
+    `/api/company-portal/healthcare/assets?${q}`
+  );
 }
 
 export async function fetchAssetById(id: number) {
   return apiGet<unknown>(`/api/company-portal/assets/${id}`);
 }
 
+export async function fetchAssetByBarcode(barcode: string) {
+  return apiGet<unknown>(`/api/company-portal/assets/by-barcode/${encodeURIComponent(barcode)}`);
+}
+
 export async function fetchAssetByQR(assetId: number) {
   return apiGet<unknown>(`/api/asset-qr/${assetId}`);
+}
+
+export interface PreQrCode {
+  id: number;
+  qrUniqueId: string;
+  assetId: number | null;
+  assetName?: string;
+  assetUniqueId?: string;
+  companyId: number;
+  departmentName?: string;
+  status?: string;
+  metadata?: Record<string, unknown>;
+  linkedAt?: string;
+}
+
+export async function fetchPreQrByUid(uid: string): Promise<PreQrCode> {
+  // Public endpoint — no auth required, works before/during login
+  const res = await fetch(`${API_BASE}/api/asset-qr/qr-lookup/${encodeURIComponent(uid)}`);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => 'Not found');
+    throw new ApiError(res.status, msg || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function linkPreQrToAsset(token: string, qrId: number, assetId: number): Promise<unknown> {
+  const resp = await fetch(`${API_BASE}/api/company-portal/pre-qr/${qrId}/link`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ assetId }),
+  });
+  if (!resp.ok) throw new ApiError(resp.status, await resp.text());
+  return resp.json();
+}
+
+// ── Bulk asset import from Excel ──────────────────────────────────────────────
+export interface BulkImportResult {
+  total:   number;
+  created: number;
+  skipped: number;
+  assets:  Array<{
+    row: number; id: number; assetName: string;
+    assetUniqueId: string; assetType: string; qrCode: string;
+    building: string | null; floor: string | null; room: string | null; status: string;
+  }>;
+  errors: Array<{ row: number; assetName?: string; reason: string }>;
+}
+
+/**
+ * Upload an Excel/CSV file to bulk-register assets.
+ * Uses the company portal endpoint — token must be a company user JWT.
+ * @param token  Company user JWT (from getToken())
+ * @param fileUri  Local file URI from expo-document-picker
+ * @param fileName  Original file name (must end in .xlsx/.xls/.csv)
+ * @param departmentId  Department to register all assets under
+ */
+export async function bulkImportAssets(
+  token: string,
+  fileUri: string,
+  fileName: string,
+): Promise<BulkImportResult> {
+  const formData = new FormData();
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? 'xlsx';
+  const mimeMap: Record<string, string> = {
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls:  'application/vnd.ms-excel',
+    csv:  'text/csv',
+  };
+  formData.append('file', { uri: fileUri, name: fileName, type: mimeMap[ext] ?? mimeMap.xlsx } as any);
+
+  const resp = await fetch(`${API_BASE}/api/company-portal/assets/bulk-import`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!resp.ok) {
+    const msg = await resp.text().catch(() => `HTTP ${resp.status}`);
+    throw new ApiError(resp.status, msg);
+  }
+  return resp.json() as Promise<BulkImportResult>;
+}
+
+/** Download the Excel import template URL. */
+export function assetImportTemplateUrl(): string {
+  return `${API_BASE}/api/company-portal/assets/bulk-import/template`;
+}
+
+/** Fetch departments for the current company (used in bulk import screen). */
+export async function fetchDepartmentsForImport(): Promise<Array<{ id: number; departmentName: string }>> {
+  return apiGet<Array<{ id: number; departmentName: string }>>('/api/company-portal/departments');
+}
+
+export async function registerAssetOnQr(
+  token: string,
+  qrId: number,
+  payload: {
+    assetName: string; assetType?: string;
+    location?: string; floor?: string; room?: string; notes?: string;
+    make?: string; manufacturerCompany?: string; model?: string; serialNo?: string;
+    accessories?: string; dealer?: string; mfgYear?: string;
+    installationDate?: string; invoiceNo?: string; purchaseDate?: string;
+    purchaseCost?: string; maintenance?: string[]; rber?: boolean; remarks?: string;
+  },
+): Promise<{ assetId: number; assetName: string; assetUniqueId: string }> {
+  const resp = await fetch(`${API_BASE}/api/company-portal/pre-qr/${qrId}/register-asset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new ApiError(resp.status, await resp.text());
+  return resp.json();
+}
+
+// ─── Asset Queries ────────────────────────────────────────────────────────────
+export interface AssetQuery {
+  id: number;
+  assetId: number;
+  assetName: string;
+  assetUniqueId?: string;
+  raisedBy: number;
+  raisedByName?: string;
+  assignedTo?: number;
+  assignedToName?: string;
+  title: string;
+  description?: string;
+  images?: string[];
+  status: 'open' | 'resolved';
+  priority: string;
+  escalationLevel: number;
+  createdAt: string;
+}
+
+export async function submitAssetQuery(data: {
+  assetId: number;
+  title: string;
+  description?: string;
+  images?: string[];
+  priority?: string;
+}): Promise<AssetQuery> {
+  return apiPost<AssetQuery>('/api/company-portal/asset-queries', data);
+}
+
+/** Upload a single image file for a query and return the server URL */
+export async function uploadQueryImage(token: string, fileUri: string): Promise<string> {
+  const formData = new FormData();
+  const filename = fileUri.split('/').pop() || 'photo.jpg';
+  const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+  const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+  const type = mimeMap[ext] || 'image/jpeg';
+  formData.append('image', { uri: fileUri, name: filename, type } as any);
+  const res = await fetch(`${API_BASE}/api/company-portal/upload-query-image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => 'Upload failed');
+    throw new ApiError(res.status, msg);
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
+export async function fetchMyAssetQueries(): Promise<AssetQuery[]> {
+  return apiGet<AssetQuery[]>('/api/company-portal/asset-queries');
+}
+
+/** Fetch queries raised by the current logged-in user */
+export async function fetchMyRaisedQueries(): Promise<any[]> {
+  return apiGet<any[]>('/api/company-portal/my-queries');
+}
+
+/** Close a resolved request by submitting the code sent to the requester */
+export async function closeAssetQuery(queryId: number, closeCode: string): Promise<{ success: boolean }> {
+  return apiPatch<{ success: boolean }>(`/api/company-portal/asset-queries/${queryId}/close`, { closeCode });
 }
 
 // ─── Assignments / Templates ─────────────────────────────────────────────────
@@ -627,4 +830,34 @@ export async function syncOfflineSubmissions(): Promise<number> {
     } catch { /* retry next time */ }
   }
   return synced;
+}
+
+// ─── Asset Queries / Chat ─────────────────────────────────────────────────────
+export interface AssetQueryPayload {
+  requesterName:  string;
+  requesterPhone?: string;
+  requesterEmail?: string;
+  queryType?:     string;
+  message?:       string;
+}
+
+export async function fetchAssetQueryDefaults(assetId: number): Promise<{ questions: string[] }> {
+  return apiGet<{ questions: string[] }>(`/api/asset-qr/${assetId}/queries/defaults`);
+}
+
+export async function submitPublicAssetQuery(
+  assetId: number,
+  payload: AssetQueryPayload,
+): Promise<{ id: number; assetName: string; status: string; message: string }> {
+  // This endpoint is public (no auth token required) — use plain fetch
+  const res = await fetch(`${API_BASE}/api/asset-qr/${assetId}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => 'Submission failed');
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+  return res.json();
 }

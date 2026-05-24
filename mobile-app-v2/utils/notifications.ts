@@ -1,22 +1,33 @@
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { registerPushToken } from './api';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Expo Go with SDK 53+ removed Android push notification support.
+// The auto-registration side-effect in expo-notifications crashes on load in Expo Go,
+// so we must NOT import it at the top level — use a conditional require() instead.
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Notifications: any = null;
+
+if (!IS_EXPO_GO) {
+  // Dynamic require prevents DevicePushTokenAutoRegistration.fx.js from running in Expo Go
+  Notifications = require('expo-notifications');
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
-    // Skip in Expo Go — device push tokens don't work there
-    if (Constants.appOwnership === 'expo') {
+    if (IS_EXPO_GO || !Notifications) {
       console.log('[Push] Skipping registration in Expo Go');
       return null;
     }

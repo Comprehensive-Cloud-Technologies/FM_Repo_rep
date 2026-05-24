@@ -62,6 +62,8 @@ import {
   createAdminEmployee,
   updateAdminEmployee,
   deleteAdminEmployee,
+  bulkImportAssets,
+  getAssetImportTemplateUrl,
 } from "../api";
 import ChecklistBuilder from "../components/ChecklistBuilder";
 import LogsheetModule from "../components/LogsheetModule.jsx";
@@ -146,7 +148,31 @@ const emptyCompany = {
   qsrModule: true,
   premealModule: true,
   deliveryModule: true,
-  allowGuestBooking: false, // mapped to OJT training toggle
+  allowGuestBooking: false,
+  status: "Active",
+  sectors: [],
+};
+
+const SECTORS = [
+  { value: "healthcare", label: "Healthcare / Medical", icon: "🏥", description: "Hospitals, clinics, medical colleges" },
+  { value: "soft_services", label: "Soft Services", icon: "🧹", description: "Housekeeping, catering, security" },
+  { value: "technical", label: "Technical Assets", icon: "⚙️", description: "Engineering, maintenance, HVAC" },
+  { value: "fleet", label: "Fleet Management", icon: "🚗", description: "Vehicles, logistics, transport" },
+  { value: "general", label: "General / Other", icon: "🏢", description: "Other industries" },
+];
+
+const emptyHospital = {
+  siteName: "",
+  entityType: "",
+  facilityType: "",
+  gstNo: "",
+  panNo: "",
+  address: "",
+  state: "",
+  pinCode: "",
+  contactPersonName: "",
+  contactPersonPhone: "",
+  contactEmail: "",
   status: "Active",
 };
 
@@ -208,6 +234,30 @@ const emptyAsset = {
   purchaseDate: "",
   vendor: "",
   dailyKmTracking: false,
+  // ── Healthcare-specific fields (stored in metadata) ──
+  make: "",
+  manufacturer: "",
+  model: "",
+  serialNo: "",
+  accessories: "",
+  dealer: "",
+  manufacturingYear: "",
+  hcInstallationDate: "",
+  invoiceNo: "",
+  invoiceDate: "",
+  purchaseCost: "",
+  maintenanceType: "",  // "warranty" | "amc" | "cmc" | "inhouse" | "catalyst"
+  warrantyStart: "",
+  warrantyEnd: "",
+  amcStart: "",
+  amcEnd: "",
+  cmcStart: "",
+  cmcEnd: "",
+  rber: false,           // Recommended Beyond Economic Repair
+  remarks: "",
+  // Healthcare image & document uploads
+  hcImages: [],          // Array of { url, name } — up to 5 equipment photos
+  hcInvoiceUrl: "",      // URL of uploaded invoice document
 };
 
 const emptyDepartment = {
@@ -777,7 +827,7 @@ const CompanyPortal = () => {
   const nav = searchParams.get("tab") || localStorage.getItem("portal_nav") || "dashboard";
   const setNav = useCallback((tab) => {
     localStorage.setItem("portal_nav", tab);
-    setSearchParams({ tab }, { replace: false });
+    setSearchParams({ tab }, { replace: true });
   }, [setSearchParams]);
   const [checklistSubNav, setChecklistSubNav] = useState("templates");
   const [checklistSelectedCompanyId, setChecklistSelectedCompanyId] = useState(null);
@@ -785,6 +835,16 @@ const CompanyPortal = () => {
   const [logsheetSubNav, setLogsheetSubNav] = useState("templates");
   const [logsheetSelectedCompanyId, setLogsheetSelectedCompanyId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showSectorModal, setShowSectorModal] = useState(false);
+  const [selectedSectors, setSelectedSectors] = useState([]);
+  const [hospitalForm, setHospitalForm] = useState(emptyHospital);
+  const [hospitalLoading, setHospitalLoading] = useState(false);
+  const [hospitalError, setHospitalError] = useState(null);
+  const [postRegUserForm, setPostRegUserForm] = useState({ fullName:"", email:"", phone:"", role:"admin", password:"", username:"" });
+  const [showPostRegUser, setShowPostRegUser] = useState(false);
+  const [postRegCompanyId, setPostRegCompanyId] = useState(null);
+  const [postRegUserLoading, setPostRegUserLoading] = useState(false);
+  const [postRegUserError, setPostRegUserError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -854,12 +914,22 @@ const CompanyPortal = () => {
     return getPublicAppUrl();
   };
 
-  const handleShowAssetQR = async (assetId, assetName) => {
+  const handleShowAssetQR = async (assetId, assetName, assetRecord) => {
     try {
       const url = `${getQrBaseUrl()}/asset-scan/${assetId}`;
-      const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
+      const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } });
       setAssetQrDataUrl(dataUrl);
-      setAssetQrModal({ assetId, assetName, url });
+      const company = companies.find((c) => String(c.id) === String(assetRecord?.companyId));
+      setAssetQrModal({
+        assetId,
+        assetName,
+        url,
+        barcodeNumber: assetRecord?.assetUniqueId || null,
+        assetType: assetRecord?.assetType || null,
+        companyName: company?.companyName || null,
+        companyId: assetRecord?.companyId || null,
+        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" · ") || null,
+      });
     } catch (err) {
       alert("QR generation failed: " + err.message);
     }
@@ -939,6 +1009,12 @@ const CompanyPortal = () => {
   const [assetTableEntries, setAssetTableEntries] = useState(25);
   const [assetSortField, setAssetSortField] = useState("assetName");
   const [assetSortDir, setAssetSortDir] = useState("asc");
+  // Bulk import state
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkImportFile, setBulkImportFile] = useState(null);
+  const [bulkImportDeptId, setBulkImportDeptId] = useState("");
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkImportResult, setBulkImportResult] = useState(null);
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === selectedCompanyId) || companies[0],
@@ -1295,6 +1371,63 @@ const CompanyPortal = () => {
     setCompanyForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
+  const handleHospitalChange = (e) => {
+    const { name, value } = e.target;
+    setHospitalForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreateHospital = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    setHospitalLoading(true);
+    setHospitalError(null);
+    try {
+      const siteCode = hospitalForm.siteName
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "-")
+        .replace(/-+/g, "-")
+        .slice(0, 20)
+        .replace(/-$/, "") + "-" + Date.now().toString(36).toUpperCase().slice(-4);
+      const payload = {
+        companyName: hospitalForm.siteName,
+        companyCode: siteCode,
+        sector: "healthcare",
+        sectors: ["healthcare"],
+        entityType: hospitalForm.entityType,
+        facilityType: hospitalForm.facilityType,
+        gstNumber: hospitalForm.gstNo,
+        panNumber: hospitalForm.panNo,
+        addressLine1: hospitalForm.address,
+        state: hospitalForm.state,
+        pincode: hospitalForm.pinCode,
+        contactPersonName: hospitalForm.contactPersonName,
+        contactPersonPhone: hospitalForm.contactPersonPhone,
+        contactEmail: hospitalForm.contactEmail,
+        status: hospitalForm.status,
+        qsrModule: true,
+        premealModule: true,
+        deliveryModule: false,
+        allowGuestBooking: false,
+      };
+      const created = await createCompany(token, payload);
+      const merged = { ...emptyCompany, ...created };
+      setCompanies((prev) => [merged, ...prev]);
+      setSelectedCompanyId(created.id);
+      setHospitalForm(emptyHospital);
+      setSelectedSectors([]);
+      setShowAddForm(false);
+      // Pre-fill contact person as first admin user
+      setPostRegCompanyId(created.id);
+      setPostRegUserForm({ fullName: hospitalForm.contactPersonName, email: hospitalForm.contactEmail, phone: hospitalForm.contactPersonPhone, role: "admin", password: "", username: "" });
+      setPostRegUserError(null);
+      setShowPostRegUser(true);
+    } catch (err) {
+      setHospitalError(err.message || "Could not register hospital");
+    } finally {
+      setHospitalLoading(false);
+    }
+  };
+
   const handleAssetChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name === "companyId") {
@@ -1326,19 +1459,25 @@ const CompanyPortal = () => {
     setCompanyLoading(true);
     setCompanyError(null);
     try {
-      const created = await createCompany(token, companyForm);
+      const payload = { ...companyForm, sectors: selectedSectors, sector: selectedSectors[0] || null };
+      const created = await createCompany(token, payload);
       const merged = { ...emptyCompany, ...companyForm, ...created };
       setCompanies((prev) => [merged, ...prev]);
       setSelectedCompanyId(created.id);
       setCompanyForm(emptyCompany);
+      setSelectedSectors([]);
       setShowAddForm(false);
-      setNav("companies");
+      // Prompt to create first admin user
+      setPostRegCompanyId(created.id);
+      setPostRegUserForm({ fullName:"", email:"", phone:"", role:"admin", password:"", username:"" });
+      setPostRegUserError(null);
+      setShowPostRegUser(true);
     } catch (err) {
       setCompanyError(err.message || "Could not create company");
     } finally {
       setCompanyLoading(false);
     }
-  };
+  };;
 
   const handleCreateDepartment = async (e) => {
     e.preventDefault();
@@ -1461,11 +1600,65 @@ const CompanyPortal = () => {
     if (assetTypeCode === "soft" || assetTypeCode === "soft service") return "soft";
     if (assetTypeCode === "fleet") return "fleet";
     if (assetTypeCode === "technical") return "technical";
+    if (assetTypeCode === "healthcare" || assetTypeCode === "medical") return "healthcare";
     return "standard";
+  };
+
+  // Derive whether the currently selected company is a healthcare company
+  const isHealthcareCompany = (companyId) => {
+    const co = companies.find((c) => String(c.id) === String(companyId));
+    if (!co) return false;
+    const secs = co.sectors || (co.sector ? [co.sector] : []);
+    return secs.includes("healthcare");
+  };
+
+  // Return sector-filtered asset type options for a company.
+  // Returns null if no sector restriction (show all). Returns [] if company unknown.
+  const getCompanySectorTypes = (companyId) => {
+    const co = companies.find((c) => String(c.id) === String(companyId));
+    if (!co) return null;
+    const secs = co.sectors || (co.sector ? [co.sector] : []);
+    if (!secs.length) return null;
+    const allowed = [];
+    if (secs.includes("healthcare")) allowed.push({ code: "healthcare", label: "Healthcare Equipment", workflowType: "healthcare" });
+    if (secs.includes("soft_services") || secs.includes("soft")) allowed.push({ code: "soft", label: "Soft Services", workflowType: "soft" });
+    if (secs.includes("technical")) allowed.push({ code: "technical", label: "Technical Assets", workflowType: "technical" });
+    if (secs.includes("fleet")) allowed.push({ code: "fleet", label: "Fleet / Vehicles", workflowType: "fleet" });
+    if (secs.includes("general") || secs.includes("other")) allowed.push(...(assetTypes.filter(t => !["healthcare","soft","technical","fleet"].includes(t.code))));
+    return allowed.length ? allowed : null;
   };
 
   const buildMetadataFromForm = (form) => {
     const wf = getWorkflowTypeForAsset(form.assetType);
+    if (wf === "healthcare") {
+      return {
+        make: form.make,
+        manufacturer: form.manufacturer,
+        model: form.model,
+        serialNo: form.serialNo,
+        accessories: form.accessories,
+        dealer: form.dealer,
+        manufacturingYear: form.manufacturingYear,
+        installationDate: form.hcInstallationDate,
+        invoiceNo: form.invoiceNo,
+        invoiceDate: form.invoiceDate,
+        purchaseCost: form.purchaseCost,
+        maintenanceType: form.maintenanceType,
+        warrantyStart: form.warrantyStart,
+        warrantyEnd: form.warrantyEnd,
+        amcStart: form.amcStart,
+        amcEnd: form.amcEnd,
+        cmcStart: form.cmcStart,
+        cmcEnd: form.cmcEnd,
+        rber: !!form.rber,
+        remarks: form.remarks,
+        description: form.description,
+        imageUrl: form.imageUrl,
+        hcImages: form.hcImages || [],
+        hcInvoiceUrl: form.hcInvoiceUrl || "",
+        documents: form.documentLinks ? form.documentLinks.split(/\n|,/).map((d) => d.trim()).filter(Boolean) : [],
+      };
+    }
     if (wf === "soft") {
       return {
         building: form.building,
@@ -1524,6 +1717,39 @@ const CompanyPortal = () => {
 
   const normalizeAssetFormFromRecord = (asset) => {
     const meta = asset.metadata || {};
+    if (asset.assetType === "healthcare" || (asset.metadata && asset.metadata.maintenanceType !== undefined && asset.assetType !== "soft" && asset.assetType !== "technical" && asset.assetType !== "fleet")) {
+      return {
+        ...emptyAsset,
+        ...asset,
+        assetType: asset.assetType || "healthcare",
+        departmentId: asset.departmentId ? String(asset.departmentId) : "",
+        make: meta.make || "",
+        manufacturer: meta.manufacturer || "",
+        model: meta.model || "",
+        serialNo: meta.serialNo || "",
+        accessories: meta.accessories || "",
+        dealer: meta.dealer || "",
+        manufacturingYear: meta.manufacturingYear || "",
+        hcInstallationDate: meta.installationDate || "",
+        invoiceNo: meta.invoiceNo || "",
+        invoiceDate: meta.invoiceDate || "",
+        purchaseCost: meta.purchaseCost || "",
+        maintenanceType: meta.maintenanceType || "",
+        warrantyStart: meta.warrantyStart || "",
+        warrantyEnd: meta.warrantyEnd || "",
+        amcStart: meta.amcStart || "",
+        amcEnd: meta.amcEnd || "",
+        cmcStart: meta.cmcStart || "",
+        cmcEnd: meta.cmcEnd || "",
+        rber: !!meta.rber,
+        remarks: meta.remarks || "",
+        description: meta.description || "",
+        imageUrl: meta.imageUrl || "",
+        hcImages: Array.isArray(meta.hcImages) ? meta.hcImages : [],
+        hcInvoiceUrl: meta.hcInvoiceUrl || "",
+        documentLinks: (meta.documents || []).join("\n"),
+      };
+    }
     if (asset.assetType === "soft") {
       return {
         ...emptyAsset,
@@ -1607,8 +1833,10 @@ const CompanyPortal = () => {
     }
 
     // Soft services don't require a department — auto-pick first available
+    // Healthcare assets also allow optional department
     let departmentId = assetForm.departmentId;
-    if (assetForm.assetType !== "soft") {
+    const isHCAsset = assetForm.assetType === "healthcare" || isHealthcareCompany(companyId);
+    if (assetForm.assetType !== "soft" && !isHCAsset) {
       const companyDepartments = departments.filter((d) => String(d.companyId) === String(companyId));
       if (!companyDepartments.length) {
         setAssetError("Please add a department for this company first");
@@ -1618,7 +1846,7 @@ const CompanyPortal = () => {
         setAssetError("Please select a department for this asset");
         return;
       }
-    } else {
+    } else if (assetForm.assetType === "soft") {
       // For soft services pick the first department of the company as a fallback
       if (!departmentId) {
         const firstDept = departments.find((d) => String(d.companyId) === String(companyId));
@@ -2551,6 +2779,10 @@ const CompanyPortal = () => {
                             <option value="driver">Driver</option>
                             <option value="fleet_operator">Fleet Operator</option>
                             <option value="employee">Employee</option>
+                            <option value="doctor">Doctor (HC)</option>
+                            <option value="nurse">Nurse (HC)</option>
+                            <option value="ward_boy">Ward Boy (HC)</option>
+                            <option value="engineer">Engineer (HC)</option>
                           </select>
                         </div>
                         <div>
@@ -2764,7 +2996,7 @@ const CompanyPortal = () => {
                   <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#0f172a", marginBottom: "4px", letterSpacing: "-0.5px" }}>Company Management</h1>
                   <p style={{ color: "#64748b", fontSize: "14px" }}>Manage your client companies and their configurations</p>
                 </div>
-                <button type="button" onClick={() => setShowAddForm(true)}
+                <button type="button" onClick={() => { setSelectedSectors([]); setShowSectorModal(true); }}
                   style={{ display: "flex", alignItems: "center", gap: "8px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: "600", fontSize: "14px", cursor: "pointer", boxShadow: "0 1px 3px rgba(37,99,235,0.4)" }}>
                   + Add Company
                 </button>
@@ -3196,15 +3428,20 @@ const CompanyPortal = () => {
                   <p style={{ color: "#64748b", fontSize: "13.5px" }}>Manage assets across Soft, Technical, and Fleet categories.</p>
                 </div>
                 <button type="button"
-                  onClick={() => { const defaultCompany = selectedCompanyId || companies[0]?.id || ""; setAssetForm({ ...emptyAsset, companyId: defaultCompany }); setEditingAssetId(null); setShowAssetModal(true); }}
+                  onClick={() => { const defaultCompany = selectedCompanyId || companies[0]?.id || ""; const sectorTypes = getCompanySectorTypes(defaultCompany); const defaultAssetType = sectorTypes?.length === 1 ? sectorTypes[0].code : (sectorTypes?.[0]?.code || assetTypes[0]?.code || ""); setAssetForm({ ...emptyAsset, companyId: defaultCompany, assetType: defaultAssetType }); setEditingAssetId(null); setShowAssetModal(true); }}
                   disabled={!companies.length}
                   style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "none", background: companies.length ? "#2563eb" : "#94a3b8", color: "#fff", opacity: companies.length ? 1 : 0.6 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Asset
                 </button>
+                <button type="button"
+                  onClick={() => { setBulkImportFile(null); setBulkImportDeptId(""); setBulkImportResult(null); setShowBulkImport(true); }}
+                  disabled={!companies.length}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "1.5px solid #2563eb", background: "#eff6ff", color: "#2563eb", opacity: companies.length ? 1 : 0.6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Import Excel
+                </button>
               </div>
-
-              {/* Asset Type Master */}
               <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
                   <div>
@@ -3390,7 +3627,7 @@ const CompanyPortal = () => {
                             </td>
                             <td style={{ padding: "12px 16px" }}>
                               <div style={{ display: "flex", gap: "6px" }}>
-                                <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName)}
+                                <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName, a)}
                                   style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                                 </button>
@@ -3423,31 +3660,50 @@ const CompanyPortal = () => {
                   <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
                 </div>
                 <form onSubmit={handleSubmitAsset}>
-                  {/* ── Asset Type FIRST — drives which fields appear ── */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <div className="form-group">
-                      <label>Asset Type <span style={{ color: "#ef4444" }}>*</span></label>
-                      <select name="assetType" value={assetForm.assetType} onChange={handleAssetChange} className="form-select" required>
-                        <option value="" disabled>Select type</option>
-                        {(assetTypes.length ? assetTypes : [
-                          { code: "soft", label: "Soft Services", workflowType: "soft" },
-                          { code: "technical", label: "Technical", workflowType: "technical" },
-                          { code: "fleet", label: "Fleet", workflowType: "fleet" },
-                        ]).map((t) => (
-                          <option key={t.code} value={t.code}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  {/* ── Asset Type — filtered by company sector ── */}
+                  {(() => {
+                    const sectorTypes = getCompanySectorTypes(assetForm.companyId);
+                    const isHCOnly = sectorTypes?.length === 1 && sectorTypes[0].code === "healthcare";
+                    if (isHCOnly) {
+                      return (
+                        <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "18px" }}>🏥</span>
+                          <div>
+                            <div style={{ fontWeight: 700, color: "#9a3412", fontSize: "13px" }}>Healthcare Equipment Registration</div>
+                            <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment — barcode auto-generated on save</div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    const typesToShow = sectorTypes || (assetTypes.length ? assetTypes : [
+                      { code: "soft", label: "Soft Services", workflowType: "soft" },
+                      { code: "technical", label: "Technical", workflowType: "technical" },
+                      { code: "fleet", label: "Fleet", workflowType: "fleet" },
+                    ]);
+                    return (
+                      <div style={{ marginBottom: "16px" }}>
+                        <div className="form-group">
+                          <label>Asset Type <span style={{ color: "#ef4444" }}>*</span></label>
+                          <select name="assetType" value={assetForm.assetType} onChange={handleAssetChange} className="form-select" required>
+                            <option value="" disabled>Select type</option>
+                            {typesToShow.map((t) => (
+                              <option key={t.code} value={t.code}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Determine workflow type of selected asset type */}
                   {(() => {
                     const selectedAt = assetTypes.find(t => t.code === assetForm.assetType);
-                    const wf = selectedAt?.workflowType || (assetForm.assetType === "soft" ? "soft" : assetForm.assetType === "fleet" ? "fleet" : "technical");
+                    const wf = selectedAt?.workflowType || (assetForm.assetType === "soft" ? "soft" : assetForm.assetType === "fleet" ? "fleet" : assetForm.assetType === "healthcare" ? "healthcare" : "technical");
                     const customFields = selectedAt?.fieldLayout?.fields || [];
                     const isSoftWf = wf === "soft";
                     const isFleetWf = wf === "fleet";
                     const isTechWf = wf === "technical";
+                    const isHealthcareWf = wf === "healthcare" || isHealthcareCompany(assetForm.companyId);
 
                     if (!assetForm.assetType) return null;
 
@@ -3456,8 +3712,8 @@ const CompanyPortal = () => {
                       {!isSoftWf && (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "12px" }}>
                           <div className="form-group">
-                            <label>Asset Name <span style={{ color: "#ef4444" }}>*</span></label>
-                            <input name="assetName" value={assetForm.assetName} onChange={handleAssetChange} className="form-input" required placeholder="e.g. HVAC Unit 1" />
+                            <label>Equipment Name <span style={{ color: "#ef4444" }}>*</span></label>
+                            <input name="assetName" value={assetForm.assetName} onChange={handleAssetChange} className="form-input" required placeholder="e.g. MRI Scanner, Ventilator" />
                           </div>
                           <div className="form-group">
                             <label>Company <span style={{ color: "#ef4444" }}>*</span></label>
@@ -3470,6 +3726,199 @@ const CompanyPortal = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* Healthcare workflow: full medical equipment form */}
+                      {isHealthcareWf && !isSoftWf && (<>
+                        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "8px 14px", marginBottom: "14px", fontSize: "12.5px", color: "#9a3412", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>🏥</span> Healthcare equipment registration — barcode will be auto-generated.
+                        </div>
+
+                        {/* Equipment Photos — up to 5 */}
+                        <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 14px", marginBottom: "12px" }}>
+                          <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "10px", display: "block" }}>
+                            Equipment Photos <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: "11px" }}>(up to 5 images)</span>
+                          </label>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "flex-start" }}>
+                            {(assetForm.hcImages || []).map((img, i) => (
+                              <div key={i} style={{ position: "relative", width: "76px", height: "76px" }}>
+                                <img src={img.url} alt={img.name || "photo"} style={{ width: "76px", height: "76px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0" }} />
+                                <button type="button" onClick={() => setAssetForm(p => ({ ...p, hcImages: p.hcImages.filter((_, j) => j !== i) }))}
+                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                              </div>
+                            ))}
+                            {(assetForm.hcImages || []).length < 5 && (
+                              <label style={{ width: "76px", height: "76px", border: "2px dashed #cbd5e1", borderRadius: "6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#94a3b8", fontSize: "11px", gap: "3px", flexShrink: 0 }}>
+                                <span style={{ fontSize: "22px", lineHeight: 1 }}>+</span>
+                                <span>Add Photo</span>
+                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                                  const file = e.target.files[0]; if (!file) return;
+                                  const fd = new FormData(); fd.append("file", file);
+                                  try {
+                                    const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", body: fd });
+                                    const data = await res.json();
+                                    setAssetForm(p => ({ ...p, hcImages: [...(p.hcImages || []), { url: data.url, name: file.name }] }));
+                                  } catch { /* silent */ }
+                                  e.target.value = "";
+                                }} />
+                              </label>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Row 1: Barcode No (auto), Make/Manufacturer */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group">
+                            <label>Barcode No. <span style={{ fontSize: "11px", color: "#94a3b8" }}>(auto-generated)</span></label>
+                            <input name="assetUniqueId" value={assetForm.assetUniqueId || "HC-AUTO"} onChange={handleAssetChange} className="form-input" placeholder="Auto-generated on save" style={{ background: assetForm.assetUniqueId ? undefined : "#f8fafc", color: "#64748b" }} readOnly={!assetForm.assetUniqueId} />
+                          </div>
+                          <div className="form-group">
+                            <label>Make</label>
+                            <input name="make" value={assetForm.make} onChange={handleAssetChange} className="form-input" placeholder="e.g. Philips" />
+                          </div>
+                          <div className="form-group">
+                            <label>Manufacturer</label>
+                            <input name="manufacturer" value={assetForm.manufacturer} onChange={handleAssetChange} className="form-input" placeholder="Manufacturer name" />
+                          </div>
+                        </div>
+
+                        {/* Row 2: Model, Serial No, Accessories */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group">
+                            <label>Model</label>
+                            <input name="model" value={assetForm.model} onChange={handleAssetChange} className="form-input" placeholder="Model designation" />
+                          </div>
+                          <div className="form-group">
+                            <label>Serial No.</label>
+                            <input name="serialNo" value={assetForm.serialNo} onChange={handleAssetChange} className="form-input" placeholder="Serial number" />
+                          </div>
+                          <div className="form-group">
+                            <label>Accessories Included</label>
+                            <input name="accessories" value={assetForm.accessories} onChange={handleAssetChange} className="form-input" placeholder="List accessories" />
+                          </div>
+                        </div>
+
+                        {/* Row 3: Dealer, Manufacturing Year, Installation Date */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group">
+                            <label>Dealer / Distributor</label>
+                            <input name="dealer" value={assetForm.dealer} onChange={handleAssetChange} className="form-input" placeholder="Dealer name" />
+                          </div>
+                          <div className="form-group">
+                            <label>Manufacturing Year</label>
+                            <input name="manufacturingYear" value={assetForm.manufacturingYear} onChange={handleAssetChange} className="form-input" placeholder="e.g. 2022" type="number" min="1990" max="2100" />
+                          </div>
+                          <div className="form-group">
+                            <label>Installation Date</label>
+                            <input type="date" name="hcInstallationDate" value={assetForm.hcInstallationDate} onChange={handleAssetChange} className="form-input" />
+                          </div>
+                        </div>
+
+                        {/* Row 4: Invoice No, Invoice/Purchase Date, Purchase Cost */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group">
+                            <label>Invoice No. / Purchase No.</label>
+                            <input name="invoiceNo" value={assetForm.invoiceNo} onChange={handleAssetChange} className="form-input" placeholder="INV-XXXX" />
+                            {/* Invoice file upload */}
+                            <div style={{ marginTop: "6px" }}>
+                              {assetForm.hcInvoiceUrl ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>📄 View Invoice</a>
+                                  <button type="button" onClick={() => setAssetForm(p => ({ ...p, hcInvoiceUrl: "" }))} style={{ fontSize: "11px", color: "#ef4444", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Remove</button>
+                                </div>
+                              ) : (
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "4px 10px", border: "1px dashed #cbd5e1", borderRadius: "6px", cursor: "pointer", fontSize: "12px", color: "#64748b" }}>
+                                  📎 Upload Invoice
+                                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={async (e) => {
+                                    const file = e.target.files[0]; if (!file) return;
+                                    const fd = new FormData(); fd.append("file", file);
+                                    try {
+                                      const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", body: fd });
+                                      const data = await res.json();
+                                      setAssetForm(p => ({ ...p, hcInvoiceUrl: data.url }));
+                                    } catch { /* silent */ }
+                                    e.target.value = "";
+                                  }} />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                          <div className="form-group">
+                            <label>Purchase Date</label>
+                            <input type="date" name="invoiceDate" value={assetForm.invoiceDate} onChange={handleAssetChange} className="form-input" />
+                          </div>
+                          <div className="form-group">
+                            <label>Purchase Cost (₹)</label>
+                            <input type="number" name="purchaseCost" value={assetForm.purchaseCost} onChange={handleAssetChange} className="form-input" placeholder="0.00" min="0" step="0.01" />
+                          </div>
+                        </div>
+
+                        {/* Maintenance Under */}
+                        <div style={{ background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", padding: "14px 16px", marginBottom: "12px" }}>
+                          <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "10px", display: "block" }}>Maintenance Under</label>
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+                            {[["warranty","Warranty"],["amc","AMC"],["cmc","CMC"],["inhouse","In House"],["catalyst","Catalyst"]].map(([v, l]) => (
+                              <button key={v} type="button"
+                                onClick={() => setAssetForm((p) => ({ ...p, maintenanceType: p.maintenanceType === v ? "" : v }))}
+                                style={{ padding: "5px 14px", borderRadius: "20px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", border: `2px solid ${assetForm.maintenanceType === v ? "#2563eb" : "#e2e8f0"}`, background: assetForm.maintenanceType === v ? "#eff6ff" : "#fff", color: assetForm.maintenanceType === v ? "#1d4ed8" : "#64748b" }}>
+                                {l}
+                              </button>
+                            ))}
+                          </div>
+                          {assetForm.maintenanceType === "warranty" && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                              <div className="form-group"><label>Warranty Start</label><input type="date" name="warrantyStart" value={assetForm.warrantyStart} onChange={handleAssetChange} className="form-input" /></div>
+                              <div className="form-group"><label>Warranty End</label><input type="date" name="warrantyEnd" value={assetForm.warrantyEnd} onChange={handleAssetChange} className="form-input" /></div>
+                            </div>
+                          )}
+                          {assetForm.maintenanceType === "amc" && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                              <div className="form-group"><label>AMC Start</label><input type="date" name="amcStart" value={assetForm.amcStart} onChange={handleAssetChange} className="form-input" /></div>
+                              <div className="form-group"><label>AMC End</label><input type="date" name="amcEnd" value={assetForm.amcEnd} onChange={handleAssetChange} className="form-input" /></div>
+                            </div>
+                          )}
+                          {assetForm.maintenanceType === "cmc" && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                              <div className="form-group"><label>CMC Start</label><input type="date" name="cmcStart" value={assetForm.cmcStart} onChange={handleAssetChange} className="form-input" /></div>
+                              <div className="form-group"><label>CMC End</label><input type="date" name="cmcEnd" value={assetForm.cmcEnd} onChange={handleAssetChange} className="form-input" /></div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* RBER + Remarks */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group" style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: "10px 14px", border: "1px solid #e2e8f0", borderRadius: "8px", background: assetForm.rber ? "#fef2f2" : "#f8fafc" }}>
+                              <input type="checkbox" name="rber" checked={!!assetForm.rber} onChange={handleAssetChange} style={{ width: "15px", height: "15px", accentColor: "#dc2626" }} />
+                              <div>
+                                <div style={{ fontWeight: 700, color: assetForm.rber ? "#dc2626" : "#374151", fontSize: "13px" }}>RBER</div>
+                                <div style={{ fontSize: "11px", color: "#64748b" }}>Recommended Beyond Economic Repair</div>
+                              </div>
+                            </label>
+                          </div>
+                          <div className="form-group">
+                            <label>Remarks</label>
+                            <textarea name="remarks" value={assetForm.remarks} onChange={handleAssetChange} className="form-input" rows="2" placeholder="Any additional remarks or notes" />
+                          </div>
+                        </div>
+
+                        {/* Location + Status */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                          <div className="form-group"><label>Department</label>
+                            <select name="departmentId" value={assetForm.departmentId || ""} onChange={handleAssetChange} className="form-select">
+                              <option value="">— None —</option>
+                              {companyDepartmentOptions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                            </select>
+                          </div>
+                          <div className="form-group"><label>Building / Ward</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. OT Block" /></div>
+                          <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 2nd Floor" /></div>
+                          <div className="form-group"><label>Status</label>
+                            <select name="status" value={assetForm.status} onChange={handleAssetChange} className="form-select">
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                            </select>
+                          </div>
+                        </div>
+                      </>)}
 
                       {/* Soft workflow: Location fields only */}
                       {isSoftWf && (
@@ -3489,8 +3938,8 @@ const CompanyPortal = () => {
                         </div>
                       )}
 
-                      {/* Non-soft: standard fields */}
-                      {!isSoftWf && (<>
+                      {/* Non-soft: standard fields — NOT shown for healthcare (has its own location section above) */}
+                      {!isSoftWf && !isHealthcareWf && (<>
                         <div className="form-group">
                           <label>Department</label>
                           <select name="departmentId" value={assetForm.departmentId || ""} onChange={handleAssetChange} className="form-select">
@@ -3531,7 +3980,7 @@ const CompanyPortal = () => {
                           <textarea name="description" value={assetForm.description} onChange={handleAssetChange} className="form-input" rows="2" placeholder="Notes, instructions, etc." />
                         </div>
 
-                        {isTechWf && (
+                        {isTechWf && !isHealthcareWf && (
                           <div className="form-section" style={{ marginBottom: "12px" }}>
                             <h3 style={{ marginBottom: "8px" }}>Technical Details</h3>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
@@ -3549,7 +3998,7 @@ const CompanyPortal = () => {
                           </div>
                         )}
 
-                        {isFleetWf && (
+                        {isFleetWf && !isHealthcareWf && (
                           <div className="form-section" style={{ marginBottom: "12px" }}>
                             <h3 style={{ marginBottom: "8px" }}>Fleet Details</h3>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
@@ -3627,37 +4076,154 @@ const CompanyPortal = () => {
               </div>
               </div>
             )}
+            {/* Bulk Import Modal */}
+            {showBulkImport && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
+                onClick={() => setShowBulkImport(false)}>
+                <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "540px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+                  onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Import Assets from Excel</h2>
+                      <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>Upload an .xlsx / .xls / .csv file to register multiple assets at once.</p>
+                    </div>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                  </div>
+
+                  {/* Template download */}
+                  <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 16px", marginBottom: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                    <span style={{ fontSize: "13px", color: "#475569" }}>Download the template to see the required columns.</span>
+                    <a href={getAssetImportTemplateUrl()} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Template
+                    </a>
+                  </div>
+
+                  {/* File picker */}
+                  <div style={{ marginBottom: "18px" }}>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Excel / CSV File <span style={{ color: "#ef4444" }}>*</span></label>
+                    <input type="file" accept=".xlsx,.xls,.csv"
+                      onChange={(e) => { setBulkImportFile(e.target.files[0] || null); setBulkImportResult(null); }}
+                      style={{ display: "block", width: "100%", fontSize: "13px", color: "#0f172a" }} />
+                    {bulkImportFile && <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#64748b" }}>{bulkImportFile.name}</p>}
+                  </div>
+
+                  {/* Upload button */}
+                  <button type="button" disabled={bulkImporting || !bulkImportFile}
+                    onClick={async () => {
+                      if (!bulkImportFile) return;
+                      setBulkImporting(true); setBulkImportResult(null);
+                      try {
+                        const companyId = selectedCompanyId || companies[0]?.id;
+                        const result = await bulkImportAssets(token, bulkImportFile, companyId);
+                        setBulkImportResult(result);
+                        // Refresh assets list
+                        await loadAssets(token, companyId).catch(() => {});
+                      } catch (err) {
+                        setBulkImportResult({ error: err.message });
+                      } finally {
+                        setBulkImporting(false);
+                      }
+                    }}
+                    style={{ display: "block", width: "100%", padding: "10px", borderRadius: "8px", border: "none", background: bulkImporting || !bulkImportFile ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: bulkImporting || !bulkImportFile ? "default" : "pointer" }}>
+                    {bulkImporting ? "Uploading…" : "Upload & Register Assets"}
+                  </button>
+
+                  {/* Results */}
+                  {bulkImportResult && !bulkImportResult.error && (
+                    <div style={{ marginTop: "20px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "14px" }}>
+                        {[
+                          { label: "Total Rows", value: bulkImportResult.total, color: "#0f172a" },
+                          { label: "Created", value: bulkImportResult.created, color: "#16a34a" },
+                          { label: "Skipped", value: bulkImportResult.skipped, color: "#d97706" },
+                        ].map(({ label, value, color }) => (
+                          <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
+                            <div style={{ fontSize: "22px", fontWeight: 800, color }}>{value}</div>
+                            <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {bulkImportResult.errors?.length > 0 && (
+                        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px" }}>
+                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#dc2626" }}>Skipped rows:</p>
+                          {bulkImportResult.errors.map((e, i) => (
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" — ` : ""}{e.reason}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {bulkImportResult?.error && (
+                    <div style={{ marginTop: "14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px" }}>
+                      <p style={{ margin: 0, fontSize: "13px", color: "#dc2626", fontWeight: 600 }}>{bulkImportResult.error}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {assetQrModal && (
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-                <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "360px", padding: "32px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-                  <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Asset QR Code</h3>
-                  <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b" }}>{assetQrModal.assetName}</p>
+                <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+                  <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Asset QR / Barcode Label</h3>
                   {assetQrDataUrl ? (
-                    <img src={assetQrDataUrl} alt="QR Code" style={{ width: "220px", height: "220px", borderRadius: "12px", border: "1px solid #e2e8f0" }} />
+                    /* ── Barcode label preview (industry standard 3.5" x 2" ratio) ── */
+                    <div id="barcode-label-preview" style={{ display: "inline-block", border: "2px solid #e2e8f0", borderRadius: "10px", padding: "12px 16px", background: "#fff", maxWidth: "320px", width: "100%", textAlign: "left", fontFamily: "'Arial', sans-serif" }}>
+                      {/* Header row: client name + Catalyst brand */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 800, color: "#1e3a8a", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                          {assetQrModal.companyName || companies.find((c) => c.id === assetQrModal.companyId)?.companyName || "Company"}
+                        </span>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", background: "#f1f5f9", padding: "2px 7px", borderRadius: "4px" }}>CATALYST FM</span>
+                      </div>
+                      {/* QR + details side by side */}
+                      <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                        <img src={assetQrDataUrl} alt="QR" style={{ width: "80px", height: "80px", flexShrink: 0, borderRadius: "4px" }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: "13.5px", color: "#0f172a", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assetQrModal.assetName}</div>
+                          {assetQrModal.barcodeNumber && (
+                            <div style={{ fontSize: "11px", fontFamily: "monospace", color: "#1e3a8a", fontWeight: 700, marginBottom: "3px", background: "#eff6ff", padding: "2px 6px", borderRadius: "3px", display: "inline-block" }}>{assetQrModal.barcodeNumber}</div>
+                          )}
+                          {assetQrModal.assetType && <div style={{ fontSize: "10.5px", color: "#64748b", marginBottom: "2px" }}>Type: {assetQrModal.assetType}</div>}
+                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>📍 {assetQrModal.location}</div>}
+                        </div>
+                      </div>
+                      {/* Footer */}
+                      <div style={{ marginTop: "8px", paddingTop: "5px", borderTop: "1px solid #e2e8f0", fontSize: "9.5px", color: "#94a3b8", textAlign: "center" }}>
+                        Scan QR to view details &amp; raise queries · {new Date().getFullYear()}
+                      </div>
+                    </div>
                   ) : (
                     <p style={{ color: "#94a3b8" }}>Generating QR...</p>
                   )}
-                  <p style={{ marginTop: "16px", fontSize: "11px", color: "#94a3b8" }}>Scan to view asset details and training on mobile</p>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "18px", justifyContent: "center", flexWrap: "wrap" }}>
                     {assetQrDataUrl && (
-                      <a href={assetQrDataUrl} download={`QR-${assetQrModal.assetName.replace(/[^a-zA-Z0-9]/g, "_")}-${assetQrModal.assetId}.png`} style={{ padding: "8px 18px", borderRadius: "8px", background: "#2563eb", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <a href={assetQrDataUrl} download={`QR-${assetQrModal.assetName.replace(/[^a-zA-Z0-9]/g, "_")}-${assetQrModal.assetId}.png`} style={{ padding: "8px 16px", borderRadius: "8px", background: "#2563eb", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download QR
                       </a>
                     )}
                     {assetQrDataUrl && (
                       <button onClick={() => {
+                        const label = document.getElementById("barcode-label-preview");
+                        const labelHtml = label ? label.outerHTML : "";
                         const w = window.open("", "_blank");
-                        w.document.write(`<html><head><title>QR - ${assetQrModal.assetName}</title><style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#fff} h3{margin-bottom:8px;font-size:18px;color:#0f172a} p{margin:0 0 16px;color:#64748b;font-size:13px}</style></head><body><h3>${assetQrModal.assetName}</h3><p>Scan to open on mobile</p><img src="${assetQrDataUrl}" style="width:260px;height:260px"/></body></html>`);
+                        w.document.write(`<!DOCTYPE html><html><head><title>Barcode Label - ${assetQrModal.assetName}</title>
+                          <style>
+                            @page { size: 89mm 51mm; margin: 0; }
+                            body { margin: 0; padding: 4mm; font-family: Arial, sans-serif; background: #fff; }
+                            * { box-sizing: border-box; }
+                          </style>
+                        </head><body>${labelHtml}</body></html>`);
                         w.document.close();
                         w.focus();
-                        setTimeout(() => { w.print(); }, 400);
-                      }} style={{ padding: "8px 18px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        setTimeout(() => { w.print(); w.close(); }, 500);
+                      }} style={{ padding: "8px 16px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                        Print QR
+                        Print Label
                       </button>
                     )}
-                    <button onClick={() => { setAssetQrModal(null); setAssetQrDataUrl(""); }} style={{ padding: "8px 18px", borderRadius: "8px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
+                    <button onClick={() => { setAssetQrModal(null); setAssetQrDataUrl(""); }} style={{ padding: "8px 16px", borderRadius: "8px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
                   </div>
                 </div>
               </div>
@@ -3922,11 +4488,309 @@ const CompanyPortal = () => {
           })}
         </div>
 
-        {nav === "companies" && showAddForm && (
+        {/* ── Post-Registration: Create First User Modal ── */}
+        {showPostRegUser && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px 28px", width: "min(520px, 94vw)", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                  <div style={{ width: 40, height: 40, background: "#dcfce7", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Company Created! Create Login Credentials</h2>
+                    <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Create a dashboard user account for this company now.</p>
+                  </div>
+                </div>
+              </div>
+              {postRegUserError && <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", color: "#dc2626", fontSize: "13px" }}>{postRegUserError}</div>}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
+                <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Full Name *</label>
+                  <input value={postRegUserForm.fullName} onChange={(e) => setPostRegUserForm((p) => ({ ...p, fullName: e.target.value }))}
+                    className="form-input" placeholder="Full name" style={{ width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Email *</label>
+                  <input type="email" value={postRegUserForm.email} onChange={(e) => setPostRegUserForm((p) => ({ ...p, email: e.target.value }))}
+                    className="form-input" placeholder="user@hospital.com" style={{ width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Phone</label>
+                  <input value={postRegUserForm.phone} onChange={(e) => setPostRegUserForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="form-input" placeholder="+91 9876543210" style={{ width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Role</label>
+                  <select value={postRegUserForm.role} onChange={(e) => setPostRegUserForm((p) => ({ ...p, role: e.target.value }))}
+                    className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                    <option value="admin">Admin</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="technician">Technician</option>
+                    <option value="employee">Employee</option>
+                    <option value="doctor">Doctor (HC)</option>
+                    <option value="nurse">Nurse (HC)</option>
+                    <option value="ward_boy">Ward Boy (HC)</option>
+                    <option value="engineer">Engineer (HC)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Username (for mobile login)</label>
+                  <input value={postRegUserForm.username} onChange={(e) => setPostRegUserForm((p) => ({ ...p, username: e.target.value }))}
+                    className="form-input" placeholder="username or email" style={{ width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Password *</label>
+                  <input type="password" value={postRegUserForm.password} onChange={(e) => setPostRegUserForm((p) => ({ ...p, password: e.target.value }))}
+                    className="form-input" placeholder="Minimum 6 characters" style={{ width: "100%", boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
+                <button type="button" onClick={() => { setShowPostRegUser(false); setNav("companies"); }}
+                  style={{ padding: "9px 18px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}>
+                  Skip for now
+                </button>
+                <button type="button" disabled={postRegUserLoading || !postRegUserForm.fullName || !postRegUserForm.email || !postRegUserForm.password || !postRegCompanyId}
+                  onClick={async () => {
+                    if (!postRegCompanyId) { setPostRegUserError("Company ID missing — please try again."); return; }
+                    setPostRegUserLoading(true);
+                    setPostRegUserError(null);
+                    try {
+                      await createCompanyUser(token, { ...postRegUserForm, companyId: Number(postRegCompanyId), username: postRegUserForm.username || postRegUserForm.email });
+                      setShowPostRegUser(false);
+                      setNav("companies");
+                    } catch (err) {
+                      setPostRegUserError(err.message || "Could not create user");
+                    } finally {
+                      setPostRegUserLoading(false);
+                    }
+                  }}
+                  style={{ padding: "9px 24px", fontSize: "13.5px", fontWeight: 700, borderRadius: "7px", border: "none", background: postRegUserLoading ? "#93c5fd" : "#2563eb", color: "#fff", cursor: "pointer" }}>
+                  {postRegUserLoading ? "Creating…" : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Sector Selection Modal ── */}
+        {showSectorModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px 28px", width: "min(560px, 94vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+              <div style={{ marginBottom: "20px" }}>
+                <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>Select Sector(s)</h2>
+                <p style={{ color: "#64748b", fontSize: "14px" }}>Select one or more industry sectors. Module access will be configured accordingly.</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+                {SECTORS.map((s) => {
+                  const checked = selectedSectors.includes(s.value);
+                  return (
+                    <button key={s.value} type="button"
+                      onClick={() => setSelectedSectors((prev) => checked ? prev.filter((v) => v !== s.value) : [...prev, s.value])}
+                      style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", border: `2px solid ${checked ? "#2563eb" : "#e2e8f0"}`, borderRadius: "10px", background: checked ? "#eff6ff" : "#f8fafc", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${checked ? "#2563eb" : "#94a3b8"}`, background: checked ? "#2563eb" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                        {checked && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                      <span style={{ fontSize: "22px", lineHeight: 1, flexShrink: 0 }}>{s.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "13.5px", color: checked ? "#1d4ed8" : "#0f172a", marginBottom: "2px" }}>{s.label}</div>
+                        <div style={{ fontSize: "12px", color: "#64748b" }}>{s.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedSectors.length > 0 && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#166534" }}>
+                  ✓ Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => { setShowSectorModal(false); setSelectedSectors([]); }}
+                  style={{ padding: "9px 20px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button type="button" disabled={selectedSectors.length === 0}
+                  onClick={() => {
+                    setShowSectorModal(false);
+                    setHospitalForm(emptyHospital);
+                    setCompanyForm({ ...emptyCompany, sectors: selectedSectors });
+                    setShowAddForm(true);
+                  }}
+                  style={{ padding: "9px 24px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "none", background: selectedSectors.length > 0 ? "#2563eb" : "#93c5fd", color: "#fff", cursor: selectedSectors.length > 0 ? "pointer" : "default" }}>
+                  Continue →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {nav === "companies" && showAddForm && selectedSectors.includes("healthcare") && selectedSectors.length === 1 && (
+          <div style={{ background: "#f1f5f9", minHeight: "100%", padding: "0 0 32px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 0 16px 0" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#1e293b", margin: 0, letterSpacing: "-0.3px" }}>Register Hospital / Medical Institute</h2>
+              <span style={{ fontSize: "13px", color: "#94a3b8", fontWeight: 400 }}>
+                Companies&nbsp;<span style={{ color: "#cbd5e1" }}>/</span>&nbsp;
+                <span style={{ color: "#3b82f6", fontWeight: 500 }}>Healthcare Registration</span>
+              </span>
+            </div>
+
+            <form onSubmit={handleCreateHospital}>
+              {hospitalError && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", color: "#dc2626", fontSize: "14px" }}>
+                  {hospitalError}
+                </div>
+              )}
+
+              {/* Site Information */}
+              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "16px", overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px 12px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>🏥</span>
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>Site / Institute Information</span>
+                </div>
+                <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "18px 24px" }}>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Site / Institute Name<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="siteName" value={hospitalForm.siteName} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="e.g. City General Hospital" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>Status</label>
+                    <select name="status" value={hospitalForm.status} onChange={handleHospitalChange} className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Entity Type<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <select name="entityType" value={hospitalForm.entityType} onChange={handleHospitalChange} required className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">Select Entity Type</option>
+                      <option value="Hospital">Hospital</option>
+                      <option value="Medical College">Medical College</option>
+                      <option value="Clinic">Clinic</option>
+                      <option value="Diagnostic Centre">Diagnostic Centre</option>
+                      <option value="Nursing Home">Nursing Home</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Facility Type<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <select name="facilityType" value={hospitalForm.facilityType} onChange={handleHospitalChange} required className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">Select Facility Type</option>
+                      <option value="Private">Private</option>
+                      <option value="Trust">Trust</option>
+                      <option value="Public">Public</option>
+                      <option value="Government">Government</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>GST No.</label>
+                    <input name="gstNo" value={hospitalForm.gstNo} onChange={handleHospitalChange}
+                      className="form-input" placeholder="e.g. 22AAAAA0000A1Z5" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>PAN No.</label>
+                    <input name="panNo" value={hospitalForm.panNo} onChange={handleHospitalChange}
+                      className="form-input" placeholder="e.g. AAAAA0000A" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "16px", overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px 12px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>📍</span>
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>Location</span>
+                </div>
+                <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "18px 24px" }}>
+                  <div style={{ gridColumn: "span 3" }}>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Address<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="address" value={hospitalForm.address} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="Full address of the facility" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      State<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="state" value={hospitalForm.state} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="e.g. Maharashtra" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Pin Code<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="pinCode" value={hospitalForm.pinCode} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="e.g. 400001" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "16px", overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px 12px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>👤</span>
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>Contact Information</span>
+                </div>
+                <div style={{ padding: "20px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "18px 24px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Contact Person Name<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="contactPersonName" value={hospitalForm.contactPersonName} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="Full name" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Contact Person No.<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input name="contactPersonPhone" value={hospitalForm.contactPersonPhone} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="e.g. +91 9876543210" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>
+                      Email Address<span style={{ color: "#ef4444", marginLeft: "2px" }}>*</span>
+                    </label>
+                    <input type="email" name="contactEmail" value={hospitalForm.contactEmail} onChange={handleHospitalChange} required
+                      className="form-input" placeholder="contact@hospital.com" style={{ width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button type="button"
+                  onClick={() => { setShowAddForm(false); setSelectedSectors([]); setHospitalError(null); }}
+                  style={{ padding: "9px 22px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={hospitalLoading}
+                  style={{ padding: "9px 26px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "none", background: hospitalLoading ? "#93c5fd" : "#3b82f6", color: "#fff", cursor: hospitalLoading ? "default" : "pointer" }}>
+                  {hospitalLoading ? "Saving…" : "Register Hospital"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {nav === "companies" && showAddForm && !(selectedSectors.includes("healthcare") && selectedSectors.length === 1) && (
           <div style={{ background: "#f1f5f9", minHeight: "100%", padding: "0 0 32px 0" }}>
             {/* Page Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 0 16px 0" }}>
-              <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#1e293b", margin: 0, letterSpacing: "-0.3px" }}>Add Company</h2>
+              <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#1e293b", margin: 0, letterSpacing: "-0.3px" }}>
+                Add Company
+                {selectedSectors.length > 0 && (
+                  <span style={{ marginLeft: "10px", fontSize: "13px", fontWeight: 500, color: "#2563eb", background: "#eff6ff", borderRadius: "6px", padding: "2px 10px", verticalAlign: "middle" }}>
+                    {selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(" + ")}
+                  </span>
+                )}
+              </h2>
               <span style={{ fontSize: "13px", color: "#94a3b8", fontWeight: 400 }}>
                 Companies&nbsp;<span style={{ color: "#cbd5e1" }}>/</span>&nbsp;
                 <span style={{ color: "#3b82f6", fontWeight: 500 }}>Add Company</span>
@@ -4085,7 +4949,7 @@ const CompanyPortal = () => {
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => { setShowAddForm(false); setSelectedSectors([]); }}
                   style={{ padding: "9px 22px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}
                 >
                   Cancel

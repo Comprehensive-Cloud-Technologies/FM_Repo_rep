@@ -12,7 +12,6 @@ const clientRules = [
   body("state").optional().isString().isLength({ max: 80 }),
   body("pincode").optional().isString().isLength({ max: 12 }),
   body("gst").optional().isString().isLength({ max: 20 }),
-  body("company").optional().isString().isLength({ max: 120 }),
   body("address").optional().isString().isLength({ max: 255 }),
   body("status").isIn(["Active", "Inactive"]).withMessage("Status must be Active or Inactive"),
 ];
@@ -20,7 +19,7 @@ const clientRules = [
 router.get("/", async (_req, res, next) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, COALESCE(NULLIF(TRIM(client_name), ''), company_name, '') AS clientName, email, phone, state_name AS state, pincode, gst_number AS gst, company_name AS company, address, status, created_at AS createdAt
+      `SELECT id, COALESCE(NULLIF(TRIM(client_name), ''), '') AS clientName, email, phone, state_name AS state, pincode, gst_number AS gst, address, status, created_at AS createdAt
        FROM clients
        ORDER BY created_at DESC`
     );
@@ -32,12 +31,12 @@ router.get("/", async (_req, res, next) => {
 
 router.post("/", validate(clientRules), async (req, res, next) => {
   try {
-    const { clientName, email, phone, state, pincode, gst, company, address, status } = req.body;
+    const { clientName, email, phone, state, pincode, gst, address, status } = req.body;
     const [rows, meta] = await pool.execute(
-      `INSERT INTO clients (client_name, email, phone, state_name, pincode, gst_number, company_name, address, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO clients (client_name, email, phone, state_name, pincode, gst_number, address, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
-      [clientName, email, phone, state, pincode, gst, company, address, status]
+      [clientName, email, phone, state, pincode, gst, address, status]
     );
     const insertedId = meta?.insertId ?? rows?.insertId ?? rows?.[0]?.id;
 
@@ -49,7 +48,6 @@ router.post("/", validate(clientRules), async (req, res, next) => {
       state,
       pincode,
       gst,
-      company,
       address,
       status,
       createdAt: new Date().toISOString(),
@@ -65,20 +63,20 @@ router.put(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { clientName, email, phone, state, pincode, gst, company, address, status } = req.body;
+      const { clientName, email, phone, state, pincode, gst, address, status } = req.body;
 
       const [result] = await pool.execute(
         `UPDATE clients
-         SET client_name = ?, email = ?, phone = ?, state_name = ?, pincode = ?, gst_number = ?, company_name = ?, address = ?, status = ?
+         SET client_name = ?, email = ?, phone = ?, state_name = ?, pincode = ?, gst_number = ?, address = ?, status = ?
          WHERE id = ?`,
-        [clientName, email, phone, state, pincode, gst, company, address, status, id]
+        [clientName, email, phone, state, pincode, gst, address, status, id]
       );
 
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: "Client not found" });
       }
 
-      return res.json({ id: Number(id), clientName, email, phone, state, pincode, gst, company, address, status });
+      return res.json({ id: Number(id), clientName, email, phone, state, pincode, gst, address, status });
     } catch (err) {
       return next(err);
     }

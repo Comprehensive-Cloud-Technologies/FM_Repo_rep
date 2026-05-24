@@ -9,6 +9,7 @@ import CompanyLogin from "./pages/CompanyLogin";
 import CompanyEmployeePortal from "./pages/CompanyEmployeePortal";
 import AssetScanPage from "./pages/AssetScanPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
+import PublicDashboard from "./pages/PublicDashboard";
 import "./styles.css";
 import {
   getClients, createClient, updateClient, deleteClient,
@@ -200,7 +201,7 @@ const AdminShell = ({ onSignOut }) => {
             <p className="user-email">admin@root.com</p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginLeft: "auto" }}>
-            <button className="logout-btn" onClick={() => navigate("/client")}>Client Portal</button>
+            <button className="logout-btn" onClick={() => navigate("/client", { replace: true })}>Client Portal</button>
             <button className="logout-btn" onClick={onSignOut} style={{ background: "#fee2e2", color: "#b91c1c" }}>
               <LogOut size={14} /> Sign Out
             </button>
@@ -259,6 +260,7 @@ function App() {
       <Route path="/company" element={<CompanyLogin />} />
       <Route path="/company/portal/*" element={<CompanyEmployeePortal />} />
       <Route path="/company/submissions" element={<SubmissionsPage />} />
+      <Route path="/public/:token" element={<PublicDashboard />} />
       <Route path="/asset-scan/:assetId" element={<AssetScanPage />} />
       <Route path="*" element={isRootAuthed ? <AdminShell onSignOut={handleRootSignOut} /> : <Navigate to="/root-login" replace />} />
     </Routes>

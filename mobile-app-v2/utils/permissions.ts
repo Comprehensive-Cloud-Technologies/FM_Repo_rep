@@ -21,6 +21,12 @@ export interface RoleCapabilities {
   isTechnicalSupervisor: boolean;
   /** Technician: executes assigned checklists & work orders */
   isTechnician: boolean;
+  /** Healthcare staff: Nurse / Doctor / Ward Boy — can raise & close own case logs */
+  isHCStaff: boolean;
+  /** Healthcare engineer — receives & resolves assigned case logs */
+  isHCEngineer: boolean;
+  /** Healthcare admin — full case log + asset management access */
+  isHCAdmin: boolean;
 }
 
 export const EMPTY_CAPS: RoleCapabilities = {
@@ -29,6 +35,9 @@ export const EMPTY_CAPS: RoleCapabilities = {
   isSoftManager:          false,
   isTechnicalSupervisor:  false,
   isTechnician:           false,
+  isHCStaff:              false,
+  isHCEngineer:           false,
+  isHCAdmin:              false,
 };
 
 // ─── Capability queries ───────────────────────────────────────────────────────
@@ -83,6 +92,19 @@ export const canViewWarnings = (c?: RoleCapabilities | null) =>
 /** Access to notifications */
 export const canViewNotifications = (c?: RoleCapabilities | null) =>
   hasTechAccess(c);
+
+/** Healthcare: any HC role */
+export const isAnyHCRole = (c?: RoleCapabilities | null) =>
+  !!(c?.isHCStaff || c?.isHCEngineer || c?.isHCAdmin);
+
+/** Healthcare staff only */
+export const isHCStaff = (c?: RoleCapabilities | null) => !!c?.isHCStaff;
+
+/** Healthcare engineer only */
+export const isHCEngineer = (c?: RoleCapabilities | null) => !!c?.isHCEngineer;
+
+/** Healthcare admin only */
+export const isHCAdmin = (c?: RoleCapabilities | null) => !!c?.isHCAdmin;
 
 // ─── Home screen routing ─────────────────────────────────────────────────────
 /**

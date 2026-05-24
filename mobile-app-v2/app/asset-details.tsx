@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAssetByQR, getStoredUser, getSoftRequestsForAsset } from '../utils/api';
@@ -125,6 +125,32 @@ export default function AssetDetailsScreen() {
   const logsheets: any[]  = data?.logsheetTemplates  ?? [];
   const assetName: string = asset.assetName ?? asset.name ?? 'Asset';
   const hasTemplates      = checklists.length > 0 || logsheets.length > 0;
+
+  /** Navigate to the asset chat / query screen */
+  const ChatButton = () => (
+    <TouchableOpacity
+      style={[chatBtnStyle.btn, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+      onPress={() =>
+        router.push({
+          pathname: '/asset-chat',
+          params: {
+            assetId: String(assetId),
+            assetName,
+            assetType:     asset.assetType ?? '',
+            building:      asset.building  ?? '',
+            floor:         asset.floor     ?? '',
+            room:          asset.room      ?? '',
+            barcodeNumber: asset.assetUniqueId ?? asset.uniqueId ?? '',
+          },
+        })
+      }
+      activeOpacity={0.85}
+    >
+      <MaterialCommunityIcons name="chat-question-outline" size={20} color={theme.primary} />
+      <Text style={[chatBtnStyle.text, { color: theme.primary }]}>Chat / Log a Query</Text>
+      <MaterialCommunityIcons name="chevron-right" size={18} color={theme.primary} />
+    </TouchableOpacity>
+  );
 
   // ── Role-aware view: catalyst supervisor with open requests ──────────────
   if (userCaps?.canResolveSoftIssue && openRequests.length > 0) {
@@ -263,6 +289,25 @@ export default function AssetDetailsScreen() {
             </View>
           )}
 
+          {/* Full asset details card */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>ASSET DETAILS</Text>
+          </View>
+          <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+            <InfoRow label="QR / Barcode"   value={asset.assetUniqueId ?? asset.uniqueId} />
+            <InfoRow label="Status"         value={asset.status} />
+            <InfoRow label="Department"     value={asset.departmentName ?? asset.department} />
+            {asset.metadata?.make        && <InfoRow label="Make"              value={asset.metadata.make} />}
+            {asset.metadata?.model       && <InfoRow label="Model"            value={asset.metadata.model} />}
+            {asset.metadata?.serialNo    && <InfoRow label="Serial No."       value={asset.metadata.serialNo} />}
+            {asset.metadata?.dealer      && <InfoRow label="Dealer"           value={asset.metadata.dealer} />}
+            {asset.metadata?.mfgYear     && <InfoRow label="Mfg. Year"        value={String(asset.metadata.mfgYear)} />}
+            {asset.metadata?.installationDate && <InfoRow label="Installed"   value={asset.metadata.installationDate} />}
+            {asset.metadata?.invoiceNo   && <InfoRow label="Invoice No."      value={asset.metadata.invoiceNo} />}
+            {asset.metadata?.purchaseCost && <InfoRow label="Purchase Cost"   value={`\u20B9 ${asset.metadata.purchaseCost}`} />}
+            {asset.metadata?.remarks     && <InfoRow label="Remarks"          value={asset.metadata.remarks} />}
+          </View>
+
           {/* Recent submission card — tappable so the supervisor can read responses */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>LAST INSPECTION</Text>
@@ -349,6 +394,11 @@ export default function AssetDetailsScreen() {
                   <Text style={[styles.recentEmptyText, { color: theme.textMuted }]}>No issue templates available</Text>
                 </View>
               )}
+              {/* Chat / Query */}
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>LOG A QUERY</Text>
+              </View>
+              <ChatButton />
             </>
           ) : (
             /* Not scanned via QR — prompt to scan */
@@ -391,18 +441,26 @@ export default function AssetDetailsScreen() {
             <Text style={[styles.alertText, { color: '#065F46' }]}>All clear — no open issues for this asset</Text>
           </View>
 
-          {/* Asset info */}
+          {/* Asset info with metadata */}
           <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
-            <InfoRow label="Name"       value={assetName} />
-            <InfoRow label="Type"       value={asset.assetType ?? asset.typeName} />
-            <InfoRow label="Building"   value={asset.building} />
-            <InfoRow label="Floor"      value={asset.floor} />
-            <InfoRow label="Room"       value={asset.room} />
-            <InfoRow label="Department" value={asset.departmentName ?? asset.department} />
-            <InfoRow label="Status"     value={asset.status} />
+            <InfoRow label="Name"         value={assetName} />
+            <InfoRow label="QR / Barcode" value={asset.assetUniqueId ?? asset.uniqueId} />
+            <InfoRow label="Type"         value={asset.assetType ?? asset.typeName} />
+            <InfoRow label="Building"     value={asset.building} />
+            <InfoRow label="Floor"        value={asset.floor} />
+            <InfoRow label="Room"         value={asset.room} />
+            <InfoRow label="Department"   value={asset.departmentName ?? asset.department} />
+            <InfoRow label="Status"       value={asset.status} />
+            {asset.metadata?.make        && <InfoRow label="Make"         value={asset.metadata.make} />}
+            {asset.metadata?.model       && <InfoRow label="Model"        value={asset.metadata.model} />}
+            {asset.metadata?.serialNo    && <InfoRow label="Serial No."   value={asset.metadata.serialNo} />}
+            {asset.metadata?.mfgYear     && <InfoRow label="Mfg. Year"   value={String(asset.metadata.mfgYear)} />}
+            {asset.metadata?.installationDate && <InfoRow label="Installed" value={asset.metadata.installationDate} />}
+            {asset.metadata?.remarks     && <InfoRow label="Remarks"      value={asset.metadata.remarks} />}
           </View>
 
-          {/* Checklists — only after QR scan */}
+          {/* Chat / Query — available after QR scan */}
+          {scannedViaQR && <ChatButton />}}
           {scannedViaQR ? (
             hasTemplates ? (
               <>
@@ -458,17 +516,48 @@ export default function AssetDetailsScreen() {
           <Text style={styles.heroId}>{asset.assetUniqueId ?? asset.uniqueId}</Text>
         </View>
 
-        {/* Info */}
+        {/* Info — full details including healthcare metadata */}
         <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
-          <InfoRow label="Name"       value={assetName} />
-          <InfoRow label="Type"       value={asset.assetType ?? asset.typeName} />
-          <InfoRow label="Building"   value={asset.building} />
-          <InfoRow label="Floor"      value={asset.floor} />
-          <InfoRow label="Room"       value={asset.room} />
-          <InfoRow label="Department" value={asset.departmentName ?? asset.department} />
-          <InfoRow label="Status"     value={asset.status} />
-          <InfoRow label="Company"    value={asset.companyName} />
+          <InfoRow label="QR / Barcode"  value={asset.assetUniqueId ?? asset.uniqueId} />
+          <InfoRow label="Equipment Name" value={assetName} />
+          <InfoRow label="Type"           value={asset.assetType ?? asset.typeName} />
+          <InfoRow label="Status"         value={asset.status} />
+          <InfoRow label="Department"     value={asset.departmentName ?? asset.department} />
+          <InfoRow label="Building"       value={asset.building} />
+          <InfoRow label="Floor"          value={asset.floor} />
+          <InfoRow label="Room / Area"    value={asset.room} />
+          {/* Healthcare metadata */}
+          {asset.metadata?.make        && <InfoRow label="Make / Manufacturer"  value={asset.metadata.make} />}
+          {asset.metadata?.model       && <InfoRow label="Model"                value={asset.metadata.model} />}
+          {asset.metadata?.serialNo    && <InfoRow label="Serial No."           value={asset.metadata.serialNo} />}
+          {asset.metadata?.accessories && <InfoRow label="Accessories"          value={asset.metadata.accessories} />}
+          {asset.metadata?.dealer      && <InfoRow label="Dealer / Distributor" value={asset.metadata.dealer} />}
+          {asset.metadata?.mfgYear     && <InfoRow label="Manufacturing Year"   value={String(asset.metadata.mfgYear)} />}
+          {asset.metadata?.installationDate && <InfoRow label="Installation Date" value={asset.metadata.installationDate} />}
+          {asset.metadata?.invoiceNo   && <InfoRow label="Invoice No."          value={asset.metadata.invoiceNo} />}
+          {asset.metadata?.purchaseDate && <InfoRow label="Purchase Date"       value={asset.metadata.purchaseDate} />}
+          {asset.metadata?.purchaseCost && <InfoRow label="Purchase Cost"       value={`\u20B9 ${asset.metadata.purchaseCost}`} />}
+          {asset.metadata?.remarks     && <InfoRow label="Remarks"              value={asset.metadata.remarks} />}
         </View>
+
+        {/* Equipment images (from registration) */}
+        {Array.isArray(asset.metadata?.hcImages) && asset.metadata.hcImages.length > 0 && (() => {
+          const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://10.222.32.15:4000');
+          return (
+            <>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>EQUIPMENT PHOTOS</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                {(asset.metadata.hcImages as string[]).map((img: string, i: number) => {
+                  const src = img.startsWith('http') ? img : `${API_BASE}${img}`;
+                  return <Image key={i} source={{ uri: src }} style={{ width: 120, height: 120, borderRadius: Radius.lg, marginRight: Spacing.sm }} />;
+                })}
+              </ScrollView>
+            </>
+          );
+        })()}
+
+        {/* Chat / Query — available after QR scan */}
+        {scannedViaQR && <ChatButton />}
 
         {/* Checklists / logsheets — only unlocked after QR scan */}
         {scannedViaQR ? (
@@ -589,4 +678,19 @@ const styles = StyleSheet.create({
   issueCard:        { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1 },
   issueIcon:        { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   issueTitle:       { ...Typography.body, flex: 1, fontWeight: '500' },
+});
+
+const chatBtnStyle = StyleSheet.create({
+  btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    borderWidth: 1.5,
+  },
+  text: { ...Typography.body, fontWeight: '600', flex: 1 },
 });

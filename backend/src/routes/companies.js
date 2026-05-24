@@ -14,6 +14,27 @@ router.use(requireAuth);
     await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS enabled_modules TEXT DEFAULT NULL`);
   } catch (err) { /* ignore */ }
   try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR(80) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS entity_type VARCHAR(80) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS facility_type VARCHAR(80) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_person_name VARCHAR(160) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_person_phone VARCHAR(32) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email VARCHAR(160) DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS sectors TEXT DEFAULT NULL`);
+  } catch (err) { /* ignore */ }
+  try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role_permissions (
         id            SERIAL PRIMARY KEY,
@@ -59,6 +80,13 @@ router.get("/", async (req, res, next) => {
               c.delivery_module     AS "deliveryModule",
               c.allow_guest_booking AS "allowGuestBooking",
               c.enabled_modules     AS "enabledModules",
+              c.sector,
+              c.entity_type         AS "entityType",
+              c.facility_type       AS "facilityType",
+              c.contact_person_name AS "contactPersonName",
+              c.contact_person_phone AS "contactPersonPhone",
+              c.contact_email       AS "contactEmail",
+              c.sectors,
               c.status,
               c.created_at          AS "createdAt",
               COALESCE(cu.employee_count, 0) AS "employeeCount"
@@ -75,6 +103,7 @@ router.get("/", async (req, res, next) => {
     const parsed = rows.map((r) => ({
       ...r,
       enabledModules: r.enabledModules ? (typeof r.enabledModules === "string" ? JSON.parse(r.enabledModules) : r.enabledModules) : null,
+      sectors: r.sectors ? (typeof r.sectors === "string" ? JSON.parse(r.sectors) : r.sectors) : (r.sector ? [r.sector] : []),
     }));
     res.json(parsed);
   } catch (err) {
@@ -111,6 +140,13 @@ router.post(
         allowGuestBooking = false,
         status = "Active",
         enabledModules,
+        sector,
+        sectors,
+        entityType,
+        facilityType,
+        contactPersonName,
+        contactPersonPhone,
+        contactEmail,
       } = req.body;
 
       const safeCompanyName = companyName?.trim() || "Untitled Company";
@@ -120,8 +156,8 @@ router.post(
       const safeBillingCycle = billingCycle?.trim() || null;
       const safeContractStart = contractStartDate || null;
       const safeContractEnd = contractEndDate || null;
-
       const safeEnabledModules = enabledModules ? JSON.stringify(enabledModules) : null;
+      const safeSectors = Array.isArray(sectors) && sectors.length > 0 ? JSON.stringify(sectors) : null;
 
       const [result] = await pool.execute(
         `INSERT INTO companies (
@@ -131,8 +167,10 @@ router.post(
             contract_start_date, contract_end_date, billing_cycle,
             payment_terms_days, max_employees,
             qsr_module, premeal_module, delivery_module, allow_guest_booking,
-            enabled_modules, status, user_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            enabled_modules, sector, entity_type, facility_type,
+            contact_person_name, contact_person_phone, contact_email,
+            sectors, status, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id` ,
         [
           safeCompanyName, safeCompanyCode, description,
@@ -141,7 +179,9 @@ router.post(
           safeContractStart, safeContractEnd, safeBillingCycle,
           safePaymentTerms, safeMaxEmployees,
           qsrModule ? 1 : 0, premealModule ? 1 : 0, deliveryModule ? 1 : 0, allowGuestBooking ? 1 : 0,
-          safeEnabledModules, status, req.user.id,
+          safeEnabledModules, sector || null, entityType || null, facilityType || null,
+          contactPersonName || null, contactPersonPhone || null, contactEmail || null,
+          safeSectors, status, req.user.id,
         ]
       );
 
@@ -156,10 +196,17 @@ router.post(
         qsrModule: !!qsrModule, premealModule: !!premealModule,
         deliveryModule: !!deliveryModule, allowGuestBooking: !!allowGuestBooking,
         enabledModules: enabledModules || null,
+        sector: sector || null,
+        entityType: entityType || null,
+        facilityType: facilityType || null,
+        contactPersonName: contactPersonName || null,
+        contactPersonPhone: contactPersonPhone || null,
+        contactEmail: contactEmail || null,
+        sectors: Array.isArray(sectors) ? sectors : (sector ? [sector] : null),
         status,
       });
     } catch (err) {
-      if (err?.code === "23505") {
+      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
         return res.status(400).json({ message: "Company code already exists" });
       }
       next(err);
@@ -181,11 +228,15 @@ router.put(
         paymentTermsDays, maxEmployees,
         qsrModule, premealModule, deliveryModule, allowGuestBooking,
         status, enabledModules,
+        sector, entityType, facilityType,
+        contactPersonName, contactPersonPhone, contactEmail,
+        sectors,
       } = req.body;
 
       const safeCompanyName = companyName?.trim() || "Untitled Company";
       const safeCompanyCode = (companyCode?.trim() || "").toUpperCase();
       const safeEnabledModules = enabledModules !== undefined ? JSON.stringify(enabledModules) : undefined;
+      const safeSectors = Array.isArray(sectors) && sectors.length > 0 ? JSON.stringify(sectors) : null;
 
       const [result] = await pool.execute(
         `UPDATE companies SET
@@ -196,6 +247,9 @@ router.put(
             payment_terms_days = ?, max_employees = ?,
             qsr_module = ?, premeal_module = ?, delivery_module = ?, allow_guest_booking = ?,
             enabled_modules = ?,
+            sector = ?, entity_type = ?, facility_type = ?,
+            contact_person_name = ?, contact_person_phone = ?, contact_email = ?,
+            sectors = ?,
             status = ?
          WHERE id = ? AND user_id = ?`,
         [
@@ -206,6 +260,9 @@ router.put(
           toNullableInt(paymentTermsDays), toNullableInt(maxEmployees),
           qsrModule ? 1 : 0, premealModule ? 1 : 0, deliveryModule ? 1 : 0, allowGuestBooking ? 1 : 0,
           safeEnabledModules !== undefined ? safeEnabledModules : null,
+          sector || null, entityType || null, facilityType || null,
+          contactPersonName || null, contactPersonPhone || null, contactEmail || null,
+          safeSectors,
           status || "Active",
           id, req.user.id,
         ]
@@ -223,10 +280,17 @@ router.put(
         qsrModule: !!qsrModule, premealModule: !!premealModule,
         deliveryModule: !!deliveryModule, allowGuestBooking: !!allowGuestBooking,
         enabledModules: enabledModules || null,
+        sector: sector || null,
+        entityType: entityType || null,
+        facilityType: facilityType || null,
+        contactPersonName: contactPersonName || null,
+        contactPersonPhone: contactPersonPhone || null,
+        contactEmail: contactEmail || null,
+        sectors: Array.isArray(sectors) ? sectors : (sector ? [sector] : null),
         status: status || "Active",
       });
     } catch (err) {
-      if (err?.code === "23505") {
+      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
         return res.status(400).json({ message: "Company code already exists" });
       }
       return next(err);

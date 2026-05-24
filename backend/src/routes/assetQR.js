@@ -34,6 +34,24 @@ const tryGetCompanyUser = (req) => {
   } catch { return null; }
 };
 
+/* ── GET pre-generated QR by UID (public — no auth needed) ─────────────────── */
+router.get("/qr-lookup/:uid", async (req, res, next) => {
+  try {
+    const [[qr]] = await pool.query(
+      `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
+              q.company_id AS companyId,
+              a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              a.status, q.linked_at AS linkedAt
+       FROM asset_pre_qr q
+       LEFT JOIN assets a ON a.id = q.asset_id
+       WHERE q.qr_unique_id = ?`,
+      [req.params.uid]
+    );
+    if (!qr) return res.status(404).json({ message: "QR code not found" });
+    res.json(qr);
+  } catch (err) { next(err); }
+});
+
 /* ── GET asset details + templates ──────────────────────────────────────────── */
 router.get("/:assetId", async (req, res, next) => {
   try {

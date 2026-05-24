@@ -1,7 +1,8 @@
-import { getPublicAppUrl } from "../utils/runtimeConfig";
+import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
+import JsBarcode from "jsbarcode";
 import logo from "../images/image.png";
 import LogsheetModule from "../components/LogsheetModule.jsx";
 import ChecklistQuestionRow from "../components/ChecklistQuestionRow.jsx";
@@ -9,6 +10,8 @@ import ChecklistTemplateModule from "../components/ChecklistTemplateModule.jsx";
 import SubmissionsPanel from "../components/SubmissionsPanel.jsx";
 import WarningsPanel from "../components/WarningsPanel.jsx";
 import WorkOrdersPanel from "../components/WorkOrdersPanel.jsx";
+import HealthcareDashboard from "../components/HealthcareDashboard.jsx";
+import RequestTrackingPanel from "../components/RequestTrackingPanel.jsx";
 import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
 import { useAlertSound } from "../hooks/useAlertSound";
@@ -26,6 +29,14 @@ import {
   createCompanyPortalAsset,
   updateCompanyPortalAsset,
   deleteCompanyPortalAsset,
+  bulkDeleteCompanyPortalAssets,
+  bulkDeleteCompanyPortalPreQr,
+  assignCompanyPortalAsset,
+  getAssetByBarcode,
+  getAssetQueries,
+  createAssetQuery,
+  resolveAssetQuery,
+  escalateAssetQuery,
   getCompanyPortalChecklists,
   createCompanyPortalChecklist,
   updateCompanyPortalChecklist,
@@ -76,31 +87,29 @@ import {
   getFleetMaintenance, createFleetMaintenance, updateFleetMaintenance, updateFleetMaintenanceStatus, deleteFleetMaintenance,
   getFleetSubmissions, getFleetSubmissionDetail, downloadFleetSubmissionsCSV,
   getSoftServiceRequestsAll, getSoftServiceRequestsMy,
+  // Pre-generated QR codes
+  getPreQrCodes, generatePreQrCodes, linkPreQrCode, registerPreQrAsset, deletePreQrCode,
+  bulkImportCompanyPortalAssets,
+  getCompanyPortalImportTemplateUrl,
 } from "../api.js";
 
 /* ─── Role definitions ────────────────────────────────────────────── */
 const ROLES = [
-  { value: "admin",               label: "Admin",               color: "#7c3aed", bg: "#f3e8ff" },
-  { value: "technical_lead",      label: "Technical Lead",      color: "#1d4ed8", bg: "#dbeafe" },
-  { value: "assistant_manager",   label: "Asst. Manager",       color: "#5b21b6", bg: "#ede9fe" },
-  { value: "technical_executive", label: "Technical Executive", color: "#0e7490", bg: "#cffafe" },
-  { value: "supervisor",          label: "Supervisor",          color: "#0369a1", bg: "#e0f2fe" },
-  { value: "technician",          label: "Technician",          color: "#059669", bg: "#d1fae5" },
-  { value: "cleaner",             label: "Cleaner",             color: "#16a34a", bg: "#f0fdf4" },
-  { value: "security",            label: "Security",            color: "#ca8a04", bg: "#fefce8" },
-  { value: "driver",              label: "Driver",              color: "#ea580c", bg: "#fff7ed" },
-  { value: "fleet_operator",      label: "Fleet Operator",      color: "#9333ea", bg: "#fdf4ff" },
-  { value: "employee",            label: "Employee",            color: "#64748b", bg: "#f1f5f9" },
+  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
+  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
+  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
 ];
 const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
 
-// Default 5-level maintenance hierarchy (used when company has no custom roles)
+// Default hierarchy for healthcare org
 const DEFAULT_HIERARCHY_CHAIN = [
-  { role: "technical_lead",      label: "Technical Lead",      parentRole: null,                  color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-  { role: "assistant_manager",   label: "Asst. Manager",       parentRole: "technical_lead",      color: "#5b21b6", bg: "#ede9fe", border: "#c4b5fd" },
-  { role: "technical_executive", label: "Technical Executive", parentRole: "assistant_manager",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
-  { role: "supervisor",          label: "Supervisor",          parentRole: "technical_executive", color: "#0369a1", bg: "#e0f2fe", border: "#bae6fd" },
-  { role: "technician",          label: "Technician",          parentRole: "supervisor",          color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
+  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
+  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
 ];
 
 // Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
@@ -142,21 +151,13 @@ const applyCustomRoles = (rolesFromServer) => {
 const SHIFTS = ["Morning", "Afternoon", "Evening", "Night"];
 
 const NAV_ALL = [
-  { key: "dashboard", label: "Dashboard", roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
-  { key: "departments", label: "Departments", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-  { key: "assets", label: "Assets", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
-  { key: "checklists", label: "Checklists", roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
-  { key: "logsheets", label: "Logsheets", roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-  { key: "employees", label: "My Team", roles: ["supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { key: "employees", label: "Employees", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { key: "warnings", label: "Warnings", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
-  { key: "workorders", label: "Requests", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg> },
-  { key: "shifts", label: "Shifts", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
-  { key: "roles", label: "Manage Roles", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg> },
-  { key: "asset-types", label: "Asset Types", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> },
-  { key: "ojt", label: "OJT Management", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> },
-  { key: "fleet", label: "Fleet Management", roles: ["admin"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> },
-  { key: "mytasks", label: "My Tasks", roles: ["supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+  { key: "dashboard",   label: "Dashboard",   roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
+  { key: "assets",      label: "Assets",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
+  { key: "requests",    label: "Requests",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { key: "departments", label: "Departments",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+  { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
+  { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
 ];
 // Returns nav items visible for a given role
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -198,20 +199,22 @@ const Alert = ({ children, type = "error" }) => {
   return <div style={{ background: s.bg, color: s.col, padding: "10px 14px", borderRadius: "8px", fontSize: "13px", border: `1px solid ${s.border}`, marginBottom: "14px" }}>{children}</div>;
 };
 
-const FInput = ({ label, required, ...props }) => (
+const FInput = ({ label, required, error, ...props }) => (
   <div>
     <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>
       {label}{required && <span style={{ color: "#ef4444", marginLeft: "3px" }}>*</span>}
     </label>
-    <input {...props} style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", outline: "none" }} />
+    <input {...props} style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: `1px solid ${error ? "#ef4444" : "#e2e8f0"}`, borderRadius: "7px", fontSize: "13.5px", outline: "none" }} />
+    {error && <p style={{ fontSize: "11.5px", color: "#ef4444", marginTop: "3px", marginBottom: 0 }}>{error}</p>}
   </div>
 );
-const FSelect = ({ label, required, children, ...props }) => (
+const FSelect = ({ label, required, error, children, ...props }) => (
   <div>
     <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>
       {label}{required && <span style={{ color: "#ef4444", marginLeft: "3px" }}>*</span>}
     </label>
-    <select {...props} style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", background: "#fff", outline: "none" }}>{children}</select>
+    <select {...props} style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: `1px solid ${error ? "#ef4444" : "#e2e8f0"}`, borderRadius: "7px", fontSize: "13.5px", background: "#fff", outline: "none" }}>{children}</select>
+    {error && <p style={{ fontSize: "11.5px", color: "#ef4444", marginTop: "3px", marginBottom: 0 }}>{error}</p>}
   </div>
 );
 
@@ -333,7 +336,7 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
     try {
       const payload = {
         ...form,
-        serviceDomain,
+        serviceDomain: "both",
         supervisorId: form.supervisorId ? Number(form.supervisorId) : null,
         shift: form.shift || null,
       };
@@ -368,48 +371,6 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
         <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
           {error && <div style={{ gridColumn: "span 2" }}><Alert>{error}</Alert></div>}
 
-          {/* ── Service Domain ── */}
-          <div style={{ gridColumn: "span 2" }}>
-            <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>
-              Service Domain <span style={{ fontWeight: 400, color: "#64748b" }}>(determines asset access)</span>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-              {[
-                { key: "technical", label: "🔧 Technical",     desc: "Handles technical checklists, work orders & maintenance assets" },
-                { key: "soft",      label: "🧹 Soft Service",  desc: "Handles soft service requests & soft service asset types" },
-                { key: "both",      label: "⚙️ Both",          desc: "Full access to technical and soft service functionality" },
-              ].map(({ key, label, desc }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setServiceDomain(key)}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    border: `2px solid ${serviceDomain === key ? "#2563eb" : "#e2e8f0"}`,
-                    background: serviceDomain === key ? "#eff6ff" : "#fff",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.12s",
-                  }}
-                >
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: serviceDomain === key ? "#2563eb" : "#1e293b", marginBottom: "3px" }}>{label}</div>
-                  <div style={{ fontSize: "11px", color: "#64748b", lineHeight: "1.4" }}>{desc}</div>
-                </button>
-              ))}
-            </div>
-            {serviceDomain === "soft" && (
-              <div style={{ marginTop: "8px", padding: "8px 12px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: "8px", fontSize: "12px", color: "#92400e" }}>
-                ⚠ Soft service employees do not require checklist assignments — they handle service requests and soft service assets only.
-              </div>
-            )}
-            {serviceDomain === "technical" && (
-              <div style={{ marginTop: "8px", padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "12px", color: "#166534" }}>
-                ✓ Technical employees will see only technical asset types. Soft service templates and assets will be hidden.
-              </div>
-            )}
-          </div>
-
           {/* Basic info */}
           <div style={{ gridColumn: "span 2" }}>
             <FInput label="Full Name" required value={form.fullName} onChange={(e) => change("fullName", e.target.value)} placeholder="e.g. Ahmed Hassan" />
@@ -426,11 +387,6 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
           <div style={{ gridColumn: "span 2" }}>
             <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "8px" }}>
               Role <span style={{ color: "#ef4444" }}>*</span>
-              {serviceDomain !== "both" && (
-                <span style={{ marginLeft: "8px", fontSize: "11px", color: "#64748b", fontWeight: 400 }}>
-                  — showing {serviceDomain === "soft" ? "soft service" : "technical"} roles
-                </span>
-              )}
             </label>
             {/* Hierarchy roles visual selector */}
             <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px", marginBottom: "10px" }}>
@@ -461,14 +417,6 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Custom Roles</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                   {customRoles
-                    .filter((r) => {
-                      if (serviceDomain === "both") return true;
-                      const hasSoft = r.canRaiseSoftIssue || r.isSoftManager || r.canResolveSoftIssue;
-                      const hasTech = r.isTechnician || r.isTechnicalSupervisor;
-                      if (serviceDomain === "soft") return hasSoft;
-                      if (serviceDomain === "technical") return hasTech || (!hasSoft && !hasTech);
-                      return true;
-                    })
                     .map((r) => {
                       const selected = form.role === r.roleKey;
                       const domainTag = (r.canRaiseSoftIssue || r.isSoftManager)
@@ -485,18 +433,6 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
                       );
                     })}
                 </div>
-                {customRoles.filter((r) => {
-                  if (serviceDomain === "both") return false;
-                  const hasSoft = r.canRaiseSoftIssue || r.isSoftManager || r.canResolveSoftIssue;
-                  const hasTech = r.isTechnician || r.isTechnicalSupervisor;
-                  if (serviceDomain === "soft") return !hasSoft;
-                  if (serviceDomain === "technical") return hasSoft && !hasTech;
-                  return false;
-                }).length > 0 && (
-                  <p style={{ marginTop: "6px", fontSize: "11px", color: "#94a3b8" }}>
-                    Some roles are hidden based on the selected service domain. Switch to "Both" to see all.
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -519,40 +455,31 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
           )}
 
           {/* Hierarchy parent picker */}
-          {showParentField && (
+          {/* ── Reports To (universal hierarchy) ── */}
+          {currentUserRole === "admin" && (
             <div style={{ gridColumn: "span 2" }}>
-              <div style={{ background: `${parentRoleInfo?.bg || "#f8fafc"}22`, border: `1px solid ${parentRoleInfo?.border || "#e2e8f0"}`, borderRadius: "10px", padding: "14px" }}>
-                <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: parentRoleInfo?.color || "#475569", marginBottom: "8px" }}>
-                  Reports To ({parentRoleInfo?.label || parentRole})
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "14px" }}>
+                <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#15803d", marginBottom: "8px" }}>
+                  Reports To <span style={{ fontWeight: 400, color: "#64748b", fontSize: "11.5px" }}>(Sets escalation chain)</span>
                 </label>
-                {parentOptions.length === 0 ? (
-                  <div style={{ padding: "10px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: "7px", fontSize: "12.5px", color: "#92400e" }}>
-                    ⚠ No {parentRoleInfo?.label || parentRole} users found. Add a {parentRoleInfo?.label || parentRole} first.
-                  </div>
-                ) : (
-                  <select value={form.supervisorId} onChange={(e) => change("supervisorId", e.target.value)}
-                    style={{ width: "100%", padding: "9px 11px", border: `1px solid ${parentRoleInfo?.border || "#e2e8f0"}`, borderRadius: "7px", fontSize: "13.5px", background: "#fff" }}>
-                    <option value="">— Select {parentRoleInfo?.label || parentRole} —</option>
-                    {parentOptions.map((p) => (
-                      <option key={p.id} value={String(p.id)}>
-                        {p.fullName}{p.shift ? ` · ${p.shift} Shift` : ""}{p.designation ? ` — ${p.designation}` : ""}
+                <select value={form.supervisorId} onChange={(e) => change("supervisorId", e.target.value)}
+                  style={{ width: "100%", padding: "9px 11px", border: "1px solid #bbf7d0", borderRadius: "7px", fontSize: "13.5px", background: "#fff" }}>
+                  <option value="">— None (Top of hierarchy) —</option>
+                  {employees
+                    .filter((e) => !isEdit || e.id !== existing?.id)
+                    .map((emp) => (
+                      <option key={emp.id} value={String(emp.id)}>
+                        {emp.fullName}{emp.designation ? ` — ${emp.designation}` : ""}
+                        {emp.role ? ` (${emp.role})` : ""}
                       </option>
                     ))}
-                  </select>
+                </select>
+                {form.supervisorId && (
+                  <p style={{ fontSize: "11.5px", color: "#15803d", marginTop: "6px" }}>
+                    Escalation: This employee → {employees.find((e) => String(e.id) === String(form.supervisorId))?.fullName || "Selected"} → ...
+                  </p>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Legacy non-hierarchy supervisor field */}
-          {showLegacySupervisor && (
-            <div style={{ gridColumn: "span 2" }}>
-              <FSelect label="Supervisor (optional)" value={form.supervisorId} onChange={(e) => change("supervisorId", e.target.value)}>
-                <option value="">— None —</option>
-                {employees.filter((e) => e.role === "supervisor" || e.role === "technical_lead" || e.role === "assistant_manager").map((s) => (
-                  <option key={s.id} value={String(s.id)}>{s.fullName}{s.designation ? ` · ${s.designation}` : ""}</option>
-                ))}
-              </FSelect>
             </div>
           )}
 
@@ -573,55 +500,6 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
                 Mobile access active — username: <strong>{form.username}</strong>
               </p>
             )}
-          </div>
-
-          {/* Permissions */}
-          <div style={{ gridColumn: "span 2", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              <p style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a", margin: 0 }}>Permissions (Checklists &amp; Logsheets)</p>
-            </div>
-            <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "12px" }}>Fine-grained CRUD permissions applied when this user uses the mobile app or web portal.</p>
-            {["checklists", "logsheets"].map((area) => (
-              <div key={area} style={{ marginBottom: "8px" }}>
-                <p style={{ fontSize: "11.5px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "6px" }}>{area}</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {["view", "create", "fill", "edit", "delete"].map((op) => {
-                    const on = !!form.permissions?.[area]?.[op];
-                    return (
-                      <label key={op} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", background: on ? "#dbeafe" : "#fff", border: `1px solid ${on ? "#93c5fd" : "#e2e8f0"}`, borderRadius: "20px", fontSize: "12px", fontWeight: 600, color: on ? "#1d4ed8" : "#64748b", cursor: "pointer", userSelect: "none" }}>
-                        <input type="checkbox" checked={on} onChange={(e) =>
-                          setForm((p) => ({ ...p, permissions: { ...p.permissions, [area]: { ...(p.permissions?.[area] || {}), [op]: e.target.checked } } }))
-                        } style={{ margin: 0 }} />
-                        {op}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Module access */}
-          <div style={{ gridColumn: "span 2", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              <p style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a", margin: 0 }}>Module Access</p>
-            </div>
-            <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "12px" }}>Modules visible to this user on web portal and mobile app.</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {ALL_MODULES.map((m) => {
-                const on = form.moduleAccess?.includes(m.key);
-                return (
-                  <label key={m.key} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", background: on ? "#dcfce7" : "#fff", border: `1px solid ${on ? "#86efac" : "#e2e8f0"}`, borderRadius: "20px", fontSize: "12px", fontWeight: 600, color: on ? "#15803d" : "#64748b", cursor: "pointer", userSelect: "none" }}>
-                    <input type="checkbox" checked={on} onChange={(e) =>
-                      setForm((p) => ({ ...p, moduleAccess: e.target.checked ? [...(p.moduleAccess || []), m.key] : (p.moduleAccess || []).filter((k) => k !== m.key) }))
-                    } style={{ margin: 0 }} />
-                    {m.label}
-                  </label>
-                );
-              })}
-            </div>
           </div>
         </div>
 
@@ -881,7 +759,8 @@ function DeptModal({ existing, token, onClose, onSaved }) {
 }
 
 /* ─── Asset Modal ─────────────────────────────────────────────── */
-function AssetModal({ existing, token, departments, employees = [], assetTypesList = [], onClose, onSaved }) {
+function AssetModal({ existing, token, departments, employees = [], assetTypesList = [], companySectors = [], onClose, onSaved }) {
+  const API_BASE = import.meta.env.VITE_API_BASE || "";
   const isEdit = !!existing;
 
   // Known hardcoded metadata keys (not custom)
@@ -901,6 +780,8 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
     for (const [k, v] of Object.entries(meta)) {
       if (!KNOWN_META_KEYS.has(k)) customFromMeta[`_custom_${k}`] = String(v ?? "");
     }
+    const hcMt = meta.maintenanceTypes || {};
+    const hcLegacyMt = meta.maintenanceType || "";
     return {
       assetName:    src?.assetName    || "",
       assetUniqueId: src?.assetUniqueId || "",
@@ -929,6 +810,34 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
       lastServiceDate:      meta.lastServiceDate      || "",
       nextServiceDate:      meta.nextServiceDate      || "",
       technician:           meta.technician           || "",
+      // Healthcare
+      hcEquipmentName:     meta.equipmentName     || "",
+      hcMake:              meta.make              || "",
+      hcManufacturer:      meta.manufacturer      || "",
+      hcModel:             meta.model             || "",
+      hcSerialNo:          meta.serialNo          || "",
+      hcAccessories:       meta.accessories       || "",
+      hcDealer:            meta.dealer            || "",
+      hcManufacturingYear: meta.manufacturingYear || "",
+      hcInstallationDate:  meta.installationDate  || "",
+      hcInvoiceNo:         meta.invoiceNo         || "",
+      hcInvoiceDate:       meta.invoiceDate       || "",
+      hcPurchaseCost:      meta.purchaseCost      || "",
+      hcWarranty:  !!(hcMt.warranty || hcLegacyMt === "Warranty" || hcLegacyMt === "AMC+CMC"),
+      hcAmc:       !!(hcMt.amc      || hcLegacyMt === "AMC"      || hcLegacyMt === "AMC+CMC"),
+      hcCmc:       !!(hcMt.cmc      || hcLegacyMt === "CMC"      || hcLegacyMt === "AMC+CMC"),
+      hcInHouse:   !!(hcMt.inHouse),
+      hcCatalyst:  !!(hcMt.catalyst),
+      hcWarrantyStart:     meta.warrantyStart     || "",
+      hcWarrantyEnd:       meta.warrantyEnd       || "",
+      hcAmcStart:          meta.amcStart          || "",
+      hcAmcEnd:            meta.amcEnd            || "",
+      hcCmcStart:          meta.cmcStart          || "",
+      hcCmcEnd:            meta.cmcEnd            || "",
+      hcRber:              !!meta.rber,
+      hcRemarks:           meta.remarks           || "",
+      hcImages:            Array.isArray(meta.hcImages) ? meta.hcImages : [],
+      hcInvoiceUrl:        meta.hcInvoiceUrl      || "",
       // Valuation
       purchaseValue:    meta.purchaseValue    || "",
       usefulLifeYears:  meta.usefulLifeYears  || "",
@@ -952,11 +861,21 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
   const [form, setForm] = useState(() => buildForm(existing));
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Auto-set assetType to "healthcare" for HC companies when adding new asset
+  useEffect(() => {
+    if (companySectors.includes("healthcare") && !existing && !form.assetType) {
+      setForm(p => ({ ...p, assetType: "healthcare" }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companySectors]);
 
   const ch = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     ch(name, type === "checkbox" ? checked : value);
+    if (fieldErrors[name]) setFieldErrors(p => { const n = { ...p }; delete n[name]; return n; });
   };
 
   const handleTypeChange = (e) => {
@@ -981,10 +900,13 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
   const customFields = selectedTypeDef?.fieldLayout?.fields || [];
   const hasCustomLayout = customFields.length > 0;
   const workflowType = selectedTypeDef?.workflowType || form.assetType;
+  // Healthcare: company sector is healthcare OR asset type code is healthcare
+  const isHCCompany = companySectors.includes("healthcare");
+  const isHealthcareLegacy = !hasCustomLayout && (form.assetType === "healthcare" || (isHCCompany && form.assetType !== "soft" && form.assetType !== "fleet" && form.assetType !== "technical" && !hasCustomLayout));
   // Only the three built-in type codes use legacy form layouts; custom types always get the generic form
   const isSoftLegacy = !hasCustomLayout && form.assetType === "soft";
   const isFleetLegacy = !hasCustomLayout && form.assetType === "fleet";
-  const isTechnicalLegacy = !hasCustomLayout && form.assetType === "technical";
+  const isTechnicalLegacy = !hasCustomLayout && !isHealthcareLegacy && form.assetType === "technical";
 
   const buildMetadata = () => {
     const assignedEmployee = employees.find(e => String(e.id) === String(form.assignedToId));
@@ -1001,6 +923,22 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
       for (const f of customFields) customData[f.key] = form[`_custom_${f.key}`] || "";
       return { ...base, ...customData };
     }
+    if (isHealthcareLegacy) return {
+      equipmentName: form.hcEquipmentName,
+      make: form.hcMake, manufacturer: form.hcManufacturer, model: form.hcModel,
+      serialNo: form.hcSerialNo, accessories: form.hcAccessories, dealer: form.hcDealer,
+      manufacturingYear: form.hcManufacturingYear, installationDate: form.hcInstallationDate,
+      invoiceNo: form.hcInvoiceNo, invoiceDate: form.hcInvoiceDate, purchaseCost: form.hcPurchaseCost,
+      maintenanceTypes: {
+        warranty: !!form.hcWarranty, amc: !!form.hcAmc, cmc: !!form.hcCmc,
+        inHouse: !!form.hcInHouse, catalyst: !!form.hcCatalyst,
+      },
+      warrantyStart: form.hcWarrantyStart, warrantyEnd: form.hcWarrantyEnd,
+      amcStart: form.hcAmcStart, amcEnd: form.hcAmcEnd,
+      cmcStart: form.hcCmcStart, cmcEnd: form.hcCmcEnd,
+      rber: !!form.hcRber, remarks: form.hcRemarks,
+      hcImages: form.hcImages || [], hcInvoiceUrl: form.hcInvoiceUrl || "",
+    };
     if (isSoftLegacy) return { ...base, serviceArea: form.serviceArea, frequency: form.frequency, shift: form.shift, supervisor: form.supervisor, staffRequired: form.staffRequired, specialInstructions: form.specialInstructions };
     if (isTechnicalLegacy) return { ...base, machineName: form.machineName, brand: form.brand, modelNumber: form.modelNumber, serialNumber: form.serialNumber, installationDate: form.installationDate, warrantyExpiry: form.warrantyExpiry, maintenanceFrequency: form.maintenanceFrequency, lastServiceDate: form.lastServiceDate, nextServiceDate: form.nextServiceDate, technician: form.technician };
     if (isFleetLegacy) return { ...base, vehicleNumber: form.vehicleNumber, vehicleType: form.vehicleType, fuelType: form.fuelType, driver: form.driver, rcNumber: form.rcNumber, insuranceExpiry: form.insuranceExpiry, pucExpiry: form.pucExpiry, serviceDueDate: form.serviceDueDate, purchaseDate: form.purchaseDate, vendor: form.vendor, dailyKmTracking: form.dailyKmTracking };
@@ -1008,20 +946,37 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
   };
 
   const handleSave = async () => {
-    if (!form.assetType) return setError("Please select an asset type");
+    const effectiveAssetType = form.assetType || (companySectors.includes("healthcare") ? "healthcare" : "");
+    if (!effectiveAssetType) return setError("Please select an asset type");
     let assetNameToUse = form.assetName.trim();
     if (isSoftLegacy) {
       assetNameToUse = (form.room || "").trim();
       if (!assetNameToUse) return setError("Room / Area is required for Soft Services");
+    } else if ((isHealthcareLegacy || (isHCCompany && hasCustomLayout)) && !assetNameToUse) {
+      // For healthcare, auto-derive asset name from equipment name, make + model, or type label
+      assetNameToUse = form.hcEquipmentName.trim() ||
+        [form.hcMake, form.hcModel].filter(Boolean).join(" ") ||
+        selectedTypeDef?.label || "Healthcare Equipment";
     } else if (!assetNameToUse) {
       return setError("Asset name is required");
     }
-    setSaving(true); setError(null);
+    // Validate HC date ranges
+    if (isHealthcareLegacy) {
+      const dateErrs = {};
+      if (form.hcWarranty && form.hcWarrantyStart && form.hcWarrantyEnd && form.hcWarrantyEnd < form.hcWarrantyStart)
+        dateErrs.hcWarrantyEnd = "Warranty end date must be after start date";
+      if (form.hcAmc && form.hcAmcStart && form.hcAmcEnd && form.hcAmcEnd < form.hcAmcStart)
+        dateErrs.hcAmcEnd = "AMC end date must be after start date";
+      if (form.hcCmc && form.hcCmcStart && form.hcCmcEnd && form.hcCmcEnd < form.hcCmcStart)
+        dateErrs.hcCmcEnd = "CMC end date must be after start date";
+      if (Object.keys(dateErrs).length) { setFieldErrors(dateErrs); return; }
+    }
+    setSaving(true); setError(null); setFieldErrors({});
     try {
       const payload = {
         assetName:     assetNameToUse,
         assetUniqueId: form.assetUniqueId || null,
-        assetType:     form.assetType,
+        assetType:     effectiveAssetType,
         departmentId:  form.departmentId || null,
         building:      form.building || null,
         floor:         form.floor    || null,
@@ -1093,39 +1048,185 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
           {error && <div style={{ gridColumn: "span 2" }}><Alert>{error}</Alert></div>}
 
           {/* ── Asset Type dropdown — drives which fields appear ── */}
+          {/* ── Asset Type dropdown — drives which fields appear ── */}
           <div style={{ gridColumn: "span 2" }}>
-            <FSelect label="Asset Type" required name="assetType" value={form.assetType} onChange={handleTypeChange}>
-              <option value="" disabled>Select type</option>
-              {assetTypesList.length > 0
-                ? assetTypesList.map(t => <option key={t.code} value={t.code}>{t.label}</option>)
-                : <>
-                    <option value="soft">Soft Services</option>
-                    <option value="technical">Technical</option>
-                    <option value="fleet">Fleet</option>
-                  </>
-              }
-            </FSelect>
+            {isHCCompany ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px" }}>
+                <span style={{ fontSize: "18px" }}>🏥</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: "#9a3412", fontSize: "13px" }}>Healthcare Equipment Registration</div>
+                  <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment — barcode auto-generated on save</div>
+                </div>
+              </div>
+            ) : (
+              <FSelect label="Asset Type" required name="assetType" value={form.assetType} onChange={handleTypeChange}>
+                <option value="" disabled>Select type</option>
+                {assetTypesList.length > 0
+                  ? assetTypesList.map(t => <option key={t.code} value={t.code}>{t.label}</option>)
+                  : <>
+                      <option value="soft">Soft Services</option>
+                      <option value="technical">Technical</option>
+                      <option value="fleet">Fleet</option>
+                    </>
+                }
+              </FSelect>
+            )}
           </div>
+
+          {/* ── Healthcare workflow: full medical equipment form ── */}
+          {form.assetType && isHealthcareLegacy && !hasCustomLayout && <>
+            <div style={{ gridColumn: "span 2", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "#9a3412" }}>
+              <span>🏥</span> Healthcare equipment — barcode auto-generated on save.
+            </div>
+
+            {/* Equipment Photos */}
+            <div style={{ gridColumn: "span 2", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 14px" }}>
+              <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "10px", display: "block" }}>Equipment Photos <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: "11px" }}>(up to 5 images)</span></label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "flex-start" }}>
+                {(form.hcImages || []).map((img, i) => (
+                  <div key={i} style={{ position: "relative", width: "72px", height: "72px" }}>
+                    <img src={img.url} alt={img.name || "photo"} style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0" }} />
+                    <button type="button" onClick={() => setForm(p => ({ ...p, hcImages: p.hcImages.filter((_, j) => j !== i) }))}
+                      style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                  </div>
+                ))}
+                {(form.hcImages || []).length < 5 && (
+                  <label style={{ width: "72px", height: "72px", border: "2px dashed #cbd5e1", borderRadius: "6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#94a3b8", fontSize: "11px", gap: "3px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "20px" }}>+</span><span>Add Photo</span>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      const fd = new FormData(); fd.append("file", file);
+                      try {
+                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: fd });
+                        const d = await r.json();
+                        setForm(p => ({ ...p, hcImages: [...(p.hcImages || []), { url: d.url, name: file.name }] }));
+                      } catch { /* silent */ }
+                      e.target.value = "";
+                    }} />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Equipment Details */}
+            <FSec title="Equipment Details" />
+            <div style={{ gridColumn: "span 2" }}>
+              <FInput label="Equipment Name" name="hcEquipmentName" value={form.hcEquipmentName} onChange={handleChange} placeholder="e.g. Ultrasound Machine" error={fieldErrors.hcEquipmentName} />
+            </div>
+            <FInput label="Make / Manufacturer" name="hcMake" value={form.hcMake} onChange={handleChange} placeholder="e.g. Philips" error={fieldErrors.hcMake} />
+            <FInput label="Manufacturer (Company)" name="hcManufacturer" value={form.hcManufacturer} onChange={handleChange} placeholder="e.g. Philips Healthcare" error={fieldErrors.hcManufacturer} />
+            <FInput label="Model" name="hcModel" value={form.hcModel} onChange={handleChange} placeholder="e.g. EPIQ 7G" error={fieldErrors.hcModel} />
+            <FInput label="Serial No." name="hcSerialNo" value={form.hcSerialNo} onChange={handleChange} placeholder="Serial number" error={fieldErrors.hcSerialNo} />
+            <FInput label="Accessories Included" name="hcAccessories" value={form.hcAccessories} onChange={handleChange} placeholder="e.g. Transducer, cables" error={fieldErrors.hcAccessories} />
+            <FInput label="Dealer / Distributor" name="hcDealer" value={form.hcDealer} onChange={handleChange} placeholder="Supplier name" error={fieldErrors.hcDealer} />
+            <FInput label="Manufacturing Year" name="hcManufacturingYear" type="number" value={form.hcManufacturingYear} onChange={handleChange} placeholder="e.g. 2022" error={fieldErrors.hcManufacturingYear} />
+            <FInput label="Installation Date" name="hcInstallationDate" type="date" value={form.hcInstallationDate} onChange={handleChange} error={fieldErrors.hcInstallationDate} />
+
+            {/* Invoice */}
+            <FSec title="Invoice No. / Purchase Date" />
+            <FInput label="Invoice No." name="hcInvoiceNo" value={form.hcInvoiceNo} onChange={handleChange} placeholder="INV-XXXX" error={fieldErrors.hcInvoiceNo} />
+            <FInput label="Purchase Date" name="hcInvoiceDate" type="date" value={form.hcInvoiceDate} onChange={handleChange} error={fieldErrors.hcInvoiceDate} />
+            <FInput label="Purchase Cost (₹)" name="hcPurchaseCost" type="number" value={form.hcPurchaseCost} onChange={handleChange} placeholder="e.g. 500000" error={fieldErrors.hcPurchaseCost} />
+            <div>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Invoice File</label>
+              {form.hcInvoiceUrl
+                ? <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px" }}>
+                    <a href={form.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ color: "#3b82f6" }}>📄 View Invoice</a>
+                    <button type="button" onClick={() => setForm(p => ({ ...p, hcInvoiceUrl: "" }))} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "12px" }}>✕ Remove</button>
+                  </div>
+                : <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", cursor: "pointer", fontSize: "12.5px", color: "#475569" }}>
+                    📎 Upload Invoice
+                    <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      const fd = new FormData(); fd.append("file", file);
+                      try {
+                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: fd });
+                        const d = await r.json();
+                        setForm(p => ({ ...p, hcInvoiceUrl: d.url }));
+                      } catch { /* silent */ }
+                      e.target.value = "";
+                    }} />
+                  </label>
+              }
+            </div>
+
+            {/* Maintenance */}
+            <FSec title="Maintenance Under" />
+            <div style={{ gridColumn: "span 2" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 28px" }}>
+                {[
+                  { key: "hcWarranty", label: "a. Warranty" },
+                  { key: "hcAmc",      label: "b. AMC (Annual Maintenance Contract)" },
+                  { key: "hcCmc",      label: "c. CMC (Comprehensive Maintenance Contract)" },
+                  { key: "hcInHouse",  label: "d. In House" },
+                  { key: "hcCatalyst", label: "e. Catalyst" },
+                ].map(({ key, label }) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13.5px", color: "#374151", fontWeight: 500 }}>
+                    <input type="checkbox" checked={!!form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.checked }))}
+                      style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#2563eb" }} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {form.hcWarranty && <>
+              <FInput label="Warranty Start" name="hcWarrantyStart" type="date" value={form.hcWarrantyStart} onChange={handleChange} error={fieldErrors.hcWarrantyStart} />
+              <FInput label="Warranty End" name="hcWarrantyEnd" type="date" value={form.hcWarrantyEnd} onChange={handleChange} error={fieldErrors.hcWarrantyEnd} />
+            </>}
+            {form.hcAmc && <>
+              <FInput label="AMC Start" name="hcAmcStart" type="date" value={form.hcAmcStart} onChange={handleChange} error={fieldErrors.hcAmcStart} />
+              <FInput label="AMC End" name="hcAmcEnd" type="date" value={form.hcAmcEnd} onChange={handleChange} error={fieldErrors.hcAmcEnd} />
+            </>}
+            {form.hcCmc && <>
+              <FInput label="CMC Start" name="hcCmcStart" type="date" value={form.hcCmcStart} onChange={handleChange} error={fieldErrors.hcCmcStart} />
+              <FInput label="CMC End" name="hcCmcEnd" type="date" value={form.hcCmcEnd} onChange={handleChange} error={fieldErrors.hcCmcEnd} />
+            </>}
+
+            {/* RBER + Remarks */}
+            <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: "9px", marginTop: "4px" }}>
+              <input type="checkbox" id="hcRber" name="hcRber" checked={!!form.hcRber} onChange={e => setForm(p => ({ ...p, hcRber: e.target.checked }))} style={{ width: "15px", height: "15px", cursor: "pointer" }} />
+              <label htmlFor="hcRber" style={{ fontSize: "13.5px", fontWeight: 600, color: "#475569", cursor: "pointer" }}>RBER (Recommended Beyond Economic Repair)</label>
+            </div>
+            <div style={{ gridColumn: "span 2" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Remarks</label>
+              <textarea name="hcRemarks" value={form.hcRemarks} onChange={handleChange} rows={2} placeholder="Additional notes..."
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", resize: "vertical", fontFamily: "inherit", outline: "none" }} />
+            </div>
+
+            {/* Location */}
+            <FSec title="Location & Department" />
+            <FSelect label="Department" name="departmentId" value={form.departmentId} onChange={handleChange}>
+              <option value="">— Select Department —</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+            </FSelect>
+            <FInput label="Building" name="building" value={form.building} onChange={handleChange} placeholder="e.g. Block A" />
+            <FInput label="Floor" name="floor" value={form.floor} onChange={handleChange} placeholder="e.g. 2nd Floor" />
+            <div style={{ gridColumn: "span 2" }}>
+              <FInput label="Room / Area" name="room" value={form.room} onChange={handleChange} placeholder="e.g. Radiology Room" />
+            </div>
+          </>}
 
           {/* ── Dynamic layout: asset type has a custom field layout ── */}
           {form.assetType && hasCustomLayout && <>
-            {/* Asset Name + core fields */}
-            <div style={{ gridColumn: "span 2" }}>
-              <FInput label="Asset Name" required name="assetName" value={form.assetName} onChange={handleChange} placeholder="e.g. Block A - Level 2" />
-            </div>
-            <FInput label="Asset Unique ID" name="assetUniqueId" value={form.assetUniqueId} onChange={handleChange} placeholder="Auto or manual" />
-            <FSelect label="Department" name="departmentId" value={form.departmentId} onChange={handleChange}>
-              <option value="">— None —</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
-            </FSelect>
-            <FSelect label="Status" name="status" value={form.status} onChange={handleChange}>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </FSelect>
-            <FSelect label="Assign To (Employee)" name="assignedToId" value={form.assignedToId} onChange={handleChange}>
-              <option value="">— None —</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.fullName}{e.designation ? ` · ${e.designation}` : ""}</option>)}
-            </FSelect>
+            {/* Asset Name + core fields — hidden for healthcare (equipment name auto-derived) */}
+            {!isHCCompany && <>
+              <div style={{ gridColumn: "span 2" }}>
+                <FInput label="Asset Name" required name="assetName" value={form.assetName} onChange={handleChange} placeholder="e.g. Block A - Level 2" />
+              </div>
+              <FInput label="Asset Unique ID" name="assetUniqueId" value={form.assetUniqueId} onChange={handleChange} placeholder="Auto or manual" />
+              <FSelect label="Department" name="departmentId" value={form.departmentId} onChange={handleChange}>
+                <option value="">— None —</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+              </FSelect>
+              <FSelect label="Status" name="status" value={form.status} onChange={handleChange}>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </FSelect>
+              <FSelect label="Assign To (Employee)" name="assignedToId" value={form.assignedToId} onChange={handleChange}>
+                <option value="">— None —</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.fullName}{e.designation ? ` · ${e.designation}` : ""}</option>)}
+              </FSelect>
+            </>}
 
             {/* Dynamic custom fields from fieldLayout */}
             <FSec title={selectedTypeDef?.label || "Asset Details"} />
@@ -1167,7 +1268,7 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
           </>}
 
           {/* ── Legacy Non-soft without custom layout: show core + valuation + location ── */}
-          {form.assetType && !hasCustomLayout && !isSoftLegacy && <>
+          {form.assetType && !hasCustomLayout && !isSoftLegacy && !isHealthcareLegacy && <>
             <div style={{ gridColumn: "span 2" }}>
               <FInput label="Asset Name" required name="assetName" value={form.assetName} onChange={handleChange} placeholder="e.g. HVAC Unit 1" />
             </div>
@@ -3337,11 +3438,18 @@ export default function CompanyEmployeePortal() {
   const [editDept, setEditDept] = useState(null);
   const [showAssetModal, setShowAssetModal] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
+  // Bulk asset import
+  const [showBulkAssetImport, setShowBulkAssetImport] = useState(false);
+  const [bulkAssetFile, setBulkAssetFile] = useState(null);
+  const [bulkAssetDeptId, setBulkAssetDeptId] = useState("");
+  const [bulkAssetImporting, setBulkAssetImporting] = useState(false);
+  const [bulkAssetResult, setBulkAssetResult] = useState(null);
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [editChecklist, setEditChecklist] = useState(null);
   const [checklistSubNav, setChecklistSubNav] = useState("templates");
   const [logsheetSubNav, setLogsheetSubNav] = useState("templates");
   const [assetSubNav, setAssetSubNav] = useState("dashboard");
+  const [dashboardSubNav, setDashboardSubNav] = useState("healthcare");
   // OJT State
   const [ojtTrainings, setOjtTrainings] = useState([]);
   const [ojtSubNav, setOjtSubNav] = useState("trainings");
@@ -3354,10 +3462,31 @@ export default function CompanyEmployeePortal() {
   const [ojtQrTraining, setOjtQrTraining] = useState(null);
   const [ojtQrDataUrl, setOjtQrDataUrl] = useState("");
   const [assetQrModal, setAssetQrModal] = useState(null);
+  const [assetViewQrModal, setAssetViewQrModal] = useState(null);   // asset for QR card view
+  const [assetViewQrCardHtml, setAssetViewQrCardHtml] = useState(null);
   const [assetQrDataUrl, setAssetQrDataUrl] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
+  const [companySectors, setCompanySectors] = useState([]);
   const [selectedQrIds, setSelectedQrIds] = useState(new Set());
   const [bulkQrPrinting, setBulkQrPrinting] = useState(false);
+  // Asset queries / requests
+  const [assetQueries, setAssetQueries] = useState([]);
+  const [assetQueriesLoading, setAssetQueriesLoading] = useState(false);
+  // Barcode report page
+  const [reportBarcode, setReportBarcode] = useState("");
+  const [reportAsset, setReportAsset] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState(null);
+  // Pre-generated QR codes
+  const [preQrCodes, setPreQrCodes] = useState([]);
+  const [preQrLoading, setPreQrLoading] = useState(false);
+  const [preQrGenerating, setPreQrGenerating] = useState(false);
+  const [preQrCount, setPreQrCount] = useState(10);
+  const [preQrLinkModal, setPreQrLinkModal] = useState(null);
+  const [viewQrCardHtml, setViewQrCardHtml] = useState(null);
+  const [preQrRegisterModal, setPreQrRegisterModal] = useState(null);
+  const [selectedPreQrIds, setSelectedPreQrIds] = useState(new Set());
+  const [expandedQueryId, setExpandedQueryId] = useState(null); // expanded request card
   // Fleet State
   const [fleetAssets, setFleetAssets] = useState([]);
   const [fleetInspections, setFleetInspections] = useState([]);
@@ -3370,6 +3499,9 @@ export default function CompanyEmployeePortal() {
   const [fleetSubmissionDetailLoading, setFleetSubmissionDetailLoading] = useState(false);
   const [assignFleetLogsheet, setAssignFleetLogsheet] = useState(null);
   const [assignFleetChecklist, setAssignFleetChecklist] = useState(null);
+  const [settingsPublicToken, setSettingsPublicToken] = useState(null);
+  const [settingsCopied, setSettingsCopied] = useState(false);
+  const [settingsRegen, setSettingsRegen] = useState(false);
   const [showFleetAssetModal, setShowFleetAssetModal] = useState(false);
   const [editFleetAsset, setEditFleetAsset] = useState(null);
   const [viewingFleetAsset, setViewingFleetAsset] = useState(null);
@@ -3406,6 +3538,7 @@ export default function CompanyEmployeePortal() {
     getCompanyPortalMe(token).then((me) => {
       if (me?.enabledModules) setEnabledModules(me.enabledModules);
       if (me?.logoUrl) setCompanyLogoUrl(me.logoUrl);
+      if (Array.isArray(me?.sectors)) setCompanySectors(me.sectors);
     }).catch(() => {});
     setRecentEntriesLoading(true);
     getCompanyPortalRecentLogsheetEntries(token)
@@ -3624,6 +3757,23 @@ export default function CompanyEmployeePortal() {
     if (nav === "assets") {
       load("assets", () => getCompanyPortalAssets(token)).then((d) => d && setAssets(d));
       if (!departments.length) getCompanyPortalDepartments(token).then((d) => d && setDepartments(d)).catch(() => {});
+      // Load employees for assignment dropdown
+      if (!employees.length) getCompanyPortalEmployees(token).then((d) => d && setEmployees(d)).catch(() => {});
+      // Load asset queries for the requests sub-tab
+      setAssetQueriesLoading(true);
+      getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
+    }
+    if (nav === "requests") {
+      setAssetQueriesLoading(true);
+      getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
+    }
+    if (nav === "report") {
+      // Barcode report is search-driven — nothing to pre-load
+    }
+    if (nav === "qrcodes") {
+      setPreQrLoading(true);
+      getPreQrCodes(token).then((d) => { setPreQrCodes(d || []); setPreQrLoading(false); }).catch(() => setPreQrLoading(false));
+      if (!assets.length) getCompanyPortalAssets(token).then((d) => d && setAssets(d)).catch(() => {});
     }
     if (nav === "checklists") {
       load("checklists", () => getCompanyPortalChecklists(token)).then((d) => d && setChecklists(d));
@@ -3664,6 +3814,12 @@ export default function CompanyEmployeePortal() {
       if (!checklists.length) getCompanyPortalChecklists(token).then((d) => d && setChecklists(d)).catch(() => {});
       if (!logsheetTemplatesList.length) getCompanyPortalLogsheetTemplates(token).then((d) => d && setLogsheetTemplatesList(d)).catch(() => {});
       if (!employees.length) getCompanyPortalEmployees(token).then((d) => d && setEmployees(d)).catch(() => {});
+    }
+    if (nav === "settings") {
+      setSettingsPublicToken(null);
+      fetch(`${getApiBaseUrl()}/api/company-portal/public-link`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.json()).then(d => setSettingsPublicToken(d.publicToken || "")).catch(() => setSettingsPublicToken(""));
     }
   }, [nav, token, load, assets.length]);
 
@@ -3718,11 +3874,85 @@ export default function CompanyEmployeePortal() {
     if (isEdit) setAssets(p => p.map(a => a.id === norm.id ? norm : a));
     else setAssets(p => [norm, ...p]);
     setShowAssetModal(false); setEditAsset(null);
+    // Auto-generate and show barcode for new healthcare asset registrations
+    if (!isEdit && (norm.assetType === "healthcare" || companySectors.includes("healthcare"))) {
+      handleShowAssetQR(norm);
+    }
   };
   const handleDeleteAsset = async (id) => {
     if (!window.confirm("Delete this asset?")) return;
     try { await deleteCompanyPortalAsset(token, id); setAssets(p => p.filter(a => a.id !== id)); }
     catch (err) { alert(err.message || "Delete failed"); }
+  };
+
+  const handleBulkDeleteAssets = async () => {
+    const ids = Array.from(selectedQrIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected asset(s)? This cannot be undone.`)) return;
+    try {
+      const res = await bulkDeleteCompanyPortalAssets(token, ids);
+      setAssets(p => p.filter(a => !selectedQrIds.has(a.id)));
+      setSelectedQrIds(new Set());
+      alert(`Deleted ${res.deleted ?? ids.length} asset(s).`);
+    } catch (err) { alert(err.message || "Bulk delete failed"); }
+  };
+
+  const handleBulkDeletePreQr = async () => {
+    const ids = Array.from(selectedPreQrIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected QR code(s)? This cannot be undone.`)) return;
+    try {
+      const res = await bulkDeleteCompanyPortalPreQr(token, ids);
+      setPreQrCodes(p => p.filter(q => !selectedPreQrIds.has(q.id)));
+      setSelectedPreQrIds(new Set());
+      alert(`Deleted ${res.deleted ?? ids.length} QR code(s).`);
+    } catch (err) { alert(err.message || "Bulk QR delete failed"); }
+  };
+
+  const handleAssignAsset = async (assetId, userId) => {
+    try {
+      await assignCompanyPortalAsset(token, assetId, userId || null);
+      const userName = employees.find(e => String(e.id) === String(userId))?.fullName || null;
+      setAssets(p => p.map(a => a.id === assetId ? { ...a, assignedTo: userId || null, assignedToName: userName } : a));
+    } catch (err) { alert(err.message || "Assignment failed"); }
+  };
+
+  const handleHCStatusUpdate = async (assetId, payload) => {
+    try {
+      const BASE = getApiBaseUrl();
+      await fetch(`${BASE}/api/company-portal/healthcare/assets/${assetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      // Merge all payload fields into local asset state
+      setAssets(p => p.map(a => a.id === assetId ? { ...a, ...payload,
+        working_status: payload.workingStatus ?? a.working_status,
+        workingStatus: payload.workingStatus ?? a.workingStatus,
+      } : a));
+    } catch (err) { /* silently ignore — non-critical */ }
+  };
+
+  const handleResolveQuery = async (queryId) => {
+    const note = window.prompt("Resolution note (optional):");
+    if (note === null) return; // cancelled
+    try {
+      const result = await resolveAssetQuery(token, queryId, note);
+      setAssetQueries(p => p.map(q => q.id === queryId ? { ...q, status: "resolved", resolutionNote: note, resolvedAt: new Date().toISOString() } : q));
+      if (result?.closeCode) {
+        alert(`✅ Request resolved!\n\nA close code has been sent to the requester.\nClose code: ${result.closeCode}\n\nShare this code with the requester if needed.`);
+      }
+    } catch (err) { alert(err.message || "Failed to resolve"); }
+  };
+
+  const handleLookupBarcode = async () => {
+    if (!reportBarcode.trim()) return;
+    setReportLoading(true); setReportError(null); setReportAsset(null);
+    try {
+      const data = await getAssetByBarcode(token, reportBarcode.trim());
+      setReportAsset(data);
+    } catch (err) { setReportError(err.message || "Asset not found"); }
+    finally { setReportLoading(false); }
   };
 
   const handleDownloadAssetQR = async (assetId, assetName) => {
@@ -3739,8 +3969,63 @@ export default function CompanyEmployeePortal() {
     }
   };
 
-  const getQrBaseUrl = () => {
-    return getPublicAppUrl();
+  // Generate a QR code data URL from any string using the `qrcode` library
+  const generateQRDataUrl = (content) => QRCode.toDataURL(content, { width: 280, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } });
+
+  // Stable QR card generation — runs only when the selected QR changes, avoiding modal remount loops
+  useEffect(() => {
+    if (!preQrLinkModal) { setViewQrCardHtml(null); return; }
+    setViewQrCardHtml(null);
+    (async () => {
+      try {
+        const qrDataUrl = await generateQRDataUrl(preQrLinkModal.qrUniqueId);
+        const catalystLogo = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`).catch(() => null);
+        const clientLogo = companyLogoUrl
+          ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`).catch(() => null)
+          : null;
+        setViewQrCardHtml(buildQrCardHtml(qrDataUrl, preQrLinkModal.qrUniqueId, preQrLinkModal.assetName || "", clientLogo, catalystLogo));
+      } catch (e) { console.error(e); }
+    })();
+  }, [preQrLinkModal?.id]);
+
+  // Generate QR card for asset View QR modal in Manage Assets tab
+  useEffect(() => {
+    if (!assetViewQrModal) { setAssetViewQrCardHtml(null); return; }
+    setAssetViewQrCardHtml(null);
+    (async () => {
+      try {
+        const uid = assetViewQrModal.assetUniqueId || assetViewQrModal.asset_unique_id || `ASSET-${assetViewQrModal.id}`;
+        const qrDataUrl = await generateQRDataUrl(uid);
+        const catalystLogo = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`).catch(() => null);
+        const clientLogo = companyLogoUrl
+          ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`).catch(() => null)
+          : null;
+        setAssetViewQrCardHtml(buildQrCardHtml(qrDataUrl, uid, assetViewQrModal.assetName || "", clientLogo, catalystLogo));
+      } catch (e) { console.error(e); }
+    })();
+  }, [assetViewQrModal?.id]);
+
+  // Generate a barcode data URL from a barcode string (Code128)
+  const generateBarcodeDataUrl = (barcodeStr) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const canvas = document.createElement("canvas");
+        JsBarcode(canvas, barcodeStr, {
+          format: "CODE128",
+          width: 2.5,
+          height: 80,
+          displayValue: true,
+          fontSize: 16,
+          fontOptions: "bold",
+          margin: 8,
+          background: "#ffffff",
+          lineColor: "#0f172a",
+        });
+        resolve(canvas.toDataURL("image/png"));
+      } catch (err) {
+        reject(err);
+      }
+    });
   };
 
   // Convert a URL to a base64 data URL for embedding in print windows
@@ -3759,37 +4044,57 @@ export default function CompanyEmployeePortal() {
     } catch { return null; }
   };
 
-  // Build the styled QR card HTML for a single asset
-  const buildQrCardHtml = (qrDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl) => {
-    const floor = asset.floor || "";
-    const room = asset.room || "";
-    const assetName = asset.assetName || asset.asset_name || "";
+  // Build a dark QR card for printing (matches reference design)
+  const buildQrCardHtml = (qrDataUrl, uid, assetName, clientLogoDataUrl, catalystLogoDataUrl) => {
     const clientLogoHtml = clientLogoDataUrl
-      ? `<img src="${clientLogoDataUrl}" style="max-width:90px;max-height:55px;object-fit:contain;" />`
-      : `<div style="width:90px;"></div>`;
+      ? `<img src="${clientLogoDataUrl}" style="max-height:44px;max-width:100px;object-fit:contain;" />`
+      : `<div style="width:100px;height:44px;"></div>`;
     const catalystLogoHtml = catalystLogoDataUrl
-      ? `<img src="${catalystLogoDataUrl}" style="max-width:90px;max-height:55px;object-fit:contain;" />`
-      : `<div style="font-size:10px;font-weight:800;color:#fff;text-align:right;line-height:1.2;">CATALYST<br/><span style="font-size:8px;font-weight:400;">PARTNERING FOR SUSTAINABILITY</span></div>`;
+      ? `<img src="${catalystLogoDataUrl}" style="max-height:44px;max-width:100px;object-fit:contain;" />`
+      : `<div style="font-size:9px;font-weight:800;color:#1e3a5f;text-align:right;line-height:1.3;">CATALYST<br/><span style="font-weight:400;font-size:7.5px;color:#64748b;">PARTNERING FOR SUSTAINABILITY</span></div>`;
     return `
-      <div style="background:#2e7d32;color:#fff;padding:24px 20px 20px;border-radius:16px;width:300px;text-align:center;font-family:Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-          <div style="width:90px;height:55px;display:flex;align-items:center;justify-content:flex-start;">${clientLogoHtml}</div>
-          <div style="width:90px;height:55px;display:flex;align-items:center;justify-content:flex-end;">${catalystLogoHtml}</div>
+      <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:18px;width:300px;font-family:Arial,sans-serif;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.10);">
+        <div style="padding:18px 18px 14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div style="min-width:100px;display:flex;align-items:center;justify-content:flex-start;">${clientLogoHtml}</div>
+            <div style="min-width:100px;display:flex;align-items:center;justify-content:flex-end;">${catalystLogoHtml}</div>
+          </div>
+          <div style="text-align:center;color:#0f172a;font-size:15px;font-weight:800;letter-spacing:2px;margin-bottom:3px;">SCAN QR CODE</div>
+          <div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:14px;">For Service Excellence</div>
+          <div style="text-align:center;background:#f8fafc;border-radius:12px;padding:12px;margin-bottom:12px;">
+            <img src="${qrDataUrl}" style="width:190px;height:190px;display:block;margin:0 auto;" />
+          </div>
+          ${assetName ? `<div style="color:#0f172a;font-size:13px;font-weight:700;margin-bottom:2px;text-align:center;">${assetName}</div>` : ""}
+          <div style="color:#64748b;font-size:11px;font-family:monospace;margin-bottom:8px;text-align:center;">${uid}</div>
+          <div style="text-align:center;color:#94a3b8;font-size:9px;">www.catalystsolutions.eco</div>
         </div>
-        <div style="font-size:15px;font-weight:800;letter-spacing:2px;margin-bottom:3px;">SCAN QR CODE</div>
-        <div style="font-size:11px;opacity:0.85;margin-bottom:14px;">For Service Excellence</div>
-        <div style="background:#fff;padding:10px;border-radius:10px;display:inline-block;margin-bottom:12px;">
-          <img src="${qrDataUrl}" style="width:200px;height:200px;display:block;" />
-        </div>
-        ${assetName ? `<div style="font-size:13px;font-weight:600;margin-bottom:2px;">${assetName}</div>` : ""}
-        ${floor ? `<div style="font-size:13px;margin-top:4px;">Floor - ${floor}</div>` : ""}
-        ${room ? `<div style="font-size:13px;">Area - ${room}</div>` : ""}
-        <div style="font-size:11px;opacity:0.75;margin-top:8px;margin-bottom:14px;">www.catalystsolutions.eco</div>
-        <div style="background:#000;padding:11px 20px;border-radius:4px;font-weight:800;font-size:13px;letter-spacing:2px;">SCAN FOR E-CHECKLIST</div>
       </div>`;
   };
 
-  // Open a print window with one or more QR cards (one per page)
+  // Build the styled barcode card HTML for a single asset (for print window)
+  const buildBarcodeCardHtml = (barcodeDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl) => {
+    const assetName = asset.assetName || asset.asset_name || "";
+    const clientLogoHtml = clientLogoDataUrl
+      ? `<img src="${clientLogoDataUrl}" style="max-width:100px;max-height:52px;object-fit:contain;" />`
+      : `<div style="width:100px;"></div>`;
+    const catalystLogoHtml = catalystLogoDataUrl
+      ? `<img src="${catalystLogoDataUrl}" style="max-width:100px;max-height:52px;object-fit:contain;" />`
+      : `<div style="font-size:10px;font-weight:800;color:#1e3a5f;text-align:right;line-height:1.2;">CATALYST<br/><span style="font-size:8px;font-weight:400;">PARTNERING FOR SUSTAINABILITY</span></div>`;
+    return `
+      <div style="background:#fff;border:1.5px solid #e2e8f0;padding:20px 20px 16px;border-radius:14px;width:320px;text-align:center;font-family:Arial,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div style="width:100px;height:52px;display:flex;align-items:center;justify-content:flex-start;">${clientLogoHtml}</div>
+          <div style="width:100px;height:52px;display:flex;align-items:center;justify-content:flex-end;">${catalystLogoHtml}</div>
+        </div>
+        <div style="padding:4px 0;width:100%;">
+          <img src="${barcodeDataUrl}" style="width:100%;max-width:270px;display:block;margin:0 auto;" />
+        </div>
+        ${assetName ? `<div style="font-size:13px;font-weight:700;color:#0f172a;margin-top:10px;margin-bottom:2px;">${assetName}</div>` : ""}
+        <div style="font-size:10px;color:#64748b;margin-top:8px;">www.catalystsolutions.eco</div>
+      </div>`;
+  };
+
+  // Open a print window with one or more barcode cards (one per page)
   const openQrPrintWindow = async (assetsToPrint) => {
     if (!assetsToPrint.length) return;
     setBulkQrPrinting(true);
@@ -3800,12 +4105,12 @@ export default function CompanyEmployeePortal() {
         : null;
 
       const cardHtmls = await Promise.all(assetsToPrint.map(async (asset) => {
-        const url = `${getQrBaseUrl()}/asset-scan/${asset.id}`;
-        const qrDataUrl = await QRCode.toDataURL(url, { width: 400, margin: 2 });
-        return buildQrCardHtml(qrDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl);
+        const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
+        const barcodeDataUrl = await generateBarcodeDataUrl(barcodeStr);
+        return buildBarcodeCardHtml(barcodeDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl);
       }));
 
-      const printHtml = `<!DOCTYPE html><html><head><title>QR Codes</title>
+      const printHtml = `<!DOCTYPE html><html><head><title>Asset Barcodes</title>
         <style>
           *{margin:0;padding:0;box-sizing:border-box;}
           body{background:#f8fafc;font-family:Arial,sans-serif;}
@@ -3835,13 +4140,71 @@ export default function CompanyEmployeePortal() {
 
   const handleShowAssetQR = async (asset) => {
     try {
-      const url = `${getQrBaseUrl()}/asset-scan/${asset.id}`;
-      const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
+      const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
+      const dataUrl = await generateBarcodeDataUrl(barcodeStr);
       setAssetQrDataUrl(dataUrl);
-      setAssetQrModal({ assetId: asset.id, assetName: asset.assetName, url, asset });
+      setAssetQrModal({ assetId: asset.id, assetName: asset.assetName, barcodeStr, asset });
     } catch (err) {
-      alert("QR generation failed: " + err.message);
+      alert("Barcode generation failed: " + err.message);
     }
+  };
+
+  // Print QR code cards (instead of barcodes) for a list of assets — dark card design
+  const openQrCodePrintWindow = async (assetsToPrint) => {
+    if (!assetsToPrint.length) return;
+    setBulkQrPrinting(true);
+    try {
+      const catalystLogoDataUrl = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`);
+      const clientLogoDataUrl = companyLogoUrl
+        ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
+        : null;
+      const cardHtmls = await Promise.all(assetsToPrint.map(async (asset) => {
+        const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
+        const qrUrl = await generateQRDataUrl(barcodeStr);
+        const name = asset.assetName || asset.asset_name || "";
+        return buildQrCardHtml(qrUrl, barcodeStr, name, clientLogoDataUrl, catalystLogoDataUrl);
+      }));
+      const win = window.open("", "_blank");
+      if (!win) { alert("Popup blocked. Allow popups to print."); setBulkQrPrinting(false); return; }
+      win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:Arial,sans-serif;background:#f1f5f9;}
+        .page{display:flex;align-items:center;justify-content:center;min-height:100vh;page-break-after:always;}
+        .page:last-child{page-break-after:auto;}
+        @media print{body{background:#f1f5f9;}.page{min-height:100vh;page-break-after:always;}.page:last-child{page-break-after:auto;}}
+      </style></head><body>
+        ${cardHtmls.map(h => `<div class="page">${h}</div>`).join("")}
+      <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+      win.document.close();
+    } catch (err) { alert("Print failed: " + err.message); }
+    setBulkQrPrinting(false);
+  };
+
+  // Print pre-generated QR code cards (from the QR Codes tab)
+  const openPreQrPrintWindow = async (qrList) => {
+    if (!qrList.length) return;
+    try {
+      const catalystLogoDataUrl = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`);
+      const clientLogoDataUrl = companyLogoUrl
+        ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
+        : null;
+      const cardHtmls = await Promise.all(qrList.map(async (qr) => {
+        const qrUrl = await generateQRDataUrl(qr.qrUniqueId);
+        return buildQrCardHtml(qrUrl, qr.qrUniqueId, qr.assetName || "", clientLogoDataUrl, catalystLogoDataUrl);
+      }));
+      const win = window.open("", "_blank");
+      if (!win) { alert("Popup blocked. Allow popups to print."); return; }
+      win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:Arial,sans-serif;background:#f1f5f9;}
+        .page{display:flex;align-items:center;justify-content:center;min-height:100vh;page-break-after:always;}
+        .page:last-child{page-break-after:auto;}
+        @media print{body{background:#f1f5f9;}.page{min-height:100vh;page-break-after:always;}.page:last-child{page-break-after:auto;}}
+      </style></head><body>
+        ${cardHtmls.map(h => `<div class="page">${h}</div>`).join("")}
+      <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+      win.document.close();
+    } catch (err) { alert("Print failed: " + err.message); }
   };
 
   const handleChecklistSaved = (saved, isEdit) => {
@@ -4049,6 +4412,10 @@ export default function CompanyEmployeePortal() {
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {
+
+          /* ── Always show Healthcare Dashboard ─────────────────── */
+          return <HealthcareDashboard token={token} />;
+
           const FREQ_LABELS = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", half_yearly: "Half-Yearly", yearly: "Yearly" };
           const FREQ_COLORS = { daily: ["#dcfce7","#16a34a"], weekly: ["#dbeafe","#1d4ed8"], monthly: ["#fef9c3","#ca8a04"], quarterly: ["#ede9fe","#7c3aed"], half_yearly: ["#fce7f3","#be185d"], yearly: ["#ffedd5","#c2410c"] };
           const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4308,6 +4675,7 @@ export default function CompanyEmployeePortal() {
 
           /* ── ADMIN DASHBOARD ── */
           return (() => {
+            const isAdmin = currentUser.role === "admin";
             // SVG Donut Chart helper
             const DonutChart = ({ data, size = 200, thickness = 38 }) => {
               const vals = data.map((d) => Math.max(0, d.value || 0));
@@ -4371,12 +4739,38 @@ export default function CompanyEmployeePortal() {
 
             return (
               <div>
+                {/* ── Dashboard Sub-tab bar ─────────────────────────── */}
+                <div style={{ display: "flex", gap: "4px", marginBottom: "24px", borderBottom: "2px solid #e2e8f0" }}>
+                  {[
+                    { k: "overview",   label: "📊 Overview" },
+                    { k: "healthcare", label: "🏥 Healthcare" },
+                  ].map(({ k, label }) => (
+                    <button key={k} type="button" onClick={() => setDashboardSubNav(k)}
+                      style={{ padding: "10px 22px", background: "none", border: "none",
+                        borderBottom: dashboardSubNav === k ? "3px solid #059669" : "3px solid transparent",
+                        marginBottom: "-2px", fontSize: "14px", fontWeight: 700,
+                        color: dashboardSubNav === k ? "#059669" : "#64748b", cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} /> : null}
+                {dashboardSubNav !== "healthcare" && <div>
                 {/* Header */}
-                <div style={{ marginBottom: "24px" }}>
-                  <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>
-                    Welcome back, {(currentUser.fullName || "").split(" ")[0]} 👋
-                  </h1>
-                  <p style={{ color: "#64748b", fontSize: "14px" }}>{currentUser.companyName} — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+                <div style={{ marginBottom: "24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                  <div>
+                    <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>
+                      Welcome back, {(currentUser.fullName || "").split(" ")[0]} 👋
+                    </h1>
+                    <p style={{ color: "#64748b", fontSize: "14px" }}>{currentUser.companyName} — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => { setNav("assets"); setAssetSubNav("manage"); setEditAsset(null); setShowAssetModal(true); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 18px", borderRadius: "10px", background: "#0f172a", color: "#fff", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Register Asset
+                    </button>
+                  )}
                 </div>
 
                 {loading.dashboard && <p style={{ color: "#94a3b8" }}>Loading dashboard…</p>}
@@ -4765,7 +5159,8 @@ export default function CompanyEmployeePortal() {
                 )}
 
                 {recentTable}
-              </div>
+              </div>}
+            </div>
             );
           })()
         })()}
@@ -4833,6 +5228,7 @@ export default function CompanyEmployeePortal() {
                   </table>
                 )}
             </Card>
+
           </div>
           );
         })()}
@@ -4845,7 +5241,7 @@ export default function CompanyEmployeePortal() {
             {/* Sub-tab navigation */}
             <div style={{ display: "flex", gap: "4px", marginBottom: "24px", borderBottom: "2px solid #e2e8f0" }}>
               {[
-                { k: "dashboard", label: "📊 Analytics Dashboard" },
+                { k: "dashboard", label: "📊 Analytics" },
                 { k: "manage",    label: "🗂 Manage Assets" },
               ].map(({ k, label }) => (
                 <button key={k} type="button" onClick={() => setAssetSubNav(k)}
@@ -4902,23 +5298,66 @@ export default function CompanyEmployeePortal() {
                   {/* Print selected button */}
                   {selectedQrIds.size > 0 && (
                     <button disabled={bulkQrPrinting} onClick={() => {
-                      const toPrint = filteredAssets.filter(a => selectedQrIds.has(a.id));
-                      openQrPrintWindow(toPrint);
-                    }} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                      Print Selected ({selectedQrIds.size})
+                        const toPrint = filteredAssets.filter(a => selectedQrIds.has(a.id));
+                        openQrCodePrintWindow(toPrint);
+                      }} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#f3e8ff", color: "#7c3aed", border: "1px solid #e9d5ff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
+                      QR ({selectedQrIds.size})
                     </button>
                   )}
-                  {/* Print all button */}
-                  <button disabled={bulkQrPrinting || filteredAssets.length === 0} onClick={() => openQrPrintWindow(filteredAssets)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                  {/* Bulk delete selected assets */}
+                  {selectedQrIds.size > 0 && (
+                    <button onClick={handleBulkDeleteAssets}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      Delete ({selectedQrIds.size})
+                    </button>
+                  )}
+                  <button disabled={bulkQrPrinting || filteredAssets.length === 0} onClick={() => openQrCodePrintWindow(filteredAssets)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#fdf4ff", color: "#9333ea", border: "1px solid #f0abfc", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
                     {bulkQrPrinting ? "Generating…" : "Print All QR"}
                   </button>
                   <Btn onClick={() => { setEditAsset(null); setShowAssetModal(true); }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Asset
                   </Btn>
+                  <button onClick={() => { setBulkAssetFile(null); setBulkAssetDeptId(""); setBulkAssetResult(null); setShowBulkAssetImport(true); }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Import Excel
+                  </button>
+                  {/* Export buttons */}
+                  <button onClick={() => {
+                    const headers = ["SN","QR Code","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status"];
+                    const rows = filteredAssets.map((a, i) => {
+                      const m = a.metadata || {};
+                      return [i+1, a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active"].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+                    });
+                    const csv = [headers.join(","), ...rows].join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = url; a.download = "assets.csv"; a.click(); URL.revokeObjectURL(url);
+                  }} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    Export Excel
+                  </button>
+                  <button onClick={() => {
+                    const headers = ["SN","QR Code","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status"];
+                    const rows = filteredAssets.map((a, i) => {
+                      const m = a.metadata || {};
+                      return [i+1, a.assetUniqueId||a.asset_unique_id||"—", a.assetName||a.asset_name||"—", m.make||"—", m.model||"—", m.serialNo||"—", m.accessories||"—", a.departmentName||"—", (m.maintenance||[]).join(", ")||"—", m.dealer||"—", m.mfgYear||"—", m.installationDate||"—", m.invoiceNo||"—", m.purchaseDate||"—", m.purchaseCost||"—", m.rber?"Yes":"—", m.remarks||"—", a.building||"—", a.floor||"—", a.room||"—", a.status||"Active"];
+                    });
+                    const tableHtml = `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:11px;font-family:Arial,sans-serif;">
+                      <thead><tr style="background:#1e3a8a;color:#fff;">${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+                      <tbody>${rows.map((r,ri)=>`<tr style="background:${ri%2===0?"#fff":"#f8fafc"}">${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+                    </table>`;
+                    const printHtml = `<!DOCTYPE html><html><head><title>Assets Report</title><style>body{font-family:Arial;padding:20px;}h2{color:#1e3a8a;margin-bottom:16px;}@media print{@page{size:A4 landscape;margin:10mm;}}</style></head><body><h2>Assets — ${currentUser.companyName}</h2><p style="font-size:11px;color:#64748b;margin-bottom:12px;">Generated: ${new Date().toLocaleString()}</p>${tableHtml}</body></html>`;
+                    const w = window.open("","_blank"); w.document.write(printHtml); w.document.close(); w.focus(); setTimeout(()=>w.print(),500);
+                  }} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Export PDF
+                  </button>
                 </div>
               )}
             </div>
@@ -4940,7 +5379,8 @@ export default function CompanyEmployeePortal() {
               {loading.assets
                 ? <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading…</p>
                 : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+                  <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "1600px" }}>
                     <thead>
                       <tr>
                         {isAdmin && (
@@ -4950,60 +5390,121 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["#", "Asset Name", "ID", "Type", "Department", "Location", "Status", ...(isAdmin ? ["Actions"] : [])].map((h) => (
-                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                        {["SN", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(isAdmin ? ["Actions"] : [])].map((h) => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={isAdmin ? 9 : 7} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
-                        : filteredAssets.map((a, i) => (
+                        ? <tr><td colSpan={isAdmin ? 21 : 19} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
+                        : filteredAssets.map((a, i) => {
+                          const m = a.metadata || {};
+                          const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+                          return (
                           <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedQrIds.has(a.id) ? "#f0fdf4" : undefined }}>
                             {isAdmin && (
-                              <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                              <td style={{ padding: "10px 14px", textAlign: "center" }}>
                                 <input type="checkbox" checked={selectedQrIds.has(a.id)}
                                   onChange={(e) => setSelectedQrIds(prev => { const n = new Set(prev); e.target.checked ? n.add(a.id) : n.delete(a.id); return n; })}
                                   style={{ cursor: "pointer" }} />
                               </td>
                             )}
-                            <td style={{ padding: "14px 16px", color: "#64748b" }}>{i + 1}</td>
-                            <td style={{ padding: "14px 16px", fontWeight: 600, color: "#0f172a" }}>{a.assetName}</td>
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontFamily: "monospace", fontSize: "12px" }}>{a.assetUniqueId || "—"}</td>
-                            <td style={{ padding: "14px 16px" }}>
-                              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: a.assetType === "technical" ? "#eff6ff" : a.assetType === "fleet" ? "#f3e8ff" : "#f0fdf4", color: a.assetType === "technical" ? "#2563eb" : a.assetType === "fleet" ? "#7c3aed" : "#16a34a" }}>
-                                {a.assetType}
-                              </span>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
+                            <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>{a.assetUniqueId || "—"}</td>
+                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.equipmentName || a.assetName || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.manufacturingYear || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "—"}</td>
+                            <td style={{ padding: "10px 14px" }}>
+                              {isAdmin ? (
+                                <select
+                                  value={a.assignedTo || ""}
+                                  onChange={e => handleAssignAsset(a.id, e.target.value)}
+                                  style={{ padding: "5px 8px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", maxWidth: "160px", outline: "none" }}>
+                                  <option value="">— Unassigned —</option>
+                                  {employees.map(e => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                                </select>
+                              ) : (
+                                <span style={{ fontSize: "12px", color: a.assignedToName ? "#0f172a" : "#94a3b8" }}>{a.assignedToName || "Unassigned"}</span>
+                              )}
                             </td>
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{a.departmentName || "—"}</td>
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "12.5px" }}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
-                            <td style={{ padding: "14px 16px" }}>
-                              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: a.status === "Active" ? "#f0fdf4" : "#f8fafc", color: a.status === "Active" ? "#16a34a" : "#94a3b8" }}>
-                                {a.status}
-                              </span>
+                            <td style={{ padding: "10px 14px" }}>
+                              {(() => {
+                                const ws = a.workingStatus || a.working_status || "Working";
+                                const crit = a.criticality || "Non_Critical";
+                                const st = a.status || "Active";
+                                // Derive combined display value
+                                const combined = st === "Inactive" ? "Inactive" : ws === "Not_Working" ? "Not_Working" : ws === "WIP" ? "WIP" : crit === "Critical" ? "Critical" : "Active";
+                                const COLOR_MAP = {
+                                  Active:      { bg: "#f0fdf4", color: "#16a34a" },
+                                  Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
+                                  WIP:         { bg: "#fef9c3", color: "#92400e" },
+                                  Not_Working: { bg: "#fef2f2", color: "#dc2626" },
+                                  Critical:    { bg: "#fce7f3", color: "#9d174d" },
+                                };
+                                const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
+                                if (!isAdmin) return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: cm.bg, color: cm.color }}>{combined.replace(/_/g, " ")}</span>;
+                                return (
+                                  <select
+                                    value={combined}
+                                    onChange={e => {
+                                      const v = e.target.value;
+                                      if (v === "Inactive")     handleHCStatusUpdate(a.id, { status: "Inactive" });
+                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active" });
+                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active" });
+                                      else if (v === "Critical")    handleHCStatusUpdate(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
+                                      else                          handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
+                                    }}
+                                    style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                    <option value="WIP">WIP</option>
+                                    <option value="Not_Working">Not Working</option>
+                                    <option value="Critical">Critical</option>
+                                  </select>
+                                );
+                              })()}
                             </td>
                             {isAdmin && (
-                              <td style={{ padding: "12px 16px" }}>
+                              <td style={{ padding: "10px 14px" }}>
                                 <div style={{ display: "flex", gap: "6px" }}>
-                                  <button title="Show QR Code" onClick={() => handleShowAssetQR(a)}
-                                    style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                  <button title="Print Barcode" onClick={() => handleShowAssetQR(a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                  </button>
+                                  <button title="View QR Code" onClick={() => setAssetViewQrModal(a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fdf4ff", color: "#9333ea", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
                                   </button>
                                   <button title="Edit" onClick={() => { setEditAsset(a); setShowAssetModal(true); }}
-                                    style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                   </button>
                                   <button title="Delete" onClick={() => handleDeleteAsset(a.id)}
-                                    style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                                   </button>
                                 </div>
                               </td>
                             )}
                           </tr>
-                        ))}
+                        );
+                        })}
                     </tbody>
                   </table>
+                  </div>
                 )}
             </Card>
             </div>)}
@@ -5098,14 +5599,530 @@ export default function CompanyEmployeePortal() {
           />
         )}
 
-        {/* ── Work Orders ───────────────────────────────────────── */}
-        {nav === "workorders" && (
-          <WorkOrdersPanel
-            token={token}
-            companyId={currentUser.companyId}
-            assets={assets}
-          />
-        )}
+        {/* ── Requests ──────────────────────────────────────────── */}
+        {nav === "requests" && (() => {
+          return (
+            <RequestTrackingPanel
+              token={token}
+              companyPortalToken={token}
+              companyId={currentUser.companyId}
+              employees={employees}
+              departments={departments}
+              isAdmin={currentUser.role === "admin"}
+              isSupervisor={currentUser.role === "supervisor"}
+            />
+          );
+        })()}
+
+        {/* ── Asset Queries (barcode scan requests) ─────────────── */}
+        {nav === "asset-queries" && (() => {
+          const isAdmin = currentUser.role === "admin" || currentUser.role === "supervisor";
+          return (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "22px" }}>
+                <div>
+                  <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Asset Requests</h1>
+                  <p style={{ color: "#64748b", fontSize: "13.5px" }}>Queries raised by employees via barcode scan</p>
+                </div>
+                <button onClick={() => { setAssetQueriesLoading(true); getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch(() => setAssetQueriesLoading(false)); }}
+                  style={{ padding: "9px 18px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                  ↻ Refresh
+                </button>
+              </div>
+              {assetQueriesLoading
+                ? <p style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading…</p>
+                : assetQueries.length === 0
+                  ? <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>No requests yet</div>
+                  : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {assetQueries.map(q => {
+                        const isOverdue = q.status === "open" && q.createdAt && ((Date.now() - new Date(q.createdAt).getTime()) / 36e5) > (q.cutoffHours || 24);
+                        const isExpanded = expandedQueryId === q.id;
+                        const imgs = (() => { try { return Array.isArray(q.images) ? q.images : (q.images ? JSON.parse(q.images) : []); } catch { return []; } })();
+                        return (
+                          <div key={q.id} style={{ background: "#fff", border: `1.5px solid ${isOverdue ? "#fca5a5" : q.escalationLevel > 0 ? "#fbbf24" : "#e2e8f0"}`, borderRadius: "12px", overflow: "hidden" }}>
+                            {/* Clickable header row */}
+                            <div style={{ padding: "16px 20px", cursor: "pointer" }} onClick={() => setExpandedQueryId(isExpanded ? null : q.id)}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "5px", flexWrap: "wrap" }}>
+                                    {isOverdue && <span style={{ background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px" }}>OVERDUE</span>}
+                                    {q.escalationLevel > 0 && <span style={{ background: "#fffbeb", color: "#d97706", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px" }}>ESCALATED L{q.escalationLevel}</span>}
+                                    <span style={{ background: q.status === "resolved" ? "#f0fdf4" : "#eff6ff", color: q.status === "resolved" ? "#16a34a" : "#2563eb", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px" }}>{(q.status || "open").toUpperCase()}</span>
+                                    {q.priority && <span style={{ background: "#f1f5f9", color: "#475569", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px" }}>{q.priority}</span>}
+                                  </div>
+                                  <div style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{q.title || q.message || "(no title)"}</div>
+                                  <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                                    <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: "4px", marginRight: "6px" }}>{q.assetUniqueId || `Asset #${q.assetId}`}</span>
+                                    {q.assetName} · {q.createdAt ? new Date(q.createdAt).toLocaleString() : ""}
+                                  </div>
+                                </div>
+                                <span style={{ color: "#94a3b8", fontSize: "18px", flexShrink: 0 }}>{isExpanded ? "▲" : "▼"}</span>
+                              </div>
+                            </div>
+
+                            {/* Expanded detail panel */}
+                            {isExpanded && (
+                              <div style={{ borderTop: "1px solid #f1f5f9", padding: "16px 20px", background: "#f8fafc" }}>
+                                {/* Detail rows */}
+                                {[
+                                  ["Asset QR Code", q.assetUniqueId || `Asset #${q.assetId}`],
+                                  ["Asset Name", q.assetName],
+                                  ["Issue Title", q.title || q.message],
+                                  ["Description", q.description],
+                                  ["Priority", q.priority],
+                                  ["Status", (q.status || "open").toUpperCase()],
+                                  ["Raised By", q.raisedByName || q.requesterName],
+                                  ["Assigned To", q.assignedToName],
+                                  ["Date Raised", q.createdAt ? new Date(q.createdAt).toLocaleString() : null],
+                                  ["Date Resolved", q.resolvedAt ? new Date(q.resolvedAt).toLocaleString() : null],
+                                  ["Cutoff Hours", q.cutoffHours ? `${q.cutoffHours} hrs` : null],
+                                  ["Escalation Level", q.escalationLevel > 0 ? `Level ${q.escalationLevel}` : null],
+                                ].filter(([, v]) => v).map(([label, value]) => (
+                                  <div key={label} style={{ display: "flex", gap: "12px", paddingBottom: "8px", borderBottom: "1px solid #e2e8f0", marginBottom: "8px" }}>
+                                    <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600, minWidth: "130px", flexShrink: 0 }}>{label}</span>
+                                    <span style={{ fontSize: "13px", color: "#0f172a", flex: 1, wordBreak: "break-word" }}>{value}</span>
+                                  </div>
+                                ))}
+
+                                {/* Images */}
+                                {imgs.length > 0 && (
+                                  <div style={{ marginTop: "8px" }}>
+                                    <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 600, marginBottom: "8px" }}>ATTACHED IMAGES ({imgs.length})</div>
+                                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                      {imgs.map((img, i) => {
+                                        const src = img.startsWith("http") || img.startsWith("/") ? img : `${window.location.origin}${img}`;
+                                        return (
+                                          <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", flexShrink: 0 }}>
+                                            <img src={src} alt={`img-${i+1}`}
+                                              style={{ width: "90px", height: "90px", objectFit: "cover", borderRadius: "10px", border: "1.5px solid #e2e8f0", cursor: "pointer" }}
+                                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                            />
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Actions */}
+                                {isAdmin && q.status === "open" && (
+                                  <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+                                    <button onClick={(e) => { e.stopPropagation(); handleResolveQuery(q.id); }}
+                                      style={{ padding: "8px 18px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                                      ✓ Mark Resolved
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); escalateAssetQuery(token, q.id).then(() => setAssetQueries(p => p.map(x => x.id === q.id ? { ...x, escalationLevel: (x.escalationLevel || 0) + 1 } : x))); }}
+                                      style={{ padding: "8px 18px", background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                                      ↑ Escalate
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+              }
+            </div>
+          );
+        })()}
+
+        {/* ── Barcode Report ────────────────────────────────────── */}
+        {nav === "report" && (() => {
+          const meta = reportAsset?.metadata || {};
+          const hcImages = meta.hcImages || [];
+          const allImages = [...hcImages, ...(meta.invoiceImages || []), ...(meta.invoiceUrl ? [meta.invoiceUrl] : [])].filter(Boolean);
+          const rows = [
+            ["Equipment Name", meta.equipmentName || reportAsset?.assetName],
+            ["Make / Manufacturer", meta.make || meta.manufacturer],
+            ["Model", meta.model],
+            ["Serial No.", meta.serialNo],
+            ["Accessories Included", meta.accessories],
+            ["Dealer / Distributor", meta.dealer],
+            ["Manufacturing Year", meta.manufacturingYear],
+            ["Installation Date", meta.installationDate],
+            ["Department", reportAsset?.departmentName],
+            ["Location", [reportAsset?.building, reportAsset?.floor, reportAsset?.room].filter(Boolean).join(" / ") || null],
+            ["Purchase Cost", meta.purchaseCost ? `₹ ${meta.purchaseCost}` : null],
+            ["Invoice No.", meta.invoiceNo],
+            ["Purchase Date", meta.purchaseDate],
+            ["Maintenance Type", [meta.maintenanceTypes?.warranty && "Warranty", meta.maintenanceTypes?.amc && "AMC", meta.maintenanceTypes?.cmc && "CMC", meta.maintenanceTypes?.inHouse && "In House", meta.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || meta.maintenanceType],
+            ["Warranty Period", meta.warrantyStart && meta.warrantyEnd ? `${meta.warrantyStart} → ${meta.warrantyEnd}` : null],
+            ["AMC Period", meta.amcStart && meta.amcEnd ? `${meta.amcStart} → ${meta.amcEnd}` : null],
+            ["CMC Period", meta.cmcStart && meta.cmcEnd ? `${meta.cmcStart} → ${meta.cmcEnd}` : null],
+            ["RBER", meta.rber],
+            ["Remarks", meta.remarks],
+            ["Assigned To", reportAsset?.assignedToName],
+            ["Status", reportAsset?.status],
+          ];
+          return (
+            <div>
+              <div style={{ marginBottom: "22px" }}>
+                <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Asset Report</h1>
+                <p style={{ color: "#64748b", fontSize: "13.5px" }}>Enter barcode number to view complete asset details</p>
+              </div>
+              <Card style={{ padding: "20px", marginBottom: "20px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    value={reportBarcode}
+                    onChange={e => setReportBarcode(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleLookupBarcode()}
+                    placeholder="Enter barcode number e.g. HC-000001"
+                    style={{ flex: 1, minWidth: "220px", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", outline: "none" }}
+                  />
+                  <button onClick={handleLookupBarcode} disabled={reportLoading || !reportBarcode.trim()}
+                    style={{ padding: "10px 22px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
+                    {reportLoading ? "Searching…" : "Search"}
+                  </button>
+                </div>
+                {reportError && <div style={{ marginTop: "10px", color: "#dc2626", fontSize: "13px" }}>{reportError}</div>}
+              </Card>
+              {reportAsset && (
+                <Card>
+                  <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{reportAsset.assetName}</div>
+                      <div style={{ fontSize: "13px", color: "#64748b", marginTop: "2px", fontFamily: "monospace" }}>Barcode: {reportAsset.assetUniqueId}</div>
+                    </div>
+                    <span style={{ padding: "4px 14px", background: "#f0fdf4", color: "#16a34a", borderRadius: "20px", fontSize: "13px", fontWeight: 700 }}>{reportAsset.status}</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0" }}>
+                    {rows.filter(([, v]) => v).map(([label, value], i) => (
+                      <div key={i} style={{ padding: "12px 24px", borderBottom: "1px solid #f1f5f9", borderRight: i % 2 === 0 ? "1px solid #f1f5f9" : "none", display: "flex", gap: "12px" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", minWidth: "140px", flexShrink: 0 }}>{label}</div>
+                        <div style={{ fontSize: "13.5px", color: "#0f172a" }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {allImages.length > 0 && (
+                    <div style={{ padding: "20px 24px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "14px", color: "#475569", marginBottom: "12px" }}>Images</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                        {allImages.map((img, i) => (
+                          <a key={i} href={img} target="_blank" rel="noreferrer">
+                            <img src={img} alt={`img-${i + 1}`} style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e2e8f0" }} />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── QR Codes ──────────────────────────────────────────── */}
+        {nav === "qrcodes" && (() => {
+          const linked = preQrCodes.filter((q) => q.assetId);
+          const unlinked = preQrCodes.filter((q) => !q.assetId);
+
+          const handleGenerate = async () => {
+            if (!preQrCount || preQrCount < 1) return;
+            setPreQrGenerating(true);
+            try {
+              const res = await generatePreQrCodes(token, preQrCount);
+              if (res && !res.message) {
+                setPreQrCodes((prev) => [...(Array.isArray(res) ? res : [res]), ...prev]);
+              }
+            } catch (e) { console.error(e); }
+            setPreQrGenerating(false);
+          };
+
+          const handlePrintSelected = (qrList) => openPreQrPrintWindow(qrList);
+
+          // ── View QR modal ─────────────────────────────────────────
+          // ViewQrModal uses pre-generated HTML from parent state to avoid remount reload loops
+          const ViewQrModal = ({ qr, onClose }) => (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
+              <div style={{ background: "transparent", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                {viewQrCardHtml
+                  ? <div dangerouslySetInnerHTML={{ __html: viewQrCardHtml }} style={{ display: "inline-block" }} />
+                  : <div style={{ width: "300px", height: "380px", background: "#fff", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "14px" }}>Generating card…</div>
+                }
+                <div style={{ display: "flex", gap: "10px", marginTop: "16px", justifyContent: "center" }}>
+                  <button onClick={() => handlePrintSelected([qr])} style={{ padding: "9px 22px", borderRadius: "9px", border: "none", background: "#0f172a", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>Print</button>
+                  <button onClick={onClose} style={{ padding: "9px 22px", borderRadius: "9px", border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
+                </div>
+              </div>
+            </div>
+          );
+
+          // ── Register Asset modal (create new asset and link to QR) ─
+          const MAINT_OPTIONS = ["warranty","amc","cmc","inHouse","catalyst"];
+          const RegisterAssetModal = ({ qr, onClose }) => {
+            const [assetName,           setAssetName]           = useState("");
+            const [make,                setMake]                = useState("");
+            const [manufacturerCompany, setManufacturerCompany] = useState("");
+            const [model,               setModel]               = useState("");
+            const [serialNo,            setSerialNo]            = useState("");
+            const [accessories,         setAccessories]         = useState("");
+            const [dealer,              setDealer]              = useState("");
+            const [mfgYear,             setMfgYear]             = useState("");
+            const [installationDate,    setInstallationDate]    = useState("");
+            const [invoiceNo,           setInvoiceNo]           = useState("");
+            const [purchaseDate,        setPurchaseDate]        = useState("");
+            const [purchaseCost,        setPurchaseCost]        = useState("");
+            const [maintenance,         setMaintenance]         = useState([]);
+            const [rber,                setRber]                = useState(false);
+            const [remarks,             setRemarks]             = useState("");
+            const [building,            setBuilding]            = useState("");
+            const [floor,               setFloor]               = useState("");
+            const [room,                setRoom]                = useState("");
+            const [saving, setSaving] = useState(false);
+
+            const toggleMaint = (k) => setMaintenance(prev => prev.includes(k) ? prev.filter(x=>x!==k) : [...prev, k]);
+
+            const inpSt = { width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1.5px solid #e2e8f0", fontSize: "13px", boxSizing: "border-box" };
+            const lblSt = { fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.4px", display: "block", marginBottom: "5px" };
+            const secSt = { background: "#1e3a8a", color: "#fff", fontWeight: 700, fontSize: "11px", letterSpacing: "0.8px", textTransform: "uppercase", padding: "7px 14px", borderRadius: "7px", marginTop: "18px", marginBottom: "10px" };
+
+            const handleSubmit = async () => {
+              if (!assetName.trim()) return alert("Equipment Name is required.");
+              setSaving(true);
+              try {
+                const result = await registerPreQrAsset(token, qr.id, {
+                  assetName: assetName.trim(), assetType: "healthcare",
+                  location: building.trim() || undefined, floor: floor.trim() || undefined, room: room.trim() || undefined,
+                  make: make.trim() || undefined, manufacturerCompany: manufacturerCompany.trim() || undefined,
+                  model: model.trim() || undefined, serialNo: serialNo.trim() || undefined,
+                  accessories: accessories.trim() || undefined, dealer: dealer.trim() || undefined,
+                  mfgYear: mfgYear.trim() || undefined, installationDate: installationDate.trim() || undefined,
+                  invoiceNo: invoiceNo.trim() || undefined, purchaseDate: purchaseDate.trim() || undefined,
+                  purchaseCost: purchaseCost.trim() || undefined,
+                  maintenance, rber, remarks: remarks.trim() || undefined,
+                });
+                setPreQrCodes((prev) => prev.map((q) =>
+                  q.id === qr.id ? { ...q, assetId: result.assetId, assetName: result.assetName, linkedAt: new Date().toISOString() } : q
+                ));
+                onClose();
+                alert(`Asset "${result.assetName}" registered and linked to ${qr.qrUniqueId}.`);
+              } catch (e) { alert("Failed: " + (e.message || "Unknown error")); }
+              finally { setSaving(false); }
+            };
+
+            const Row2 = ({ children }) => <div style={{ display: "flex", gap: "12px" }}>{children}</div>;
+            const Half = ({ children }) => <div style={{ flex: 1 }}>{children}</div>;
+
+            return (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
+                <div style={{ background: "#fff", borderRadius: "16px", padding: "28px", width: "560px", boxShadow: "0 12px 48px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ fontWeight: 700, fontSize: "17px", color: "#0f172a", marginBottom: "2px" }}>Register Healthcare Equipment</div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>QR: <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0ea5e9" }}>{qr.qrUniqueId}</span></div>
+
+                  {/* Equipment Details */}
+                  <div style={secSt}>Equipment Details</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div><label style={lblSt}>Equipment Name *</label><input style={inpSt} placeholder="e.g. ECG Machine, Ventilator…" value={assetName} onChange={e=>setAssetName(e.target.value)} /></div>
+                    <Row2>
+                      <Half><label style={lblSt}>Make / Manufacturer</label><input style={inpSt} placeholder="e.g. GE, Philips…" value={make} onChange={e=>setMake(e.target.value)} /></Half>
+                      <Half><label style={lblSt}>Manufacturer Company</label><input style={inpSt} placeholder="Company name" value={manufacturerCompany} onChange={e=>setManufacturerCompany(e.target.value)} /></Half>
+                    </Row2>
+                    <Row2>
+                      <Half><label style={lblSt}>Model</label><input style={inpSt} placeholder="Model number" value={model} onChange={e=>setModel(e.target.value)} /></Half>
+                      <Half><label style={lblSt}>Serial No.</label><input style={inpSt} placeholder="Serial number" value={serialNo} onChange={e=>setSerialNo(e.target.value)} /></Half>
+                    </Row2>
+                    <div><label style={lblSt}>Accessories Included</label><input style={inpSt} placeholder="e.g. leads, probe, cables…" value={accessories} onChange={e=>setAccessories(e.target.value)} /></div>
+                    <div><label style={lblSt}>Dealer / Distributor</label><input style={inpSt} placeholder="Dealer or supplier name" value={dealer} onChange={e=>setDealer(e.target.value)} /></div>
+                    <Row2>
+                      <Half><label style={lblSt}>Manufacturing Year</label><input style={inpSt} placeholder="e.g. 2023" value={mfgYear} onChange={e=>setMfgYear(e.target.value)} /></Half>
+                      <Half><label style={lblSt}>Installation Date</label><input style={inpSt} placeholder="DD/MM/YYYY" value={installationDate} onChange={e=>setInstallationDate(e.target.value)} /></Half>
+                    </Row2>
+                  </div>
+
+                  {/* Invoice / Purchase */}
+                  <div style={secSt}>Invoice No. / Purchase Details</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div><label style={lblSt}>Invoice No.</label><input style={inpSt} placeholder="Invoice number" value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} /></div>
+                    <Row2>
+                      <Half><label style={lblSt}>Purchase Date</label><input style={inpSt} placeholder="DD/MM/YYYY" value={purchaseDate} onChange={e=>setPurchaseDate(e.target.value)} /></Half>
+                      <Half><label style={lblSt}>Purchase Cost (₹)</label><input style={inpSt} type="number" placeholder="Amount" value={purchaseCost} onChange={e=>setPurchaseCost(e.target.value)} /></Half>
+                    </Row2>
+                  </div>
+
+                  {/* Maintenance Under */}
+                  <div style={secSt}>Maintenance Under</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 20px", marginBottom: "12px" }}>
+                    {[...MAINT_OPTIONS.map(k=>({ key:k, label:k.charAt(0).toUpperCase()+k.slice(1) })), { key:"rber", label:"RBER" }].map(o => {
+                      const checked = o.key === "rber" ? rber : maintenance.includes(o.key);
+                      const toggle  = o.key === "rber" ? () => setRber(v=>!v) : () => toggleMaint(o.key);
+                      return (
+                        <label key={o.key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13px", color: "#0f172a", userSelect: "none" }}>
+                          <input type="checkbox" checked={checked} onChange={toggle} style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#1e3a8a" }} />
+                          {o.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div><label style={lblSt}>Remarks</label><textarea rows={2} style={{ ...inpSt, resize: "vertical" }} placeholder="Additional notes…" value={remarks} onChange={e=>setRemarks(e.target.value)} /></div>
+
+                  {/* Location */}
+                  <div style={secSt}>Location</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div><label style={lblSt}>Building / Block</label><input style={inpSt} placeholder="e.g. OPD Block, Block B…" value={building} onChange={e=>setBuilding(e.target.value)} /></div>
+                    <Row2>
+                      <Half><label style={lblSt}>Floor</label><input style={inpSt} placeholder="e.g. Ground, 1st…" value={floor} onChange={e=>setFloor(e.target.value)} /></Half>
+                      <Half><label style={lblSt}>Room / Area</label><input style={inpSt} placeholder="e.g. ICU, Ward 3…" value={room} onChange={e=>setRoom(e.target.value)} /></Half>
+                    </Row2>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", marginTop: "22px", justifyContent: "flex-end" }}>
+                    <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "13px" }}>Cancel</button>
+                    <button onClick={handleSubmit} disabled={!assetName.trim() || saving}
+                      style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: assetName.trim() ? "#1e3a8a" : "#cbd5e1", color: "#fff", fontWeight: 700, cursor: assetName.trim() ? "pointer" : "not-allowed", fontSize: "13px", opacity: saving ? 0.75 : 1 }}>
+                      {saving ? "Registering…" : "Register Equipment"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          };
+          return (
+            <div style={{ maxWidth: "1100px" }}>
+              {preQrLinkModal && <ViewQrModal qr={preQrLinkModal} onClose={() => setPreQrLinkModal(null)} />}
+              {preQrRegisterModal && <RegisterAssetModal qr={preQrRegisterModal} onClose={() => setPreQrRegisterModal(null)} />}
+              <div style={{ fontWeight: 700, fontSize: "22px", color: "#0f172a", marginBottom: "6px" }}>QR Code Management</div>
+              <div style={{ color: "#64748b", fontSize: "13px", marginBottom: "24px" }}>Generate QR codes to paste on machines. Scan on mobile to register or look up assets.</div>
+
+              {/* Stats */}
+              <div style={{ display: "flex", gap: "14px", marginBottom: "24px", flexWrap: "wrap" }}>
+                {[
+                  { label: "Total Generated", value: preQrCodes.length, color: "#0ea5e9" },
+                  { label: "Linked to Assets", value: linked.length, color: "#22c55e" },
+                  { label: "Unlinked", value: unlinked.length, color: "#f59e0b" },
+                ].map((s) => (
+                  <div key={s.label} style={{ flex: "1 1 160px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 20px" }}>
+                    <div style={{ fontSize: "28px", fontWeight: 700, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Generate row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 20px", flexWrap: "wrap" }}>
+                {/* Client logo upload for QR cards */}
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <label title="Upload client logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    {companyLogoUrl ? "Client Logo ✓" : "Upload Client Logo"}
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const fd = new FormData();
+                      fd.append("logo", file);
+                      try {
+                        const r = await fetch("/api/company-portal/upload-logo", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+                        const data = await r.json();
+                        if (!r.ok) throw new Error(data.message || "Upload failed");
+                        setCompanyLogoUrl(data.url);
+                        alert("Client logo uploaded! QR cards will now include your logo.");
+                      } catch (err) { alert(err.message); }
+                      e.target.value = "";
+                    }} />
+                  </label>
+                  {companyLogoUrl && (
+                    <button title="Remove client logo" onClick={() => setCompanyLogoUrl("")} style={{ padding: "6px 9px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontSize: "13px", fontWeight: 700, lineHeight: 1 }}>×</button>
+                  )}
+                </div>
+                <div style={{ width: "1px", height: "32px", background: "#e2e8f0" }} />
+                <label style={{ fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>Generate</label>
+                <input type="number" min="1" value={preQrCount} onChange={(e) => setPreQrCount(Math.max(1, Number(e.target.value)))}
+                  style={{ width: "80px", padding: "8px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px" }} />
+                <label style={{ fontSize: "14px", color: "#64748b" }}>QR codes</label>
+                <button onClick={handleGenerate} disabled={preQrGenerating} style={{ padding: "8px 20px", borderRadius: "8px", border: "none", background: "#0ea5e9", color: "#fff", fontWeight: 600, cursor: preQrGenerating ? "not-allowed" : "pointer", opacity: preQrGenerating ? 0.7 : 1 }}>
+                  {preQrGenerating ? "Generating…" : "Generate"}
+                </button>
+                {unlinked.length > 0 && (
+                  <button onClick={() => handlePrintSelected(unlinked)} style={{ padding: "8px 20px", borderRadius: "8px", border: "1px solid #0ea5e9", background: "#fff", color: "#0ea5e9", fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>
+                    Print All Unlinked ({unlinked.length})
+                  </button>
+                )}
+                {preQrCodes.length > 0 && (
+                  <button onClick={() => handlePrintSelected(preQrCodes)} style={{ padding: "8px 20px", borderRadius: "8px", border: "1px solid #0f172a", background: "#fff", color: "#0f172a", fontWeight: 600, cursor: "pointer" }}>
+                    Print All ({preQrCodes.length})
+                  </button>
+                )}
+                {selectedPreQrIds.size > 0 && (
+                  <>
+                    <button onClick={() => handlePrintSelected(preQrCodes.filter(q => selectedPreQrIds.has(q.id)))}
+                      style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #e9d5ff", background: "#f3e8ff", color: "#7c3aed", fontWeight: 600, cursor: "pointer", fontSize: "13px" }}>
+                      Print ({selectedPreQrIds.size})
+                    </button>
+                    <button onClick={handleBulkDeletePreQr}
+                      style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 600, cursor: "pointer", fontSize: "13px" }}>
+                      Delete ({selectedPreQrIds.size})
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Table */}
+              {preQrLoading ? (
+                <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading…</div>
+              ) : preQrCodes.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                  No QR codes generated yet. Use the form above to generate some.
+                </div>
+              ) : (
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                        <th style={{ padding: "10px 14px", width: "40px" }}>
+                          <input type="checkbox"
+                            checked={preQrCodes.length > 0 && preQrCodes.every(q => selectedPreQrIds.has(q.id))}
+                            onChange={(e) => setSelectedPreQrIds(e.target.checked ? new Set(preQrCodes.map(q => q.id)) : new Set())}
+                            style={{ cursor: "pointer" }} />
+                        </th>
+                        {["QR Unique ID", "Status", "Linked Asset", "Linked At", "Actions"].map((h) => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#475569" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preQrCodes.map((qr) => (
+                        <tr key={qr.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedPreQrIds.has(qr.id) ? "#fef2f2" : undefined }}>
+                          <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                            <input type="checkbox" checked={selectedPreQrIds.has(qr.id)}
+                              onChange={(e) => setSelectedPreQrIds(prev => { const n = new Set(prev); e.target.checked ? n.add(qr.id) : n.delete(qr.id); return n; })}
+                              style={{ cursor: "pointer" }} />
+                          </td>
+                          <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", fontFamily: "monospace" }}>{qr.qrUniqueId}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: qr.assetId ? "#dcfce7" : "#fef3c7", color: qr.assetId ? "#16a34a" : "#b45309" }}>
+                              {qr.assetId ? "Linked" : "Unlinked"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 14px", color: "#64748b" }}>{qr.assetName || "—"}</td>
+                          <td style={{ padding: "10px 14px", color: "#94a3b8", fontSize: "12px" }}>{qr.linkedAt ? new Date(qr.linkedAt).toLocaleDateString() : "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                              <button onClick={() => handlePrintSelected([qr])} style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: "12px", cursor: "pointer" }}>Print</button>
+                              <button onClick={() => setPreQrLinkModal(qr)} style={{ padding: "4px 10px", borderRadius: "6px", border: "none", background: "#0ea5e9", color: "#fff", fontSize: "12px", cursor: "pointer" }}>View QR</button>
+                              {!qr.assetId && (
+                                <button onClick={() => setPreQrRegisterModal(qr)} style={{ padding: "4px 10px", borderRadius: "6px", border: "none", background: "#7c3aed", color: "#fff", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>Register Asset</button>
+                              )}
+                              <button onClick={async () => {
+                                if (!window.confirm(`Delete QR code ${qr.qrUniqueId}?${qr.assetId ? " This QR is linked to an asset — unlinking it may affect scans." : ""}`)) return;
+                                try {
+                                  await deletePreQrCode(token, qr.id);
+                                  setPreQrCodes(prev => prev.filter(q => q.id !== qr.id));
+                                } catch (e) { alert("Delete failed: " + (e.message || "Unknown error")); }
+                              }} style={{ padding: "4px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#dc2626", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Employees ─────────────────────────────────────────── */}
         {nav === "employees" && (() => {
@@ -5121,6 +6138,10 @@ export default function CompanyEmployeePortal() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.fullName}</p>
                 <p style={{ fontSize: "11.5px", color: "#94a3b8", margin: 0 }}>{e.designation || e.email}</p>
+                <div style={{ display: "flex", gap: "8px", marginTop: "3px", flexWrap: "wrap" }}>
+                  {e.email && <span style={{ fontSize: "10.5px", background: "#eff6ff", color: "#2563eb", padding: "1px 7px", borderRadius: "10px" }}>🌐 {e.email}</span>}
+                  {e.username && <span style={{ fontSize: "10.5px", background: "#f3e8ff", color: "#7c3aed", padding: "1px 7px", borderRadius: "10px" }}>📱 {e.username}</span>}
+                </div>
               </div>
               <Badge val={e.role} />
               <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, background: e.status === "Active" ? "#f0fdf4" : "#fef2f2", color: e.status === "Active" ? "#16a34a" : "#dc2626" }}>{e.status}</span>
@@ -5892,42 +6913,61 @@ export default function CompanyEmployeePortal() {
           />
         )}
 
-        {/* Asset QR Modal */}
+        {/* Asset Barcode Modal */}
+        {/* ── Asset View QR Modal (Manage Assets tab) ─── */}
+        {assetViewQrModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+            onClick={() => setAssetViewQrModal(null)}>
+            <div style={{ background: "transparent", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+              {assetViewQrCardHtml
+                ? <div dangerouslySetInnerHTML={{ __html: assetViewQrCardHtml }} style={{ display: "inline-block" }} />
+                : <div style={{ width: "300px", height: "380px", background: "#fff", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "14px" }}>Generating card…</div>
+              }
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px", justifyContent: "center" }}>
+                <button onClick={() => openQrCodePrintWindow([assetViewQrModal])}
+                  style={{ padding: "9px 22px", borderRadius: "9px", border: "none", background: "#0f172a", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: "middle", marginRight: "6px" }}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print
+                </button>
+                <button onClick={() => setAssetViewQrModal(null)}
+                  style={{ padding: "9px 22px", borderRadius: "9px", border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {assetQrModal && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-            <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "400px", padding: "28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-              <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Asset QR Code</h3>
+            <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Asset Barcode</h3>
               <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b" }}>{assetQrModal.assetName}</p>
 
-              {/* QR Card Preview */}
+              {/* Barcode Card Preview */}
               {assetQrDataUrl ? (
-                <div style={{ display: "inline-block", background: "#2e7d32", color: "#fff", padding: "20px 18px 16px", borderRadius: "14px", textAlign: "center", fontFamily: "Arial, sans-serif", width: "280px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <div style={{ width: "80px", height: "48px", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+                <div style={{ display: "inline-block", background: "#fff", border: "1.5px solid #e2e8f0", padding: "20px 20px 16px", borderRadius: "14px", textAlign: "center", fontFamily: "Arial, sans-serif", width: "320px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+                  {/* Logos row */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                    <div style={{ width: "100px", height: "52px", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
                       {companyLogoUrl
-                        ? <img src={companyLogoUrl} alt="Client" style={{ maxWidth: "80px", maxHeight: "48px", objectFit: "contain" }} />
-                        : <div style={{ width: "80px" }} />}
+                        ? <img src={companyLogoUrl} alt="Client" style={{ maxWidth: "100px", maxHeight: "52px", objectFit: "contain" }} />
+                        : <div style={{ width: "100px" }} />}
                     </div>
-                    <div style={{ width: "80px", height: "48px", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                      <img src="/catalyst-logo.png" alt="Catalyst" style={{ maxWidth: "80px", maxHeight: "48px", objectFit: "contain" }}
+                    <div style={{ width: "100px", height: "52px", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                      <img src="/catalyst-logo.png" alt="Catalyst" style={{ maxWidth: "100px", maxHeight: "52px", objectFit: "contain" }}
                         onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }}
                       />
-                      <span style={{ display: "none", fontSize: "9px", fontWeight: 800, color: "#fff", textAlign: "right", lineHeight: 1.2 }}>CATALYST<br/><span style={{ fontWeight: 400 }}>PARTNERING FOR<br/>SUSTAINABILITY</span></span>
+                      <span style={{ display: "none", fontSize: "9px", fontWeight: 800, color: "#1e3a5f", textAlign: "right", lineHeight: 1.2 }}>CATALYST<br/><span style={{ fontWeight: 400 }}>PARTNERING FOR<br/>SUSTAINABILITY</span></span>
                     </div>
                   </div>
-                  <div style={{ fontSize: "13px", fontWeight: 800, letterSpacing: "2px", marginBottom: "2px" }}>SCAN QR CODE</div>
-                  <div style={{ fontSize: "10px", opacity: 0.85, marginBottom: "12px" }}>For Service Excellence</div>
-                  <div style={{ background: "#fff", padding: "8px", borderRadius: "8px", display: "inline-block", marginBottom: "10px" }}>
-                    <img src={assetQrDataUrl} alt="QR" style={{ width: "180px", height: "180px", display: "block" }} />
+                  {/* Barcode */}
+                  <div style={{ background: "#fff", padding: "4px 0", display: "inline-block", width: "100%" }}>
+                    <img src={assetQrDataUrl} alt="Barcode" style={{ width: "100%", maxWidth: "270px", display: "block", margin: "0 auto" }} />
                   </div>
-                  {assetQrModal.assetName && <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "2px" }}>{assetQrModal.assetName}</div>}
-                  {assetQrModal.asset?.floor && <div style={{ fontSize: "12px" }}>Floor - {assetQrModal.asset.floor}</div>}
-                  {assetQrModal.asset?.room && <div style={{ fontSize: "12px" }}>Area - {assetQrModal.asset.room}</div>}
-                  <div style={{ fontSize: "10px", opacity: 0.75, marginTop: "6px", marginBottom: "12px" }}>www.catalystsolutions.eco</div>
-                  <div style={{ background: "#000", padding: "9px 16px", borderRadius: "4px", fontWeight: 800, fontSize: "12px", letterSpacing: "2px" }}>SCAN FOR E-CHECKLIST</div>
+                  {assetQrModal.assetName && <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginTop: "10px", marginBottom: "2px" }}>{assetQrModal.assetName}</div>}
+                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "8px" }}>www.catalystsolutions.eco</div>
                 </div>
               ) : (
-                <p style={{ color: "#94a3b8" }}>Generating QR...</p>
+                <p style={{ color: "#94a3b8" }}>Generating barcode...</p>
               )}
 
               <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "center", flexWrap: "wrap" }}>
@@ -5935,13 +6975,14 @@ export default function CompanyEmployeePortal() {
                   <button onClick={() => openQrPrintWindow([assetQrModal.asset])} disabled={bulkQrPrinting}
                     style={{ padding: "8px 18px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    {bulkQrPrinting ? "Preparing…" : "Print QR"}
+                    {bulkQrPrinting ? "Preparing…" : "Print Barcode"}
                   </button>
                 )}
                 {assetQrDataUrl && (
-                  <a href={assetQrDataUrl} download={`QR-${assetQrModal.assetName.replace(/[^a-zA-Z0-9]/g, "_")}-${assetQrModal.assetId}.png`} style={{ padding: "8px 18px", borderRadius: "8px", background: "#2563eb", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <a href={assetQrDataUrl} download={`Barcode-${(assetQrModal.barcodeStr || assetQrModal.assetId).replace(/[^a-zA-Z0-9-]/g, "_")}.png`}
+                    style={{ padding: "8px 18px", borderRadius: "8px", background: "#2563eb", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download QR
+                    Download Barcode
                   </a>
                 )}
                 <button onClick={() => { setAssetQrModal(null); setAssetQrDataUrl(""); }} style={{ padding: "8px 18px", borderRadius: "8px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
@@ -6601,6 +7642,63 @@ export default function CompanyEmployeePortal() {
         )}
       </main>
 
+      {/* ── Settings (Public Dashboard Link) ─────────────────── */}
+      {nav === "settings" && currentUser.role === "admin" && (() => {
+        const link = settingsPublicToken ? `${window.location.origin}/public/${settingsPublicToken}` : "";
+        const copyLink = () => {
+          navigator.clipboard.writeText(link).then(() => { setSettingsCopied(true); setTimeout(() => setSettingsCopied(false), 2000); });
+        };
+        const regenerate = async () => {
+          setSettingsRegen(true);
+          try {
+            const res = await fetch(`${getApiBaseUrl()}/api/company-portal/public-link/regenerate`, {
+              method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+            });
+            const d = await res.json();
+            setSettingsPublicToken(d.publicToken || "");
+          } catch(_) {}
+          setSettingsRegen(false);
+        };
+        return (
+          <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+            <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>Settings</h1>
+            <p style={{ color: "#64748b", fontSize: "13.5px", marginBottom: "28px" }}>Manage your company portal configuration</p>
+            <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "24px", maxWidth: "680px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <div style={{ width: "40px", height: "40px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>Public Dashboard Link</h2>
+                  <p style={{ margin: 0, fontSize: "12.5px", color: "#64748b" }}>Share this link so clients can view a read-only asset dashboard</p>
+                </div>
+              </div>
+              {settingsPublicToken === null ? (
+                <p style={{ color: "#94a3b8", fontSize: "13px" }}>Loading…</p>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <input readOnly value={link} style={{ flex: 1, minWidth: "200px", padding: "10px 14px", border: "1px solid #e2e8f0", borderRadius: "9px", fontSize: "13px", background: "#f8fafc", color: "#0f172a", fontFamily: "monospace" }} />
+                    <button onClick={copyLink} style={{ padding: "10px 16px", borderRadius: "9px", border: "1px solid #bfdbfe", background: settingsCopied ? "#dcfce7" : "#eff6ff", color: settingsCopied ? "#16a34a" : "#2563eb", fontWeight: 700, cursor: "pointer", fontSize: "13px", whiteSpace: "nowrap" }}>
+                      {settingsCopied ? "✓ Copied!" : "Copy Link"}
+                    </button>
+                    <a href={link} target="_blank" rel="noopener noreferrer" style={{ padding: "10px 16px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                      Preview ↗
+                    </a>
+                  </div>
+                  <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    <button onClick={regenerate} disabled={settingsRegen} style={{ padding: "7px 14px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 600, fontSize: "12.5px", cursor: settingsRegen ? "not-allowed" : "pointer" }}>
+                      {settingsRegen ? "Regenerating…" : "🔄 Regenerate Link"}
+                    </button>
+                    <p style={{ margin: 0, fontSize: "11.5px", color: "#94a3b8" }}>Regenerating invalidates the old link.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
+        );
+      })()}
+
       {/* Modals */}
       {showDeptModal && (
         <DeptModal
@@ -6617,9 +7715,94 @@ export default function CompanyEmployeePortal() {
           departments={departments}
           employees={employees}
           assetTypesList={assetTypesList}
+          companySectors={companySectors}
           onClose={() => { setShowAssetModal(false); setEditAsset(null); }}
           onSaved={handleAssetSaved}
         />
+      )}
+      {showBulkAssetImport && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
+          onClick={() => setShowBulkAssetImport(false)}>
+          <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "540px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Import Assets from Excel</h2>
+                <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>Upload an .xlsx / .xls / .csv file to register multiple assets at once.</p>
+              </div>
+              <button onClick={() => setShowBulkAssetImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Template download */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 16px", marginBottom: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <span style={{ fontSize: "13px", color: "#475569" }}>Download the template to see the required columns.</span>
+              <a href={getCompanyPortalImportTemplateUrl()} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Template
+              </a>
+            </div>
+
+            {/* File picker */}
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Excel / CSV File <span style={{ color: "#ef4444" }}>*</span></label>
+              <input type="file" accept=".xlsx,.xls,.csv"
+                onChange={(e) => { setBulkAssetFile(e.target.files[0] || null); setBulkAssetResult(null); }}
+                style={{ display: "block", width: "100%", fontSize: "13px", color: "#0f172a" }} />
+              {bulkAssetFile && <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#64748b" }}>{bulkAssetFile.name}</p>}
+            </div>
+
+            {/* Upload button */}
+            <button type="button" disabled={bulkAssetImporting || !bulkAssetFile}
+              onClick={async () => {
+                if (!bulkAssetFile) return;
+                setBulkAssetImporting(true); setBulkAssetResult(null);
+                try {
+                  const result = await bulkImportCompanyPortalAssets(token, bulkAssetFile);
+                  setBulkAssetResult(result);
+                  // Refresh assets
+                  getCompanyPortalAssets(token).then((list) => list && setAssets(list)).catch(() => {});
+                } catch (err) {
+                  setBulkAssetResult({ error: err.message });
+                } finally {
+                  setBulkAssetImporting(false);
+                }
+              }}
+              style={{ display: "block", width: "100%", padding: "10px", borderRadius: "8px", border: "none", background: bulkAssetImporting || !bulkAssetFile ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: bulkAssetImporting || !bulkAssetFile ? "default" : "pointer" }}>
+              {bulkAssetImporting ? "Uploading…" : "Upload & Register Assets"}
+            </button>
+
+            {/* Results */}
+            {bulkAssetResult && !bulkAssetResult.error && (
+              <div style={{ marginTop: "20px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "14px" }}>
+                  {[
+                    { label: "Total Rows", value: bulkAssetResult.total, color: "#0f172a" },
+                    { label: "Created", value: bulkAssetResult.created, color: "#16a34a" },
+                    { label: "Skipped", value: bulkAssetResult.skipped, color: "#d97706" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: "22px", fontWeight: 800, color }}>{value}</div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {bulkAssetResult.errors?.length > 0 && (
+                  <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px" }}>
+                    <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#dc2626" }}>Skipped rows:</p>
+                    {bulkAssetResult.errors.map((e, i) => (
+                      <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" — ` : ""}{e.reason}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {bulkAssetResult?.error && (
+              <div style={{ marginTop: "14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px" }}>
+                <p style={{ margin: 0, fontSize: "13px", color: "#dc2626", fontWeight: 600 }}>{bulkAssetResult.error}</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {showEmpModal && (
         <EmployeeModal

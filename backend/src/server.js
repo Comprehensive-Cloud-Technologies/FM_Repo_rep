@@ -1,4 +1,3 @@
-import "dotenv/config";
 import app from "./app.js";
 import { startEscalationJob } from "./utils/escalationJob.js";
 import { startWorkOrderEscalationJob } from "./utils/workOrderEscalationJob.js";

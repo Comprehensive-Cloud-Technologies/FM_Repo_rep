@@ -10,10 +10,10 @@
  * Status chips:  All · Pending · Done
  */
 
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
+  ActivityIndicator, FlatList,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -29,6 +29,7 @@ import {
   fetchWorkOrders,
   fetchMySoftRequests,
   fetchAllSoftRequests,
+  authenticatedFetch,
 } from '../../utils/api';
 import { hasSoftAccess, isSoftManager } from '../../utils/permissions';
 import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
@@ -148,12 +149,142 @@ function FilterPill({
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── HC Case Log Tasks (Engineer & Admin) ────────────────────────────────────
 
-export default function TasksTab() {
+const STATUS_COLOR: Record<string, string> = {
+  open: '#DC2626', assigned: '#2563EB', in_progress: '#D97706',
+  resolved: '#059669', closed: '#64748B',
+};
+const HC_STATUSES = [
+  { value: '', label: 'All' }, { value: 'open', label: 'Open' },
+  { value: 'assigned', label: 'Assigned' }, { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' }, { value: 'closed', label: 'Closed' },
+];
+
+function HCTasksScreen() {
   const { theme } = useTheme();
   const { capabilities } = useAuth();
+  const params = useLocalSearchParams<{ status?: string }>();
+  const [statusFilter, setStatusFilter] = useState(params.status || '');
+  const [cases, setCases]       = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage]         = useState(1);
+  const [hasMore, setHasMore]   = useState(false);
 
+  const load = useCallback(async (reset = false) => {
+    const p = reset ? 1 : page;
+    try {
+      const qs = new URLSearchParams({ limit: '30', page: String(p) });
+      if (statusFilter) qs.set('status', statusFilter);
+      const res = await authenticatedFetch(`/api/mobile/case-logs?${qs}`);
+      const data = await res.json() as any;
+      const rows = data.data || [];
+      setCases(prev => reset ? rows : [...prev, ...rows]);
+      setHasMore(rows.length === 30);
+      if (reset) setPage(2); else setPage(p + 1);
+    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
+  }, [page, statusFilter]);
+
+  useEffect(() => { setLoading(true); void load(true); }, [statusFilter]);
+
+  const renderItem = ({ item }: { item: any }) => {
+    const c = STATUS_COLOR[item.status] || '#64748B';
+    return (
+      <TouchableOpacity
+        style={[hcSS.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })}
+        activeOpacity={0.7}
+      >
+        <View style={hcSS.cardTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={[hcSS.num, { color: theme.primary }]}>{item.work_order_number}</Text>
+            <Text style={[hcSS.asset, { color: theme.textPrimary }]} numberOfLines={1}>{item.asset_name || 'Asset'}</Text>
+            {item.raised_by_name ? <Text style={[hcSS.meta, { color: theme.textMuted }]}>By: {item.raised_by_name}</Text> : null}
+          </View>
+          <View style={[hcSS.badge, { backgroundColor: c + '18' }]}>
+            <Text style={[hcSS.badgeText, { color: c }]}>{(item.status || '').replace(/_/g, ' ')}</Text>
+          </View>
+        </View>
+        <Text style={[hcSS.desc, { color: theme.textSecondary }]} numberOfLines={2}>{item.issue_description}</Text>
+        <View style={hcSS.footer}>
+          <Text style={[hcSS.meta, { color: theme.textMuted }]}>{item.department_name || item.location || '—'}</Text>
+          <Text style={[hcSS.meta, { color: theme.textMuted }]}>
+            {item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={[hcSS.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={[hcSS.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <Text style={[hcSS.headerTitle, { color: theme.textPrimary }]}>
+          {capabilities.isHCAdmin ? 'All Case Logs' : 'My Assigned Cases'}
+        </Text>
+        {capabilities.isHCAdmin && (
+          <TouchableOpacity onPress={() => router.push('/hc-raise-case-log')} style={[hcSS.addBtn, { backgroundColor: theme.primary }]}>
+            <MaterialCommunityIcons name="plus" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+      <View style={[hcSS.chipBar, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        {HC_STATUSES.map(s => (
+          <TouchableOpacity key={s.value}
+            style={[hcSS.chip, { backgroundColor: statusFilter === s.value ? theme.primary : theme.background, borderColor: statusFilter === s.value ? theme.primary : theme.border }]}
+            onPress={() => { setPage(1); setStatusFilter(s.value); }}
+          >
+            <Text style={[hcSS.chipText, { color: statusFilter === s.value ? '#fff' : theme.textSecondary }]}>{s.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {loading
+        ? <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
+        : <FlatList
+            data={cases}
+            keyExtractor={i => String(i.id)}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} tintColor={theme.primary} />}
+            onEndReached={() => { if (hasMore) void load(); }}
+            onEndReachedThreshold={0.4}
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', marginTop: 60 }}>
+                <MaterialCommunityIcons name="clipboard-off-outline" size={48} color={theme.textMuted} />
+                <Text style={{ color: theme.textMuted, marginTop: 12, fontSize: 14 }}>No case logs found</Text>
+              </View>
+            }
+          />
+      }
+    </SafeAreaView>
+  );
+}
+
+const hcSS = StyleSheet.create({
+  safe:        { flex: 1 },
+  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
+  addBtn:      { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  chipBar:     { flexDirection: 'row', gap: 6, padding: Spacing.sm, paddingHorizontal: Spacing.md, borderBottomWidth: 1, flexWrap: 'wrap' },
+  chip:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  chipText:    { fontSize: 11, fontWeight: '600' },
+  card:        { borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.md, gap: 6 },
+  cardTop:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  num:         { fontSize: 12, fontWeight: '700' },
+  asset:       { fontSize: 14, fontWeight: '600', marginTop: 2 },
+  badge:       { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  badgeText:   { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
+  desc:        { fontSize: 13 },
+  footer:      { flexDirection: 'row', justifyContent: 'space-between' },
+  meta:        { fontSize: 11 },
+});
+
+// ─── Legacy Tasks Screen (non-HC roles) ───────────────────────────────────────
+
+function LegacyTasksScreen() {
+  const { theme } = useTheme();
+  const { capabilities } = useAuth();
   const [templates,  setTemplates]  = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [requests,   setRequests]   = useState<any[]>([]);
@@ -497,3 +628,13 @@ const styles = StyleSheet.create({
   cardMeta:        { ...Typography.micro },
   cardRight:       { alignItems: 'flex-end', gap: 2 },
 });
+
+// ─── Main exported tab — no hooks after conditional ───────────────────────────
+
+export default function TasksTab() {
+  const { capabilities } = useAuth();
+  if (capabilities.isHCEngineer || capabilities.isHCAdmin) {
+    return <HCTasksScreen />;
+  }
+  return <LegacyTasksScreen />;
+}
