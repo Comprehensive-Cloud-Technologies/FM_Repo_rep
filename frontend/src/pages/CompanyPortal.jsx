@@ -64,6 +64,7 @@ import {
   deleteAdminEmployee,
   bulkImportAssets,
   getAssetImportTemplateUrl,
+  deleteAllAssets,
 } from "../api";
 import ChecklistBuilder from "../components/ChecklistBuilder";
 import LogsheetModule from "../components/LogsheetModule.jsx";
@@ -840,11 +841,6 @@ const CompanyPortal = () => {
   const [hospitalForm, setHospitalForm] = useState(emptyHospital);
   const [hospitalLoading, setHospitalLoading] = useState(false);
   const [hospitalError, setHospitalError] = useState(null);
-  const [postRegUserForm, setPostRegUserForm] = useState({ fullName:"", email:"", phone:"", role:"admin", password:"", username:"" });
-  const [showPostRegUser, setShowPostRegUser] = useState(false);
-  const [postRegCompanyId, setPostRegCompanyId] = useState(null);
-  const [postRegUserLoading, setPostRegUserLoading] = useState(false);
-  const [postRegUserError, setPostRegUserError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -1416,11 +1412,6 @@ const CompanyPortal = () => {
       setHospitalForm(emptyHospital);
       setSelectedSectors([]);
       setShowAddForm(false);
-      // Pre-fill contact person as first admin user
-      setPostRegCompanyId(created.id);
-      setPostRegUserForm({ fullName: hospitalForm.contactPersonName, email: hospitalForm.contactEmail, phone: hospitalForm.contactPersonPhone, role: "admin", password: "", username: "" });
-      setPostRegUserError(null);
-      setShowPostRegUser(true);
     } catch (err) {
       setHospitalError(err.message || "Could not register hospital");
     } finally {
@@ -1467,11 +1458,6 @@ const CompanyPortal = () => {
       setCompanyForm(emptyCompany);
       setSelectedSectors([]);
       setShowAddForm(false);
-      // Prompt to create first admin user
-      setPostRegCompanyId(created.id);
-      setPostRegUserForm({ fullName:"", email:"", phone:"", role:"admin", password:"", username:"" });
-      setPostRegUserError(null);
-      setShowPostRegUser(true);
     } catch (err) {
       setCompanyError(err.message || "Could not create company");
     } finally {
@@ -1912,6 +1898,23 @@ const CompanyPortal = () => {
       setAssets((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       setAssetError(err.message || "Delete failed");
+    }
+  };
+
+  const handleDeleteAllAssets = async () => {
+    if (!token) return;
+    const companyId = selectedCompanyId || companies[0]?.id;
+    if (!companyId) return;
+    const confirmed = window.confirm(
+      `⚠️ WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
+    );
+    if (!confirmed) return;
+    try {
+      const result = await deleteAllAssets(token, companyId);
+      setAssets([]);
+      alert(`✅ ${result?.deleted ?? 0} assets deleted successfully.`);
+    } catch (err) {
+      setAssetError(err.message || "Delete all failed");
     }
   };
 
@@ -3441,6 +3444,14 @@ const CompanyPortal = () => {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Import Excel
                 </button>
+                <button type="button"
+                  onClick={handleDeleteAllAssets}
+                  disabled={!assets.length}
+                  title="Permanently delete ALL assets for this company"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: assets.length ? "pointer" : "not-allowed", border: "1.5px solid #ef4444", background: "#fef2f2", color: "#ef4444", opacity: assets.length ? 1 : 0.5 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  Delete All Assets
+                </button>
               </div>
               <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
@@ -4487,91 +4498,6 @@ const CompanyPortal = () => {
             );
           })}
         </div>
-
-        {/* ── Post-Registration: Create First User Modal ── */}
-        {showPostRegUser && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px 28px", width: "min(520px, 94vw)", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
-              <div style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-                  <div style={{ width: 40, height: 40, background: "#dcfce7", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                  <div>
-                    <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Company Created! Create Login Credentials</h2>
-                    <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Create a dashboard user account for this company now.</p>
-                  </div>
-                </div>
-              </div>
-              {postRegUserError && <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", color: "#dc2626", fontSize: "13px" }}>{postRegUserError}</div>}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Full Name *</label>
-                  <input value={postRegUserForm.fullName} onChange={(e) => setPostRegUserForm((p) => ({ ...p, fullName: e.target.value }))}
-                    className="form-input" placeholder="Full name" style={{ width: "100%", boxSizing: "border-box" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Email *</label>
-                  <input type="email" value={postRegUserForm.email} onChange={(e) => setPostRegUserForm((p) => ({ ...p, email: e.target.value }))}
-                    className="form-input" placeholder="user@hospital.com" style={{ width: "100%", boxSizing: "border-box" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Phone</label>
-                  <input value={postRegUserForm.phone} onChange={(e) => setPostRegUserForm((p) => ({ ...p, phone: e.target.value }))}
-                    className="form-input" placeholder="+91 9876543210" style={{ width: "100%", boxSizing: "border-box" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Role</label>
-                  <select value={postRegUserForm.role} onChange={(e) => setPostRegUserForm((p) => ({ ...p, role: e.target.value }))}
-                    className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
-                    <option value="admin">Admin</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="technician">Technician</option>
-                    <option value="employee">Employee</option>
-                    <option value="doctor">Doctor (HC)</option>
-                    <option value="nurse">Nurse (HC)</option>
-                    <option value="ward_boy">Ward Boy (HC)</option>
-                    <option value="engineer">Engineer (HC)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Username (for mobile login)</label>
-                  <input value={postRegUserForm.username} onChange={(e) => setPostRegUserForm((p) => ({ ...p, username: e.target.value }))}
-                    className="form-input" placeholder="username or email" style={{ width: "100%", boxSizing: "border-box" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Password *</label>
-                  <input type="password" value={postRegUserForm.password} onChange={(e) => setPostRegUserForm((p) => ({ ...p, password: e.target.value }))}
-                    className="form-input" placeholder="Minimum 6 characters" style={{ width: "100%", boxSizing: "border-box" }} />
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
-                <button type="button" onClick={() => { setShowPostRegUser(false); setNav("companies"); }}
-                  style={{ padding: "9px 18px", fontSize: "13.5px", fontWeight: 600, borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}>
-                  Skip for now
-                </button>
-                <button type="button" disabled={postRegUserLoading || !postRegUserForm.fullName || !postRegUserForm.email || !postRegUserForm.password || !postRegCompanyId}
-                  onClick={async () => {
-                    if (!postRegCompanyId) { setPostRegUserError("Company ID missing — please try again."); return; }
-                    setPostRegUserLoading(true);
-                    setPostRegUserError(null);
-                    try {
-                      await createCompanyUser(token, { ...postRegUserForm, companyId: Number(postRegCompanyId), username: postRegUserForm.username || postRegUserForm.email });
-                      setShowPostRegUser(false);
-                      setNav("companies");
-                    } catch (err) {
-                      setPostRegUserError(err.message || "Could not create user");
-                    } finally {
-                      setPostRegUserLoading(false);
-                    }
-                  }}
-                  style={{ padding: "9px 24px", fontSize: "13.5px", fontWeight: 700, borderRadius: "7px", border: "none", background: postRegUserLoading ? "#93c5fd" : "#2563eb", color: "#fff", cursor: "pointer" }}>
-                  {postRegUserLoading ? "Creating…" : "Create User"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Sector Selection Modal ── */}
         {showSectorModal && (

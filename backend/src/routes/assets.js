@@ -506,6 +506,53 @@ router.put(
   }
 );
 
+// ── DELETE /api/assets/delete-all ────────────────────────────────────────────
+// Permanently deletes ALL assets for a company (no limit). Admin-only.
+// Query param: companyId (required)
+router.delete(
+  "/delete-all",
+  validate([query("companyId").isInt({ min: 1 }).withMessage("companyId is required")]),
+  async (req, res, next) => {
+    const companyId = parseInt(req.query.companyId, 10);
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const co = await verifyCompanyOwnership(conn, companyId, req.user.id);
+      if (!co) {
+        await conn.rollback();
+        return res.status(404).json({ message: "Company not found for user" });
+      }
+
+      // Delete related QR entries first
+      await conn.execute("DELETE FROM asset_pre_qr WHERE company_id = ?", [companyId]);
+      // Delete asset details (cascade may handle this, but be explicit)
+      await conn.execute(
+        "DELETE ad FROM asset_details ad JOIN assets a ON ad.asset_id = a.id WHERE a.company_id = ?",
+        [companyId]
+      );
+      // Delete asset history
+      await conn.execute(
+        "DELETE ah FROM asset_history ah JOIN assets a ON ah.asset_id = a.id WHERE a.company_id = ?",
+        [companyId]
+      );
+      // Delete all assets
+      const [result] = await conn.execute(
+        "DELETE FROM assets WHERE company_id = ?",
+        [companyId]
+      );
+
+      await conn.commit();
+      res.json({ deleted: result.affectedRows, message: `${result.affectedRows} assets deleted` });
+    } catch (err) {
+      await conn.rollback();
+      next(err);
+    } finally {
+      conn.release();
+    }
+  }
+);
+
 // ── DELETE /api/assets/:id ────────────────────────────────────────────────────
 router.delete(
   "/:id",

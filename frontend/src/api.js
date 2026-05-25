@@ -58,6 +58,7 @@ export const getAssets = (token, params = "") => request("GET", `/api/assets${pa
 export const createAsset = (token, data) => request("POST", "/api/assets", data, { authToken: token });
 export const updateAsset = (token, id, data) => request("PUT", `/api/assets/${id}`, data, { authToken: token });
 export const deleteAsset = (token, id) => request("DELETE", `/api/assets/${id}`, undefined, { authToken: token });
+export const deleteAllAssets = (token, companyId) => request("DELETE", `/api/assets/delete-all?companyId=${companyId}`, undefined, { authToken: token });
 
 /** Bulk-import assets from an Excel/CSV file (multipart upload). */
 export const bulkImportAssets = async (token, file, companyId) => {
@@ -152,6 +153,7 @@ export const createCompanyPortalAsset = (token, data) => request("POST", "/api/c
 export const updateCompanyPortalAsset = (token, id, data) => request("PUT", `/api/company-portal/assets/${id}`, data, { authToken: token });
 export const deleteCompanyPortalAsset = (token, id) => request("DELETE", `/api/company-portal/assets/${id}`, undefined, { authToken: token });
 export const bulkDeleteCompanyPortalAssets = (token, ids) => request("DELETE", "/api/company-portal/assets/bulk", { ids }, { authToken: token });
+export const deleteAllCompanyPortalAssets = (token) => request("DELETE", "/api/company-portal/assets/delete-all", undefined, { authToken: token });
 export const bulkDeleteCompanyPortalPreQr = (token, ids) => request("DELETE", "/api/company-portal/pre-qr/bulk", { ids }, { authToken: token });
 export const assignCompanyPortalAsset = (token, assetId, userId) => request("PATCH", `/api/company-portal/assets/${assetId}/assign`, { userId }, { authToken: token });
 export const getAssetByBarcode = (token, barcode) => request("GET", `/api/company-portal/assets/by-barcode/${encodeURIComponent(barcode)}`, undefined, { authToken: token });

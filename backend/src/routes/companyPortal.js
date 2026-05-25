@@ -1117,7 +1117,7 @@ router.post("/assets", async (req, res, next) => {
     const metaClean = { ...metadata }; delete metaClean.documents;
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
-       ON CONFLICT (asset_id) DO UPDATE SET metadata = EXCLUDED.metadata, documents = EXCLUDED.documents`,
+       ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
       [newId, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
     res.status(201).json({ ...asset, metadata });
@@ -1151,10 +1151,26 @@ router.put("/assets/:id", async (req, res, next) => {
     const metaClean = { ...metadata }; delete metaClean.documents;
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
-       ON CONFLICT (asset_id) DO UPDATE SET metadata = EXCLUDED.metadata, documents = EXCLUDED.documents`,
+       ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
       [id, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
     res.json({ ...asset, metadata });
+  } catch (err) { next(err); }
+});
+
+// DELETE /assets/delete-all — delete ALL assets for this company (no limit, admin only)
+router.delete("/assets/delete-all", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const companyId = cid(req);
+    // Cascade: remove QR links first, then details, then assets
+    await pool.query("DELETE FROM asset_pre_qr WHERE company_id = ?", [companyId]);
+    await pool.query(
+      "DELETE ad FROM asset_details ad JOIN assets a ON ad.asset_id = a.id WHERE a.company_id = ?",
+      [companyId]
+    );
+    const [result] = await pool.query("DELETE FROM assets WHERE company_id = ?", [companyId]);
+    res.json({ deleted: result.affectedRows, message: `${result.affectedRows} assets deleted` });
   } catch (err) { next(err); }
 });
 
@@ -4735,13 +4751,13 @@ router.get("/ojt/mobile/test-attempts/:trainingId", async (req, res, next) => {
  * Mobile user scans → if unlinked: register/link asset; if linked: view details & log query.
  */
 
-// Helper: next sequential QR UID for this company (handles mixed HC-/QR- formats)
-async function nextQrUid(companyId) {
+// Helper: next sequential QR UID globally.
+// `qr_unique_id` is globally unique, so IDs must not reset per company.
+async function nextQrUid() {
   const [[row]] = await pool.query(
     `SELECT MAX(CAST(SUBSTRING(qr_unique_id, 4) AS UNSIGNED)) AS maxNum
      FROM asset_pre_qr
-     WHERE company_id = ? AND qr_unique_id REGEXP '^QR-[0-9]+$'`,
-    [companyId]
+     WHERE qr_unique_id REGEXP '^QR-[0-9]+$'`
   );
   const last = row?.maxNum || 0;
   return `QR-${String(last + 1).padStart(6, "0")}`;
@@ -4755,7 +4771,7 @@ router.post("/pre-qr/generate", async (req, res, next) => {
     const count = Math.max(Number(req.body.count) || 1, 1);
     const created = [];
     for (let i = 0; i < count; i++) {
-      const uid = await nextQrUid(cid(req));
+      const uid = await nextQrUid();
       await pool.query(
         "INSERT INTO asset_pre_qr (company_id, qr_unique_id) VALUES (?, ?)",
         [cid(req), uid]
