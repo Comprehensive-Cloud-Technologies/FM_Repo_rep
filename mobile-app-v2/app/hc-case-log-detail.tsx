@@ -160,6 +160,7 @@ export default function HCCaseLogDetail() {
           <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>DETAILS</Text>
             {[
+              { label: 'Request #',   value: wo.work_order_number || '—' },
               { label: 'Asset',       value: wo.asset_name || '—' },
               { label: 'Location',    value: wo.location   || '—' },
               { label: 'Department',  value: wo.department_name || '—' },

@@ -19,6 +19,34 @@ function PieChart({ data, size = 160 }) {
   if (!data || data.length === 0) return <p style={{ textAlign: "center", color: "#94a3b8", padding: "24px 0" }}>No data</p>;
   const PAL = ["#3b82f6","#10b981","#ef4444","#f59e0b","#8b5cf6","#ec4899"];
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
+
+  // Handle single-slice (100%) case — draw a full circle
+  if (data.length === 1 || data.every(d => d.value === 0 || d === data[0])) {
+    const nonZero = data.filter(d => d.value > 0);
+    if (nonZero.length <= 1) {
+      const d = nonZero[0] || data[0];
+      const col = PAL[0];
+      return (
+        <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+            <circle cx={size/2} cy={size/2} r={size/2-4} fill={col} />
+            <circle cx={size/2} cy={size/2} r={size/4} fill="#fff" />
+            <text x={size/2} y={size/2-6} textAnchor="middle" fontSize="14" fontWeight="700" fill="#0f172a">{total}</text>
+            <text x={size/2} y={size/2+10} textAnchor="middle" fontSize="9" fill="#64748b">Total</text>
+          </svg>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+              <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: col, flexShrink: 0 }} />
+              <span style={{ color: "#374151" }}>{d?.name}</span>
+              <span style={{ fontWeight: 700, color: "#0f172a" }}>{d?.value}</span>
+              <span style={{ color: "#94a3b8", fontSize: "11px" }}>(100%)</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
   let angle = -Math.PI / 2;
   const slices = data.map((d, i) => {
     const pct = d.value / total;
@@ -119,9 +147,14 @@ function LineChart({ data, height = 200 }) {
 function KpiCard({ label, value, color }) {
   const c = COLORS[color] || COLORS.blue;
   return (
-    <div style={{ background: "#fff", borderRadius: "14px", border: `1px solid ${c.border}`, padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-      <p style={{ fontSize: "11.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>{label}</p>
-      <p style={{ fontSize: "36px", fontWeight: 900, color: "#0f172a", margin: 0, lineHeight: 1, letterSpacing: "-1.5px" }}>{value ?? "—"}</p>
+    <div style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${c.border}`, padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.icon} strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+      </div>
+      <div>
+        <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
+        <p style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{value ?? "—"}</p>
+      </div>
     </div>
   );
 }
@@ -214,7 +247,7 @@ export default function PublicDashboard() {
             Asset Snapshot
             <span style={{ fontSize: "12px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px" }}>Live count from database</span>
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>
             {KPI_LIST.map(k => <KpiCard key={k.label} {...k} />)}
           </div>
         </section>

@@ -258,29 +258,30 @@ function KpiCard({ label, value, icon: IconComp, color, onDownload, loading, onC
   return (
     <div
       onClick={onClick}
-      style={{ background: "#fff", borderRadius: "14px", border: `1px solid ${c.border}`, padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: onClick ? "pointer" : "default", transition: "box-shadow 0.15s, transform 0.1s" }}
-      onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = `0 4px 16px ${c.border}`; e.currentTarget.style.transform = "translateY(-1px)"; } : undefined}
-      onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"; e.currentTarget.style.transform = "none"; } : undefined}
+      style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${c.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: "10px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", cursor: onClick ? "pointer" : "default", transition: "box-shadow 0.15s, transform 0.1s" }}
+      onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = `0 3px 12px ${c.border}`; e.currentTarget.style.transform = "translateY(-1px)"; } : undefined}
+      onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } : undefined}
     >
-      <div style={{ flex: 1 }}>
-        <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>{label}</p>
-        {loading ? (
-          <div style={{ width: "48px", height: "32px", background: "#f1f5f9", borderRadius: "6px", animation: "pulse 1.4s ease-in-out infinite" }} />
-        ) : (
-          <p style={{ fontSize: "36px", fontWeight: 800, color: "#0f172a", margin: "0 0 12px", lineHeight: 1, letterSpacing: "-1.5px" }}>{value ?? "—"}</p>
-        )}
-        {onDownload && (
-          <button
-            onClick={onDownload}
-            style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11.5px", color: c.icon, background: c.bg, border: `1px solid ${c.border}`, borderRadius: "6px", padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}
-          >
-            <Icon.Download /> Export
-          </button>
-        )}
-      </div>
-      <div style={{ width: "44px", height: "44px", background: c.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0, marginLeft: "12px" }}>
+      <div style={{ width: "34px", height: "34px", background: c.bg, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
         <IconComp />
       </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</p>
+        {loading ? (
+          <div style={{ width: "36px", height: "20px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite" }} />
+        ) : (
+          <p style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{value ?? "—"}</p>
+        )}
+      </div>
+      {onDownload && (
+        <button
+          onClick={e => { e.stopPropagation(); onDownload(); }}
+          title="Export"
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "26px", height: "26px", color: c.icon, background: c.bg, border: `1px solid ${c.border}`, borderRadius: "6px", cursor: "pointer", flexShrink: 0 }}
+        >
+          <Icon.Download />
+        </button>
+      )}
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>
   );
@@ -746,7 +747,7 @@ export default function HealthcareDashboard({ token }) {
           Asset Snapshot
           <span style={{ fontSize: "12px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px" }}>Live count from database</span>
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "14px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>
           {KPI_LIST.map(k => (
             <KpiCard
               key={k.key}

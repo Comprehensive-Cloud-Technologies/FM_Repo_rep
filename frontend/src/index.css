@@ -7,3 +7,75 @@
 body {
   margin: 0;
 }
+
+/* ── Global responsive helpers ── */
+* { box-sizing: border-box; }
+
+img { max-width: 100%; }
+
+/* Sidebar collapses on small screens */
+@media (max-width: 768px) {
+  /* Portal layout: stack sidebar + main vertically */
+  div[style*="display: flex"][style*="height: 100vh"],
+  div[style*="display:flex"][style*="height:100vh"] {
+    flex-direction: column !important;
+  }
+
+  /* Sidebar becomes a top bar */
+  aside, nav {
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    height: auto !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Main content fills viewport */
+  main {
+    padding: 16px !important;
+    overflow-y: auto !important;
+    flex: 1 !important;
+  }
+
+  /* Summary cards wrap on small screens */
+  div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Tables scroll horizontally */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* Modal width */
+  div[style*="maxWidth: \"680px\""],
+  div[style*="maxWidth:'680px'"] {
+    max-width: 100% !important;
+  }
+
+  /* Requests summary cards: 2 per row */
+  div[style*="repeat(auto-fill"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Hide export buttons on very small */
+  button[title="Export"] { display: none !important; }
+
+  /* Stack header row */
+  div[style*="justifyContent: \"space-between\""] {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+

@@ -104,10 +104,10 @@ function Modal({ onClose, title, children, width = "520px" }) {
 
 function Btn({ children, onClick, variant = "primary", size = "md", disabled, style: s = {} }) {
   const v = {
-    primary:  { bg: "#2563eb", color: "#fff",    border: "none" },
-    danger:   { bg: "#dc2626", color: "#fff",    border: "none" },
-    outline:  { bg: "#fff",    color: "#2563eb", border: "1.5px solid #2563eb" },
-    ghost:    { bg: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
+    primary:  { background: "#2563eb", color: "#fff",    border: "none" },
+    danger:   { background: "#dc2626", color: "#fff",    border: "none" },
+    outline:  { background: "#fff",    color: "#2563eb", border: "1.5px solid #2563eb" },
+    ghost:    { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
   }[variant] || {};
   const sz = size === "sm" ? { padding: "5px 12px", fontSize: "12px" } : { padding: "9px 18px", fontSize: "13.5px" };
   return (
@@ -122,7 +122,9 @@ function Btn({ children, onClick, variant = "primary", size = "md", disabled, st
 function SummaryCards({ summary, activeFilter, onFilterClick }) {
   const CARDS = [
     { key: "open",        label: "Open",        color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+    { key: "assigned",    summaryKey: "assigned", label: "Assigned", color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
     { key: "in_progress", summaryKey: "inProgress", label: "In Progress", color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+    { key: "on_hold",     summaryKey: "onHold", label: "On Hold",     color: "#854d0e", bg: "#fef9c3", border: "#fde68a" },
     { key: "completed",   label: "Completed",   color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
     { key: "closed",      label: "Closed",      color: "#475569", bg: "#f1f5f9", border: "#e2e8f0" },
     { key: "escalated",   label: "Escalated",   color: "#7c3aed", bg: "#faf5ff", border: "#e9d5ff" },
@@ -130,7 +132,7 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "12px", marginBottom: "20px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "10px", marginBottom: "20px" }}>
       {CARDS.map(c => {
         const val = summary?.[c.summaryKey || c.key] ?? "—";
         const isActive = activeFilter === c.key;
@@ -139,7 +141,7 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
             key={c.key}
             onClick={() => onFilterClick(c.key)}
             style={{
-              background: "#fff", borderRadius: "12px", padding: "16px 18px",
+              background: "#fff", borderRadius: "10px", padding: "12px 14px",
               border: `1.5px solid ${isActive ? c.color : c.border}`,
               cursor: "pointer", transition: "box-shadow 0.15s",
               boxShadow: isActive ? `0 0 0 3px ${c.color}25` : "0 1px 3px rgba(0,0,0,0.06)",
@@ -147,8 +149,8 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
             onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 16px ${c.color}20`; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = isActive ? `0 0 0 3px ${c.color}25` : "0 1px 3px rgba(0,0,0,0.06)"; }}
           >
-            <p style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }}>{c.label}</p>
-            <p style={{ fontSize: "32px", fontWeight: 900, color: c.color, margin: 0, lineHeight: 1, letterSpacing: "-1.5px" }}>{val}</p>
+            <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 6px" }}>{c.label}</p>
+            <p style={{ fontSize: "26px", fontWeight: 900, color: c.color, margin: 0, lineHeight: 1, letterSpacing: "-1px" }}>{val}</p>
           </div>
         );
       })}
@@ -561,7 +563,7 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={submit} disabled={saving}>{saving ? "Creating…" : "Create Work Order"}</Btn>
+        <Btn onClick={submit} disabled={saving} style={{ background: saving ? "#86efac" : "#16a34a" }}>{saving ? "Creating…" : "Create Work Order"}</Btn>
       </div>
     </Modal>
   );

@@ -3433,6 +3433,7 @@ export default function CompanyEmployeePortal() {
   const [showImport, setShowImport] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assetTypeFilter, setAssetTypeFilter] = useState("");
+  const [assetVerifiedFilter, setAssetVerifiedFilter] = useState("");
   const [deptSearch, setDeptSearch] = useState("");
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editDept, setEditDept] = useState(null);
@@ -3846,9 +3847,13 @@ export default function CompanyEmployeePortal() {
       const term = assetSearch.toLowerCase();
       const matchSearch = !term || (a.assetName || "").toLowerCase().includes(term);
       const matchType = !assetTypeFilter || a.assetType === assetTypeFilter;
-      return matchSearch && matchType;
+      const matchVerified =
+        !assetVerifiedFilter ||
+        (assetVerifiedFilter === "verified" && a.isVerified) ||
+        (assetVerifiedFilter === "unverified" && !a.isVerified);
+      return matchSearch && matchType && matchVerified;
     }),
-    [assets, assetSearch, assetTypeFilter]
+    [assets, assetSearch, assetTypeFilter, assetVerifiedFilter]
   );
 
   // Dept filtered
@@ -5372,6 +5377,12 @@ export default function CompanyEmployeePortal() {
                     <option value="technical">Technical</option>
                     <option value="fleet">Fleet</option>
                   </select>
+                  <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
+                    style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
+                    <option value="">All Assets</option>
+                    <option value="verified">✓ Verified</option>
+                    <option value="unverified">✗ Unverified</option>
+                  </select>
                   <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search…"
                     style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "160px" }} />
                 </div>
@@ -5379,7 +5390,7 @@ export default function CompanyEmployeePortal() {
               {loading.assets
                 ? <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading…</p>
                 : (
-                  <div style={{ overflowX: "auto" }}>
+                  <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "60vh" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "1600px" }}>
                     <thead>
                       <tr>
@@ -7645,8 +7656,30 @@ export default function CompanyEmployeePortal() {
       {/* ── Settings (Public Dashboard Link) ─────────────────── */}
       {nav === "settings" && currentUser.role === "admin" && (() => {
         const link = settingsPublicToken ? `${window.location.origin}/public/${settingsPublicToken}` : "";
-        const copyLink = () => {
-          navigator.clipboard.writeText(link).then(() => { setSettingsCopied(true); setTimeout(() => setSettingsCopied(false), 2000); });
+        const copyLink = async () => {
+          if (!link) return;
+          try {
+            if (navigator?.clipboard?.writeText && window.isSecureContext) {
+              await navigator.clipboard.writeText(link);
+            } else {
+              const ta = document.createElement("textarea");
+              ta.value = link;
+              ta.setAttribute("readonly", "");
+              ta.style.position = "fixed";
+              ta.style.opacity = "0";
+              ta.style.pointerEvents = "none";
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              const ok = document.execCommand("copy");
+              document.body.removeChild(ta);
+              if (!ok) throw new Error("Copy command failed");
+            }
+            setSettingsCopied(true);
+            setTimeout(() => setSettingsCopied(false), 2000);
+          } catch (_) {
+            alert("Copy failed. Please select and copy the link manually.");
+          }
         };
         const regenerate = async () => {
           setSettingsRegen(true);
@@ -7660,10 +7693,11 @@ export default function CompanyEmployeePortal() {
           setSettingsRegen(false);
         };
         return (
-          <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+          <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto", fontFamily: "'Inter',-apple-system,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "100%", maxWidth: "680px" }}>
             <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>Settings</h1>
             <p style={{ color: "#64748b", fontSize: "13.5px", marginBottom: "28px" }}>Manage your company portal configuration</p>
-            <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "24px", maxWidth: "680px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                 <div style={{ width: "40px", height: "40px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -7695,6 +7729,7 @@ export default function CompanyEmployeePortal() {
                 </div>
               )}
             </div>
+          </div>
           </main>
         );
       })()}

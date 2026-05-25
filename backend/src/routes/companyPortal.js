@@ -768,10 +768,12 @@ router.get("/assets", async (req, res, next) => {
     }
     // 'both' domain or admin role → no filter
 
-    const { search, type, assignedOnly, assignedToMe } = req.query;
+    const { search, type, assignedOnly, assignedToMe, verified } = req.query;
     const params = [cid(req)];
     let extraFilters = softFilter;
     if (type) { extraFilters += ` AND a.asset_type = ?`; params.push(type); }
+    if (verified === "true")  { extraFilters += ` AND a.is_verified = 1`; }
+    if (verified === "false") { extraFilters += ` AND (a.is_verified = 0 OR a.is_verified IS NULL)`; }
     if (search) {
       extraFilters += ` AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
@@ -800,6 +802,7 @@ router.get("/assets", async (req, res, next) => {
               a.department_id AS "departmentId",
               a.assigned_to AS "assignedTo",
               a.assigned_at AS "assignedAt",
+              a.is_verified AS "isVerified",
               cu.full_name AS "assignedToName",
               d.name AS "departmentName",
               ad.metadata, ad.documents

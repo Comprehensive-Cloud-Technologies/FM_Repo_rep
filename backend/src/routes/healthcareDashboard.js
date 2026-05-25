@@ -957,7 +957,9 @@ router.get("/requests", validate([
     const [woCounts] = await pool.query(
       `SELECT
          SUM(CASE WHEN wo.status = 'open'        THEN 1 ELSE 0 END) AS open,
+         SUM(CASE WHEN wo.status = 'assigned'    THEN 1 ELSE 0 END) AS assigned,
          SUM(CASE WHEN wo.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+         SUM(CASE WHEN wo.status = 'on_hold'     THEN 1 ELSE 0 END) AS on_hold,
          SUM(CASE WHEN wo.status = 'completed'   THEN 1 ELSE 0 END) AS completed,
          SUM(CASE WHEN wo.status = 'closed'      THEN 1 ELSE 0 END) AS closed,
          SUM(CASE WHEN wo.escalation_level > 0   THEN 1 ELSE 0 END) AS escalated,
@@ -978,7 +980,9 @@ router.get("/requests", validate([
       data: rows,
       summary: {
         open:       Number(woCounts[0].open       || 0) + Number(aqCounts[0].open       || 0),
+        assigned:   Number(woCounts[0].assigned   || 0),
         inProgress: Number(woCounts[0].in_progress|| 0) + Number(aqCounts[0].in_progress|| 0),
+        onHold:     Number(woCounts[0].on_hold    || 0),
         completed:  Number(woCounts[0].completed  || 0) + Number(aqCounts[0].completed  || 0),
         closed:     Number(woCounts[0].closed     || 0),
         escalated:  Number(woCounts[0].escalated  || 0),

@@ -211,7 +211,8 @@ function HCEngineerHome({ user }: { user: any }) {
               <StatCard label="Assigned"    value={dash?.assigned   ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
               <StatCard label="In Progress" value={dash?.inProgress ?? 0} color="#D97706" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'in_progress' } })} />
               <StatCard label="Resolved"    value={dash?.resolved   ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
-              <StatCard label="Total"       value={dash?.total      ?? 0} color="#64748B" onPress={() => router.push('/(tabs)/tasks')} />
+              <StatCard label="Closed"      value={dash?.closed     ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
+              <StatCard label="Total"       value={dash?.total      ?? 0} color="#0F172A" onPress={() => router.push('/(tabs)/tasks')} />
             </View>
 
             {cases.filter(item => !['resolved','closed'].includes(item.status)).length > 0 && (
