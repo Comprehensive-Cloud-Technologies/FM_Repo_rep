@@ -4,15 +4,15 @@ on:
   push:
     branches: [develop]
     paths:
-      - 'mobile-app/**'
+      - 'mobile-app-v2/**'
       - '.github/workflows/android-apk.yml'
-  workflow_dispatch:   # allows manual trigger from GitHub UI
+  workflow_dispatch:   # manual trigger from GitHub UI
 
 jobs:
   build-apk:
-    name: Build Android APK
+    name: Build Android APK (EC2 backend)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mobile-app/package-lock.json
+          cache-dependency-path: mobile-app-v2/package-lock.json
 
       # ── 3. Java (required by Gradle) ─────────────────────────────────────────
       - name: Set up Java 17
@@ -45,38 +45,46 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('mobile-app/android/**/*.gradle*', 'mobile-app/android/**/gradle-wrapper.properties') }}
-          restore-keys: gradle-
+          key: gradle-v2-${{ hashFiles('mobile-app-v2/android/**/*.gradle*', 'mobile-app-v2/android/**/gradle-wrapper.properties') }}
+          restore-keys: gradle-v2-
 
       # ── 6. Install JS dependencies ───────────────────────────────────────────
       - name: Install dependencies
-        working-directory: mobile-app
+        working-directory: mobile-app-v2
         run: npm ci
 
-      # ── 7. Generate native Android project via Expo Prebuild ─────────────────
-      - name: Expo Prebuild (generate Android project)
-        working-directory: mobile-app
-        run: npx expo prebuild --platform android --clean --no-install
+      # ── 7. Write .env pointing to EC2 backend ────────────────────────────────
+      - name: Set EC2 API URL
+        working-directory: mobile-app-v2
+        run: echo "EXPO_PUBLIC_API_URL=http://13.206.99.117" > .env
 
-      # ── 8. Build Debug APK (no signing needed — for internal testing) ─────────
+      # ── 8. Generate native Android project via Expo Prebuild ─────────────────
+      - name: Expo Prebuild (generate Android project)
+        working-directory: mobile-app-v2
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_PUBLIC_API_URL: http://13.206.99.117
+
+      # ── 9. Build Debug APK (no signing needed) ────────────────────────────────
       - name: Build APK
-        working-directory: mobile-app/android
+        working-directory: mobile-app-v2/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon 2>&1 || ./gradlew assembleDebug --no-daemon
 
-      # ── 9. Rename APK with date ───────────────────────────────────────────────
+      # ── 10. Rename APK with date ──────────────────────────────────────────────
       - name: Rename APK
         run: |
           DATE=$(date +'%Y%m%d-%H%M')
-          APK_SRC=$(find mobile-app/android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          APK_SRC=$(find mobile-app-v2/android/app/build/outputs/apk -name "*.apk" | head -1)
           mkdir -p artifacts
-          cp "$APK_SRC" "artifacts/fmapp-develop-${DATE}.apk"
+          cp "$APK_SRC" "artifacts/FMApp-EC2-${DATE}.apk"
+          echo "APK_NAME=FMApp-EC2-${DATE}.apk" >> $GITHUB_ENV
 
-      # ── 10. Upload APK as downloadable artifact (kept 30 days) ───────────────
+      # ── 11. Upload APK as downloadable artifact (kept 30 days) ───────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fmapp-apk
+          name: FMApp-APK-${{ github.run_number }}
           path: artifacts/*.apk
           retention-days: 30
