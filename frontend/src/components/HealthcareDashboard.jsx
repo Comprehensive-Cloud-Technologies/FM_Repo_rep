@@ -70,45 +70,53 @@ const COLORS = {
 };
 
 /* ─── Simple chart components (no external library needed) ───────────────── */
-function PieChart({ data, size = 180 }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (!total) return <EmptyState small />;
+function PieChart({ data, size = 200 }) {
+  const filtered = (data || []).filter(d => d.value > 0);
+  const total = filtered.reduce((s, d) => s + d.value, 0);
+  if (!total || filtered.length === 0) return <EmptyState small />;
 
-  const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6"];
-  let cumulative = 0;
-  const slices = data.map((d, i) => {
-    const pct = d.value / total;
-    const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
-    cumulative += pct;
-    const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
-    const r = size / 2 - 10;
-    const cx = size / 2, cy = size / 2;
-    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
-    const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
-    const large = pct > 0.5 ? 1 : 0;
-    const path = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`;
-    return { path, color: PIE_COLORS[i % PIE_COLORS.length], label: d.name, value: d.value, pct };
-  });
+  const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#14b8a6"];
+  const r = size / 2 - 14;
+  const cx = size / 2, cy = size / 2;
+
+  // Build slices; if single slice, draw full circle
+  let slices = [];
+  if (filtered.length === 1) {
+    slices = [{ path: null, fullCircle: true, color: PIE_COLORS[0], label: filtered[0].name, value: filtered[0].value, pct: 1 }];
+  } else {
+    let cumulative = 0;
+    slices = filtered.map((d, i) => {
+      const pct = d.value / total;
+      const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+      cumulative += pct;
+      const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+      const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
+      const large = pct > 0.5 ? 1 : 0;
+      return { path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`, color: PIE_COLORS[i % PIE_COLORS.length], label: d.name, value: d.value, pct };
+    });
+  }
 
   return (
-    <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+    <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
-        {slices.map((s, i) => (
-          <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2">
-            <title>{s.label}: {s.value} ({(s.pct * 100).toFixed(1)}%)</title>
-          </path>
-        ))}
-        <circle cx={size / 2} cy={size / 2} r={size / 4} fill="#fff" />
-        <text x={size / 2} y={size / 2 - 6} textAnchor="middle" fontSize="14" fontWeight="700" fill="#0f172a">{total}</text>
-        <text x={size / 2} y={size / 2 + 10} textAnchor="middle" fontSize="9" fill="#64748b">Total</text>
+        {slices.map((s, i) =>
+          s.fullCircle
+            ? <circle key={i} cx={cx} cy={cy} r={r} fill={s.color} stroke="#fff" strokeWidth="2"><title>{s.label}: {s.value} (100%)</title></circle>
+            : <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"><title>{s.label}: {s.value} ({(s.pct * 100).toFixed(1)}%)</title></path>
+        )}
+        {/* Donut hole */}
+        <circle cx={cx} cy={cy} r={r * 0.52} fill="#fff" />
+        <text x={cx} y={cy - 7} textAnchor="middle" fontSize="15" fontWeight="800" fill="#0f172a">{total.toLocaleString()}</text>
+        <text x={cx} y={cy + 9} textAnchor="middle" fontSize="9" fill="#94a3b8">Total</text>
       </svg>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
         {slices.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-            <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: s.color, flexShrink: 0 }} />
-            <span style={{ color: "#374151" }}>{s.label}</span>
-            <span style={{ fontWeight: 700, color: "#0f172a" }}>{s.value}</span>
-            <span style={{ color: "#94a3b8", fontSize: "11px" }}>({(s.pct * 100).toFixed(0)}%)</span>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px" }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+            <span style={{ color: "#475569", fontWeight: 500 }}>{s.label}</span>
+            <span style={{ fontWeight: 800, color: "#0f172a" }}>{s.value.toLocaleString()}</span>
+            <span style={{ color: "#94a3b8", fontSize: "10px" }}>({(s.pct * 100).toFixed(0)}%)</span>
           </div>
         ))}
       </div>
@@ -116,27 +124,49 @@ function PieChart({ data, size = 180 }) {
   );
 }
 
-function BarChart({ data, height = 200 }) {
+function BarChart({ data, height = 200, onBarClick }) {
   if (!data || data.length === 0) return <EmptyState small />;
   const maxVal = Math.max(...data.flatMap(d => [d.critical, d.nonCritical]), 1);
 
   return (
     <div style={{ overflowX: "auto" }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", minWidth: `${data.length * 70}px`, height: `${height}px`, padding: "8px 0" }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 40}px` }}>
-              <div title={`Critical: ${d.critical}`} style={{ width: "14px", background: "#ef4444", borderRadius: "3px 3px 0 0", height: `${(d.critical / maxVal) * (height - 40)}px`, minHeight: d.critical ? "3px" : "0" }} />
-              <div title={`Non-Critical: ${d.nonCritical}`} style={{ width: "14px", background: "#3b82f6", borderRadius: "3px 3px 0 0", height: `${(d.nonCritical / maxVal) * (height - 40)}px`, minHeight: d.nonCritical ? "3px" : "0" }} />
+        {data.map((d, i) => {
+          const critH = (d.critical / maxVal) * (height - 50);
+          const nonCritH = (d.nonCritical / maxVal) * (height - 50);
+          return (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 50}px` }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                  {d.critical > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#ef4444", marginBottom: "2px" }}>{d.critical}</span>}
+                  <div
+                    title={`Critical: ${d.critical} — click to view assets`}
+                    onClick={() => onBarClick && d.critical > 0 && onBarClick(d.dept, "Critical", d.deptId)}
+                    style={{ width: "14px", background: "linear-gradient(180deg,#f87171,#ef4444)", borderRadius: "3px 3px 0 0", height: `${critH}px`, minHeight: d.critical ? "3px" : "0", cursor: onBarClick && d.critical > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
+                    onMouseEnter={e => { if (onBarClick && d.critical > 0) e.target.style.opacity = "0.7"; }}
+                    onMouseLeave={e => { e.target.style.opacity = "1"; }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                  {d.nonCritical > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#3b82f6", marginBottom: "2px" }}>{d.nonCritical}</span>}
+                  <div
+                    title={`Non-Critical: ${d.nonCritical} — click to view assets`}
+                    onClick={() => onBarClick && d.nonCritical > 0 && onBarClick(d.dept, "Non_Critical", d.deptId)}
+                    style={{ width: "14px", background: "linear-gradient(180deg,#60a5fa,#3b82f6)", borderRadius: "3px 3px 0 0", height: `${nonCritH}px`, minHeight: d.nonCritical ? "3px" : "0", cursor: onBarClick && d.nonCritical > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
+                    onMouseEnter={e => { if (onBarClick && d.nonCritical > 0) e.target.style.opacity = "0.7"; }}
+                    onMouseLeave={e => { e.target.style.opacity = "1"; }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: "10px", color: "#64748b", textAlign: "center", wordBreak: "break-all", lineHeight: 1.2, maxWidth: "56px" }}>{d.dept}</div>
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", textAlign: "center", wordBreak: "break-all", lineHeight: 1.2, maxWidth: "56px" }}>{d.dept}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "8px" }}>
-        {[["#ef4444","Critical"],["#3b82f6","Non-Critical"]].map(([col, lbl]) => (
+        {[["linear-gradient(180deg,#f87171,#ef4444)","Critical (click to drill down)"],["linear-gradient(180deg,#60a5fa,#3b82f6)","Non-Critical (click to drill down)"]].map(([grad, lbl]) => (
           <div key={lbl} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#374151" }}>
-            <div style={{ width: "12px", height: "12px", background: col, borderRadius: "2px" }} />
+            <div style={{ width: "12px", height: "12px", background: grad, borderRadius: "2px" }} />
             {lbl}
           </div>
         ))}
@@ -253,39 +283,62 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
-function KpiCard({ label, value, icon: IconComp, color, onDownload, loading, onClick }) {
+function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActive }) {
   const c = COLORS[color] || COLORS.blue;
+  const numColor = { red: "#dc2626", teal: "#0d9488", green: "#16a34a", orange: "#ea580c", purple: "#7c3aed", yellow: "#ca8a04", blue: "#2563eb" }[color] || "#0f172a";
   return (
     <div
       onClick={onClick}
-      style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${c.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: "10px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", cursor: onClick ? "pointer" : "default", transition: "box-shadow 0.15s, transform 0.1s" }}
-      onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = `0 3px 12px ${c.border}`; e.currentTarget.style.transform = "translateY(-1px)"; } : undefined}
-      onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } : undefined}
+      style={{
+        background: isActive ? c.bg : "#fff",
+        borderRadius: "10px",
+        border: isActive ? `2px solid ${c.icon}` : `1px solid ${c.border}`,
+        padding: "10px 10px 8px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "5px",
+        minHeight: "80px",
+        boxShadow: isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)",
+        cursor: onClick ? "pointer" : "default",
+        transition: "all 0.15s ease",
+        position: "relative",
+        textAlign: "center",
+      }}
+      onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = `0 4px 14px ${c.border}`; e.currentTarget.style.transform = "translateY(-1px)"; } : undefined}
+      onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } : undefined}
     >
-      <div style={{ width: "34px", height: "34px", background: c.bg, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
-        <IconComp />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+        <div style={{ width: "22px", height: "22px", background: c.bg, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
+          <IconComp />
+        </div>
+        <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</p>
+      <div>
         {loading ? (
-          <div style={{ width: "36px", height: "20px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite" }} />
+          <div style={{ width: "40px", height: "22px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite", margin: "0 auto" }} />
         ) : (
-          <p style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{value ?? "—"}</p>
+          <p style={{ fontSize: "22px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
         )}
       </div>
-      {onDownload && (
-        <button
-          onClick={e => { e.stopPropagation(); onDownload(); }}
-          title="Export"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "26px", height: "26px", color: c.icon, background: c.bg, border: `1px solid ${c.border}`, borderRadius: "6px", cursor: "pointer", flexShrink: 0 }}
-        >
-          <Icon.Download />
-        </button>
+      {isActive && (
+        <div style={{ position: "absolute", top: "6px", left: "6px", width: "6px", height: "6px", borderRadius: "50%", background: c.icon }} />
       )}
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>
   );
 }
+
+/* Icons for complaint tiles */
+const ComplaintIcon = {
+  Total:    () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.63 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 15.92z"/></svg>,
+  Wip:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Lt7:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  Gt7:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Resolved: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Closed:   () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+};
 
 function ChartCard({ title, subtitle, children, action }) {
   return (
@@ -312,28 +365,56 @@ function FiltersPanel({ filters, setFilters, filterOptions, onApply, onReset }) 
     background: "#fff", outline: "none",
   };
 
+  // Active count excluding dept + search (those are always visible)
+  const innerFilters = ["dateFrom","dateTo","assetCategory","location","status","criticality"];
+  const innerActiveCount = innerFilters.filter(k => filters[k] !== "").length;
+
   return (
     <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "20px", overflow: "hidden" }}>
-      {/* Header */}
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{ padding: "12px 18px", display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }}
-      >
-        <Icon.Filter />
-        <span style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a" }}>Advanced Filters</span>
-        {Object.values(filters).some(v => v !== "") && (
-          <span style={{ background: "#2563eb", color: "#fff", borderRadius: "9px", padding: "1px 8px", fontSize: "11px", fontWeight: 700 }}>
-            {Object.values(filters).filter(v => v !== "").length} active
-          </span>
-        )}
-        <div style={{ marginLeft: "auto", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+      {/* Header row: toggle + dept dropdown + search input */}
+      <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        {/* Toggle button */}
+        <div
+          onClick={() => setOpen(o => !o)}
+          style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", flexShrink: 0 }}
+        >
+          <Icon.Filter />
+          <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap" }}>Advanced Filters</span>
+          {innerActiveCount > 0 && (
+            <span style={{ background: "#2563eb", color: "#fff", borderRadius: "9px", padding: "1px 8px", fontSize: "11px", fontWeight: 700 }}>
+              {innerActiveCount} active
+            </span>
+          )}
+          <div style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+
+        {/* Department — always visible */}
+        <div style={{ flex: "0 0 190px", minWidth: "140px" }}>
+          <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))}
+            style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", outline: "none" }}>
+            <option value="">All Departments</option>
+            {(filterOptions.departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+
+        {/* Search Asset — always visible */}
+        <div style={{ flex: "1 1 180px", position: "relative", minWidth: "140px" }}>
+          <input
+            placeholder="Search asset name or ID…"
+            value={filters.search}
+            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            style={{ width: "100%", boxSizing: "border-box", padding: "7px 11px 7px 32px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", outline: "none" }}
+          />
+          <div style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}><Icon.Search /></div>
         </div>
       </div>
 
+      {/* Expandable section — remaining filters */}
       {open && (
-        <div style={{ padding: "0 18px 18px", borderTop: "1px solid #f1f5f9" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px", paddingTop: "14px" }}>
+        <div style={{ padding: "0 16px 16px", borderTop: "1px solid #f1f5f9" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "12px", paddingTop: "14px" }}>
             {/* Date range */}
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Date From</label>
@@ -342,14 +423,6 @@ function FiltersPanel({ filters, setFilters, filterOptions, onApply, onReset }) 
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Date To</label>
               <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={inputStyle} />
-            </div>
-            {/* Department */}
-            <div>
-              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Department</label>
-              <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))} style={inputStyle}>
-                <option value="">All Departments</option>
-                {(filterOptions.departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
             </div>
             {/* Asset Category */}
             <div>
@@ -386,14 +459,6 @@ function FiltersPanel({ filters, setFilters, filterOptions, onApply, onReset }) 
                 <option value="Critical">Critical</option>
                 <option value="Non_Critical">Non-Critical</option>
               </select>
-            </div>
-            {/* Search */}
-            <div>
-              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Search Asset</label>
-              <div style={{ position: "relative" }}>
-                <input placeholder="Name or ID…" value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} style={{ ...inputStyle, paddingLeft: "32px" }} />
-                <div style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}><Icon.Search /></div>
-              </div>
             </div>
           </div>
 
@@ -632,6 +697,176 @@ function RecordsTable({ type, token, globalFilters }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ─── Dashboard Asset Table (table format with View button) ─────────────── */
+function DashboardAssetTable({ token, filters, tileLabel, onClearTile }) {
+  const [assets, setAssets]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [page, setPage]           = useState(1);
+  const [total, setTotal]         = useState(0);
+  const [viewAsset, setViewAsset] = useState(null); // asset whose images are shown
+  const PER_PAGE = 20;
+
+  useEffect(() => { setPage(1); }, [JSON.stringify(filters)]);
+
+  useEffect(() => {
+    setLoading(true);
+    const qs = buildQS({ ...filters, limit: PER_PAGE, page });
+    hcFetch(`/assets${qs}`, token)
+      .then(d => { setAssets(d.data || []); setTotal(d.pagination?.total || 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token, JSON.stringify(filters), page]);
+
+  const getImages = (a) => {
+    const meta = typeof a.metadata === "string" ? JSON.parse(a.metadata || "{}") : (a.metadata || {});
+    const imgs = meta.hcImages || meta.images || meta.imageUrls || [];
+    if (Array.isArray(imgs) && imgs.length > 0)
+      return imgs.map(u => u.startsWith("http") ? u : `${BASE}${u}`);
+    if (meta.imageUrl) return [meta.imageUrl.startsWith("http") ? meta.imageUrl : `${BASE}${meta.imageUrl}`];
+    return [];
+  };
+
+  const pages = Math.ceil(total / PER_PAGE);
+
+  return (
+    <section style={{ marginBottom: "28px" }}>
+      {/* Header row */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+            Asset Report
+            <span style={{ fontSize: "12px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px" }}>{total} assets</span>
+          </h2>
+          {/* Active tile filter chip */}
+          {tileLabel && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "20px", padding: "3px 10px", fontSize: "12px", fontWeight: 600, color: "#2563eb" }}>
+              <span>Filtered: {tileLabel}</span>
+              <button onClick={onClearTile} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "14px", lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading assets…</div>
+        ) : assets.length === 0 ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</div>
+        ) : (
+          <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "55vh" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "900px" }}>
+              <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
+                <tr>
+                  {["#", "Asset Name", "Asset ID", "Category", "Department", "Location", "Criticality", "Working Status", "View"].map(h => (
+                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map((a, i) => {
+                  const imgs = getImages(a);
+                  const wsColor = { Working: { bg: "#dcfce7", c: "#16a34a" }, WIP: { bg: "#fef9c3", c: "#854d0e" }, Not_Working: { bg: "#fee2e2", c: "#dc2626" } }[a.working_status] || { bg: "#f1f5f9", c: "#64748b" };
+                  const critColor = a.criticality === "Critical" ? { bg: "#fee2e2", c: "#dc2626" } : { bg: "#f0fdfa", c: "#0d9488" };
+                  return (
+                    <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                      onMouseLeave={e => e.currentTarget.style.background = ""}>
+                      <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px" }}>{(page - 1) * PER_PAGE + i + 1}</td>
+                      <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis" }}>{a.asset_name || "—"}</td>
+                      <td style={{ padding: "9px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", whiteSpace: "nowrap" }}>{a.asset_unique_id || "—"}</td>
+                      <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.asset_category || "—"}</td>
+                      <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.department_name || "—"}</td>
+                      <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: critColor.bg, color: critColor.c, whiteSpace: "nowrap" }}>{a.criticality || "—"}</span>
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: wsColor.bg, color: wsColor.c, whiteSpace: "nowrap" }}>{(a.working_status || "—").replace("_", " ")}</span>
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <button
+                          onClick={() => setViewAsset(a)}
+                          title={imgs.length ? `View ${imgs.length} image(s)` : "No images uploaded"}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: imgs.length ? "#eff6ff" : "#f8fafc", color: imgs.length ? "#2563eb" : "#94a3b8", cursor: "pointer", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          {imgs.length ? `View (${imgs.length})` : "No Images"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pages > 1 && (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+              style={{ padding: "5px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: page === 1 ? "#f8fafc" : "#fff", cursor: page === 1 ? "not-allowed" : "pointer", fontSize: "12px", color: "#475569" }}>
+              ← Prev
+            </button>
+            {Array.from({ length: Math.min(pages, 7) }, (_, i) => {
+              const pg = pages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= pages - 3 ? pages - 6 + i : page - 3 + i;
+              return (
+                <button key={pg} onClick={() => setPage(pg)}
+                  style={{ padding: "5px 10px", borderRadius: "7px", border: `1px solid ${pg === page ? "#2563eb" : "#e2e8f0"}`, background: pg === page ? "#2563eb" : "#fff", color: pg === page ? "#fff" : "#374151", cursor: "pointer", fontSize: "12px", fontWeight: pg === page ? 700 : 400 }}>
+                  {pg}
+                </button>
+              );
+            })}
+            <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}
+              style={{ padding: "5px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: page >= pages ? "#f8fafc" : "#fff", cursor: page >= pages ? "not-allowed" : "pointer", fontSize: "12px", color: "#475569" }}>
+              Next →
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Image viewer modal */}
+      {viewAsset && (() => {
+        const imgs = getImages(viewAsset);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+            onClick={() => setViewAsset(null)}>
+            <div style={{ background: "#fff", borderRadius: "16px", maxWidth: "700px", width: "100%", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }} onClick={e => e.stopPropagation()}>
+              {/* Modal header */}
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", margin: 0 }}>{viewAsset.asset_name || "Asset Images"}</p>
+                  <p style={{ fontSize: "12px", color: "#94a3b8", margin: "2px 0 0", fontFamily: "monospace" }}>{viewAsset.asset_unique_id}</p>
+                </div>
+                <button onClick={() => setViewAsset(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#94a3b8", lineHeight: 1 }}>×</button>
+              </div>
+              {/* Images */}
+              <div style={{ padding: "16px 20px" }}>
+                {imgs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px", color: "#cbd5e1" }}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <p style={{ margin: 0, fontSize: "14px" }}>No images uploaded for this asset</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                    {imgs.map((src, idx) => (
+                      <a key={idx} href={src} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "8px", overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                        <img src={src} alt={`Image ${idx + 1}`}
+                          style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }}
+                          onError={e => { e.target.parentElement.style.display = "none"; }} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </section>
+  );
+}
+
 export default function HealthcareDashboard({ token }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
@@ -645,8 +880,10 @@ export default function HealthcareDashboard({ token }) {
   const [snapError, setSnapE]       = useState(null);
   const [activeRecord, setActiveRec]= useState("call-logs");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [kpiAssets, setKpiAssets]   = useState(null);   // { label, filters, data, loading }
-  const [kpiAssetErr, setKpiAssetErr] = useState(null);
+  const [tileFilter, setTileFilter] = useState({});          // extra filter from KPI tile click
+  const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
+  const [chartDrilldown, setChartDrilldown] = useState(null); // { dept, criticality, data, loading }
+  const tableRef = useRef(null);  // ref to scroll to asset table on tile click
 
   /* Load filter options once */
   useEffect(() => {
@@ -676,32 +913,47 @@ export default function HealthcareDashboard({ token }) {
   const handleApply = () => { setApplied({ ...filters }); };
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
 
+  // Click a KPI tile: toggle tile filter and scroll to the asset table
+  const handleTileClick = (k) => {
+    if (activeKpiKey === k.key) {
+      setTileFilter({});
+      setActiveKpiKey(null);
+    } else {
+      setTileFilter(k.filterData || {});
+      setActiveKpiKey(k.key);
+    }
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
   const doExport = (extraFilters, type) => {
     const qs = buildQS({ ...appliedFilters, ...extraFilters, type });
     hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`)
       .catch(e => alert(`Export failed: ${e.message}`));
   };
 
-  const openKpiAssets = async (label, kpiFilters) => {
-    setKpiAssets({ label, filters: kpiFilters, data: null, loading: true });
-    setKpiAssetErr(null);
+  // Open drilldown panel when clicking a bar in the Criticality by Department chart
+  const openChartDrilldown = async (dept, criticality, deptId) => {
+    const key = `${dept}-${criticality}`;
+    if (chartDrilldown && chartDrilldown.key === key) { setChartDrilldown(null); return; }
+    setChartDrilldown({ key, dept, criticality, data: null, loading: true });
     try {
-      const qs = buildQS({ ...kpiFilters, limit: 200 });
+      const f = { ...appliedFilters, criticality, limit: 200 };
+      if (deptId) f.departmentId = deptId;
+      const qs = buildQS(f);
       const res = await hcFetch(`/assets${qs}`, token);
-      setKpiAssets({ label, filters: kpiFilters, data: res.data || [], loading: false });
+      setChartDrilldown({ key, dept, criticality, data: res.data || [], loading: false });
     } catch (e) {
-      setKpiAssetErr(e.message);
-      setKpiAssets(prev => prev ? { ...prev, loading: false } : null);
+      setChartDrilldown(prev => prev ? { ...prev, loading: false, error: e.message } : null);
     }
   };
 
   const KPI_LIST = [
-    { key: "total",       label: "Total Assets",      icon: Icon.Total,       color: "blue",   dlType: "assets", filterData: {} },
-    { key: "verified",    label: "Verified Assets",    icon: Icon.Verified,    color: "green",  dlType: "assets", filterData: { isVerified: "1" } },
-    { key: "critical",    label: "Critical Assets",    icon: Icon.Critical,    color: "red",    dlType: "assets", filterData: { criticality: "Critical" } },
-    { key: "nonCritical", label: "Non-Critical Assets",icon: Icon.NonCritical, color: "teal",   dlType: "assets", filterData: { criticality: "Non_Critical" } },
-    { key: "working",     label: "Working Assets",     icon: Icon.Working,     color: "green",  dlType: "assets", filterData: { status: "Working" } },
-    { key: "wip",         label: "WIP Assets",         icon: Icon.Wip,         color: "yellow", dlType: "assets", filterData: { status: "WIP" } },
+    { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} },
+    { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
+    { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
+    { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
+    { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
+    { key: "newAddition", label: "New Addition",       icon: Icon.Working,     color: "green",  filterData: { newAddition: "1" } },
   ];
 
   return (
@@ -713,7 +965,7 @@ export default function HealthcareDashboard({ token }) {
             <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
             </div>
-            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Healthcare Asset Dashboard</h1>
+            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Client Dashboard: Biomedical Equipment Maintenance Services</h1>
           </div>
           <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>Complete visibility into your healthcare facility's asset lifecycle</p>
         </div>
@@ -729,25 +981,16 @@ export default function HealthcareDashboard({ token }) {
         </div>
       </div>
 
-      {/* Advanced Filters */}
-      <FiltersPanel
-        filters={filters}
-        setFilters={setFilters}
-        filterOptions={filterOptions}
-        onApply={handleApply}
-        onReset={handleReset}
-      />
-
       {/* Error state */}
       {snapError && <ErrorState message={snapError} onRetry={loadSnapshot} />}
 
       {/* ── ASSET SNAPSHOT KPI CARDS ── */}
-      <section style={{ marginBottom: "28px" }}>
-        <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 14px" }}>
-          Asset Snapshot
-          <span style={{ fontSize: "12px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px" }}>Live count from database</span>
+      <section style={{ marginBottom: "20px" }}>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>
+          Asset Profile
+          <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
           {KPI_LIST.map(k => (
             <KpiCard
               key={k.key}
@@ -756,60 +999,57 @@ export default function HealthcareDashboard({ token }) {
               icon={k.icon}
               color={k.color}
               loading={snapLoading}
-              onDownload={() => doExport(k.filterData, k.dlType)}
-              onClick={() => openKpiAssets(k.label, { ...appliedFilters, ...k.filterData })}
+              isActive={activeKpiKey === k.key}
+              onClick={() => handleTileClick(k)}
             />
           ))}
         </div>
 
-        {/* ── KPI Asset Panel ── */}
-        {kpiAssets && (
-          <div style={{ marginTop: "20px", background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-            <div style={{ padding: "14px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{kpiAssets.label} — Asset List</span>
-              <button onClick={() => setKpiAssets(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#94a3b8", lineHeight: 1 }}>×</button>
-            </div>
-            {kpiAssets.loading ? <Spinner /> : kpiAssetErr ? <ErrorState message={kpiAssetErr} /> : (
-              <div style={{ overflowX: "auto" }}>
-                {(!kpiAssets.data || kpiAssets.data.length === 0) ? <EmptyState /> : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc" }}>
-                        {["Asset Name","Asset ID","Type","Category","Department","Location","Status","Criticality","Working Status"].map(h => (
-                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {kpiAssets.data.map((a, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
-                          onMouseLeave={e => e.currentTarget.style.background = ""}>
-                          <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{a.asset_name || "—"}</td>
-                          <td style={{ padding: "10px 14px", color: "#64748b" }}>{a.asset_unique_id || "—"}</td>
-                          <td style={{ padding: "10px 14px" }}>{a.asset_type || "—"}</td>
-                          <td style={{ padding: "10px 14px" }}>{a.asset_category || "—"}</td>
-                          <td style={{ padding: "10px 14px" }}>{a.department_name || "—"}</td>
-                          <td style={{ padding: "10px 14px" }}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#64748b" }}>{a.status || "—"}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: a.criticality === "Critical" ? "#fee2e2" : "#f0fdfa", color: a.criticality === "Critical" ? "#dc2626" : "#0d9488" }}>{a.criticality || "—"}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: a.working_status === "Working" ? "#dcfce7" : a.working_status === "WIP" ? "#fef9c3" : "#fee2e2", color: a.working_status === "Working" ? "#16a34a" : a.working_status === "WIP" ? "#854d0e" : "#dc2626" }}>{a.working_status || "—"}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
+        {/* Complaint Profile row */}
+        <div style={{ marginTop: "14px" }}>
+          <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Complaint Profile</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+            {[
+              { key: "totalComplaints",    label: "Total Complaint",  icon: ComplaintIcon.Total,    color: "blue",   value: snapshot?.totalComplaints },
+              { key: "wipComplaints",      label: "Work in Progress", icon: ComplaintIcon.Wip,      color: "yellow", value: snapshot?.wipComplaints },
+              { key: "wipLt7",             label: "< 7 Days",         icon: ComplaintIcon.Lt7,      color: "green",  value: snapshot?.wipLt7 },
+              { key: "wipGt7",             label: "> 7 Days",         icon: ComplaintIcon.Gt7,      color: "red",    value: snapshot?.wipGt7 },
+              { key: "resolvedComplaints", label: "Resolved",         icon: ComplaintIcon.Resolved, color: "teal",   value: snapshot?.resolvedComplaints },
+              { key: "closedComplaints",   label: "Closed",           icon: ComplaintIcon.Closed,   color: "purple", value: snapshot?.closedComplaints },
+            ].map(k => (
+              <KpiCard
+                key={k.key}
+                label={k.label}
+                value={k.value}
+                icon={k.icon}
+                color={k.color}
+                loading={snapLoading}
+              />
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* ── KPI Asset Panel — removed; replaced by always-visible table below filters ── */}
       </section>
+
+      {/* ── Advanced Filters — always visible below KPI tiles ── */}
+      <FiltersPanel
+        filters={filters}
+        setFilters={setFilters}
+        filterOptions={filterOptions}
+        onApply={handleApply}
+        onReset={handleReset}
+      />
+
+      {/* ── Asset Report Table — always visible, filtered by tile click or panel ── */}
+      <div ref={tableRef}>
+        <DashboardAssetTable
+          token={token}
+          filters={{ ...appliedFilters, ...tileFilter }}
+          tileLabel={activeKpiKey ? (KPI_LIST.find(k => k.key === activeKpiKey)?.label || null) : null}
+          onClearTile={() => { setTileFilter({}); setActiveKpiKey(null); }}
+        />
+      </div>
 
       {/* ── CHARTS ROW ── */}
       <section style={{ marginBottom: "28px" }}>
@@ -817,17 +1057,17 @@ export default function HealthcareDashboard({ token }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
 
           {/* Pie: Working Status */}
-          <ChartCard title="Working Status Distribution" subtitle="Working vs WIP vs Not Working">
+          <ChartCard title="Working Status Distribution" subtitle="Working vs WIP">
             {chartLoading ? <Spinner /> : charts?.statusDistribution ?
-              <PieChart data={charts.statusDistribution.map(d => ({ name: d.name, value: d.value }))} /> :
+              <PieChart data={charts.statusDistribution.filter(d => d.name !== "Not_Working").map(d => ({ name: d.name, value: d.value }))} /> :
               <EmptyState small />
             }
           </ChartCard>
 
           {/* Bar: Criticality by Dept */}
-          <ChartCard title="Criticality by Department" subtitle="Critical vs Non-Critical asset count">
+          <ChartCard title="Criticality by Department" subtitle="Click a bar to view those assets">
             {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
-              <BarChart data={charts.criticalityByDept} /> :
+              <BarChart data={charts.criticalityByDept} onBarClick={openChartDrilldown} /> :
               <EmptyState small />
             }
           </ChartCard>
@@ -841,6 +1081,61 @@ export default function HealthcareDashboard({ token }) {
           </ChartCard>
         </div>
       </section>
+
+      {/* ── CHART DRILLDOWN PANEL ── */}
+      {chartDrilldown && (
+        <div style={{ marginBottom: "28px", background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
+              {chartDrilldown.criticality === "Critical" ? "🔴" : "🔵"} {chartDrilldown.criticality.replace("_", " ")} Assets — {chartDrilldown.dept}
+            </span>
+            <button onClick={() => setChartDrilldown(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#94a3b8", lineHeight: 1 }}>×</button>
+          </div>
+          {chartDrilldown.loading ? (
+            <div style={{ padding: "30px", textAlign: "center" }}><Spinner /></div>
+          ) : chartDrilldown.error ? (
+            <div style={{ padding: "20px", color: "#dc2626", textAlign: "center" }}>{chartDrilldown.error}</div>
+          ) : (!chartDrilldown.data || chartDrilldown.data.length === 0) ? (
+            <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8" }}>No assets found</div>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "340px", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                    {["#", "QR Code", "Equipment Name", "Department", "Make", "Model", "Status"].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartDrilldown.data.map((a, i) => {
+                    const meta = typeof a.metadata === "string" ? JSON.parse(a.metadata || "{}") : (a.metadata || {});
+                    return (
+                      <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                        onMouseLeave={e => e.currentTarget.style.background = ""}>
+                        <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#2563eb", fontWeight: 600 }}>{a.asset_unique_id || "—"}</td>
+                        <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{a.asset_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{a.department_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{meta.make || meta.manufacturer || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{meta.model || "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700,
+                            background: a.working_status === "Not_Working" ? "#fef2f2" : a.working_status === "WIP" ? "#fef9c3" : "#f0fdf4",
+                            color: a.working_status === "Not_Working" ? "#dc2626" : a.working_status === "WIP" ? "#92400e" : "#16a34a" }}>
+                            {(a.working_status || "Working").replace("_", " ")}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── RECORDS TABS ── */}
       <section>

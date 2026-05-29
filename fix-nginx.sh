@@ -1,0 +1,37 @@
+#!/bin/bash
+# Write a clean nginx.conf without the default server block
+cat > /etc/nginx/nginx.conf << 'NGINXEOF'
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log notice;
+pid /run/nginx.pid;
+
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    keepalive_timeout   65;
+    types_hash_max_size 4096;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+NGINXEOF
+
+# Remove default_server flag from fmapp.conf if added
+sed -i 's/listen 80 default_server;/listen 80;/' /etc/nginx/conf.d/fmapp.conf
+
+nginx -t && systemctl reload nginx && echo "nginx reloaded OK"

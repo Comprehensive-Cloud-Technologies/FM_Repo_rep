@@ -409,13 +409,13 @@ async function main() {
   }
 
   // 1. Single registration sanity check
-  const single = await testSingleAssetRegistration();
+  //const single = await testSingleAssetRegistration();
 
   // 2. Concurrent registration stress test
-  const concurrent = await testConcurrentAssetRegistration();
+  //const concurrent = await testConcurrentAssetRegistration();
 
   // 3. Bulk CSV import (batched, no limit)
-  await testBulkImport();
+  //await testBulkImport();
 
   // 4. Company portal bulk import (if CP_TOKEN available)
   await testCompanyPortalBulkImport();

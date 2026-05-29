@@ -53,7 +53,9 @@ function buildAssetWhere(companyId, q) {
     where += " AND a.is_verified = ?";
     p.push(q.isVerified === "true" || q.isVerified === "1" ? 1 : 0);
   }
-  if (q.search)       { where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ?)";
+  if (q.rber)      { where += " AND EXISTS (SELECT 1 FROM asset_details ad2 WHERE ad2.asset_id = a.id AND (JSON_EXTRACT(ad2.metadata,'$.rber') = true OR JSON_EXTRACT(ad2.metadata,'$.rber') = 1))"; }
+  if (q.condemned) { where += " AND (a.working_status = 'Condemned' OR EXISTS (SELECT 1 FROM asset_details ad2 WHERE ad2.asset_id = a.id AND (JSON_EXTRACT(ad2.metadata,'$.condemned') = true OR JSON_EXTRACT(ad2.metadata,'$.condemned') = 1)))"; }
+  if (q.search)    { where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ?)";
     const s = `%${q.search}%`; p.push(s, s); }
 
   return { where, p };
@@ -68,29 +70,60 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
     const companyId = req.companyUser.companyId;
     const { where, p } = buildAssetWhere(companyId, req.query);
 
-    const [rows] = await pool.query(
-      `SELECT
-         COUNT(*)                                                    AS total,
-         SUM(CASE WHEN a.is_verified = 1 THEN 1 ELSE 0 END)         AS verified,
-         SUM(CASE WHEN a.criticality = 'Critical' THEN 1 ELSE 0 END) AS critical,
-         SUM(CASE WHEN a.criticality = 'Non_Critical' THEN 1 ELSE 0 END) AS non_critical,
-         SUM(CASE WHEN a.working_status = 'Working' THEN 1 ELSE 0 END)   AS working,
-         SUM(CASE WHEN a.working_status = 'WIP' THEN 1 ELSE 0 END)       AS wip,
-         SUM(CASE WHEN a.working_status = 'Not_Working' THEN 1 ELSE 0 END) AS not_working
-       FROM assets a
-       ${where}`,
-      p
-    );
+    const [[assetRow], [[callStats]]] = await Promise.all([
+      pool.query(
+        `SELECT
+           COUNT(*)                                                    AS total,
+           SUM(CASE WHEN a.is_verified = 1 THEN 1 ELSE 0 END)         AS verified,
+           SUM(CASE WHEN a.criticality = 'Critical' THEN 1 ELSE 0 END) AS critical,
+           SUM(CASE WHEN a.criticality = 'Non_Critical' THEN 1 ELSE 0 END) AS non_critical,
+           SUM(CASE WHEN a.working_status = 'Working' THEN 1 ELSE 0 END)   AS working,
+           SUM(CASE WHEN a.working_status = 'WIP' THEN 1 ELSE 0 END)       AS wip,
+           SUM(CASE WHEN a.working_status = 'Not_Working' THEN 1 ELSE 0 END) AS not_working,
+           SUM(CASE WHEN JSON_EXTRACT(ad.metadata, '$.rber') = true
+                      OR JSON_EXTRACT(ad.metadata, '$.rber') = 1 THEN 1 ELSE 0 END) AS rber,
+           SUM(CASE WHEN a.working_status = 'Condemned'
+                      OR JSON_EXTRACT(ad.metadata, '$.condemned') = true
+                      OR JSON_EXTRACT(ad.metadata, '$.condemned') = 1 THEN 1 ELSE 0 END) AS condemned,
+           SUM(CASE WHEN a.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_addition
+         FROM assets a
+         LEFT JOIN asset_details ad ON ad.asset_id = a.id
+         ${where}`,
+        p
+      ),
+      pool.query(
+        `SELECT
+           COUNT(*)                                                                        AS total_calls,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') THEN 1 ELSE 0 END)        AS wip_calls,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), call_date) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), call_date) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
+           SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END)                           AS resolved_calls,
+           SUM(CASE WHEN status = 'closed'   THEN 1 ELSE 0 END)                           AS closed_calls
+         FROM hc_call_logs
+         WHERE company_id = ?`,
+        [companyId]
+      ),
+    ]);
 
-    const snap = rows[0];
+    const snap = assetRow[0];
     res.json({
-      total:       Number(snap.total       || 0),
-      verified:    Number(snap.verified    || 0),
-      critical:    Number(snap.critical    || 0),
-      nonCritical: Number(snap.non_critical|| 0),
-      working:     Number(snap.working     || 0),
-      wip:         Number(snap.wip         || 0),
-      notWorking:  Number(snap.not_working || 0),
+      total:        Number(snap.total        || 0),
+      verified:     Number(snap.verified     || 0),
+      critical:     Number(snap.critical     || 0),
+      nonCritical:  Number(snap.non_critical || 0),
+      working:      Number(snap.working      || 0),
+      wip:          Number(snap.wip          || 0),
+      notWorking:   Number(snap.not_working  || 0),
+      rber:         Number(snap.rber         || 0),
+      condemned:    Number(snap.condemned    || 0),
+      newAddition:  Number(snap.new_addition || 0),
+      // Complaint Profile
+      totalComplaints:  Number(callStats.total_calls    || 0),
+      wipComplaints:    Number(callStats.wip_calls      || 0),
+      wipLt7:           Number(callStats.wip_lt7        || 0),
+      wipGt7:           Number(callStats.wip_gt7        || 0),
+      resolvedComplaints: Number(callStats.resolved_calls || 0),
+      closedComplaints:   Number(callStats.closed_calls   || 0),
     });
   } catch (err) { next(err); }
 });
@@ -118,7 +151,7 @@ router.get("/charts", validate([
 
     // Bar: Critical vs Non_Critical by department
     const [critByDept] = await pool.query(
-      `SELECT COALESCE(d.name,'Unknown') AS dept,
+      `SELECT d.id AS dept_id, COALESCE(d.name,'Unknown') AS dept,
               SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END)     AS critical,
               SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END) AS non_critical
        FROM assets a
@@ -165,7 +198,7 @@ router.get("/charts", validate([
 
     res.json({
       statusDistribution: statusDist.map(r => ({ name: r.name || 'Unknown', value: Number(r.value) })),
-      criticalityByDept:  critByDept.map(r => ({ dept: r.dept, critical: Number(r.critical), nonCritical: Number(r.non_critical) })),
+      criticalityByDept:  critByDept.map(r => ({ deptId: r.dept_id, dept: r.dept, critical: Number(r.critical), nonCritical: Number(r.non_critical) })),
       monthlyTrend:       trend,
     });
   } catch (err) { next(err); }
@@ -545,14 +578,15 @@ router.patch("/assets/:id", validate([
   body("isVerified").optional().isBoolean(),
   body("status").optional().isIn(["Active","Inactive"]),
   body("criticality").optional().isIn(["Critical","Non_Critical"]),
-  body("workingStatus").optional().isIn(["Working","WIP","Not_Working"]),
+  body("workingStatus").optional().isIn(["Working","WIP","Not_Working","Condemned"]),
   body("assetCategory").optional().isString().trim(),
   body("locationDetail").optional().isString().trim(),
+  body("rber").optional().isBoolean(),
 ]), async (req, res, next) => {
   try {
     const companyId = req.companyUser.companyId;
     const assetId   = Number(req.params.id);
-    const { isVerified, status, criticality, workingStatus, assetCategory, locationDetail } = req.body;
+    const { isVerified, status, criticality, workingStatus, assetCategory, locationDetail, rber } = req.body;
 
     // Verify asset belongs to this company
     const [[asset]] = await pool.query(
@@ -570,12 +604,24 @@ router.patch("/assets/:id", validate([
     if (assetCategory !== undefined) { sets.push("asset_category = ?"); vals.push(assetCategory); }
     if (locationDetail !== undefined){ sets.push("location_detail = ?");vals.push(locationDetail); }
 
-    if (sets.length === 0) return res.json({ message: "No fields to update." });
+    if (sets.length > 0) {
+      await pool.query(
+        `UPDATE assets SET ${sets.join(", ")} WHERE id = ?`,
+        [...vals, assetId]
+      );
+    }
 
-    await pool.query(
-      `UPDATE assets SET ${sets.join(", ")} WHERE id = ?`,
-      [...vals, assetId]
-    );
+    // Update rber flag in asset_details metadata if provided
+    if (rber !== undefined) {
+      await pool.query(
+        `INSERT INTO asset_details (asset_id, metadata)
+         VALUES (?, JSON_OBJECT('rber', ?))
+         ON DUPLICATE KEY UPDATE metadata = JSON_SET(COALESCE(metadata, '{}'), '$.rber', ?)`,
+        [assetId, rber ? 1 : 0, rber ? 1 : 0]
+      );
+    }
+
+    if (sets.length === 0 && rber === undefined) return res.json({ message: "No fields to update." });
     res.json({ message: "Asset updated." });
   } catch (err) { next(err); }
 });
