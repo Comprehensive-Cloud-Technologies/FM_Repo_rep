@@ -54,6 +54,36 @@ const toNullableInt = (value) => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Aggregate stats for client portal dashboard
+router.get("/stats", async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [[{ totalCompanies }]] = await pool.query(
+      "SELECT COUNT(*) AS totalCompanies FROM companies WHERE user_id = ?", [userId]
+    );
+    const [[{ activeCompanies }]] = await pool.query(
+      "SELECT COUNT(*) AS activeCompanies FROM companies WHERE user_id = ? AND status = 'Active'", [userId]
+    );
+    const [[{ totalAssets }]] = await pool.query(
+      "SELECT COUNT(*) AS totalAssets FROM assets a JOIN companies c ON c.id = a.company_id WHERE c.user_id = ?", [userId]
+    );
+    const [[{ totalEmployees }]] = await pool.query(
+      "SELECT COUNT(*) AS totalEmployees FROM company_users u JOIN companies c ON c.id = u.company_id WHERE c.user_id = ?", [userId]
+    );
+    const [byCompany] = await pool.query(
+      `SELECT c.id, c.company_name AS companyName,
+              COUNT(DISTINCT a.id)  AS assetCount,
+              COUNT(DISTINCT u.id)  AS employeeCount
+       FROM companies c
+       LEFT JOIN assets a       ON a.company_id = c.id
+       LEFT JOIN company_users u ON u.company_id = c.id
+       WHERE c.user_id = ?
+       GROUP BY c.id`, [userId]
+    );
+    res.json({ totalCompanies, activeCompanies, totalAssets, totalEmployees, byCompany });
+  } catch (err) { next(err); }
+});
+
 router.get("/", async (req, res, next) => {
   try {
     const [rows] = await pool.query(

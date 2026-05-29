@@ -180,6 +180,7 @@ export const getAssetQueries = (token, params = {}) => {
 export const createAssetQuery = (token, data) => request("POST", "/api/company-portal/asset-queries", data, { authToken: token });
 export const resolveAssetQuery = (token, id, resolutionNote) => request("PATCH", `/api/company-portal/asset-queries/${id}/resolve`, { resolutionNote }, { authToken: token });
 export const escalateAssetQuery = (token, id) => request("PATCH", `/api/company-portal/asset-queries/${id}/escalate`, {}, { authToken: token });
+export const deleteAssetQuery = (token, id) => request("DELETE", `/api/company-portal/asset-queries/${id}`, undefined, { authToken: token });
 export const getCompanyPortalChecklists = (token) => request("GET", "/api/company-portal/checklists", undefined, { authToken: token });
 export const createCompanyPortalChecklist = (token, data) => request("POST", "/api/company-portal/checklists", data, { authToken: token });
 export const updateCompanyPortalChecklist = (token, id, data) => request("PUT", `/api/company-portal/checklists/${id}`, data, { authToken: token });

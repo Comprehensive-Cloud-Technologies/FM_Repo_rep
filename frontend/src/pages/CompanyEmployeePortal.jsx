@@ -37,6 +37,7 @@ import {
   createAssetQuery,
   resolveAssetQuery,
   escalateAssetQuery,
+  deleteAssetQuery,
   getCompanyPortalChecklists,
   createCompanyPortalChecklist,
   updateCompanyPortalChecklist,
@@ -3475,6 +3476,9 @@ export default function CompanyEmployeePortal() {
   // Asset queries / requests
   const [assetQueries, setAssetQueries] = useState([]);
   const [assetQueriesLoading, setAssetQueriesLoading] = useState(false);
+  const [requestSearch, setRequestSearch] = useState("");
+  // Asset detail view
+  const [assetDetailModal, setAssetDetailModal] = useState(null); // asset object or null
   // Barcode report page
   const [reportBarcode, setReportBarcode] = useState("");
   const [reportAsset, setReportAsset] = useState(null);
@@ -3874,9 +3878,12 @@ export default function CompanyEmployeePortal() {
   // Asset filtered
   const filteredAssets = useMemo(() =>
     assets.filter((a) => {
-      const term = assetSearch.toLowerCase();
-      const matchSearch = !term || (a.assetName || "").toLowerCase().includes(term);
-      const matchType = !assetTypeFilter || a.assetType === assetTypeFilter;
+      const term = assetSearch.toLowerCase().trim();
+      const matchSearch = !term ||
+        (a.assetName || "").toLowerCase().includes(term) ||
+        (a.assetUniqueId || a.asset_unique_id || "").toLowerCase().includes(term) ||
+        (a.metadata?.equipmentName || "").toLowerCase().includes(term);
+      const matchType = !assetTypeFilter || (a.assetType || a.asset_type || "") === assetTypeFilter;
       const matchVerified =
         !assetVerifiedFilter ||
         (assetVerifiedFilter === "verified" && a.isVerified) ||
@@ -4468,7 +4475,7 @@ export default function CompanyEmployeePortal() {
       </aside>
 
       {/* Main content */}
-      <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh" }}>
+      <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {
@@ -5297,7 +5304,7 @@ export default function CompanyEmployeePortal() {
         {nav === "assets" && (() => {
           const isAdmin = currentUser.role === "admin";
           return (
-          <div style={{ maxWidth: "100%", overflow: "hidden" }}>
+          <div style={{ maxWidth: "100%" }}>
             {/* Sub-tab navigation — Analytics tab hidden; only Manage Assets is visible */}
 
             {/* Analytics Dashboard */}
@@ -5316,16 +5323,33 @@ export default function CompanyEmployeePortal() {
             {/* Manage Assets */}
             {assetSubNav === "manage" && (<div style={{ paddingTop: "0" }}>
 
-            {/* Title row with inline action buttons */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-              {/* Left: title */}
-              <div>
+            {/* Sticky header: title + combined filter+buttons row */}
+            <div style={{ position: "sticky", top: 0, zIndex: 30, background: "#f1f5f9", paddingBottom: "10px", paddingTop: "4px", marginBottom: "0" }}>
+              {/* Title row — no buttons here */}
+              <div style={{ marginBottom: "8px" }}>
                 <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "2px" }}>Assets</h1>
                 <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>All registered assets · {filteredAssets.length} total</p>
               </div>
-              {/* Right: action buttons */}
-              {isAdmin && (
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              {errors.assets && <Alert>{errors.assets}</Alert>}
+              {/* Combined filter + action buttons row */}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "nowrap", overflowX: "auto" }}>
+                <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
+                  style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
+                  <option value="">All Types</option>
+                  <option value="soft">Soft</option>
+                  <option value="technical">Technical</option>
+                  <option value="fleet">Fleet</option>
+                </select>
+                <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
+                  style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
+                  <option value="">All Assets</option>
+                  <option value="verified">✓ Verified</option>
+                  <option value="unverified">✗ Unverified</option>
+                </select>
+                <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search assets…"
+                  style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "200px" }} />
+                <div style={{ flex: 1, minWidth: "8px" }} />
+                {isAdmin && (<>
                   {/* Company logo upload */}
                   <label title="Upload client logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -5380,10 +5404,10 @@ export default function CompanyEmployeePortal() {
                   </button>
                   {/* Export CSV */}
                   <button onClick={() => {
-                    const headers = ["SN","QR Code","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status"];
+                    const headers = ["SN","QR Code","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status","Created At"];
                     const rows = filteredAssets.map((a, i) => {
                       const m = a.metadata || {};
-                      return [i+1, a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active"].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+                      return [i+1, a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : ""].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
                     });
                     const csv = [headers.join(","), ...rows].join("\n");
                     const blob = new Blob([csv], { type: "text/csv" });
@@ -5410,28 +5434,9 @@ export default function CompanyEmployeePortal() {
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                     Export PDF
                   </button>
-                </div>
-              )}
-            </div>
-            {errors.assets && <Alert>{errors.assets}</Alert>}
-            {/* Table filter row */}
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
-              <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
-                style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-                <option value="">All Types</option>
-                <option value="soft">Soft</option>
-                <option value="technical">Technical</option>
-                <option value="fleet">Fleet</option>
-              </select>
-              <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
-                style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-                <option value="">All Assets</option>
-                <option value="verified">✓ Verified</option>
-                <option value="unverified">✗ Unverified</option>
-              </select>
-              <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search assets…"
-                style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "200px" }} />
-            </div>
+                </>)}
+              </div>
+            </div>{/* end sticky header */}
             {/* Table */}
             <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
               {loading.assets
@@ -5469,8 +5474,12 @@ export default function CompanyEmployeePortal() {
                               </td>
                             )}
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                            <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>{a.assetUniqueId || "—"}</td>
-                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.equipmentName || a.assetName || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
+                              title="Click to view asset details"
+                              onClick={() => setAssetDetailModal(a)}>{a.assetUniqueId || "—"}</td>
+                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
+                              title="Click to view asset details"
+                              onClick={() => setAssetDetailModal(a)}>{m.equipmentName || a.assetName || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>
@@ -5700,13 +5709,29 @@ export default function CompanyEmployeePortal() {
                   ↻ Refresh
                 </button>
               </div>
+              {/* Search bar */}
+              <div style={{ marginBottom: "16px", position: "relative", maxWidth: "400px" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input value={requestSearch} onChange={e => setRequestSearch(e.target.value)} placeholder="Search by request ID, asset name, QR code, title…"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 34px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", background: "#fff" }} />
+              </div>
               {assetQueriesLoading
                 ? <p style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading…</p>
                 : assetQueries.length === 0
                   ? <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>No requests yet</div>
-                  : (
+                  : (() => {
+                    const term = requestSearch.toLowerCase().trim();
+                    const displayed = term ? assetQueries.filter(q =>
+                      String(q.id).includes(term) ||
+                      (q.assetName || "").toLowerCase().includes(term) ||
+                      (q.assetUniqueId || "").toLowerCase().includes(term) ||
+                      (q.title || "").toLowerCase().includes(term) ||
+                      (q.description || "").toLowerCase().includes(term)
+                    ) : assetQueries;
+                    return (
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                      {assetQueries.map(q => {
+                      {displayed.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>No requests match your search.</div>}
+                      {displayed.map(q => {
                         const isOverdue = q.status === "open" && q.createdAt && ((Date.now() - new Date(q.createdAt).getTime()) / 36e5) > (q.cutoffHours || 24);
                         const isExpanded = expandedQueryId === q.id;
                         const imgs = (() => { try { return Array.isArray(q.images) ? q.images : (q.images ? JSON.parse(q.images) : []); } catch { return []; } })();
@@ -5776,9 +5801,8 @@ export default function CompanyEmployeePortal() {
                                   </div>
                                 )}
 
-                                {/* Actions */}
-                                {isAdmin && q.status === "open" && (
-                                  <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+                                  <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
+                                    {q.status === "open" && (<>
                                     <button onClick={(e) => { e.stopPropagation(); handleResolveQuery(q.id); }}
                                       style={{ padding: "8px 18px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
                                       ✓ Mark Resolved
@@ -5787,15 +5811,22 @@ export default function CompanyEmployeePortal() {
                                       style={{ padding: "8px 18px", background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
                                       ↑ Escalate
                                     </button>
+                                    </>)}
+                                    {isAdmin && (
+                                      <button onClick={async (e) => { e.stopPropagation(); if (!window.confirm("Delete this request permanently?")) return; try { await deleteAssetQuery(token, q.id); setAssetQueries(p => p.filter(x => x.id !== q.id)); } catch (err) { alert(err.message || "Delete failed"); } }}
+                                        style={{ padding: "8px 18px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>
+                                        🗑 Delete
+                                      </button>
+                                    )}
                                   </div>
-                                )}
                               </div>
                             )}
                           </div>
                         );
                       })}
                     </div>
-                  )
+                    );
+                  })()
               }
             </div>
           );
@@ -7767,7 +7798,7 @@ export default function CompanyEmployeePortal() {
           setSettingsRegen(false);
         };
         return (
-          <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto", fontFamily: "'Inter',-apple-system,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto", scrollBehavior: "smooth", fontFamily: "'Inter',-apple-system,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
             <div style={{ width: "100%", maxWidth: "680px" }}>
             <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>Settings</h1>
             <p style={{ color: "#64748b", fontSize: "13.5px", marginBottom: "28px" }}>Manage your company portal configuration</p>
@@ -7817,6 +7848,88 @@ export default function CompanyEmployeePortal() {
           onSaved={handleDeptSaved}
         />
       )}
+      {/* Asset Detail Modal */}
+      {assetDetailModal && (() => {
+        const a = assetDetailModal;
+        const m = a.metadata || {};
+        const hcImages = [...(m.hcImages || []), ...(m.invoiceImages || []), ...(m.invoiceUrl ? [m.invoiceUrl] : [])].filter(Boolean);
+        const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+        const fields = [
+          ["QR Code", a.assetUniqueId],
+          ["Equipment Name", m.equipmentName || a.assetName],
+          ["Make / Manufacturer", m.make || m.manufacturer],
+          ["Manufacturer Company", m.manufacturerCompany],
+          ["Model", m.model],
+          ["Serial No.", m.serialNo],
+          ["Accessories", m.accessories],
+          ["Dealer / Distributor", m.dealer],
+          ["Manufacturing Year", m.manufacturingYear],
+          ["Installation Date", m.installationDate],
+          ["Invoice No.", m.invoiceNo],
+          ["Purchase Date", m.purchaseDate],
+          ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+          ["Maintenance", maint],
+          ["RBER", m.rber],
+          ["Remarks", m.remarks],
+          ["Department", a.departmentName],
+          ["Building", a.building],
+          ["Floor", a.floor],
+          ["Room / Area", a.room],
+          ["Status", a.status],
+          ["Registered On", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : null],
+        ].filter(([, v]) => v);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+            onClick={e => e.target === e.currentTarget && setAssetDetailModal(null)}>
+            <div style={{ background: "#fff", borderRadius: "16px", width: "700px", maxWidth: "96vw", maxHeight: "92vh", overflow: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
+                  <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.assetUniqueId}</span>
+                </div>
+                <button onClick={() => setAssetDetailModal(null)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "18px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+              </div>
+              <div style={{ padding: "20px 24px" }}>
+                {/* Images */}
+                {hcImages.length > 0 && (
+                  <div style={{ marginBottom: "20px" }}>
+                    <h4 style={{ fontSize: "12.5px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Images</h4>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      {hcImages.map((img, i) => {
+                        const src = img.startsWith("http") || img.startsWith("/") ? img : `/${img}`;
+                        return (
+                          <a key={i} href={src} target="_blank" rel="noreferrer">
+                            <img src={src} alt={`img-${i+1}`} style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "10px", border: "1.5px solid #e2e8f0" }}
+                              onError={e => { e.currentTarget.style.display = "none"; }} />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Fields */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  {fields.map(([label, value]) => (
+                    <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px" }}>
+                      <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>{label}</div>
+                      <div style={{ fontSize: "13.5px", color: "#0f172a", fontWeight: 600, wordBreak: "break-word" }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Action buttons */}
+                <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexWrap: "wrap" }}>
+                  <button onClick={() => { setAssetDetailModal(null); setEditAsset(a); setShowAssetModal(true); }}
+                    style={{ padding: "9px 18px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
+                  <button onClick={() => { handleShowAssetQR(a); setAssetDetailModal(null); }}
+                    style={{ padding: "9px 18px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Print QR</button>
+                  <button onClick={() => setAssetDetailModal(null)}
+                    style={{ padding: "9px 18px", background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showAssetModal && (
         <AssetModal
           token={token}

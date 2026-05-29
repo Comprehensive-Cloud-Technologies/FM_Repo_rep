@@ -70,7 +70,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
     const companyId = req.companyUser.companyId;
     const { where, p } = buildAssetWhere(companyId, req.query);
 
-    const [[assetRow], [[callStats]]] = await Promise.all([
+    const [[assetRow], [[reqStats]]] = await Promise.all([
       pool.query(
         `SELECT
            COUNT(*)                                                    AS total,
@@ -93,13 +93,13 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       ),
       pool.query(
         `SELECT
-           COUNT(*)                                                                        AS total_calls,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') THEN 1 ELSE 0 END)        AS wip_calls,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), call_date) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), call_date) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
-           SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END)                           AS resolved_calls,
-           SUM(CASE WHEN status = 'closed'   THEN 1 ELSE 0 END)                           AS closed_calls
-         FROM hc_call_logs
+           COUNT(*)                                                                                   AS total_requests,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') THEN 1 ELSE 0 END)                   AS wip_requests,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
+           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
+           SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END)                                      AS resolved_requests,
+           SUM(CASE WHEN status = 'closed'   THEN 1 ELSE 0 END)                                      AS closed_requests
+         FROM asset_queries
          WHERE company_id = ?`,
         [companyId]
       ),
@@ -117,13 +117,13 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       rber:         Number(snap.rber         || 0),
       condemned:    Number(snap.condemned    || 0),
       newAddition:  Number(snap.new_addition || 0),
-      // Complaint Profile
-      totalComplaints:  Number(callStats.total_calls    || 0),
-      wipComplaints:    Number(callStats.wip_calls      || 0),
-      wipLt7:           Number(callStats.wip_lt7        || 0),
-      wipGt7:           Number(callStats.wip_gt7        || 0),
-      resolvedComplaints: Number(callStats.resolved_calls || 0),
-      closedComplaints:   Number(callStats.closed_calls   || 0),
+      // Complaint / Request Profile
+      totalComplaints:  Number(reqStats.total_requests    || 0),
+      wipComplaints:    Number(reqStats.wip_requests      || 0),
+      wipLt7:           Number(reqStats.wip_lt7           || 0),
+      wipGt7:           Number(reqStats.wip_gt7           || 0),
+      resolvedComplaints: Number(reqStats.resolved_requests || 0),
+      closedComplaints:   Number(reqStats.closed_requests   || 0),
     });
   } catch (err) { next(err); }
 });
@@ -220,9 +220,11 @@ router.get("/assets", validate(filterParams), async (req, res, next) => {
       `SELECT a.id, a.asset_name, a.asset_unique_id, a.asset_type, a.asset_category,
               a.building, a.floor, a.room, a.location_detail, a.status,
               a.is_verified, a.criticality, a.working_status, a.health_status, a.risk_level,
-              a.created_at, d.name AS department_name
+              a.created_at, d.name AS department_name,
+              ad.metadata
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
        ${where}
        ORDER BY a.asset_name
        LIMIT ? OFFSET ?`,
@@ -233,8 +235,13 @@ router.get("/assets", validate(filterParams), async (req, res, next) => {
       `SELECT COUNT(*) AS total FROM assets a ${where}`, p
     );
 
+    const parsed = rows.map(r => ({
+      ...r,
+      metadata: r.metadata ? (typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata) : {},
+    }));
+
     res.json({
-      data:       rows,
+      data:       parsed,
       pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
     });
   } catch (err) { next(err); }

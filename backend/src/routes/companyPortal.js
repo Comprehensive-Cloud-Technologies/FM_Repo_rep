@@ -1109,7 +1109,9 @@ router.post("/assets", async (req, res, next) => {
     const newId = result.insertId;
     // Auto-generate barcode number for healthcare assets when not supplied
     if (!assetUniqueId && assetType === "healthcare") {
-      const barcodeNo = `HC-${String(newId).padStart(6, "0")}`;
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const barcodeNo = `HC-${dateStr}-${rand}`;
       await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
     }
     const [[asset]] = await pool.query(
@@ -1260,11 +1262,19 @@ router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
 /* ── Asset Queries (raised from barcode scan) ────────────────────────────────── */
 router.get("/asset-queries", async (req, res, next) => {
   try {
-    const { assetId, status, assignedTo } = req.query;
+    const { assetId, status, assignedTo, limit } = req.query;
     const params = [cid(req)];
     let where = "WHERE aq.company_id = ?";
     if (assetId)    { where += " AND aq.asset_id = ?";    params.push(Number(assetId)); }
-    if (status)     { where += " AND aq.status = ?";      params.push(status); }
+    if (status) {
+      const statuses = status.split(",").map(s => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        where += " AND aq.status = ?"; params.push(statuses[0]);
+      } else if (statuses.length > 1) {
+        where += ` AND aq.status IN (${statuses.map(() => "?").join(",")})`;
+        params.push(...statuses);
+      }
+    }
     if (assignedTo) { where += " AND aq.assigned_to = ?"; params.push(Number(assignedTo)); }
     // Non-admin employees only see queries raised by them OR assigned to them
     const isAdmin = ["admin", "supervisor", "catalyst_admin"].includes(req.companyUser.role);
@@ -1272,6 +1282,7 @@ router.get("/asset-queries", async (req, res, next) => {
       where += " AND (aq.raised_by = ? OR aq.assigned_to = ?)";
       params.push(req.companyUser.id, req.companyUser.id);
     }
+    const limitClause = limit ? ` LIMIT ${Math.min(Number(limit) || 100, 500)}` : "";
     const [rows] = await pool.query(
       `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
               a.asset_unique_id AS "assetUniqueId",
@@ -1289,7 +1300,7 @@ router.get("/asset-queries", async (req, res, next) => {
        LEFT JOIN company_users cu_a   ON cu_a.id  = aq.assigned_to
        LEFT JOIN company_users cu_res ON cu_res.id = aq.resolved_by
        ${where}
-       ORDER BY aq.created_at DESC`,
+       ORDER BY aq.created_at DESC${limitClause}`,
       params
     );
     const normalized = rows.map(r => ({
@@ -1392,6 +1403,20 @@ router.patch("/asset-queries/:id/escalate", async (req, res, next) => {
       "UPDATE asset_queries SET escalation_level = escalation_level + 1, updated_at = NOW() WHERE id = ?",
       [id]
     );
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* DELETE /asset-queries/:id — admin/supervisor can permanently delete a request */
+router.delete("/asset-queries/:id", async (req, res, next) => {
+  try {
+    if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin/supervisor only" });
+    const { id } = req.params;
+    const [[check]] = await pool.query(
+      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+    );
+    if (!check) return res.status(404).json({ message: "Request not found" });
+    await pool.query("DELETE FROM asset_queries WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (err) { next(err); }
 });

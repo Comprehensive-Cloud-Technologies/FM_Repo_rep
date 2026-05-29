@@ -883,6 +883,10 @@ export default function HealthcareDashboard({ token }) {
   const [tileFilter, setTileFilter] = useState({});          // extra filter from KPI tile click
   const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
   const [chartDrilldown, setChartDrilldown] = useState(null); // { dept, criticality, data, loading }
+  const [activeComplaintKey, setActiveComplaintKey] = useState(null); // complaint tile clicked
+  const [complaintRequests, setComplaintRequests] = useState([]);
+  const [complaintLoading, setComplaintLoading] = useState(false);
+  const complaintPanelRef = useRef(null);
   const tableRef = useRef(null);  // ref to scroll to asset table on tile click
 
   /* Load filter options once */
@@ -913,6 +917,14 @@ export default function HealthcareDashboard({ token }) {
   const handleApply = () => { setApplied({ ...filters }); };
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
 
+  // Auto-apply search filter as user types (debounced 300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setApplied(prev => ({ ...prev, search: filters.search }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
   // Click a KPI tile: toggle tile filter and scroll to the asset table
   const handleTileClick = (k) => {
     if (activeKpiKey === k.key) {
@@ -929,6 +941,35 @@ export default function HealthcareDashboard({ token }) {
     const qs = buildQS({ ...appliedFilters, ...extraFilters, type });
     hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`)
       .catch(e => alert(`Export failed: ${e.message}`));
+  };
+
+  // Complaint tile click: load matching requests from company portal API
+  const handleComplaintTileClick = async (key) => {
+    if (activeComplaintKey === key) {
+      setActiveComplaintKey(null);
+      setComplaintRequests([]);
+      return;
+    }
+    setActiveComplaintKey(key);
+    setComplaintLoading(true);
+    setComplaintRequests([]);
+    try {
+      let url = `${BASE}/api/company-portal/asset-queries?limit=100`;
+      if (key === "wipComplaints" || key === "wipLt7" || key === "wipGt7") url += "&status=open,wip,in_progress";
+      else if (key === "resolvedComplaints") url += "&status=resolved";
+      else if (key === "closedComplaints") url += "&status=closed";
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      let rows = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+      // Apply day filter for wipLt7/wipGt7
+      if (key === "wipLt7") rows = rows.filter(r => { const d = Math.floor((Date.now() - new Date(r.createdAt || r.created_at).getTime()) / 86400000); return d < 7; });
+      if (key === "wipGt7") rows = rows.filter(r => { const d = Math.floor((Date.now() - new Date(r.createdAt || r.created_at).getTime()) / 86400000); return d >= 7; });
+      setComplaintRequests(rows);
+    } catch (e) {
+      setComplaintRequests([]);
+    }
+    setComplaintLoading(false);
+    setTimeout(() => complaintPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
   // Open drilldown panel when clicking a bar in the Criticality by Department chart
@@ -959,26 +1000,20 @@ export default function HealthcareDashboard({ token }) {
   return (
     <div style={{ padding: "24px", maxWidth: "1400px", fontFamily: "'Inter', -apple-system, sans-serif" }}>
       {/* Page Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb" }}>
+            <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
             </div>
             <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Client Dashboard: Biomedical Equipment Maintenance Services</h1>
           </div>
           <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>Complete visibility into your healthcare facility's asset lifecycle</p>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button onClick={() => setRefreshKey(k => k + 1)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#475569" }}>
-            <Icon.Refresh /> Refresh
-          </button>
-          <button onClick={() => doExport({}, "all")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 18px", borderRadius: "9px", border: "none", background: "#2563eb", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-            <Icon.Download /> Export All
-          </button>
-        </div>
+        <button onClick={() => doExport({}, "all")}
+          style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0, marginLeft: "auto" }}>
+          <Icon.Download /> Export All
+        </button>
       </div>
 
       {/* Error state */}
@@ -1024,10 +1059,66 @@ export default function HealthcareDashboard({ token }) {
                 icon={k.icon}
                 color={k.color}
                 loading={snapLoading}
+                isActive={activeComplaintKey === k.key}
+                onClick={() => handleComplaintTileClick(k.key)}
               />
             ))}
           </div>
         </div>
+
+        {/* Complaint requests panel — shown when a complaint tile is clicked */}
+        {activeComplaintKey && (
+          <div ref={complaintPanelRef} style={{ marginTop: "14px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a" }}>
+                {{totalComplaints:"All Complaints",wipComplaints:"Work In Progress",wipLt7:"WIP < 7 Days",wipGt7:"WIP ≥ 7 Days",resolvedComplaints:"Resolved Complaints",closedComplaints:"Closed Complaints"}[activeComplaintKey]}
+                {!complaintLoading && <span style={{ marginLeft: "8px", fontWeight: 400, color: "#64748b", fontSize: "12px" }}>({complaintRequests.length} records)</span>}
+              </span>
+              <button onClick={() => { setActiveComplaintKey(null); setComplaintRequests([]); }}
+                style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "12px", color: "#64748b" }}>✕ Close</button>
+            </div>
+            {complaintLoading ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>Loading…</div>
+            ) : complaintRequests.length === 0 ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>No complaints found for this category.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      {["#","Asset","Request Title","Status","Priority","Department","Raised By","Date"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {complaintRequests.map((r, i) => {
+                      const statusColors = { open: "#fee2e2", resolved: "#dcfce7", closed: "#f1f5f9", wip: "#dbeafe", in_progress: "#dbeafe" };
+                      const statusText = { open: "#dc2626", resolved: "#16a34a", closed: "#475569", wip: "#1d4ed8", in_progress: "#1d4ed8" };
+                      const st = (r.status || "open").toLowerCase();
+                      return (
+                        <tr key={r.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "8px 12px", color: "#94a3b8" }}>{i + 1}</td>
+                          <td style={{ padding: "8px 12px", color: "#0f172a", fontWeight: 600 }}>{r.assetName || r.asset_name || "—"}</td>
+                          <td style={{ padding: "8px 12px", color: "#334155" }}>{r.title || r.description || "—"}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{ background: statusColors[st] || "#f1f5f9", color: statusText[st] || "#475569", padding: "2px 8px", borderRadius: "12px", fontSize: "11.5px", fontWeight: 700 }}>
+                              {st.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 12px", color: "#64748b" }}>{r.priority || "—"}</td>
+                          <td style={{ padding: "8px 12px", color: "#64748b" }}>{r.departmentName || r.department_name || "—"}</td>
+                          <td style={{ padding: "8px 12px", color: "#64748b" }}>{r.raisedByName || r.raised_by_name || "—"}</td>
+                          <td style={{ padding: "8px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{r.createdAt || r.created_at ? new Date(r.createdAt || r.created_at).toLocaleDateString("en-IN") : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── KPI Asset Panel — removed; replaced by always-visible table below filters ── */}
       </section>
