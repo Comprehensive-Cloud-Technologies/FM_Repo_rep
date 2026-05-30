@@ -1,0 +1,438 @@
+"""Write the new dashboard section to a file for insertion"""
+
+NEW_DASHBOARD = r"""        {nav === "dashboard" && (() => {
+
+          const SECTOR_COLORS = {
+            healthcare:    { bg: "#eff6ff", col: "#2563eb", label: "Healthcare" },
+            technical:     { bg: "#f0fdf4", col: "#16a34a", label: "Technical" },
+            soft_services: { bg: "#fef9c3", col: "#ca8a04", label: "Soft Services" },
+            fleet:         { bg: "#fce7f3", col: "#be185d", label: "Fleet" },
+            general:       { bg: "#f1f5f9", col: "#475569", label: "General" },
+          };
+
+          const getSectors = (c) => {
+            const s = Array.isArray(c.sectors) ? c.sectors : (c.sector ? [c.sector] : []);
+            return s.length > 0 ? s : ["general"];
+          };
+
+          const totalCompanies = dashboardStats?.totalCompanies ?? companies.length;
+          const activeCompanies = dashboardStats?.activeCompanies ?? companies.filter(c => (c.status || "Active").toLowerCase() === "active").length;
+          const totalAssets = dashboardStats?.totalAssets;
+          const totalEmployees = dashboardStats?.totalEmployees;
+
+          // Asset/complaint profile
+          const assetProfile = dashboardStats?.assetProfile || {};
+          const complaintProfile = dashboardStats?.complaintProfile || {};
+          const byCompany = dashboardStats?.byCompany || [];
+
+          // --- Inline Charts ---
+          const PIE_COLORS_LIST = ["#2563eb","#dc2626","#16a34a","#7c3aed","#64748b","#0d9488","#ea580c","#ca8a04"];
+
+          const DonutChart = ({ data, size = 160 }) => {
+            const filtered = (data || []).filter(d => d.value > 0);
+            const total = filtered.reduce((s, d) => s + d.value, 0);
+            if (!total) return <div style={{ width: size, height: size, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"12px", background:"#f8fafc", borderRadius:"50%" }}>No data</div>;
+            const r = size / 2 - 12, cx = size / 2, cy = size / 2;
+            let cumulative = 0;
+            const slices = filtered.length === 1
+              ? [{ fullCircle: true, color: filtered[0].color || PIE_COLORS_LIST[0], label: filtered[0].name, value: filtered[0].value, pct: 1 }]
+              : filtered.map((d, i) => {
+                  const pct = d.value / total;
+                  const s = cumulative * 2 * Math.PI - Math.PI / 2;
+                  cumulative += pct;
+                  const e = cumulative * 2 * Math.PI - Math.PI / 2;
+                  const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+                  const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+                  return { path: `M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${pct > 0.5 ? 1 : 0},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`, color: d.color || PIE_COLORS_LIST[i % PIE_COLORS_LIST.length], label: d.name, value: d.value, pct };
+                });
+            return (
+              <div style={{ display:"flex", gap:"16px", alignItems:"center", flexWrap:"wrap" }}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink:0 }}>
+                  {slices.map((s, i) =>
+                    s.fullCircle
+                      ? <circle key={i} cx={cx} cy={cy} r={r} fill={s.color} stroke="#fff" strokeWidth="2" />
+                      : <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2" />
+                  )}
+                  <circle cx={cx} cy={cy} r={r * 0.52} fill="#fff" />
+                  <text x={cx} y={cy - 6} textAnchor="middle" fontSize="15" fontWeight="800" fill="#0f172a">{total.toLocaleString()}</text>
+                  <text x={cx} y={cy + 9} textAnchor="middle" fontSize="9" fill="#94a3b8">Total</text>
+                </svg>
+                <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
+                  {slices.map((s, i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px" }}>
+                      <div style={{ width:"8px", height:"8px", borderRadius:"50%", background:s.color, flexShrink:0 }} />
+                      <span style={{ color:"#475569" }}>{s.label}</span>
+                      <span style={{ fontWeight:800, color:"#0f172a" }}>{s.value}</span>
+                      <span style={{ color:"#94a3b8", fontSize:"10px" }}>({(s.pct*100).toFixed(0)}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
+
+          const BarChartCompany = ({ data, height = 180 }) => {
+            if (!data || data.length === 0) return <div style={{ color:"#94a3b8", fontSize:"13px", padding:"20px", textAlign:"center" }}>No data</div>;
+            const maxVal = Math.max(...data.map(d => d.assetCount || 0), 1);
+            return (
+              <div style={{ overflowX:"auto" }}>
+                <div style={{ display:"flex", alignItems:"flex-end", gap:"6px", minWidth:`${data.length * 60}px`, height:`${height}px`, padding:"8px 0" }}>
+                  {data.map((d, i) => {
+                    const barH = Math.max(((d.assetCount || 0) / maxVal) * (height - 48), d.assetCount ? 4 : 0);
+                    const col = PIE_COLORS_LIST[i % PIE_COLORS_LIST.length];
+                    return (
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", flex:1, minWidth:"50px" }}>
+                        {d.assetCount > 0 && <span style={{ fontSize:"10px", fontWeight:700, color:col }}>{d.assetCount}</span>}
+                        <div title={`${d.companyName}: ${d.assetCount} assets`} style={{ width:"100%", maxWidth:"32px", background:col, borderRadius:"4px 4px 0 0", height:`${barH}px`, transition:"opacity 0.12s", cursor:"default" }} onMouseEnter={e=>e.target.style.opacity="0.75"} onMouseLeave={e=>e.target.style.opacity="1"} />
+                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"…":""}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          };
+
+          // Export helpers
+          const exportToCSV = (rows, headers, filename) => {
+            const lines = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(","))];
+            const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+          };
+
+          const handleExport = (type) => {
+            if (type === "asset_profile" && dashboardStats) {
+              const ap = dashboardStats.assetProfile || {};
+              const rows = [
+                { Category: "Total Assets", Count: ap.total ?? dashboardStats.totalAssets ?? 0 },
+                { Category: "Critical", Count: ap.critical ?? 0 },
+                { Category: "Non-Critical", Count: ap.nonCritical ?? 0 },
+                { Category: "RBER", Count: ap.rber ?? 0 },
+                { Category: "Condemned", Count: ap.condemned ?? 0 },
+                { Category: "New Addition", Count: ap.newAdditions ?? 0 },
+              ];
+              exportToCSV(rows, ["Category", "Count"], "asset_profile.csv");
+            } else if (type === "complaint_profile" && dashboardStats) {
+              const cp = dashboardStats.complaintProfile || {};
+              const rows = [
+                { Category: "Total Complaints", Count: cp.total ?? 0 },
+                { Category: "Work In Progress", Count: cp.wip ?? 0 },
+                { Category: "< 7 Days", Count: cp.lt7d ?? 0 },
+                { Category: "> 7 Days", Count: cp.gt7d ?? 0 },
+                { Category: "Resolved", Count: cp.resolved ?? 0 },
+                { Category: "Closed", Count: cp.closed ?? 0 },
+              ];
+              exportToCSV(rows, ["Category", "Count"], "complaint_profile.csv");
+            } else if (type === "companies" && byCompany.length > 0) {
+              const rows = byCompany.map(c => ({ Company: c.companyName || "", Assets: c.assetCount ?? 0, Employees: c.employeeCount ?? 0 }));
+              exportToCSV(rows, ["Company", "Assets", "Employees"], "companies_summary.csv");
+            } else {
+              // Export all
+              const rows = [];
+              if (dashboardStats) {
+                rows.push({ Section: "Asset Profile", Category: "Total Assets", Count: dashboardStats.assetProfile?.total ?? dashboardStats.totalAssets ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Critical", Count: dashboardStats.assetProfile?.critical ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Non-Critical", Count: dashboardStats.assetProfile?.nonCritical ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "RBER", Count: dashboardStats.assetProfile?.rber ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Condemned", Count: dashboardStats.assetProfile?.condemned ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Total Complaints", Count: dashboardStats.complaintProfile?.total ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Work In Progress", Count: dashboardStats.complaintProfile?.wip ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "< 7 Days", Count: dashboardStats.complaintProfile?.lt7d ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "> 7 Days", Count: dashboardStats.complaintProfile?.gt7d ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Resolved", Count: dashboardStats.complaintProfile?.resolved ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Closed", Count: dashboardStats.complaintProfile?.closed ?? 0 });
+              }
+              exportToCSV(rows, ["Section", "Category", "Count"], "client_dashboard.csv");
+            }
+          };
+
+          // Tile click handler
+          const handleTileClick = (tileId) => {
+            setActiveTile(prev => prev === tileId ? null : tileId);
+          };
+
+          // Drill-down data based on active tile
+          const getDrillDownData = () => {
+            if (!activeTile) return [];
+            const ap = dashboardStats?.assetProfile || {};
+            const cp = dashboardStats?.complaintProfile || {};
+            if (activeTile === "total_assets") {
+              return byCompany.map(c => ({ col1: c.companyName, col2: c.assetCount ?? 0, col3: c.employeeCount ?? 0, label1: "Company", label2: "Assets", label3: "Staff" }));
+            }
+            if (activeTile === "total_complaint") {
+              return byCompany.map(c => ({ col1: c.companyName, col2: c.assetCount ?? 0, col3: c.employeeCount ?? 0, label1: "Company", label2: "Assets", label3: "Staff" }));
+            }
+            return [];
+          };
+
+          const tileConfig = {
+            total_assets:   { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
+            critical:       { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
+            non_critical:   { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
+            rber:           { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
+            condemned:      { label: "CONDEMNED",          value: dashboardStats ? (assetProfile.condemned ?? 0) : null, col: "#64748b" },
+            new_addition:   { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
+            total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
+            wip:            { label: "WORK IN PROGRESS",   value: dashboardStats ? (complaintProfile.wip ?? 0) : null, col: "#ca8a04" },
+            lt7d:           { label: "< 7 DAYS",           value: dashboardStats ? (complaintProfile.lt7d ?? 0) : null, col: "#2563eb" },
+            gt7d:           { label: "> 7 DAYS",           value: dashboardStats ? (complaintProfile.gt7d ?? 0) : null, col: "#dc2626" },
+            resolved:       { label: "RESOLVED",           value: dashboardStats ? (complaintProfile.resolved ?? 0) : null, col: "#16a34a" },
+            closed:         { label: "CLOSED",             value: dashboardStats ? (complaintProfile.closed ?? 0) : null, col: "#475569" },
+          };
+
+          const TILE_ICONS = {
+            total_assets:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
+            critical:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            non_critical:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            rber:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+            condemned:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+            new_addition:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            total_complaint: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+            wip:             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            lt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+            gt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>,
+            resolved:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            closed:          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          };
+
+          const KpiTile = ({ id, label, value, col, icon }) => {
+            const isActive = activeTile === id;
+            return (
+              <div
+                onClick={() => handleTileClick(id)}
+                style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${isActive ? col : "#e2e8f0"}`, borderLeft: `3px solid ${col}`, padding: "14px 16px", boxShadow: isActive ? `0 0 0 2px ${col}22, 0 4px 12px rgba(0,0,0,0.08)` : "0 1px 3px rgba(0,0,0,0.05)", cursor: "pointer", transition: "all 0.15s", userSelect: "none", background: isActive ? `${col}08` : "#fff" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
+                  <span style={{ color: col, display: "flex", opacity: 0.85 }}>{icon}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
+                  {isActive && <svg style={{ marginLeft: "auto" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>}
+                </div>
+                <div style={{ fontSize: "32px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
+                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>…</span>}
+                </div>
+              </div>
+            );
+          };
+
+          // Asset status pie data
+          const assetPieData = dashboardStats ? [
+            { name: "Critical",     value: assetProfile.critical     || 0, color: "#dc2626" },
+            { name: "Non-Critical", value: assetProfile.nonCritical  || 0, color: "#16a34a" },
+            { name: "RBER",         value: assetProfile.rber         || 0, color: "#7c3aed" },
+            { name: "Condemned",    value: assetProfile.condemned    || 0, color: "#64748b" },
+          ].filter(d => d.value > 0) : [];
+
+          // Complaint status pie data
+          const complaintPieData = dashboardStats ? [
+            { name: "WIP",      value: complaintProfile.wip      || 0, color: "#ca8a04" },
+            { name: "< 7 Days", value: complaintProfile.lt7d     || 0, color: "#2563eb" },
+            { name: "> 7 Days", value: complaintProfile.gt7d     || 0, color: "#dc2626" },
+            { name: "Resolved", value: complaintProfile.resolved || 0, color: "#16a34a" },
+            { name: "Closed",   value: complaintProfile.closed   || 0, color: "#475569" },
+          ].filter(d => d.value > 0) : [];
+
+          return (
+            <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
+
+              {/* ── Header ── */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
+                    <div style={{ width: "34px", height: "34px", background: "#eff6ff", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                      Client Dashboard{dashCompanyFilter ? `: ${companies.find(c => String(c.id) === String(dashCompanyFilter))?.companyName || ""}` : ""}
+                    </h1>
+                  </div>
+                  <p style={{ color: "#64748b", fontSize: "12.5px", margin: 0 }}>
+                    {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={dashCompanyFilter} onChange={e => { setDashCompanyFilter(e.target.value); setActiveTile(null); }}
+                    style={{ padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", outline: "none", color: "#374151", cursor: "pointer", minWidth: "150px" }}>
+                    <option value="">All Companies</option>
+                    {companies.map(co => <option key={co.id} value={co.id}>{co.companyName}</option>)}
+                  </select>
+                  {/* Export All button with dropdown */}
+                  {(() => {
+                    const [exportOpen, setExportOpen] = React.useState(false);
+                    return (
+                      <div style={{ position: "relative" }}>
+                        <button onClick={() => setExportOpen(o => !o)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#0f172a", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        {exportOpen && (
+                          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "190px", overflow: "hidden" }}>
+                            {[
+                              { id: "asset_profile", label: "Asset Profile", icon: "📊" },
+                              { id: "complaint_profile", label: "Complaint Profile", icon: "💬" },
+                              { id: "companies", label: "Companies Summary", icon: "🏢" },
+                              { id: "all", label: "Export All (CSV)", icon: "📥" },
+                            ].map(opt => (
+                              <button key={opt.id} onClick={() => { handleExport(opt.id); setExportOpen(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
+                                onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                                <span>{opt.icon}</span>{opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* ── ASSET PROFILE ── */}
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
+                  <div>
+                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
+                  </div>
+                  <button onClick={() => setDashboardStats(null)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", fontSize: "11px", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Refresh
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                  {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
+                    const t = tileConfig[id];
+                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                  })}
+                </div>
+              </div>
+
+              {/* ── COMPLAINT PROFILE ── */}
+              <div style={{ marginBottom: "24px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
+                  <div>
+                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Complaint Profile</h2>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                  {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
+                    const t = tileConfig[id];
+                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                  })}
+                </div>
+              </div>
+
+              {/* ── Drill-down panel (when tile clicked) ── */}
+              {activeTile && (
+                <div style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
+                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} — Company Breakdown</span>
+                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "…"}</strong></span>
+                    </div>
+                    <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: "16px 20px" }}>
+                    {byCompany.length === 0 ? (
+                      <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
+                        {dashboardStats ? "No company data available" : "Loading data…"}
+                      </div>
+                    ) : (
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc" }}>
+                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em" }}>#</th>
+                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Company</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Total Assets</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Staff</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {byCompany.map((c, i) => (
+                            <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e=>e.currentTarget.style.background="#fafafa"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                              <td style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 600 }}>{i+1}</td>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: "#0f172a" }}>{c.companyName}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: tileConfig[activeTile]?.col }}>{c.assetCount ?? 0}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{c.employeeCount ?? 0}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
+                                  style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
+                                  View Assets →
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Charts Row ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+
+                {/* Asset Status Pie */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Status</span>
+                  </div>
+                  <DonutChart data={assetPieData} size={140} />
+                </div>
+
+                {/* Complaint Status Pie */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Complaint Status</span>
+                  </div>
+                  <DonutChart data={complaintPieData} size={140} />
+                </div>
+
+                {/* Assets per Company Bar */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assets per Company</span>
+                  </div>
+                  <BarChartCompany data={byCompany} height={160} />
+                </div>
+
+              </div>
+
+              {/* ── Summary Stats Row ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
+                {[
+                  { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },
+                  { label: "Active Companies", value: activeCompanies, col: "#16a34a", bg: "#f0fdf4", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Total Assets", value: dashboardStats ? totalAssets : "…", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "…", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+                ].map(k => (
+                  <div key={k.label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "40px", height: "40px", background: k.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: k.col, flexShrink: 0 }}>{k.icon}</div>
+                    <div>
+                      <p style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, margin: 0, marginBottom: "3px" }}>{k.label}</p>
+                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "…"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          );
+        })()}"""
+
+# Write to a separate file to verify it
+open('new_dashboard.txt', 'w', encoding='utf-8').write(NEW_DASHBOARD)
+print(f"New dashboard written: {len(NEW_DASHBOARD)} chars, {NEW_DASHBOARD.count(chr(10))} lines")

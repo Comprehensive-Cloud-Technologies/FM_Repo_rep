@@ -3492,6 +3492,8 @@ export default function CompanyEmployeePortal() {
   const [preQrLinkModal, setPreQrLinkModal] = useState(null);
   const [viewQrCardHtml, setViewQrCardHtml] = useState(null);
   const [preQrRegisterModal, setPreQrRegisterModal] = useState(null);
+  const qrStopRef = useRef(false);
+  const [qrAlert, setQrAlert] = useState(null);
   const [selectedPreQrIds, setSelectedPreQrIds] = useState(new Set());
   const [expandedQueryId, setExpandedQueryId] = useState(null); // expanded request card
   // Fleet State
@@ -5925,14 +5927,24 @@ export default function CompanyEmployeePortal() {
           const handleGenerate = async () => {
             if (!preQrCount || preQrCount < 1) return;
             setPreQrGenerating(true);
+            qrStopRef.current = false;
+            let generated = 0;
             try {
               const res = await generatePreQrCodes(token, preQrCount);
-              if (res && !res.message) {
-                setPreQrCodes((prev) => [...(Array.isArray(res) ? res : [res]), ...prev]);
+              if (!qrStopRef.current && res && !res.message) {
+                const arr = Array.isArray(res) ? res : [res];
+                generated = arr.length;
+                setPreQrCodes((prev) => [...arr, ...prev]);
               }
             } catch (e) { console.error(e); }
             setPreQrGenerating(false);
+            qrStopRef.current = false;
+            if (generated > 0) {
+              setQrAlert({ count: generated });
+              setTimeout(() => setQrAlert(null), 5000);
+            }
           };
+          const handleStopGenerate = () => { qrStopRef.current = true; setPreQrGenerating(false); };
 
           const handlePrintSelected = (qrList) => openPreQrPrintWindow(qrList);
 
@@ -6086,6 +6098,13 @@ export default function CompanyEmployeePortal() {
             <div style={{ maxWidth: "1100px" }}>
               {preQrLinkModal && <ViewQrModal qr={preQrLinkModal} onClose={() => setPreQrLinkModal(null)} />}
               {preQrRegisterModal && <RegisterAssetModal qr={preQrRegisterModal} onClose={() => setPreQrRegisterModal(null)} />}
+              {qrAlert && (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "14px 20px", borderRadius: "12px", background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", marginBottom: "16px", boxShadow: "0 4px 18px rgba(34,197,94,0.28)", fontSize: "14px", fontWeight: 600, animation: "slideInDown 0.35s ease" }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+                  <span>{qrAlert.count} QR code{qrAlert.count !== 1 ? "s" : ""} generated successfully!</span>
+                  <button onClick={() => setQrAlert(null)} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.22)", border: "none", borderRadius: "6px", color: "#fff", padding: "3px 9px", cursor: "pointer", fontWeight: 700, fontSize: "16px", lineHeight: 1 }}>×</button>
+                </div>
+              )}
               <div style={{ fontWeight: 700, fontSize: "22px", color: "#0f172a", marginBottom: "6px" }}>QR Code Management</div>
               <div style={{ color: "#64748b", fontSize: "13px", marginBottom: "24px" }}>Generate QR codes to paste on machines. Scan on mobile to register or look up assets.</div>
 
@@ -6137,6 +6156,12 @@ export default function CompanyEmployeePortal() {
                 <button onClick={handleGenerate} disabled={preQrGenerating} style={{ padding: "8px 20px", borderRadius: "8px", border: "none", background: "#0ea5e9", color: "#fff", fontWeight: 600, cursor: preQrGenerating ? "not-allowed" : "pointer", opacity: preQrGenerating ? 0.7 : 1 }}>
                   {preQrGenerating ? "Generating…" : "Generate"}
                 </button>
+                {preQrGenerating && (
+                  <button onClick={handleStopGenerate} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #dc2626", background: "#fff", color: "#dc2626", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#dc2626"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    Stop
+                  </button>
+                )}
                 {unlinked.length > 0 && (
                   <button onClick={() => handlePrintSelected(unlinked)} style={{ padding: "8px 20px", borderRadius: "8px", border: "1px solid #0ea5e9", background: "#fff", color: "#0ea5e9", fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>
                     Print All Unlinked ({unlinked.length})

@@ -5230,6 +5230,9 @@ const CompanyPortal = () => {
 
   const [tableSearch, setTableSearch] = useState("");
   const [dashCompanyFilter, setDashCompanyFilter] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTile, setActiveTile] = useState(null);
+  const [dashExportOpen, setDashExportOpen] = useState(false);
 
 
 
@@ -14705,773 +14708,140 @@ const CompanyPortal = () => {
 
 
 
-      <aside className="client-side-panel">
-
-
-
-
+      <aside className={`client-side-panel${sidebarCollapsed ? " collapsed" : ""}`}>
 
         <div className="client-side-header">
-
-
-
-
-
           <div className="client-avatar">CP</div>
-
-
-
-
-
-          <div style={{ flex: 1 }}>
-
-
-
-
-
+          <div style={{ flex: 1, overflow: "hidden" }}>
             <div className="client-side-title">Client Portal</div>
-
-
-
-
-
             <div className="client-side-sub">Manage companies</div>
-
-
-
-
-
           </div>
-
-
-
-
-
           {/* Notification bell */}
-
-
-
-
-
-          <div style={{ position: "relative", marginLeft: "4px" }}>
-
-
-
-
-
-            <button
-
-
-
-
-
-              onClick={() => setBellOpen((o) => !o)}
-
-
-
-
-
-              style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", borderRadius: "6px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}
-
-
-
-
-
-              title="Warnings & Alerts"
-
-
-
-
-
-            >
-
-
-
-
-
-              <span className={bellRinging ? "fm-bell-ringing" : ""} style={{ fontSize: "18px", display: "inline-block" }}>🔔</span>
-
-
-
-
-
-              {warnOpenCount > 0 && (
-
-
-
-
-
-                <span style={{ position: "absolute", top: "-2px", right: "-2px", background: "#dc2626", color: "#fff", borderRadius: "50%", fontSize: "9px", fontWeight: 800, width: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
-
-
-
-
-
-                  {warnOpenCount > 99 ? "99+" : warnOpenCount}
-
-
-
-
-
-                </span>
-
-
-
-
-
-              )}
-
-
-
-
-
+          <div style={{ position: "relative", marginLeft: "2px", flexShrink: 0 }}>
+            <button onClick={() => setBellOpen((o) => !o)} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", borderRadius: "6px", position: "relative", display: "flex", alignItems: "center" }} title="Warnings">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {warnOpenCount > 0 && <span style={{ position: "absolute", top: "-2px", right: "-2px", background: "#dc2626", color: "#fff", borderRadius: "50%", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", display: "flex", alignItems: "center", justifyContent: "center" }}>{warnOpenCount > 99 ? "99+" : warnOpenCount}</span>}
             </button>
-
-
-
-
-
             {/* Bell dropdown */}
-
-
-
-
-
             {bellOpen && (
-
-
-
-
-
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, overflow: "hidden" }}>
-
-
-
-
-
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.12)", zIndex: 9999, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-
-
-
-
-
-                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>âš ï¸ Active Warnings</span>
-
-
-
-
-
-                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }}
-
-
-
-
-
-                    style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
-
-
-
-
-
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>⚠️ Active Warnings</span>
+                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
                 </div>
-
-
-
-
-
-                {recentAlerts.length === 0 && (
-
-
-
-
-
-                  <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>
-
-
-
-
-
-                )}
-
-
-
-
-
+                {recentAlerts.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>}
                 {recentAlerts.map((a) => {
-
-
-
-
-
                   const sevColor = { critical: "#dc2626", high: "#ea580c", medium: "#d97706", low: "#16a34a" }[a.severity] || "#475569";
-
-
-
-
-
-                  const sevBg    = { critical: "#fee2e2", high: "#fff7ed",  medium: "#fefce8",  low: "#f0fdf4"  }[a.severity] || "#f8fafc";
-
-
-
-
-
+                  const sevBg    = { critical: "#fee2e2", high: "#fff7ed", medium: "#fefce8", low: "#f0fdf4" }[a.severity] || "#f8fafc";
                   return (
-
-
-
-
-
-                    <div key={a.id} style={{ padding: "10px 16px", borderBottom: "1px solid #f8fafc", cursor: "pointer" }}
-
-
-
-
-
-                      onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }}
-
-
-
-
-
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
-
-
-
-
-
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
-
-
-
-
-
+                    <div key={a.id} style={{ padding: "10px 16px", borderBottom: "1px solid #f8fafc", cursor: "pointer" }} onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-
-
-
-
-
                         <span style={{ background: sevBg, color: sevColor, fontSize: "10px", fontWeight: 800, padding: "2px 7px", borderRadius: "10px", textTransform: "uppercase" }}>{a.severity}</span>
-
-
-
-
-
                         <span style={{ fontWeight: 600, fontSize: "12px", color: "#0f172a", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.assetName || "Unknown asset"}</span>
-
-
-
-
-
                       </div>
-
-
-
-
-
                       <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description || "No description"}</div>
-
-
-
-
-
-                      <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString() : ""}</div>
-
-
-
-
-
                     </div>
-
-
-
-
-
                   );
-
-
-
-
-
                 })}
-
-
-
-
-
-                {warnOpenCount > 5 && (
-
-
-
-
-
-                  <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}>
-
-
-
-
-
-                    <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }}
-
-
-
-
-
-                      style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-
-
-
-
-
-                      +{warnOpenCount - recentAlerts.length} more — View all
-
-
-
-
-
-                    </button>
-
-
-
-
-
+                {warnOpenCount > 5 && <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}><button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>+{warnOpenCount - recentAlerts.length} more — View all</button></div>}
+                <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
+                  <div style={{ display: "flex", gap: "5px" }}>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">⚙</button>
+                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "🔊 On" : "🔇 Off"}</button>
                   </div>
-
-
-
-
-
-                )}
-
-
-
-
-
-                {/* Sound toggle + settings footer */}
-
-
-
-
-
-                <div style={{ borderTop: "1px solid #f1f5f9" }}>
-
-
-
-
-
-                  <div style={{ padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-
-
-
-
-
-                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
-
-
-
-
-
-                    <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
-
-
-
-
-
-                      <button
-
-
-
-
-
-                        className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`}
-
-
-
-
-
-                        onClick={() => setAlarmSettingsOpen((v) => !v)}
-
-
-
-
-
-                        title="Alarm settings"
-
-
-
-
-
-                      >⚙</button>
-
-
-
-
-
-                      <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>
-
-
-
-
-
-                        {soundEnabled ? "🔊 On" : "🔇 Off"}
-
-
-
-
-
-                      </button>
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                  </div>
-
-
-
-
-
-                  {alarmSettingsOpen && (
-
-
-
-
-
-                    <div className="fm-alarm-settings">
-
-
-
-
-
-                      <h4>Alarm Settings</h4>
-
-
-
-
-
-                      {/* Volume */}
-
-
-
-
-
-                      <div className="fm-alarm-vol-row">
-
-
-
-
-
-                        <span>Volume</span>
-
-
-
-
-
-                        <strong>{Math.round(alarmVolume * 100)}%</strong>
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                      <input
-
-
-
-
-
-                        type="range" min="0" max="1" step="0.05"
-
-
-
-
-
-                        value={alarmVolume}
-
-
-
-
-
-                        onChange={(e) => updateAlarmVolume(parseFloat(e.target.value))}
-
-
-
-
-
-                        className="fm-vol-slider"
-
-
-
-
-
-                      />
-
-
-
-
-
-                      {/* Per-severity toggles */}
-
-
-
-
-
-                      <div className="fm-sev-section-label">Sound per severity</div>
-
-
-
-
-
-                      {[
-
-
-
-
-
-                        { key: "critical", label: "Critical", color: "#dc2626", bg: "#fee2e2" },
-
-
-
-
-
-                        { key: "high",     label: "High",     color: "#ea580c", bg: "#fff7ed" },
-
-
-
-
-
-                        { key: "medium",   label: "Medium",   color: "#d97706", bg: "#fefce8" },
-
-
-
-
-
-                        { key: "low",      label: "Low",      color: "#16a34a", bg: "#f0fdf4" },
-
-
-
-
-
-                        { key: "info",     label: "Info",     color: "#2563eb", bg: "#eff6ff" },
-
-
-
-
-
-                      ].map(({ key, label, color, bg }) => {
-
-
-
-
-
-                        const isOn = alarmSevConfig[key] !== false;
-
-
-
-
-
-                        return (
-
-
-
-
-
-                          <div key={key} className="fm-sev-row">
-
-
-
-
-
-                            <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
-
-
-
-
-
-                            <div className="fm-sev-actions">
-
-
-
-
-
-                              <button className="fm-preview-btn" title={`Preview ${label} sound`} onClick={() => previewAlertSound(key)}>▶ Test</button>
-
-
-
-
-
-                              <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>
-
-
-
-
-
-                                {isOn ? "ON" : "OFF"}
-
-
-
-
-
-                              </button>
-
-
-
-
-
-                            </div>
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                        );
-
-
-
-
-
-                      })}
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                  )}
-
-
-
-
-
                 </div>
-
-
-
-
-
+                {alarmSettingsOpen && (
+                  <div className="fm-alarm-settings">
+                    <h4>Alarm Settings</h4>
+                    <div className="fm-alarm-vol-row"><span>Volume</span><strong>{Math.round(alarmVolume * 100)}%</strong></div>
+                    <input type="range" min="0" max="1" step="0.05" value={alarmVolume} onChange={e => updateAlarmVolume(parseFloat(e.target.value))} className="fm-vol-slider" />
+                    <div className="fm-sev-section-label">Sound per severity</div>
+                    {[{ key: "critical", label: "Critical", color: "#dc2626", bg: "#fee2e2" }, { key: "high", label: "High", color: "#ea580c", bg: "#fff7ed" }, { key: "medium", label: "Medium", color: "#d97706", bg: "#fefce8" }, { key: "low", label: "Low", color: "#16a34a", bg: "#f0fdf4" }, { key: "info", label: "Info", color: "#2563eb", bg: "#eff6ff" }].map(({ key, label, color, bg }) => {
+                      const isOn = alarmSevConfig[key] !== false;
+                      return (
+                        <div key={key} className="fm-sev-row">
+                          <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
+                          <div className="fm-sev-actions">
+                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>▶ Test</button>
+                            <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>{isOn ? "ON" : "OFF"}</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-
-
-
-
             )}
-
-
-
-
-
           </div>
-
-
-
-
-
+          <button className="client-toggle-btn" onClick={() => setSidebarCollapsed(c => !c)} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            {sidebarCollapsed
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            }
+          </button>
         </div>
 
-
-
-
-
-                <nav className="client-side-nav">
+        <nav className="client-side-nav">
           {/* Overview */}
           <div className="nav-group-label">Overview</div>
-          <button className={nav === "dashboard" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("dashboard"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Dashboard
+          <button className={nav === "dashboard" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("dashboard"); setShowAddForm(false); }} title="Dashboard">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            <span className="nav-label">Dashboard</span>
           </button>
 
           {/* Management */}
           <div className="nav-group-label">Management</div>
-          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-            Companies
+          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }} title="Companies">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>
+            <span className="nav-label">Companies</span>
           </button>
-          <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            Employees
+          <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }} title="Employees">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span className="nav-label">Employees</span>
           </button>
-          <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            Departments
+          <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }} title="Departments">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><path d="M5 9v3M12 9v3M19 9v3"/><rect x="5" y="15" width="14" height="6" rx="1"/></svg>
+            <span className="nav-label">Departments</span>
           </button>
 
           {/* Operations */}
           <div className="nav-group-label">Operations</div>
-          <button className={nav === "assets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("assets"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
-            Assets
+          <button className={nav === "assets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("assets"); setShowAddForm(false); }} title="Assets">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <span className="nav-label">Assets</span>
           </button>
-          <button className={nav === "checklists" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("checklists"); setShowAddForm(false); }}>
+          <button className={nav === "checklists" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("checklists"); setShowAddForm(false); }} title="Checklists">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            Checklists
+            <span className="nav-label">Checklists</span>
           </button>
-          <button className={nav === "logsheets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("logsheets"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Logsheets
+          <button className={nav === "logsheets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("logsheets"); setShowAddForm(false); }} title="Logsheets">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span className="nav-label">Logsheets</span>
           </button>
-          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            Requests
+          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }} title="Requests">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span className="nav-label">Requests</span>
           </button>
 
           {/* Analytics */}
           <div className="nav-group-label">Analytics</div>
-          <button className={nav === "reports" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("reports"); setShowAddForm(false); }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            Reports
+          <button className={nav === "reports" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("reports"); setShowAddForm(false); }} title="Reports">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="6 14 12 4 18 10"/></svg>
+            <span className="nav-label">Reports</span>
           </button>
         </nav>
 
-
-
-
-
         <div className="client-side-footer">
-
-
-
-
-
-          <button className="client-side-item" disabled>Settings</button>
-
-
-
-
-
-          <button className="client-side-item" onClick={handleLogout}>Logout</button>
-
-
-
-
-
+          <button className="client-side-item" disabled title="Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+            <span className="nav-label">Settings</span>
+          </button>
+          <button className="client-side-item" onClick={handleLogout} title="Logout">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span className="nav-label">Logout</span>
+          </button>
         </div>
-
-
-
-
 
       </aside>
 
@@ -29401,1327 +28771,430 @@ const CompanyPortal = () => {
 
         {nav === "dashboard" && (() => {
 
-
-
-
-
           const SECTOR_COLORS = {
-
-
-
-
-
             healthcare:    { bg: "#eff6ff", col: "#2563eb", label: "Healthcare" },
-
-
-
-
-
             technical:     { bg: "#f0fdf4", col: "#16a34a", label: "Technical" },
-
-
-
-
-
             soft_services: { bg: "#fef9c3", col: "#ca8a04", label: "Soft Services" },
-
-
-
-
-
             fleet:         { bg: "#fce7f3", col: "#be185d", label: "Fleet" },
-
-
-
-
-
             general:       { bg: "#f1f5f9", col: "#475569", label: "General" },
-
-
-
-
-
           };
-
-
-
-
 
           const getSectors = (c) => {
-
-
-
-
-
             const s = Array.isArray(c.sectors) ? c.sectors : (c.sector ? [c.sector] : []);
-
-
-
-
-
             return s.length > 0 ? s : ["general"];
-
-
-
-
-
           };
 
-
-
-
-
           const totalCompanies = dashboardStats?.totalCompanies ?? companies.length;
-
-
-
-
-
           const activeCompanies = dashboardStats?.activeCompanies ?? companies.filter(c => (c.status || "Active").toLowerCase() === "active").length;
-
-
-
-
-
           const totalAssets = dashboardStats?.totalAssets;
-
-
-
-
-
           const totalEmployees = dashboardStats?.totalEmployees;
 
-
-
-
-
-          // Asset Profile data
+          // Asset/complaint profile
           const assetProfile = dashboardStats?.assetProfile || {};
           const complaintProfile = dashboardStats?.complaintProfile || {};
+          const byCompany = dashboardStats?.byCompany || [];
 
-          const KPI_TILE = ({ label, value, col, bg, icon }) => (
-            <div style={{ background: "#fff", borderRadius: "10px", border: `1px solid #e2e8f0`, borderLeft: `3px solid ${col}`, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                <span style={{ color: col, display: "flex" }}>{icon}</span>
-                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
+          // --- Inline Charts ---
+          const PIE_COLORS_LIST = ["#2563eb","#dc2626","#16a34a","#7c3aed","#64748b","#0d9488","#ea580c","#ca8a04"];
+
+          const DonutChart = ({ data, size = 160 }) => {
+            const filtered = (data || []).filter(d => d.value > 0);
+            const total = filtered.reduce((s, d) => s + d.value, 0);
+            if (!total) return <div style={{ width: size, height: size, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"12px", background:"#f8fafc", borderRadius:"50%" }}>No data</div>;
+            const r = size / 2 - 12, cx = size / 2, cy = size / 2;
+            let cumulative = 0;
+            const slices = filtered.length === 1
+              ? [{ fullCircle: true, color: filtered[0].color || PIE_COLORS_LIST[0], label: filtered[0].name, value: filtered[0].value, pct: 1 }]
+              : filtered.map((d, i) => {
+                  const pct = d.value / total;
+                  const s = cumulative * 2 * Math.PI - Math.PI / 2;
+                  cumulative += pct;
+                  const e = cumulative * 2 * Math.PI - Math.PI / 2;
+                  const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+                  const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+                  return { path: `M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${pct > 0.5 ? 1 : 0},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`, color: d.color || PIE_COLORS_LIST[i % PIE_COLORS_LIST.length], label: d.name, value: d.value, pct };
+                });
+            return (
+              <div style={{ display:"flex", gap:"16px", alignItems:"center", flexWrap:"wrap" }}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink:0 }}>
+                  {slices.map((s, i) =>
+                    s.fullCircle
+                      ? <circle key={i} cx={cx} cy={cy} r={r} fill={s.color} stroke="#fff" strokeWidth="2" />
+                      : <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2" />
+                  )}
+                  <circle cx={cx} cy={cy} r={r * 0.52} fill="#fff" />
+                  <text x={cx} y={cy - 6} textAnchor="middle" fontSize="15" fontWeight="800" fill="#0f172a">{total.toLocaleString()}</text>
+                  <text x={cx} y={cy + 9} textAnchor="middle" fontSize="9" fill="#94a3b8">Total</text>
+                </svg>
+                <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
+                  {slices.map((s, i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px" }}>
+                      <div style={{ width:"8px", height:"8px", borderRadius:"50%", background:s.color, flexShrink:0 }} />
+                      <span style={{ color:"#475569" }}>{s.label}</span>
+                      <span style={{ fontWeight:800, color:"#0f172a" }}>{s.value}</span>
+                      <span style={{ color:"#94a3b8", fontSize:"10px" }}>({(s.pct*100).toFixed(0)}%)</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div style={{ fontSize: "34px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
-                {value !== undefined && value !== null ? value : <span style={{ fontSize: "20px", color: "#cbd5e1" }}>…</span>}
+            );
+          };
+
+          const BarChartCompany = ({ data, height = 180 }) => {
+            if (!data || data.length === 0) return <div style={{ color:"#94a3b8", fontSize:"13px", padding:"20px", textAlign:"center" }}>No data</div>;
+            const maxVal = Math.max(...data.map(d => d.assetCount || 0), 1);
+            return (
+              <div style={{ overflowX:"auto" }}>
+                <div style={{ display:"flex", alignItems:"flex-end", gap:"6px", minWidth:`${data.length * 60}px`, height:`${height}px`, padding:"8px 0" }}>
+                  {data.map((d, i) => {
+                    const barH = Math.max(((d.assetCount || 0) / maxVal) * (height - 48), d.assetCount ? 4 : 0);
+                    const col = PIE_COLORS_LIST[i % PIE_COLORS_LIST.length];
+                    return (
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", flex:1, minWidth:"50px" }}>
+                        {d.assetCount > 0 && <span style={{ fontSize:"10px", fontWeight:700, color:col }}>{d.assetCount}</span>}
+                        <div title={`${d.companyName}: ${d.assetCount} assets`} style={{ width:"100%", maxWidth:"32px", background:col, borderRadius:"4px 4px 0 0", height:`${barH}px`, transition:"opacity 0.12s", cursor:"default" }} onMouseEnter={e=>e.target.style.opacity="0.75"} onMouseLeave={e=>e.target.style.opacity="1"} />
+                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"…":""}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
+            );
+          };
 
+          // Export helpers
+          const exportToCSV = (rows, headers, filename) => {
+            const lines = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(","))];
+            const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+          };
 
+          const handleExport = (type) => {
+            if (type === "asset_profile" && dashboardStats) {
+              const ap = dashboardStats.assetProfile || {};
+              const rows = [
+                { Category: "Total Assets", Count: ap.total ?? dashboardStats.totalAssets ?? 0 },
+                { Category: "Critical", Count: ap.critical ?? 0 },
+                { Category: "Non-Critical", Count: ap.nonCritical ?? 0 },
+                { Category: "RBER", Count: ap.rber ?? 0 },
+                { Category: "Condemned", Count: ap.condemned ?? 0 },
+                { Category: "New Addition", Count: ap.newAdditions ?? 0 },
+              ];
+              exportToCSV(rows, ["Category", "Count"], "asset_profile.csv");
+            } else if (type === "complaint_profile" && dashboardStats) {
+              const cp = dashboardStats.complaintProfile || {};
+              const rows = [
+                { Category: "Total Complaints", Count: cp.total ?? 0 },
+                { Category: "Work In Progress", Count: cp.wip ?? 0 },
+                { Category: "< 7 Days", Count: cp.lt7d ?? 0 },
+                { Category: "> 7 Days", Count: cp.gt7d ?? 0 },
+                { Category: "Resolved", Count: cp.resolved ?? 0 },
+                { Category: "Closed", Count: cp.closed ?? 0 },
+              ];
+              exportToCSV(rows, ["Category", "Count"], "complaint_profile.csv");
+            } else if (type === "companies" && byCompany.length > 0) {
+              const rows = byCompany.map(c => ({ Company: c.companyName || "", Assets: c.assetCount ?? 0, Employees: c.employeeCount ?? 0 }));
+              exportToCSV(rows, ["Company", "Assets", "Employees"], "companies_summary.csv");
+            } else {
+              // Export all
+              const rows = [];
+              if (dashboardStats) {
+                rows.push({ Section: "Asset Profile", Category: "Total Assets", Count: dashboardStats.assetProfile?.total ?? dashboardStats.totalAssets ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Critical", Count: dashboardStats.assetProfile?.critical ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Non-Critical", Count: dashboardStats.assetProfile?.nonCritical ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "RBER", Count: dashboardStats.assetProfile?.rber ?? 0 });
+                rows.push({ Section: "Asset Profile", Category: "Condemned", Count: dashboardStats.assetProfile?.condemned ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Total Complaints", Count: dashboardStats.complaintProfile?.total ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Work In Progress", Count: dashboardStats.complaintProfile?.wip ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "< 7 Days", Count: dashboardStats.complaintProfile?.lt7d ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "> 7 Days", Count: dashboardStats.complaintProfile?.gt7d ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Resolved", Count: dashboardStats.complaintProfile?.resolved ?? 0 });
+                rows.push({ Section: "Complaint Profile", Category: "Closed", Count: dashboardStats.complaintProfile?.closed ?? 0 });
+              }
+              exportToCSV(rows, ["Section", "Category", "Count"], "client_dashboard.csv");
+            }
+          };
 
+          // Tile click handler
+          const handleTileClick = (tileId) => {
+            setActiveTile(prev => prev === tileId ? null : tileId);
+          };
 
+          // Drill-down data based on active tile
+          const getDrillDownData = () => {
+            if (!activeTile) return [];
+            const ap = dashboardStats?.assetProfile || {};
+            const cp = dashboardStats?.complaintProfile || {};
+            if (activeTile === "total_assets") {
+              return byCompany.map(c => ({ col1: c.companyName, col2: c.assetCount ?? 0, col3: c.employeeCount ?? 0, label1: "Company", label2: "Assets", label3: "Staff" }));
+            }
+            if (activeTile === "total_complaint") {
+              return byCompany.map(c => ({ col1: c.companyName, col2: c.assetCount ?? 0, col3: c.employeeCount ?? 0, label1: "Company", label2: "Assets", label3: "Staff" }));
+            }
+            return [];
+          };
 
+          const tileConfig = {
+            total_assets:   { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
+            critical:       { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
+            non_critical:   { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
+            rber:           { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
+            condemned:      { label: "CONDEMNED",          value: dashboardStats ? (assetProfile.condemned ?? 0) : null, col: "#64748b" },
+            new_addition:   { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
+            total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
+            wip:            { label: "WORK IN PROGRESS",   value: dashboardStats ? (complaintProfile.wip ?? 0) : null, col: "#ca8a04" },
+            lt7d:           { label: "< 7 DAYS",           value: dashboardStats ? (complaintProfile.lt7d ?? 0) : null, col: "#2563eb" },
+            gt7d:           { label: "> 7 DAYS",           value: dashboardStats ? (complaintProfile.gt7d ?? 0) : null, col: "#dc2626" },
+            resolved:       { label: "RESOLVED",           value: dashboardStats ? (complaintProfile.resolved ?? 0) : null, col: "#16a34a" },
+            closed:         { label: "CLOSED",             value: dashboardStats ? (complaintProfile.closed ?? 0) : null, col: "#475569" },
+          };
 
-          const dashSearchLower = tableSearch.trim().toLowerCase();
+          const TILE_ICONS = {
+            total_assets:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
+            critical:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            non_critical:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            rber:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+            condemned:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+            new_addition:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            total_complaint: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+            wip:             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            lt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+            gt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>,
+            resolved:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            closed:          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          };
 
+          const KpiTile = ({ id, label, value, col, icon }) => {
+            const isActive = activeTile === id;
+            return (
+              <div
+                onClick={() => handleTileClick(id)}
+                style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${isActive ? col : "#e2e8f0"}`, borderLeft: `3px solid ${col}`, padding: "14px 16px", boxShadow: isActive ? `0 0 0 2px ${col}22, 0 4px 12px rgba(0,0,0,0.08)` : "0 1px 3px rgba(0,0,0,0.05)", cursor: "pointer", transition: "all 0.15s", userSelect: "none", background: isActive ? `${col}08` : "#fff" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
+                  <span style={{ color: col, display: "flex", opacity: 0.85 }}>{icon}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
+                  {isActive && <svg style={{ marginLeft: "auto" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>}
+                </div>
+                <div style={{ fontSize: "32px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
+                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>…</span>}
+                </div>
+              </div>
+            );
+          };
 
+          // Asset status pie data
+          const assetPieData = dashboardStats ? [
+            { name: "Critical",     value: assetProfile.critical     || 0, color: "#dc2626" },
+            { name: "Non-Critical", value: assetProfile.nonCritical  || 0, color: "#16a34a" },
+            { name: "RBER",         value: assetProfile.rber         || 0, color: "#7c3aed" },
+            { name: "Condemned",    value: assetProfile.condemned    || 0, color: "#64748b" },
+          ].filter(d => d.value > 0) : [];
 
-
-
-          const dashCompanies = companies.filter(c => {
-            if (dashCompanyFilter && String(c.id) !== String(dashCompanyFilter)) return false;
-            if (!dashSearchLower) return true;
-            return (c.companyName || "").toLowerCase().includes(dashSearchLower) ||
-              (c.city || "").toLowerCase().includes(dashSearchLower);
-          });
-
-
-
-
+          // Complaint status pie data
+          const complaintPieData = dashboardStats ? [
+            { name: "WIP",      value: complaintProfile.wip      || 0, color: "#ca8a04" },
+            { name: "< 7 Days", value: complaintProfile.lt7d     || 0, color: "#2563eb" },
+            { name: "> 7 Days", value: complaintProfile.gt7d     || 0, color: "#dc2626" },
+            { name: "Resolved", value: complaintProfile.resolved || 0, color: "#16a34a" },
+            { name: "Closed",   value: complaintProfile.closed   || 0, color: "#475569" },
+          ].filter(d => d.value > 0) : [];
 
           return (
-
-
-
-
-
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
-
-
-
-
-              {/* Page header */}
-
-
-
-
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
-
-
-
-
-
+              {/* ── Header ── */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-
-
-
-
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-
-
-
-
-
-                    <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
-
-
-
-
-
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-
-
-
-
-
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
+                    <div style={{ width: "34px", height: "34px", background: "#eff6ff", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     </div>
-
-
-
-
-
-                    <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Client Dashboard{dashCompanyFilter ? `: ${companies.find(c => String(c.id) === String(dashCompanyFilter))?.companyName || ""}` : ""}</h1>
-
-
-
-
-
+                    <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                      Client Dashboard{dashCompanyFilter ? `: ${companies.find(c => String(c.id) === String(dashCompanyFilter))?.companyName || ""}` : ""}
+                    </h1>
                   </div>
-
-
-
-
-
-                  <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>
+                  <p style={{ color: "#64748b", fontSize: "12.5px", margin: 0 }}>
                     {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
-                    {dashboardStats && <span style={{ marginLeft: "12px", color: "#2563eb", fontWeight: 600 }}>{totalCompanies} companies · {totalAssets ?? "—"} assets · {totalEmployees ?? "—"} employees</span>}
                   </p>
-
-
-
-
-
                 </div>
-
-
-
-
-
                 <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-
-
-
-
-
-                  <select value={dashCompanyFilter} onChange={e => setDashCompanyFilter(e.target.value)}
-                    style={{ padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: "9px", fontSize: "13px", background: "#fff", outline: "none", color: "#374151", cursor: "pointer", minWidth: "160px" }}>
+                  <select value={dashCompanyFilter} onChange={e => { setDashCompanyFilter(e.target.value); setActiveTile(null); }}
+                    style={{ padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", outline: "none", color: "#374151", cursor: "pointer", minWidth: "150px" }}>
                     <option value="">All Companies</option>
                     {companies.map(co => <option key={co.id} value={co.id}>{co.companyName}</option>)}
                   </select>
-                  <input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder="Search companies…" 
-
-
-
-
-
-                    style={{ padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: "9px", fontSize: "13px", background: "#fff", outline: "none", width: "200px" }} />
-
-
-
-
-
-                  <button onClick={() => { setDashboardStats(null); }}
-
-
-
-
-
-                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#475569" }}>
-
-
-
-
-
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-
-
-
-
-
-                    Refresh
-
-
-
-
-
-                  </button>
-
-
-
-
-
-                  <button onClick={() => { setNav("companies"); setShowAddForm(true); }}
-
-
-
-
-
-                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 18px", borderRadius: "9px", border: "none", background: "#2563eb", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-
-
-
-
-
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-
-
-
-
-
-                    Add Company
-
-
-
-
-
-                  </button>
-
-
-
-
-
+                  {/* Export All button with dropdown */}
+                  <div style={{ position: "relative" }}>
+                        <button onClick={() => setDashExportOpen(o => !o)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#0f172a", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        {dashExportOpen && (
+                          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "190px", overflow: "hidden" }}>
+                            {[
+                              { id: "asset_profile", label: "Asset Profile", icon: "📊" },
+                              { id: "complaint_profile", label: "Complaint Profile", icon: "💬" },
+                              { id: "companies", label: "Companies Summary", icon: "🏢" },
+                              { id: "all", label: "Export All (CSV)", icon: "📥" },
+                            ].map(opt => (
+                              <button key={opt.id} onClick={() => { handleExport(opt.id); setDashExportOpen(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
+                                onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                                <span>{opt.icon}</span>{opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                 </div>
-
-
-
-
-
               </div>
 
-
-
-
-
-
-
-
-
-
-
               {/* ── ASSET PROFILE ── */}
-              <div style={{ marginBottom: "24px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-                  <div style={{ width: "4px", height: "22px", borderRadius: "2px", background: "#2563eb" }} />
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
                   <div>
-                    <h2 style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.04em", textTransform: "uppercase" }}>Asset Profile</h2>
-                    <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Live count from database</p>
+                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
                   </div>
+                  <button onClick={() => setDashboardStats(null)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", fontSize: "11px", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Refresh
+                  </button>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
-                  <KPI_TILE label="Total Assets" value={dashboardStats ? (assetProfile.total ?? totalAssets) : undefined} col="#2563eb"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>} />
-                  <KPI_TILE label="Critical" value={dashboardStats ? (assetProfile.critical ?? 0) : undefined} col="#dc2626"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>} />
-                  <KPI_TILE label="Non-Critical" value={dashboardStats ? (assetProfile.nonCritical ?? 0) : undefined} col="#16a34a"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
-                  <KPI_TILE label="RBER" value={dashboardStats ? (assetProfile.rber ?? 0) : undefined} col="#7c3aed"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>} />
-                  <KPI_TILE label="Condemned" value={dashboardStats ? (assetProfile.condemned ?? 0) : undefined} col="#64748b"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>} />
-                  <KPI_TILE label="New Addition" value={dashboardStats ? (assetProfile.newAdditions ?? 0) : undefined} col="#0d9488"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>} />
+                  {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
+                    const t = tileConfig[id];
+                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                  })}
                 </div>
               </div>
 
               {/* ── COMPLAINT PROFILE ── */}
-              <div style={{ marginBottom: "28px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-                  <div style={{ width: "4px", height: "22px", borderRadius: "2px", background: "#ea580c" }} />
+              <div style={{ marginBottom: "24px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
                   <div>
-                    <h2 style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.04em", textTransform: "uppercase" }}>Complaint Profile</h2>
-                    <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Live count from database</p>
+                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Complaint Profile</h2>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
-                  <KPI_TILE label="Total Complaint" value={dashboardStats ? (complaintProfile.total ?? 0) : undefined} col="#ea580c"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>} />
-                  <KPI_TILE label="Work In Progress" value={dashboardStats ? (complaintProfile.wip ?? 0) : undefined} col="#ca8a04"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
-                  <KPI_TILE label="&lt; 7 Days" value={dashboardStats ? (complaintProfile.lt7d ?? 0) : undefined} col="#2563eb"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>} />
-                  <KPI_TILE label="&gt; 7 Days" value={dashboardStats ? (complaintProfile.gt7d ?? 0) : undefined} col="#dc2626"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>} />
-                  <KPI_TILE label="Resolved" value={dashboardStats ? (complaintProfile.resolved ?? 0) : undefined} col="#16a34a"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
-                  <KPI_TILE label="Closed" value={dashboardStats ? (complaintProfile.closed ?? 0) : undefined} col="#475569"
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>} />
+                  {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
+                    const t = tileConfig[id];
+                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                  })}
                 </div>
               </div>
 
-              {/* Companies overview */}
-
-
-
-
-
-              <section style={{ marginBottom: "28px" }}>
-
-
-
-
-
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-
-
-
-
-
-                  <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>
-
-
-
-
-
-                    Companies · {dashCompanies.length}
-
-
-
-
-
-                  </h2>
-
-
-
-
-
-                  <button onClick={() => setNav("companies")} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
-
-
-
-
-
-                </div>
-
-
-
-
-
-                {dashCompanies.length === 0 ? (
-
-
-
-
-
-                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "48px", textAlign: "center", color: "#94a3b8" }}>
-
-
-
-
-
-                    {companies.length === 0 ? "No companies registered yet." : "No matching companies."}
-
-
-
-
-
-                  </div>
-
-
-
-
-
-                ) : (
-
-
-
-
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
-
-
-
-
-
-                    {dashCompanies.slice(0, 9).map(c => {
-
-
-
-
-
-                      const sectors = getSectors(c);
-
-
-
-
-
-                      const sc = SECTOR_COLORS[sectors[0]] || SECTOR_COLORS.general;
-
-
-
-
-
-                      const isActive = (c.status || "Active").toLowerCase() === "active";
-
-
-
-
-
-                      const initials = (c.companyName || "?").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-
-
-
-
-
-                      const byCompany = dashboardStats?.byCompany?.find(b => b.id === c.id);
-
-
-
-
-
-                      return (
-
-
-
-
-
-                        <div key={c.id}
-
-
-
-
-
-                          onClick={() => setNav("companies")}
-
-
-
-
-
-                          style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", cursor: "pointer" }}
-
-
-
-
-
-                          onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.10)"}
-
-
-
-
-
-                          onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"}>
-
-
-
-
-
-                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
-
-
-
-
-
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-
-
-
-
-
-                              <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: sc.bg, color: sc.col, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 800, flexShrink: 0 }}>{initials}</div>
-
-
-
-
-
-                              <div>
-
-
-
-
-
-                                <p style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a", margin: 0, lineHeight: 1.3 }}>{c.companyName}</p>
-
-
-
-
-
-                                <p style={{ color: "#94a3b8", fontSize: "11px", fontFamily: "monospace", margin: 0 }}>{c.companyCode || "—"}</p>
-
-
-
-
-
-                              </div>
-
-
-
-
-
-                            </div>
-
-
-
-
-
-                            <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 9px", borderRadius: "20px", background: isActive ? "#f0fdf4" : "#f1f5f9", color: isActive ? "#16a34a" : "#64748b", whiteSpace: "nowrap" }}>
-
-
-
-
-
-                              {isActive ? "Active" : "Inactive"}
-
-
-
-
-
-                            </span>
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px" }}>
-
-
-
-
-
-                            {sectors.slice(0, 3).map(s => {
-
-
-
-
-
-                              const sc2 = SECTOR_COLORS[s] || SECTOR_COLORS.general;
-
-
-
-
-
-                              return <span key={s} style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "12px", background: sc2.bg, color: sc2.col }}>{sc2.label}</span>;
-
-
-
-
-
-                            })}
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <div style={{ display: "flex", gap: "16px", borderTop: "1px solid #f1f5f9", paddingTop: "10px" }}>
-
-
-
-
-
-                            <div>
-
-
-
-
-
-                              <p style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: 0 }}>{byCompany?.assetCount ?? "—"}</p>
-
-
-
-
-
-                              <p style={{ fontSize: "10px", color: "#94a3b8", margin: 0 }}>Assets</p>
-
-
-
-
-
-                            </div>
-
-
-
-
-
-                            <div>
-
-
-
-
-
-                              <p style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: 0 }}>{byCompany?.employeeCount ?? c.employeeCount ?? "—"}</p>
-
-
-
-
-
-                              <p style={{ fontSize: "10px", color: "#94a3b8", margin: 0 }}>Staff</p>
-
-
-
-
-
-                            </div>
-
-
-
-
-
-                            {c.city && (
-
-
-
-
-
-                              <div style={{ flex: 1, textAlign: "right", alignSelf: "center" }}>
-
-
-
-
-
-                                <p style={{ fontSize: "11px", color: "#64748b", margin: 0 }}>📍 {c.city}{c.state ? `, ${c.state}` : ""}</p>
-
-
-
-
-
-                              </div>
-
-
-
-
-
-                            )}
-
-
-
-
-
-                          </div>
-                          {/* Quick action buttons */}
-                          <div style={{ display: "flex", gap: "6px", marginTop: "10px" }} onClick={e => e.stopPropagation()}>
-                            <button
-                              onClick={() => { setNav("employees"); setSelectedCompanyId(c.id); }}
-                              style={{ flex: 1, padding: "5px 8px", fontSize: "11px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "7px", background: "#f8fafc", color: "#374151", cursor: "pointer" }}>
-                              + Add Employee
-                            </button>
-                            <button
-                              onClick={() => { setNav("assets"); setSelectedCompanyId(c.id); }}
-                              style={{ flex: 1, padding: "5px 8px", fontSize: "11px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "7px", background: "#f8fafc", color: "#374151", cursor: "pointer" }}>
-                              + Add Asset
-                            </button>
-                          </div>
-                        </div>
-
-
-
-
-                      );
-
-
-
-
-                    })}
-
-
-
-
-                  </div>
-
-
-
-
-                )}
-
-
-
-
-                {dashCompanies.length > 9 && (
-
-
-
-
-
-                  <div style={{ textAlign: "center", marginTop: "14px" }}>
-
-
-
-
-
-                    <button onClick={() => setNav("companies")} style={{ padding: "9px 24px", borderRadius: "9px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
-
-
-
-
-
-                      View all {dashCompanies.length} companies →
-
-
-
-
-
+              {/* ── Drill-down panel (when tile clicked) ── */}
+              {activeTile && (
+                <div style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
+                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} — Company Breakdown</span>
+                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "…"}</strong></span>
+                    </div>
+                    <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
-
-
-
-
-
                   </div>
-
-
-
-
-
-                )}
-
-
-
-
-
-              </section>
-
-
-
-
-
-
-
-
-
-
-
-              {/* Recent submissions */}
-
-
-
-
-
-              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-
-
-
-
-
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-
-
-
-
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-
-
-
-
-
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-
-
-
-
-
-                    <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Recent Submissions</h2>
-
-
-
-
-
+                  <div style={{ padding: "16px 20px" }}>
+                    {byCompany.length === 0 ? (
+                      <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
+                        {dashboardStats ? "No company data available" : "Loading data…"}
+                      </div>
+                    ) : (
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc" }}>
+                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em" }}>#</th>
+                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Company</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Total Assets</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Staff</th>
+                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {byCompany.map((c, i) => (
+                            <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e=>e.currentTarget.style.background="#fafafa"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                              <td style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 600 }}>{i+1}</td>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: "#0f172a" }}>{c.companyName}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: tileConfig[activeTile]?.col }}>{c.assetCount ?? 0}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{c.employeeCount ?? 0}</td>
+                              <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
+                                  style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
+                                  View Assets →
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
+                </div>
+              )}
 
+              {/* ── Charts Row ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
 
-
-
-
-                  <div style={{ display: "flex", gap: "4px" }}>
-
-
-
-
-
-                    {[{ key: "logsheets", label: "Logsheets" }, { key: "checklists", label: "Checklists" }].map(tab => (
-
-
-
-
-
-                      <button key={tab.key} onClick={() => setDashboardTab(tab.key)}
-
-
-
-
-
-                        style={{ padding: "5px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: "none", background: dashboardTab === tab.key ? "#7c3aed" : "#f1f5f9", color: dashboardTab === tab.key ? "#fff" : "#64748b" }}>
-
-
-
-
-
-                        {tab.label}
-
-
-
-
-
-                      </button>
-
-
-
-
-
-                    ))}
-
-
-
-
-
+                {/* Asset Status Pie */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset Status</span>
                   </div>
-
-
-
-
-
+                  <DonutChart data={assetPieData} size={140} />
                 </div>
 
-
-
-
-
-                <div style={{ overflowX: "auto" }}>
-
-
-
-
-
-                  {dashboardTab === "logsheets" ? (
-
-
-
-
-
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-
-
-
-
-
-                      <thead><tr style={{ background: "#f8fafc" }}>
-
-
-
-
-
-                        {["#", "Template", "Company", "Period", "Frequency", "Filled By", "Submitted"].map(h => (
-
-
-
-
-
-                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-
-
-
-
-
-                        ))}
-
-
-
-
-
-                      </tr></thead>
-
-
-
-
-
-                      <tbody>
-
-
-
-
-
-                        {recentEntriesLoading
-
-
-
-
-
-                          ? <tr><td colSpan="7" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
-
-
-
-
-
-                          : recentEntries.length === 0
-
-
-
-
-
-                            ? <tr><td colSpan="7" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No logsheet submissions yet.</td></tr>
-
-
-
-
-
-                            : recentEntries.slice(0, 10).map((e, i) => {
-
-
-
-
-
-                                const FREQ_COLORS = { daily: ["#dcfce7","#16a34a"], weekly: ["#dbeafe","#1d4ed8"], monthly: ["#fef9c3","#ca8a04"], quarterly: ["#ede9fe","#7c3aed"], half_yearly: ["#fce7f3","#be185d"], yearly: ["#ffedd5","#c2410c"] };
-
-
-
-
-
-                                const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-
-
-
-
-                                const [fbg, ftx] = FREQ_COLORS[e.frequency || "daily"] || ["#f1f5f9","#475569"];
-
-
-
-
-
-                                return (
-
-
-
-
-
-                                  <tr key={e.id} onClick={() => openDetail("logsheet", e.id)} style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
-
-
-
-
-
-                                    onMouseEnter={ev => ev.currentTarget.style.background = "#f8fafc"}
-
-
-
-
-
-                                    onMouseLeave={ev => ev.currentTarget.style.background = ""}>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#94a3b8", fontWeight: 600 }}>{i + 1}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", fontWeight: 600, color: "#0f172a" }}>{e.templateName}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#475569" }}>{e.companyName || "—"}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#475569", whiteSpace: "nowrap" }}>{MONTH_NAMES[(e.month || 1) - 1]} {e.year}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px" }}><span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: fbg, color: ftx }}>{e.frequency || "daily"}</span></td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#475569", fontSize: "12px" }}>{e.submittedBy || "—"}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: "11px", whiteSpace: "nowrap" }}>{e.submittedAt ? new Date(e.submittedAt).toLocaleString() : "—"}</td>
-
-
-
-
-
-                                  </tr>
-
-
-
-
-
-                                );
-
-
-
-
-
-                              })
-
-
-
-
-
-                        }
-
-
-
-
-
-                      </tbody>
-
-
-
-
-
-                    </table>
-
-
-
-
-
-                  ) : (
-
-
-
-
-
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-
-
-
-
-
-                      <thead><tr style={{ background: "#f8fafc" }}>
-
-
-
-
-
-                        {["#", "Template", "Company", "Status", "Filled By", "Submitted"].map(h => (
-
-
-
-
-
-                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-
-
-
-
-
-                        ))}
-
-
-
-
-
-                      </tr></thead>
-
-
-
-
-
-                      <tbody>
-
-
-
-
-
-                        {recentChecklistsLoading
-
-
-
-
-
-                          ? <tr><td colSpan="6" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
-
-
-
-
-
-                          : recentChecklists.length === 0
-
-
-
-
-
-                            ? <tr><td colSpan="6" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No checklist submissions yet.</td></tr>
-
-
-
-
-
-                            : recentChecklists.slice(0, 10).map((c, i) => {
-
-
-
-
-
-                                const STATUS_COLORS = { completed: ["#f0fdf4","#16a34a"], partial: ["#fffbeb","#ca8a04"], pending: ["#f1f5f9","#64748b"] };
-
-
-
-
-
-                                const [sbg, stx] = STATUS_COLORS[c.status] || ["#f1f5f9","#64748b"];
-
-
-
-
-
-                                return (
-
-
-
-
-
-                                  <tr key={c.id} onClick={() => openDetail("checklist", c.id)} style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
-
-
-
-
-
-                                    onMouseEnter={ev => ev.currentTarget.style.background = "#f8fafc"}
-
-
-
-
-
-                                    onMouseLeave={ev => ev.currentTarget.style.background = ""}>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#94a3b8", fontWeight: 600 }}>{i + 1}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", fontWeight: 600, color: "#0f172a" }}>{c.templateName}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#475569" }}>{c.companyName || "—"}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px" }}><span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: sbg, color: stx, textTransform: "capitalize" }}>{c.status || "submitted"}</span></td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#475569", fontSize: "12px" }}>{c.submittedBy || "—"}</td>
-
-
-
-
-
-                                    <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: "11px", whiteSpace: "nowrap" }}>{c.submittedAt ? new Date(c.submittedAt).toLocaleString() : "—"}</td>
-
-
-
-
-
-                                  </tr>
-
-
-
-
-
-                                );
-
-
-
-
-
-                              })
-
-
-
-
-
-                        }
-
-
-
-
-
-                      </tbody>
-
-
-
-
-
-                    </table>
-
-
-
-
-
-                  )}
-
-
-
-
-
+                {/* Complaint Status Pie */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Complaint Status</span>
+                  </div>
+                  <DonutChart data={complaintPieData} size={140} />
                 </div>
 
-
-
-
+                {/* Assets per Company Bar */}
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assets per Company</span>
+                  </div>
+                  <BarChartCompany data={byCompany} height={160} />
+                </div>
 
               </div>
 
-
-
-
+              {/* ── Summary Stats Row ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
+                {[
+                  { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },
+                  { label: "Active Companies", value: activeCompanies, col: "#16a34a", bg: "#f0fdf4", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Total Assets", value: dashboardStats ? totalAssets : "…", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "…", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+                ].map(k => (
+                  <div key={k.label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "40px", height: "40px", background: k.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: k.col, flexShrink: 0 }}>{k.icon}</div>
+                    <div>
+                      <p style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, margin: 0, marginBottom: "3px" }}>{k.label}</p>
+                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "…"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
             </div>
-
-
-
-
-
           );
-
-
-
-
-
         })()}
 
 
