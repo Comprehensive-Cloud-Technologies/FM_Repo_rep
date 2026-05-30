@@ -7227,13 +7227,8 @@ const CompanyPortal = () => {
 
 
 
-    if (dashboardStats !== null) return; // already loaded
-
-
-
-
-
-    fetch("/api/companies/stats", { headers: { Authorization: `Bearer ${token}` } })
+    const statsUrl = `/api/companies/stats${dashCompanyFilter ? `?companyId=${dashCompanyFilter}` : ""}`;
+    fetch(statsUrl, { headers: { Authorization: `Bearer ${token}` } })
 
 
 
@@ -7258,12 +7253,7 @@ const CompanyPortal = () => {
 
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-
-
-
-
-
-  }, [token, nav]);
+  }, [token, nav, dashCompanyFilter]);
 
 
 
@@ -15405,78 +15395,54 @@ const CompanyPortal = () => {
 
 
 
-        <nav className="client-side-nav">
+                <nav className="client-side-nav">
+          {/* Overview */}
+          <div className="nav-group-label">Overview</div>
+          <button className={nav === "dashboard" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("dashboard"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </button>
 
+          {/* Management */}
+          <div className="nav-group-label">Management</div>
+          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Companies
+          </button>
+          <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Employees
+          </button>
+          <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Departments
+          </button>
 
+          {/* Operations */}
+          <div className="nav-group-label">Operations</div>
+          <button className={nav === "assets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("assets"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+            Assets
+          </button>
+          <button className={nav === "checklists" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("checklists"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Checklists
+          </button>
+          <button className={nav === "logsheets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("logsheets"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Logsheets
+          </button>
+          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Requests
+          </button>
 
-
-
-          <button className={nav === "dashboard" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("dashboard"); setShowAddForm(false); }}>Dashboard</button>
-
-
-
-
-
-          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }}>Companies</button>
-
-
-
-
-
-          <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }}>Departments</button>
-
-
-
-
-
-          <button className={nav === "assets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("assets"); setShowAddForm(false); }}>Assets</button>
-
-
-
-
-
-          <button className={nav === "checklists" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("checklists"); setShowAddForm(false); }}>Checklists</button>
-
-
-
-
-
-          <button className={nav === "logsheets" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("logsheets"); setShowAddForm(false); }}>Logsheets</button>
-
-
-
-
-
-          <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }}>Employees</button>
-
-
-
-
-
-          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }}>Requests</button>
-
-
-
-
-
-          <button className={nav === "reports" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("reports"); setShowAddForm(false); }}>Reports</button>
-
-
-
-
-
-          <button className={nav === "shifts" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("shifts"); setShowAddForm(false); }}>Shifts</button>
-
-
-
-
-
-          <button className={nav === "ojt" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("ojt"); setShowAddForm(false); }}>OJT Training</button>
-
-
-
-
-
+          {/* Analytics */}
+          <div className="nav-group-label">Analytics</div>
+          <button className={nav === "reports" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("reports"); setShowAddForm(false); }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Reports
+          </button>
         </nav>
 
 
@@ -29529,61 +29495,22 @@ const CompanyPortal = () => {
 
 
 
-          const KPIS = [
+          // Asset Profile data
+          const assetProfile = dashboardStats?.assetProfile || {};
+          const complaintProfile = dashboardStats?.complaintProfile || {};
 
+          const KPI_TILE = ({ label, value, col, bg, icon }) => (
+            <div style={{ background: "#fff", borderRadius: "10px", border: `1px solid #e2e8f0`, borderLeft: `3px solid ${col}`, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                <span style={{ color: col, display: "flex" }}>{icon}</span>
+                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
+              </div>
+              <div style={{ fontSize: "34px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
+                {value !== undefined && value !== null ? value : <span style={{ fontSize: "20px", color: "#cbd5e1" }}>…</span>}
+              </div>
+            </div>
+          );
 
-
-
-
-            { label: "Total Companies", value: totalCompanies, sub: `${activeCompanies} active`, col: "#2563eb", bg: "#eff6ff",
-
-
-
-
-
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
-
-
-
-
-
-            { label: "Total Assets", value: dashboardStats ? totalAssets : "…", sub: "Across all sites", col: "#16a34a", bg: "#f0fdf4",
-
-
-
-
-
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
-
-
-
-
-
-            { label: "Total Employees", value: dashboardStats ? totalEmployees : "…", sub: "Registered staff", col: "#7c3aed", bg: "#ede9fe",
-
-
-
-
-
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-
-
-
-
-
-            { label: "Recent Submissions", value: recentEntries.length + recentChecklists.length, sub: "Logsheets + Checklists", col: "#d97706", bg: "#fef3c7",
-
-
-
-
-
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-
-
-
-
-
-          ];
 
 
 
@@ -29660,7 +29587,7 @@ const CompanyPortal = () => {
 
 
 
-                    <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Operations Overview</h1>
+                    <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Client Dashboard{dashCompanyFilter ? `: ${companies.find(c => String(c.id) === String(dashCompanyFilter))?.companyName || ""}` : ""}</h1>
 
 
 
@@ -29672,7 +29599,10 @@ const CompanyPortal = () => {
 
 
 
-                  <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+                  <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>
+                    {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                    {dashboardStats && <span style={{ marginLeft: "12px", color: "#2563eb", fontWeight: 600 }}>{totalCompanies} companies · {totalAssets ?? "—"} assets · {totalEmployees ?? "—"} employees</span>}
+                  </p>
 
 
 
@@ -29785,89 +29715,55 @@ const CompanyPortal = () => {
 
 
 
-              {/* KPI tiles — 4 across */}
-
-
-
-
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", marginBottom: "28px" }}>
-
-
-
-
-
-                {KPIS.map(k => (
-
-
-
-
-
-                  <div key={k.label} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-
-
-
-
-
-                    <div>
-
-
-
-
-
-                      <p style={{ color: "#64748b", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "8px" }}>{k.label}</p>
-
-
-
-
-
-                      <p style={{ fontSize: "32px", fontWeight: 800, color: k.col, lineHeight: 1, letterSpacing: "-1px", marginBottom: "6px" }}>{k.value}</p>
-
-
-
-
-
-                      <p style={{ color: "#94a3b8", fontSize: "12px", fontWeight: 500 }}>{k.sub}</p>
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                    <div style={{ width: "44px", height: "44px", background: k.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: k.col, flexShrink: 0 }}>{k.icon}</div>
-
-
-
-
-
+              {/* ── ASSET PROFILE ── */}
+              <div style={{ marginBottom: "24px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+                  <div style={{ width: "4px", height: "22px", borderRadius: "2px", background: "#2563eb" }} />
+                  <div>
+                    <h2 style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.04em", textTransform: "uppercase" }}>Asset Profile</h2>
+                    <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Live count from database</p>
                   </div>
-
-
-
-
-
-                ))}
-
-
-
-
-
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                  <KPI_TILE label="Total Assets" value={dashboardStats ? (assetProfile.total ?? totalAssets) : undefined} col="#2563eb"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>} />
+                  <KPI_TILE label="Critical" value={dashboardStats ? (assetProfile.critical ?? 0) : undefined} col="#dc2626"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>} />
+                  <KPI_TILE label="Non-Critical" value={dashboardStats ? (assetProfile.nonCritical ?? 0) : undefined} col="#16a34a"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
+                  <KPI_TILE label="RBER" value={dashboardStats ? (assetProfile.rber ?? 0) : undefined} col="#7c3aed"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>} />
+                  <KPI_TILE label="Condemned" value={dashboardStats ? (assetProfile.condemned ?? 0) : undefined} col="#64748b"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>} />
+                  <KPI_TILE label="New Addition" value={dashboardStats ? (assetProfile.newAdditions ?? 0) : undefined} col="#0d9488"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>} />
+                </div>
               </div>
 
-
-
-
-
-
-
-
-
-
+              {/* ── COMPLAINT PROFILE ── */}
+              <div style={{ marginBottom: "28px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+                  <div style={{ width: "4px", height: "22px", borderRadius: "2px", background: "#ea580c" }} />
+                  <div>
+                    <h2 style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.04em", textTransform: "uppercase" }}>Complaint Profile</h2>
+                    <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Live count from database</p>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                  <KPI_TILE label="Total Complaint" value={dashboardStats ? (complaintProfile.total ?? 0) : undefined} col="#ea580c"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>} />
+                  <KPI_TILE label="Work In Progress" value={dashboardStats ? (complaintProfile.wip ?? 0) : undefined} col="#ca8a04"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
+                  <KPI_TILE label="&lt; 7 Days" value={dashboardStats ? (complaintProfile.lt7d ?? 0) : undefined} col="#2563eb"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>} />
+                  <KPI_TILE label="&gt; 7 Days" value={dashboardStats ? (complaintProfile.gt7d ?? 0) : undefined} col="#dc2626"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>} />
+                  <KPI_TILE label="Resolved" value={dashboardStats ? (complaintProfile.resolved ?? 0) : undefined} col="#16a34a"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
+                  <KPI_TILE label="Closed" value={dashboardStats ? (complaintProfile.closed ?? 0) : undefined} col="#475569"
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>} />
+                </div>
+              </div>
 
               {/* Companies overview */}
 
