@@ -5231,6 +5231,7 @@ const CompanyPortal = () => {
   const [tableSearch, setTableSearch] = useState("");
   const [dashCompanyFilter, setDashCompanyFilter] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [activeTile, setActiveTile] = useState(null);
   const [dashExportOpen, setDashExportOpen] = useState(false);
 
@@ -14708,7 +14709,9 @@ const CompanyPortal = () => {
 
 
 
-      <aside className={`client-side-panel${sidebarCollapsed ? " collapsed" : ""}`}>
+      <aside className={`client-side-panel${(sidebarCollapsed && !sidebarHovered) ? " collapsed" : ""}`}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}>
 
         <div className="client-side-header">
           <div className="client-avatar">CP</div>
@@ -14856,10 +14859,7 @@ const CompanyPortal = () => {
 
 
       <div className="page client-main-area">
-
-
-
-
+        <div key={nav} className="page-fade-in" style={{ minHeight: "100%" }}>
 
 
 
@@ -20015,7 +20015,7 @@ const CompanyPortal = () => {
 
 
 
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "none", background: companies.length ? "#2563eb" : "#94a3b8", color: "#fff", opacity: companies.length ? 1 : 0.6 }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 13px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "none", background: companies.length ? "#2563eb" : "#94a3b8", color: "#fff", opacity: companies.length ? 1 : 0.6 }}>
 
 
 
@@ -20057,7 +20057,7 @@ const CompanyPortal = () => {
 
 
 
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "1.5px solid #2563eb", background: "#eff6ff", color: "#2563eb", opacity: companies.length ? 1 : 0.6 }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 13px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: companies.length ? "pointer" : "not-allowed", border: "1.5px solid #2563eb", background: "#eff6ff", color: "#2563eb", opacity: companies.length ? 1 : 0.6 }}>
 
 
 
@@ -28917,9 +28917,26 @@ const CompanyPortal = () => {
             }
           };
 
-          // Tile click handler
+          // Tile click handler — show drill-down or navigate to relevant section
           const handleTileClick = (tileId) => {
-            setActiveTile(prev => prev === tileId ? null : tileId);
+            const assetTiles = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
+            const complaintTiles = ["total_complaint","wip","lt7d","gt7d","resolved","closed"];
+            if (assetTiles.includes(tileId)) {
+              setActiveTile(prev => prev === tileId ? null : tileId);
+            } else if (complaintTiles.includes(tileId)) {
+              setActiveTile(prev => prev === tileId ? null : tileId);
+            }
+          };
+          // Navigate from tile to page with smooth animation
+          const handleViewAll = (tileId) => {
+            const assetTiles = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
+            if (assetTiles.includes(tileId)) {
+              setNav("assets");
+              setActiveTile(null);
+            } else {
+              setNav("workorders");
+              setActiveTile(null);
+            }
           };
 
           // Drill-down data based on active tile
@@ -29067,7 +29084,7 @@ const CompanyPortal = () => {
                     Refresh
                   </button>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
                     const t = tileConfig[id];
                     return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
@@ -29084,7 +29101,7 @@ const CompanyPortal = () => {
                     <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
                     const t = tileConfig[id];
                     return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
@@ -29101,9 +29118,14 @@ const CompanyPortal = () => {
                       <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} — Company Breakdown</span>
                       <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "…"}</strong></span>
                     </div>
-                    <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                        View All →
+                      </button>
+                      <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding: "16px 20px" }}>
                     {byCompany.length === 0 ? (
@@ -29195,29 +29217,14 @@ const CompanyPortal = () => {
 
             </div>
           );
-        })()}
+        })()} 
 
-
-
-
-
+        </div>
       </div>
-
-
-
-
 
     </div>
 
-
-
-
-
   );
-
-
-
-
 
 };
 

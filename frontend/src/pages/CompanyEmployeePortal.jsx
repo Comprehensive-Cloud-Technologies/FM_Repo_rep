@@ -190,7 +190,7 @@ const StatCard = ({ label, value, sub, subCol, iconBg, iconCol, icon, onClick })
 );
 const Btn = ({ children, onClick, outline, color = "#2563eb", bg, disabled, style = {} }) => (
   <button type="button" onClick={onClick} disabled={disabled}
-    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", border: outline ? `1.5px solid ${color}` : "none", background: bg || (outline ? "#fff" : color), color: outline ? color : "#fff", opacity: disabled ? 0.6 : 1, ...style }}>
+    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", border: outline ? `1.5px solid ${color}` : "none", background: bg || (outline ? "#fff" : color), color: outline ? color : "#fff", opacity: disabled ? 0.6 : 1, whiteSpace: "nowrap", ...style }}>
     {children}
   </button>
 );
@@ -3336,6 +3336,7 @@ export default function CompanyEmployeePortal() {
   const [bellRinging,   setBellRinging]   = useState(false);
   const [recentAlerts,  setRecentAlerts]  = useState([]);
   const [toasts,        setToasts]        = useState([]);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const prevWarnCount   = useRef(0);
   const toastId         = useRef(0);
   const prevWOCount     = useRef(null);   // null = not yet initialised (suppress first-load sound)
@@ -4333,10 +4334,12 @@ export default function CompanyEmployeePortal() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f1f5f9" }}>
       {/* Sidebar */}
-      <aside style={{ width: "240px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10 }}>
+      <aside style={{ width: sidebarHovered ? "240px" : "62px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10, transition: "width 0.22s cubic-bezier(0.4,0,0.2,1)", overflow: "hidden" }}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}>
         {/* Brand */}
-        <div style={{ padding: "18px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain" }} />
+        <div style={{ padding: "18px 12px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: sidebarHovered ? "center" : "center", overflow: "hidden" }}>
+          <img src={logo} alt="Logo" style={{ maxWidth: sidebarHovered ? "150px" : "38px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
         </div>
 
         {/* Company role label */}
@@ -4350,9 +4353,10 @@ export default function CompanyEmployeePortal() {
         <nav style={{ flex: 1, padding: "10px 10px", overflowY: "auto" }}>
           {visibleNav.map((item) => (
             <button key={item.key} onClick={() => setNav(item.key)}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "8px", border: "none", cursor: "pointer", background: nav === item.key ? "#eff6ff" : "transparent", color: nav === item.key ? "#2563eb" : "#475569", fontWeight: nav === item.key ? 700 : 500, fontSize: "14px", textAlign: "left", marginBottom: "2px", transition: "background 0.15s" }}>
-              {item.icon}
-              {item.label}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "8px", border: "none", cursor: "pointer", background: nav === item.key ? "#eff6ff" : "transparent", color: nav === item.key ? "#2563eb" : "#475569", fontWeight: nav === item.key ? 700 : 500, fontSize: "13px", textAlign: "left", marginBottom: "2px", transition: "background 0.15s", overflow: "hidden", whiteSpace: "nowrap" }}
+              title={item.label}>
+              <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
+              <span style={{ opacity: sidebarHovered ? 1 : 0, transition: "opacity 0.15s", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -4363,7 +4367,7 @@ export default function CompanyEmployeePortal() {
             <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#2563eb", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>
               {initials(currentUser.fullName)}
             </div>
-            <div style={{ overflow: "hidden" }}>
+            <div style={{ overflow: "hidden", opacity: sidebarHovered ? 1 : 0, transition: "opacity 0.15s", whiteSpace: "nowrap" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser.fullName}</p>
               <Badge val={currentUser.role} />
             </div>
@@ -4477,7 +4481,7 @@ export default function CompanyEmployeePortal() {
       </aside>
 
       {/* Main content */}
-      <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ marginLeft: sidebarHovered ? "240px" : "62px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden", transition: "margin-left 0.22s cubic-bezier(0.4,0,0.2,1)" }}>
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {
@@ -5419,23 +5423,6 @@ export default function CompanyEmployeePortal() {
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     Export Excel
                   </button>
-                  {/* Export PDF */}
-                  <button onClick={() => {
-                    const headers = ["SN","QR Code","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status"];
-                    const rows = filteredAssets.map((a, i) => {
-                      const m = a.metadata || {};
-                      return [i+1, a.assetUniqueId||a.asset_unique_id||"—", a.assetName||a.asset_name||"—", m.make||"—", m.model||"—", m.serialNo||"—", m.accessories||"—", a.departmentName||"—", (m.maintenance||[]).join(", ")||"—", m.dealer||"—", m.mfgYear||"—", m.installationDate||"—", m.invoiceNo||"—", m.purchaseDate||"—", m.purchaseCost||"—", m.rber?"Yes":"—", m.remarks||"—", a.building||"—", a.floor||"—", a.room||"—", a.status||"Active"];
-                    });
-                    const tableHtml = `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:11px;font-family:Arial,sans-serif;">
-                      <thead><tr style="background:#1e3a8a;color:#fff;">${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-                      <tbody>${rows.map((r,ri)=>`<tr style="background:${ri%2===0?"#fff":"#f8fafc"}">${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
-                    </table>`;
-                    const printHtml = `<!DOCTYPE html><html><head><title>Assets Report</title><style>body{font-family:Arial;padding:20px;}h2{color:#1e3a8a;margin-bottom:16px;}@media print{@page{size:A4 landscape;margin:10mm;}}</style></head><body><h2>Assets Report</h2><p style="font-size:11px;color:#64748b;margin-bottom:12px;">Generated: ${new Date().toLocaleString()}</p>${tableHtml}</body></html>`;
-                    const w = window.open("","_blank"); w.document.write(printHtml); w.document.close(); w.focus(); setTimeout(()=>w.print(),500);
-                  }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Export PDF
-                  </button>
                 </>)}
               </div>
             </div>{/* end sticky header */}
@@ -5952,7 +5939,7 @@ export default function CompanyEmployeePortal() {
           // ViewQrModal uses pre-generated HTML from parent state to avoid remount reload loops
           const ViewQrModal = ({ qr, onClose }) => (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
-              <div style={{ background: "transparent", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ background: "transparent", textAlign: "center", transform: "scale(0.7)", transformOrigin: "center center" }} onClick={(e) => e.stopPropagation()}>
                 {viewQrCardHtml
                   ? <div dangerouslySetInnerHTML={{ __html: viewQrCardHtml }} style={{ display: "inline-block" }} />
                   : <div style={{ width: "300px", height: "380px", background: "#fff", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "14px" }}>Generating card…</div>

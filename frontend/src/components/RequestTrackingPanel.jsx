@@ -132,7 +132,7 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "10px", marginBottom: "20px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "20px" }}>
       {CARDS.map(c => {
         const val = summary?.[c.summaryKey || c.key] ?? "—";
         const isActive = activeFilter === c.key;
