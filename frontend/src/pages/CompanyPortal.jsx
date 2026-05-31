@@ -377,6 +377,7 @@ import {
 
 
   deleteAdminEmployee,
+  getClientAssets,
 
 
 
@@ -4102,773 +4103,210 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-function AdminEmployeesSection({ token, companies = [] }) {
-
-
-
-
-
-  const [selCo, setSelCo]     = useState(companies[0]?.id || null);
-
-
-
-
-
+function AdminEmployeesSection({ token, companies = [], initialCompanyId = null, onCompanySelected }) {
+  const allCos = Array.isArray(companies) ? companies : [];
+  const [selCo, setSelCo]     = useState(initialCompanyId || allCos[0]?.id || null);
   const [employees, setEmp]   = useState([]);
-
-
-
-
-
   const [loading, setLoading] = useState(false);
-
-
-
-
-
   const [search, setSearch]   = useState("");
-
-
-
-
-
   const [showCreate, setShowCreate] = useState(false);
-
-
-
-
-
   const [editEmp, setEditEmp] = useState(null);
-
-
-
-
-
-  const emptyForm = { fullName:"", email:"", phone:"", role:"technician", designation:"", password:"" };
-
-
-
-
-
+  const [coSearch, setCoSearch] = useState("");
+  const [coDropOpen, setCoDropOpen] = useState(false);
+  const emptyForm = { fullName:"", email:"", phone:"", designation:"", role:"employee", status:"Active", username:"", password:"" };
   const [form, setForm]       = useState(emptyForm);
-
-
-
-
-
   const [saving, setSaving]   = useState(false);
+  const [formErr, setFormErr] = useState(null);
 
-
-
-
-
-
-
-
-
-
+  useEffect(() => {
+    if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
+  }, [initialCompanyId]);
 
   const load = useCallback(async (cid) => {
-
-
-
-
-
     if (!cid) return; setLoading(true);
-
-
-
-
-
     try { const d = await getAdminEmployees(token, cid); setEmp(Array.isArray(d) ? d : []); }
-
-
-
-
-
     catch(e) { console.error(e); }
-
-
-
-
-
     setLoading(false);
-
-
-
-
-
   }, [token]);
-
-
-
-
-
-
-
-
-
-
 
   useEffect(() => { if (selCo) load(selCo); }, [selCo, load]);
 
-
-
-
-
-
-
-
-
-
-
   const handleSave = async () => {
-
-
-
-
-
-    if (!form.fullName || !form.email) return;
-
-
-
-
-
+    setFormErr(null);
+    if (!form.fullName || !form.email) { setFormErr("Full Name and Email are required."); return; }
+    if (!editEmp && !form.password) { setFormErr("Password is required."); return; }
     setSaving(true);
-
-
-
-
-
     try {
-
-
-
-
-
       if (editEmp) {
-
-
-
-
-
-        await updateAdminEmployee(token, editEmp.id, form);
-
-
-
-
-
+        await updateAdminEmployee(token, editEmp.id, { ...form });
       } else {
-
-
-
-
-
-        await createAdminEmployee(token, { ...form, companyId: selCo });
-
-
-
-
-
+        await createCompanyUser(token, { ...form, companyId: selCo });
       }
-
-
-
-
-
       await load(selCo);
-
-
-
-
-
       setShowCreate(false); setEditEmp(null); setForm(emptyForm);
-
-
-
-
-
-    } catch(e) { alert(e.message); }
-
-
-
-
-
+    } catch(e) { setFormErr(e.message || "Save failed"); }
     setSaving(false);
-
-
-
-
-
   };
-
-
-
-
-
-
-
-
-
-
 
   const handleDelete = async (id) => {
-
-
-
-
-
     if (!window.confirm("Delete this employee? This cannot be undone.")) return;
-
-
-
-
-
     try { await deleteAdminEmployee(token, id); setEmp(prev => prev.filter(e => e.id !== id)); }
-
-
-
-
-
     catch(e) { alert(e.message); }
-
-
-
-
-
   };
 
-
-
-
-
-
-
-
-
-
-
   const displayed = employees.filter(e => !search || (e.fullName||"").toLowerCase().includes(search.toLowerCase()) || (e.email||"").toLowerCase().includes(search.toLowerCase()) || (e.designation||"").toLowerCase().includes(search.toLowerCase()));
-
-
-
-
-
   const ROLES = ["admin","supervisor","technician","employee"];
-
-
-
-
-
   const roleColors = { admin:"#dbeafe", supervisor:"#fef9c3", technician:"#dcfce7", employee:"#f1f5f9" };
-
-
-
-
-
   const roleTextColors = { admin:"#1d4ed8", supervisor:"#854d0e", technician:"#166534", employee:"#475569" };
-
-
-
-
-
-
-
-
-
-
+  const selectedCo = allCos.find(c => c.id === selCo);
+  const filteredCos = coSearch ? allCos.filter(c => (c.companyName||c.name||"").toLowerCase().includes(coSearch.toLowerCase())) : allCos;
 
   return (
-
-
-
-
-
     <div style={{ padding:"24px", maxWidth:"1300px" }}>
-
-
-
-
-
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px", gap:"10px", flexWrap:"wrap" }}>
-
-
-
-
-
         <div><h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Employees</h1><p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Manage employees across companies</p></div>
-
-
-
-
-
-        <div style={{ display:"flex", gap:"10px" }}>
-
-
-
-
-
+        <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employees…" style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
-
-
-
-
-
-          <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setShowCreate(true); }} style={{ padding:"9px 18px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13.5px", fontWeight:700, cursor:"pointer" }}>+ Add Employee</button>
-
-
-
-
-
+          <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setFormErr(null); setShowCreate(true); }} style={{ padding:"8px 16px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>+ Add User</button>
         </div>
-
-
-
-
-
       </div>
 
-
-
-
-
-
-
-
-
-
-
-      {/* Company selector */}
-
-
-
-
-
-      <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", padding:"12px 16px", marginBottom:"20px", display:"flex", alignItems:"center", gap:"10px", flexWrap:"wrap" }}>
-
-
-
-
-
-        <span style={{ fontSize:"13px", fontWeight:700, color:"#374151" }}>Company:</span>
-
-
-
-
-
-        {companies.map(c => (
-
-
-
-
-
-          <button key={c.id} type="button" onClick={() => setSelCo(c.id)} style={{ padding:"5px 12px", borderRadius:"7px", fontSize:"12.5px", fontWeight:600, cursor:"pointer", border: selCo===c.id ? "none":"1px solid #e2e8f0", background: selCo===c.id ? "#2563eb":"#f8fafc", color: selCo===c.id ? "#fff":"#475569" }}>{c.companyName||c.name}</button>
-
-
-
-
-
-        ))}
-
-
-
-
-
-      </div>
-
-
-
-
-
-
-
-
-
-
-
-      {/* Create/Edit modal */}
-
-
-
-
-
-      {(showCreate || editEmp) && (
-
-
-
-
-
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
-
-
-
-
-
-          <div style={{ background:"#fff", borderRadius:"16px", padding:"28px", width:"480px", maxWidth:"92vw" }}>
-
-
-
-
-
-            <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>{editEmp ? "Edit Employee":"Add Employee"}</h3>
-
-
-
-
-
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-
-
-
-
-
-              <input value={form.fullName} onChange={e=>setForm({...form,fullName:e.target.value})} placeholder="Full name *" style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />
-
-
-
-
-
-              <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email *" type="email" style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />
-
-
-
-
-
-              <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone" style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />
-
-
-
-
-
-              <div style={{ display:"flex", gap:"10px" }}>
-
-
-
-
-
-                <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})} style={{ flex:1, padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-
-
-
-
-
-                  {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>)}
-
-
-
-
-
-                </select>
-
-
-
-
-
-                <input value={form.designation} onChange={e=>setForm({...form,designation:e.target.value})} placeholder="Designation" style={{ flex:1, padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />
-
-
-
-
-
+      {/* Searchable company dropdown */}
+      <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", padding:"12px 16px", marginBottom:"20px", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+        <span style={{ fontSize:"13px", fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>Company:</span>
+        <div style={{ position:"relative", minWidth:"220px" }}>
+          <button type="button" onClick={() => setCoDropOpen(o => !o)}
+            style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontSize:"13px", fontWeight:600, cursor:"pointer", color:"#374151" }}>
+            <span>{selectedCo ? (selectedCo.companyName||selectedCo.name) : "Select Company"}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {coDropOpen && (
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, zIndex:9999, background:"#fff", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", minWidth:"220px", overflow:"hidden" }}>
+              <div style={{ padding:"8px" }}>
+                <input autoFocus value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="Search company…" style={{ width:"100%", padding:"7px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }} />
               </div>
-
-
-
-
-
-              {!editEmp && <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Password (leave blank for default)" type="password" style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />}
-
-
-
-
-
+              <div style={{ maxHeight:"200px", overflowY:"auto" }}>
+                {filteredCos.length === 0 && <div style={{ padding:"12px", color:"#94a3b8", fontSize:"12px", textAlign:"center" }}>No companies found</div>}
+                {filteredCos.map(c => (
+                  <button key={c.id} type="button" onClick={() => { setSelCo(c.id); setCoDropOpen(false); setCoSearch(""); }}
+                    style={{ width:"100%", display:"block", padding:"9px 14px", border:"none", background: selCo===c.id ? "#eff6ff" : "transparent", color: selCo===c.id ? "#2563eb" : "#374151", fontWeight: selCo===c.id ? 700 : 500, fontSize:"13px", cursor:"pointer", textAlign:"left" }}
+                    onMouseEnter={e => { if(selCo!==c.id) e.currentTarget.style.background="#f8fafc"; }}
+                    onMouseLeave={e => { if(selCo!==c.id) e.currentTarget.style.background="transparent"; }}>
+                    {c.companyName||c.name}
+                  </button>
+                ))}
+              </div>
             </div>
-
-
-
-
-
-            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"20px" }}>
-
-
-
-
-
-              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 18px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer" }}>Cancel</button>
-
-
-
-
-
-              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Saving…":editEmp ? "Save Changes":"Add Employee"}</button>
-
-
-
-
-
-            </div>
-
-
-
-
-
-          </div>
-
-
-
-
-
+          )}
         </div>
+      </div>
 
-
-
-
-
+      {/* Add/Edit modal */}
+      {(showCreate || editEmp) && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }} onClick={e => { if(e.target===e.currentTarget){setShowCreate(false);setEditEmp(null);} }}>
+          <div style={{ background:"#fff", borderRadius:"16px", padding:"28px", width:"500px", maxWidth:"95vw", boxShadow:"0 20px 60px rgba(0,0,0,0.18)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"20px" }}>
+              <h3 style={{ margin:0, fontSize:"18px", fontWeight:800, color:"#0f172a" }}>{editEmp ? "Edit User" : "Add User"}</h3>
+              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"22px", lineHeight:1 }}>&#10005;</button>
+            </div>
+            {formErr && <div style={{ background:"#fee2e2", color:"#dc2626", borderRadius:"8px", padding:"8px 12px", fontSize:"12.5px", marginBottom:"12px", fontWeight:600 }}>{formErr}</div>}
+            <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Full Name <span style={{ color:"#dc2626" }}>*</span></label>
+                <input value={form.fullName} onChange={e=>setForm({...form,fullName:e.target.value})} placeholder="Full Name" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Email <span style={{ color:"#dc2626" }}>*</span></label>
+                <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@example.com" type="email" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box" }} />
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Phone</label>
+                  <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone number" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Designation</label>
+                  <input value={form.designation} onChange={e=>setForm({...form,designation:e.target.value})} placeholder="e.g. Manager" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box" }} />
+                </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Role <span style={{ color:"#dc2626" }}>*</span></label>
+                  <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})} style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", background:"#fff" }}>
+                    {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Status</label>
+                  <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", background:"#fff" }}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Username <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(for mobile login)</span></label>
+                  <input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="Username" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Password {!editEmp && <span style={{ color:"#dc2626" }}>*</span>}</label>
+                  <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" type="password" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
+                </div>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
+              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : editEmp ? "Save Changes" : "Add User"}</button>
+            </div>
+          </div>
+        </div>
       )}
-
-
-
-
-
-
-
-
-
-
 
       {loading ? (
-
-
-
-
-
         <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading employees…</div>
-
-
-
-
-
       ) : displayed.length === 0 ? (
-
-
-
-
-
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No employees found.</div>
-
-
-
-
-
       ) : (
-
-
-
-
-
-        <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
-
-
-
-
-
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"14px" }}>
-
-
-
-
-
-            <thead>
-
-
-
-
-
-              <tr style={{ background:"#f8fafc" }}>
-
-
-
-
-
-                {["Name","Email","Phone","Role","Designation","Status","Actions"].map(h=>(
-
-
-
-
-
-                  <th key={h} style={{ padding:"11px 14px", textAlign:"left", color:"#475569", fontWeight:600, fontSize:"12px", textTransform:"uppercase", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
-
-
-
-
-
-                ))}
-
-
-
-
-
-              </tr>
-
-
-
-
-
-            </thead>
-
-
-
-
-
-            <tbody>
-
-
-
-
-
-              {displayed.map(e => (
-
-
-
-
-
-                <tr key={e.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px", fontWeight:600, color:"#0f172a" }}>{e.fullName}</td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px", color:"#475569" }}>{e.email}</td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px", color:"#64748b", fontSize:"12.5px" }}>{e.phone||"—"}</td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", textTransform:"capitalize" }}>{e.role||"—"}</span></td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px", color:"#64748b", fontSize:"12.5px" }}>{e.designation||"—"}</td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:(e.status||"active")==="active"?"#dcfce7":"#f1f5f9", color:(e.status||"active")==="active"?"#166534":"#475569" }}>{e.status||"Active"}</span></td>
-
-
-
-
-
-                  <td style={{ padding:"11px 14px" }}>
-
-
-
-
-
-                    <div style={{ display:"flex", gap:"6px" }}>
-
-
-
-
-
-                      <button type="button" onClick={() => { setForm({ fullName:e.fullName, email:e.email, phone:e.phone||"", role:e.role||"technician", designation:e.designation||"", password:"" }); setEditEmp(e); setShowCreate(false); }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #e2e8f0", background:"#f8fafc", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Edit</button>
-
-
-
-
-
-                      <button type="button" onClick={() => handleDelete(e.id)} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #fee2e2", background:"#fef2f2", color:"#dc2626", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Delete</button>
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                  </td>
-
-
-
-
-
-                </tr>
-
-
-
-
-
+        <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", overflow:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13.5px" }}>
+            <thead><tr style={{ background:"#f8fafc", borderBottom:"1px solid #e2e8f0" }}>
+              {["#","Name","Email","Phone","Designation","Role","Status","Actions"].map(h=>(
+                <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:700, color:"#64748b", fontSize:"11px", textTransform:"uppercase", letterSpacing:"0.05em", whiteSpace:"nowrap" }}>{h}</th>
               ))}
-
-
-
-
-
+            </tr></thead>
+            <tbody>
+              {displayed.map((e,i) => (
+                <tr key={e.id} style={{ borderBottom:"1px solid #f1f5f9" }}
+                  onMouseEnter={ev => ev.currentTarget.style.background="#f8fafc"}
+                  onMouseLeave={ev => ev.currentTarget.style.background=""}>
+                  <td style={{ padding:"10px 14px", color:"#94a3b8", fontSize:"12px" }}>{i+1}</td>
+                  <td style={{ padding:"10px 14px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"9px" }}>
+                      <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:"#2563eb", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:700, flexShrink:0 }}>{(e.fullName||"?")[0].toUpperCase()}</div>
+                      <div><p style={{ margin:0, fontWeight:600, color:"#0f172a", fontSize:"13px" }}>{e.fullName}</p>{e.username && <p style={{ margin:0, fontSize:"11px", color:"#94a3b8" }}>{e.username}</p>}</div>
+                    </div>
+                  </td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.email}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"—"}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"—"}</td>
+                  <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
+                  <td style={{ padding:"10px 14px" }}><span style={{ background: e.status==="Active"||e.status==="active" ? "#dcfce7":"#fee2e2", color: e.status==="Active"||e.status==="active" ? "#166534":"#dc2626", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700 }}>{e.status||"Active"}</span></td>
+                  <td style={{ padding:"10px 14px" }}>
+                    <div style={{ display:"flex", gap:"6px" }}>
+                      <button type="button" onClick={() => { setEditEmp(e); setForm({ fullName:e.fullName||"", email:e.email||"", phone:e.phone||"", designation:e.designation||"", role:e.role||"employee", status:e.status||"Active", username:e.username||"", password:"" }); setFormErr(null); setShowCreate(false); }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Edit</button>
+                      <button type="button" onClick={() => handleDelete(e.id)} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #fecaca", background:"#fff", color:"#dc2626", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
-
-
-
-
-
           </table>
-
-
-
-
-
         </div>
-
-
-
-
-
       )}
-
-
-
-
-
     </div>
-
-
-
-
-
   );
-
-
-
-
-
 }
-
-
-
-
-
-
-
-
-
-
 
 const CompanyPortal = () => {
 
@@ -5234,6 +4672,7 @@ const CompanyPortal = () => {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [activeTile, setActiveTile] = useState(null);
   const [dashExportOpen, setDashExportOpen] = useState(false);
+  const [empInitCompanyId, setEmpInitCompanyId] = useState(null);
 
 
 
@@ -14709,7 +14148,7 @@ const CompanyPortal = () => {
 
 
 
-      <aside className={`client-side-panel${(sidebarCollapsed && !sidebarHovered) ? " collapsed" : ""}`}
+      <aside className={`client-side-panel${!sidebarHovered ? " collapsed" : ""}`}
         onMouseEnter={() => setSidebarHovered(true)}
         onMouseLeave={() => setSidebarHovered(false)}>
 
@@ -14777,12 +14216,7 @@ const CompanyPortal = () => {
               </div>
             )}
           </div>
-          <button className="client-toggle-btn" onClick={() => setSidebarCollapsed(c => !c)} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            {sidebarCollapsed
-              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            }
-          </button>
+
         </div>
 
         <nav className="client-side-nav">
@@ -18251,7 +17685,7 @@ const CompanyPortal = () => {
 
 
 
-                                  <ABtns bg="#f3e8ff" col="#7c3aed" title="Admin Users" onClick={() => openAdminView(c.id)}>
+                                  <ABtns bg="#f3e8ff" col="#7c3aed" title="Add/View Users" onClick={() => { setEmpInitCompanyId(c.id); setNav("employees"); setShowAddForm(false); }}>
 
 
 
@@ -26261,7 +25695,7 @@ const CompanyPortal = () => {
 
 
 
-          <AdminEmployeesSection token={token} companies={companies} />
+          <AdminEmployeesSection token={token} companies={companies} initialCompanyId={empInitCompanyId} onCompanySelected={() => setEmpInitCompanyId(null)} />
 
 
 
@@ -28871,18 +28305,31 @@ const CompanyPortal = () => {
             document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
           };
 
-          const handleExport = (type) => {
-            if (type === "asset_profile" && dashboardStats) {
-              const ap = dashboardStats.assetProfile || {};
-              const rows = [
-                { Category: "Total Assets", Count: ap.total ?? dashboardStats.totalAssets ?? 0 },
-                { Category: "Critical", Count: ap.critical ?? 0 },
-                { Category: "Non-Critical", Count: ap.nonCritical ?? 0 },
-                { Category: "RBER", Count: ap.rber ?? 0 },
-                { Category: "Condemned", Count: ap.condemned ?? 0 },
-                { Category: "New Addition", Count: ap.newAdditions ?? 0 },
-              ];
-              exportToCSV(rows, ["Category", "Count"], "asset_profile.csv");
+          const ASSET_HEADERS = ["Company","Department","Asset Name","Asset ID","Type","Status","Building","Floor","Room","Make","Model","Serial No","Accessories","Dealer","Mfg Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Remarks","Created At"];
+          const assetRowMapper = a => ({
+            "Company": a.companyName||"", "Department": a.departmentName||"",
+            "Asset Name": a.assetName||"", "Asset ID": a.assetUniqueId||"",
+            "Type": a.assetType||"", "Status": a.status||"",
+            "Building": a.building||"", "Floor": a.floor||"", "Room": a.room||"",
+            "Make": a.make||"", "Model": a.model||"", "Serial No": a.serialNo||"",
+            "Accessories": a.accessories||"", "Dealer": a.dealer||"",
+            "Mfg Year": a.mfgYear||"", "Installation Date": a.installationDate||"",
+            "Invoice No": a.invoiceNo||"", "Purchase Date": a.purchaseDate||"",
+            "Purchase Cost": a.purchaseCost||"", "Remarks": a.remarks||"",
+            "Created At": a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "",
+          });
+
+          const handleExport = async (type) => {
+            const co = dashCompanyFilter || "";
+            const coParam = co ? ("&companyId=" + co) : "";
+            if (type === "asset_profile" || type === "critical" || type === "non_critical" || type === "rber" || type === "condemned" || type === "new_addition" || type === "total_assets") {
+              const statusMap = { asset_profile: "", total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", condemned: "condemned", new_addition: "new_addition" };
+              const statusParam = statusMap[type] ? ("status=" + statusMap[type]) : "";
+              const qs = [statusParam, coParam.slice(1)].filter(Boolean).join("&");
+              try {
+                const assets = await getClientAssets(token, qs);
+                exportToCSV(assets.map(assetRowMapper), ASSET_HEADERS, (type === "asset_profile" || type === "total_assets" ? "all" : type) + "_assets.csv");
+              } catch(e) { alert("Export failed: " + e.message); }
             } else if (type === "complaint_profile" && dashboardStats) {
               const cp = dashboardStats.complaintProfile || {};
               const rows = [
@@ -28898,22 +28345,12 @@ const CompanyPortal = () => {
               const rows = byCompany.map(c => ({ Company: c.companyName || "", Assets: c.assetCount ?? 0, Employees: c.employeeCount ?? 0 }));
               exportToCSV(rows, ["Company", "Assets", "Employees"], "companies_summary.csv");
             } else {
-              // Export all
-              const rows = [];
-              if (dashboardStats) {
-                rows.push({ Section: "Asset Profile", Category: "Total Assets", Count: dashboardStats.assetProfile?.total ?? dashboardStats.totalAssets ?? 0 });
-                rows.push({ Section: "Asset Profile", Category: "Critical", Count: dashboardStats.assetProfile?.critical ?? 0 });
-                rows.push({ Section: "Asset Profile", Category: "Non-Critical", Count: dashboardStats.assetProfile?.nonCritical ?? 0 });
-                rows.push({ Section: "Asset Profile", Category: "RBER", Count: dashboardStats.assetProfile?.rber ?? 0 });
-                rows.push({ Section: "Asset Profile", Category: "Condemned", Count: dashboardStats.assetProfile?.condemned ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "Total Complaints", Count: dashboardStats.complaintProfile?.total ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "Work In Progress", Count: dashboardStats.complaintProfile?.wip ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "< 7 Days", Count: dashboardStats.complaintProfile?.lt7d ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "> 7 Days", Count: dashboardStats.complaintProfile?.gt7d ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "Resolved", Count: dashboardStats.complaintProfile?.resolved ?? 0 });
-                rows.push({ Section: "Complaint Profile", Category: "Closed", Count: dashboardStats.complaintProfile?.closed ?? 0 });
-              }
-              exportToCSV(rows, ["Section", "Category", "Count"], "client_dashboard.csv");
+              // Export all assets
+              const qs = coParam ? coParam.slice(1) : "";
+              try {
+                const assets = await getClientAssets(token, qs);
+                exportToCSV(assets.map(assetRowMapper), ASSET_HEADERS, "all_assets.csv");
+              } catch(e) { alert("Export failed: " + e.message); }
             }
           };
 
@@ -28922,9 +28359,13 @@ const CompanyPortal = () => {
             const assetTiles = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
             const complaintTiles = ["total_complaint","wip","lt7d","gt7d","resolved","closed"];
             if (assetTiles.includes(tileId)) {
-              setActiveTile(prev => prev === tileId ? null : tileId);
+              setActiveTile(tileId);
+              setNav("assets");
+              setTimeout(() => setActiveTile(null), 100);
             } else if (complaintTiles.includes(tileId)) {
-              setActiveTile(prev => prev === tileId ? null : tileId);
+              setActiveTile(tileId);
+              setNav("workorders");
+              setTimeout(() => setActiveTile(null), 100);
             }
           };
           // Navigate from tile to page with smooth animation
@@ -29051,12 +28492,16 @@ const CompanyPortal = () => {
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
                         {dashExportOpen && (
-                          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "190px", overflow: "hidden" }}>
+                          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "210px", overflow: "hidden" }}>
                             {[
-                              { id: "asset_profile", label: "Asset Profile", icon: "📊" },
-                              { id: "complaint_profile", label: "Complaint Profile", icon: "💬" },
-                              { id: "companies", label: "Companies Summary", icon: "🏢" },
-                              { id: "all", label: "Export All (CSV)", icon: "📥" },
+                              { id: "total_assets",    label: "All Assets",       icon: "📦" },
+                              { id: "critical",        label: "Critical Assets",   icon: "🚨" },
+                              { id: "non_critical",    label: "Non-Critical Assets",icon: "✅" },
+                              { id: "rber",            label: "RBER Assets",       icon: "🔵" },
+                              { id: "condemned",       label: "Condemned Assets",  icon: "⛔" },
+                              { id: "new_addition",    label: "New Addition Assets",icon: "➕" },
+                              { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "💬" },
+                              { id: "companies",       label: "Companies Summary", icon: "🏢" },
                             ].map(opt => (
                               <button key={opt.id} onClick={() => { handleExport(opt.id); setDashExportOpen(false); }}
                                 style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
@@ -29077,7 +28522,7 @@ const CompanyPortal = () => {
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
                   <div>
                     <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
-                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                   </div>
                   <button onClick={() => setDashboardStats(null)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", fontSize: "11px", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -29098,7 +28543,7 @@ const CompanyPortal = () => {
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
                   <div>
                     <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Complaint Profile</h2>
-                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to see company breakdown</p>
+                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>

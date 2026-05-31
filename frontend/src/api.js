@@ -30,19 +30,19 @@ async function request(method, path, body, options = {}) {
     return data;
 }
 
-// ── Clients ──────────────────────────────────────────────────────────────────
+// â”€â”€ Clients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getClients = () => request("GET", "/api/clients");
 export const createClient = (data) => request("POST", "/api/clients", data);
 export const updateClient = (id, data) => request("PUT", `/api/clients/${id}`, data);
 export const deleteClient = (id) => request("DELETE", `/api/clients/${id}`);
 
-// ── Users ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getUsers = () => request("GET", "/api/users");
 export const createUser = (data) => request("POST", "/api/users", data);
 export const updateUser = (id, data) => request("PUT", `/api/users/${id}`, data);
 export const deleteUser = (id) => request("DELETE", `/api/users/${id}`);
 
-// ── Auth / Company Portal ─────────────────────────────────────────────────────
+// â”€â”€ Auth / Company Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const login = (data) => request("POST", "/api/auth/login", data);
 
 export const getCompanies = (token) => request("GET", "/api/companies", undefined, { authToken: token });
@@ -132,7 +132,7 @@ export const getRecentChecklistSubmissions = (token) => request("GET", "/api/che
 export const getChecklistSubmissionDetail = (token, submissionId) => request("GET", `/api/checklist-templates/submissions/${submissionId}`, undefined, { authToken: token });
 export const getTemplatesForAsset = (token, assetId) => request("GET", `/api/logsheet-templates/asset/${assetId}`, undefined, { authToken: token });
 
-// ── Company Employee Portal ────────────────────────────────────────────────────
+// â”€â”€ Company Employee Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const companyLogin = (data) => request("POST", "/api/company-auth/login", data);
 export const getCompanyPortalMe = (token) => request("GET", "/api/company-portal/me", undefined, { authToken: token });
 export const getCompanyPortalChartStats = (token, params = {}) => {
@@ -209,7 +209,7 @@ export const deleteCompanyPortalEmployee = (token, id) => request("DELETE", `/ap
 export const bulkImportCompanyEmployees = (token, employees) => request("POST", "/api/company-portal/employees/bulk", { employees }, { authToken: token });
 export const getCompanyPortalSupervisors = (token) => request("GET", "/api/company-portal/employees/supervisors", undefined, { authToken: token });
 
-// ── Custom roles / hierarchy (per-company) ───────────────────────────────────
+// â”€â”€ Custom roles / hierarchy (per-company) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getCompanyRoles    = (token) => request("GET",  "/api/company-portal/roles", undefined, { authToken: token });
 export const createCompanyRole  = (token, data) => request("POST", "/api/company-portal/roles", data, { authToken: token });
 export const updateCompanyRole  = (token, id, data) => request("PUT", `/api/company-portal/roles/${id}`, data, { authToken: token });
@@ -223,25 +223,25 @@ export const createAdminTemplateUserAssignment = (token, data) => request("POST"
 export const getAdminOjtTrainings = (token, companyId) => request("GET", `/api/company-users/ojt-trainings?companyId=${companyId}`, undefined, { authToken: token });
 export const getAdminOjtProgress  = (token, companyId) => request("GET", `/api/company-users/ojt-progress?companyId=${companyId}`,  undefined, { authToken: token });
 
-// ── Admin-level CRUD for Work Orders (client portal) ─────────────────────────
+// â”€â”€ Admin-level CRUD for Work Orders (client portal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getAdminWorkOrders    = (token, companyId, status) => request("GET", `/api/company-users/work-orders?companyId=${companyId}${status ? `&status=${status}` : ""}`, undefined, { authToken: token });
 export const createAdminWorkOrder  = (token, data) => request("POST", "/api/company-users/work-orders", data, { authToken: token });
 export const updateAdminWOStatus   = (token, id, status) => request("PUT", `/api/company-users/work-orders/${id}/status`, { status }, { authToken: token });
 export const assignAdminWO         = (token, id, data) => request("PUT", `/api/company-users/work-orders/${id}/assign`, data, { authToken: token });
 
-// ── Admin-level CRUD for Shifts (client portal) ───────────────────────────────
+// â”€â”€ Admin-level CRUD for Shifts (client portal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getAdminShifts    = (token, companyId) => request("GET", `/api/company-users/shifts?companyId=${companyId}`, undefined, { authToken: token });
 export const createAdminShift  = (token, data)      => request("POST", "/api/company-users/shifts", data, { authToken: token });
 export const updateAdminShift  = (token, id, data)  => request("PUT", `/api/company-users/shifts/${id}`, data, { authToken: token });
 export const deleteAdminShift  = (token, id)        => request("DELETE", `/api/company-users/shifts/${id}`, undefined, { authToken: token });
 
-// ── Admin-level CRUD for Employees (client portal) ───────────────────────────
+// â”€â”€ Admin-level CRUD for Employees (client portal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getAdminEmployees   = (token, companyId) => request("GET", `/api/company-users/employees?companyId=${companyId}`, undefined, { authToken: token });
 export const createAdminEmployee = (token, data)      => request("POST", "/api/company-users/employees", data, { authToken: token });
 export const updateAdminEmployee = (token, id, data)  => request("PUT", `/api/company-users/employees/${id}`, data, { authToken: token });
 export const deleteAdminEmployee = (token, id)        => request("DELETE", `/api/company-users/employees/${id}`, undefined, { authToken: token });
 
-// ── Smart Checklist Submissions ───────────────────────────────────────────────
+// â”€â”€ Smart Checklist Submissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const submitChecklistExecution = (token, checklistId, data) =>
   request("POST", `/api/checklists/${checklistId}/submit`, data, { authToken: token });
 export const getChecklistSubmissions = (token, checklistId, params = "") =>
@@ -249,7 +249,7 @@ export const getChecklistSubmissions = (token, checklistId, params = "") =>
 export const getChecklistIssuesReport = (token, params = "") =>
   request("GET", `/api/checklists/submissions/issues${params ? `?${params}` : ""}`, undefined, { authToken: token });
 
-// ── Logsheet Grid View ────────────────────────────────────────────────────────
+// â”€â”€ Logsheet Grid View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getLogsheetGrid = (token, templateId, params = "") =>
   request("GET", `/api/logsheet-templates/${templateId}/grid${params ? `?${params}` : ""}`, undefined, { authToken: token });
 
@@ -259,7 +259,7 @@ export const getCompanyPortalLogsheetGrid = (token, templateId, params = "") =>
 export const getLogsheetIssuesReport = (token, params = "") =>
   request("GET", `/api/logsheet-templates/entries/issues${params ? `?${params}` : ""}`, undefined, { authToken: token });
 
-// ── Flags & Alert Engine ──────────────────────────────────────────────────────
+// â”€â”€ Flags & Alert Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getCompanyFlags = (token, params = "") =>
   request("GET", `/api/flags${params ? `?${params}` : ""}`, undefined, { authToken: token });
 export const getFlagDashboard = (token) =>
@@ -271,7 +271,7 @@ export const updateFlag = (token, id, data) =>
 export const createManualFlag = (token, data) =>
   request("POST", "/api/flags", data, { authToken: token });
 
-// ── In-app Notifications ──────────────────────────────────────────────────────
+// â”€â”€ In-app Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getNotifications = (token, params = "") =>
   request("GET", `/api/notifications${params ? `?${params}` : ""}`, undefined, { authToken: token });
 export const getNotificationCount = (token) =>
@@ -281,7 +281,7 @@ export const markNotificationRead = (token, id) =>
 export const markAllNotificationsRead = (token) =>
   request("PUT", "/api/notifications/read-all", undefined, { authToken: token });
 
-// ── Company Portal Work Orders ────────────────────────────────────────────────
+// â”€â”€ Company Portal Work Orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getCompanyPortalWorkOrders = (token, params = "") =>
   request("GET", `/api/company-portal/work-orders${params ? `?${params}` : ""}`, undefined, { authToken: token });
 export const getCompanyPortalWOUsers = (token) =>
@@ -291,11 +291,11 @@ export const assignCompanyPortalWorkOrder = (token, id, data) =>
 export const updateWorkOrderCutoff = (token, id, expectedCompletionAt) =>
   request("PATCH", `/api/company-portal/work-orders/${id}/cutoff`, { expectedCompletionAt }, { authToken: token });
 
-// ── Company Portal Admin Flags (dashboard) ────────────────────────────────────
+// â”€â”€ Company Portal Admin Flags (dashboard) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getCompanyPortalAdminFlags = (token, params = "") =>
   request("GET", `/api/flags/admin/list${params ? `?${params}` : ""}`, undefined, { authToken: token });
 
-// ── Company Portal Asset Dashboard ───────────────────────────────────────────
+// â”€â”€ Company Portal Asset Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const cpAD = "/api/company-portal/asset-dashboard";
 export const getCPAssetDashboardSummary      = (token, params = "") => request("GET", `${cpAD}/summary${params ? `?${params}` : ""}`,          undefined, { authToken: token });
 export const getCPAssetDashboardDistribution = (token, params = "") => request("GET", `${cpAD}/distribution${params ? `?${params}` : ""}`,      undefined, { authToken: token });
@@ -308,7 +308,7 @@ export const getCPAssetDashboardHistory      = (token, assetId)     => request("
 export const getCPAssetDashboardCompare      = (token, params = "") => request("GET", `${cpAD}/compare${params ? `?${params}` : ""}`,           undefined, { authToken: token });
 export const getCPAssetDashboardPredictive   = (token, params = "") => request("GET", `${cpAD}/predictive${params ? `?${params}` : ""}`,        undefined, { authToken: token });
 
-// ── Healthcare Asset Management Dashboard ─────────────────────────────────────
+// â”€â”€ Healthcare Asset Management Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const hcBase = "/api/company-portal/healthcare";
 export const getHCSnapshot        = (token, params = "") => request("GET", `${hcBase}/snapshot${params ? `?${params}` : ""}`,          undefined, { authToken: token });
 export const getHCCharts          = (token, params = "") => request("GET", `${hcBase}/charts${params ? `?${params}` : ""}`,            undefined, { authToken: token });
@@ -331,7 +331,7 @@ export const addHCWORemark        = (token, woId, data)  => request("POST",  `${
 export const getHCWOActivity      = (token, woId)        => request("GET", `${hcBase}/work-orders/${woId}/activity`,                  undefined, { authToken: token });
 export const getHCExportUrl       = (BASE_URL, type, params = "") => `${BASE_URL}${hcBase}/export?type=${type}${params ? `&${params}` : ""}`;
 
-// ── Shift Management ──────────────────────────────────────────────────────────
+// â”€â”€ Shift Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getShifts             = (token)          => request("GET",    "/api/shifts",                          undefined, { authToken: token });
 export const getActiveShifts       = (token)          => request("GET",    "/api/shifts/active",                   undefined, { authToken: token });
 export const createShift           = (token, data)    => request("POST",   "/api/shifts",               data,      { authToken: token });
@@ -341,7 +341,7 @@ export const getShiftEmployees     = (token, id)      => request("GET",    `/api
 export const assignShiftEmployees  = (token, id, userIds) => request("POST", `/api/shifts/${id}/employees`, { userIds }, { authToken: token });
 export const removeShiftEmployee   = (token, id, userId)  => request("DELETE", `/api/shifts/${id}/employees/${userId}`, undefined, { authToken: token });
 
-// ── OJT Management ────────────────────────────────────────────────────────────
+// â”€â”€ OJT Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const cp = "/api/company-portal";
 export const getOjtTrainings       = (token)           => request("GET",   `${cp}/ojt/trainings`,                             undefined, { authToken: token });
 export const getOjtTraining        = (token, id)        => request("GET",   `${cp}/ojt/trainings/${id}`,                       undefined, { authToken: token });
@@ -386,7 +386,7 @@ export const uploadQuestionImage = async (token, file) => {
   return res.json();
 };
 
-// ── Fleet Management ──────────────────────────────────────────────────────────
+// â”€â”€ Fleet Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getFleetAssets                = (token)           => request("GET",   `${cp}/fleet/assets`,                              undefined, { authToken: token });
 export const getFleetAssetDetails          = (token, id)        => request("GET",   `${cp}/fleet/assets/${id}`,                        undefined, { authToken: token });
 export const getFleetInspections           = (token, assetId)   => request("GET",   `${cp}/fleet/inspections${assetId ? `/${assetId}` : ""}`, undefined, { authToken: token });
@@ -410,9 +410,12 @@ export const downloadFleetSubmissionsCSV   = (token)            => {
   });
 };
 
-// ── Soft Service Requests ─────────────────────────────────────────────────────
+// â”€â”€ Soft Service Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getSoftServiceRequestsAll = (token, params = "") =>
   request("GET", `/api/soft-service/requests/all${params ? `?${params}` : ""}`, undefined, { authToken: token });
 export const getSoftServiceRequestsMy  = (token, params = "") =>
   request("GET", `/api/soft-service/requests/my${params ? `?${params}` : ""}`, undefined, { authToken: token });
 
+
+// ── Client Portal – Assets Export ───────────────────────────────────────────
+export const getClientAssets = (token, params = '') => request('GET', '/api/companies/assets' + (params ? '?' + params : ''), undefined, { authToken: token });

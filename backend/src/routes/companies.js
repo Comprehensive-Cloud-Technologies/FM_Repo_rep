@@ -145,6 +145,42 @@ router.get("/stats", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/companies/assets — full asset list for all companies managed by this user
+router.get("/assets", async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { status, companyId } = req.query;
+    let where = "WHERE c.user_id = ?";
+    const params = [userId];
+    if (companyId) { where += " AND c.id = ?"; params.push(Number(companyId)); }
+    if (status) {
+      if (status === "critical")     { where += " AND LOWER(a.status) IN ('critical','breakdown')"; }
+      else if (status === "non_critical") { where += " AND LOWER(a.status) NOT IN ('critical','breakdown','condemned','rber')"; }
+      else if (status === "condemned") { where += " AND LOWER(a.status) = 'condemned'"; }
+      else if (status === "rber")    { where += " AND LOWER(a.status) = 'rber'"; }
+      else if (status === "new_addition") { where += " AND MONTH(a.created_at)=MONTH(NOW()) AND YEAR(a.created_at)=YEAR(NOW())"; }
+    }
+    const [rows] = await pool.query(
+      `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.make, a.model, a.serial_no AS "serialNo", a.accessories,
+              a.dealer, a.mfg_year AS "mfgYear", a.installation_date AS "installationDate",
+              a.invoice_no AS "invoiceNo", a.purchase_date AS "purchaseDate",
+              a.purchase_cost AS "purchaseCost", a.remarks,
+              a.created_at AS "createdAt", a.updated_at AS "updatedAt",
+              c.company_name AS "companyName",
+              d.name AS "departmentName"
+       FROM assets a
+       JOIN companies c ON c.id = a.company_id
+       LEFT JOIN departments d ON d.id = a.department_id
+       ${where}
+       ORDER BY c.company_name, a.asset_name`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 router.get("/", async (req, res, next) => {
   try {
     const [rows] = await pool.query(

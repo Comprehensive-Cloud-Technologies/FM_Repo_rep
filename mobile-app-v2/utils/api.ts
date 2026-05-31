@@ -15,7 +15,7 @@ import type { RoleCapabilities } from './permissions';
 // ─── Config ───────────────────────────────────────────────────────────────────
 export const API_BASE: string =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
-  'http://10.222.32.15:4000';  // Central backend IP — update .env.local for a different IP
+  'http://192.168.1.5:4000';  // Central backend IP — update .env.local for a different IP
 
 // ─── Error class ──────────────────────────────────────────────────────────────
 export class ApiError extends Error {

@@ -536,8 +536,8 @@ tr:last-child td {
 
 /* ── Client Portal Sidebar ─────────────────────────────────────────── */
 .client-side-panel {
-  width: 230px;
-  min-width: 230px;
+  width: 200px;
+  min-width: 200px;
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
   display: flex;
