@@ -1208,6 +1208,8 @@ router.patch("/assets/:id/verify", async (req, res, next) => {
 });
 
 
+// ── PATCH /assets/:id  (admin: update asset fields) ──────────────────────────
+router.patch("/assets/:id", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
