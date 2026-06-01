@@ -862,3 +862,33 @@ export async function submitPublicAssetQuery(
   }
   return res.json();
 }
+
+// ─── Manual Asset Registration (Engineer) ────────────────────────────────────
+export interface ManualAssetPayload {
+  companyId: number;
+  departmentId?: number;
+  assetName: string;
+  assetType?: string;
+  building?: string;
+  floor?: string;
+  room?: string;
+  metadata?: Record<string, any>;
+}
+
+export async function fetchAllCompaniesForEngineer(): Promise<Array<{ id: number; companyName: string }>> {
+  return apiGet<Array<{ id: number; companyName: string }>>('/api/company-portal/all-companies');
+}
+
+export async function fetchDepartmentsByCompany(companyId: number): Promise<Array<{ id: number; name: string }>> {
+  return apiGet<Array<{ id: number; name: string }>>(`/api/company-portal/departments-by-company/${companyId}`);
+}
+
+export async function addAssetManually(
+  _token: string,
+  payload: ManualAssetPayload,
+): Promise<{ assetId: number; assetName: string; assetUniqueId: string }> {
+  return apiPost<{ assetId: number; assetName: string; assetUniqueId: string }>(
+    '/api/company-portal/assets/manual',
+    payload,
+  );
+}
