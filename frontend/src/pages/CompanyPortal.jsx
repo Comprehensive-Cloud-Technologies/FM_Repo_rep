@@ -6715,51 +6715,7 @@ const CompanyPortal = () => {
 
 
 
-    if (token &&
-              {/* Asset Detail Modal */}
-              {viewingAsset && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setViewingAsset(null)}>
-                  <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: 'min(580px,94vw)', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                      <div>
-                        <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
-                        <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '—'}</p>
-                      </div>
-                      <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
-                        <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
-                      </button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      {[
-                        ['Company', viewingAsset.companyName],
-                        ['Department', viewingAsset.departmentName],
-                        ['Asset Type', viewingAsset.assetType],
-                        ['Status', viewingAsset.status],
-                        ['Criticality', viewingAsset.criticality],
-                        ['Building', viewingAsset.building],
-                        ['Floor', viewingAsset.floor],
-                        ['Room', viewingAsset.room],
-                        ['Make', viewingAsset.make],
-                        ['Model', viewingAsset.model],
-                        ['Serial No', viewingAsset.serialNo],
-                        ['Accessories', viewingAsset.accessories],
-                        ['Dealer', viewingAsset.dealer],
-                        ['Mfg Year', viewingAsset.mfgYear],
-                        ['Purchase Cost', viewingAsset.purchaseCost],
-                        ['Purchase Date', viewingAsset.purchaseDate],
-                        ['Maintenance', viewingAsset.maintenanceType],
-                        ['Created At', viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
-                      ].filter(([,v]) => v).map(([label, val]) => (
-                        <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
-                          <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
-                          <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
- nav === "assets") {
+    if (token && nav === "assets") {
 
 
 
@@ -24328,6 +24284,50 @@ const CompanyPortal = () => {
 
 
 
+
+            {/* Asset Detail Modal */}
+            {viewingAsset && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setViewingAsset(null)}>
+                <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: 'min(580px,94vw)', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <div>
+                      <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
+                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '—'}</p>
+                    </div>
+                    <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {[
+                      ['Company', viewingAsset.companyName],
+                      ['Department', viewingAsset.departmentName],
+                      ['Asset Type', viewingAsset.assetType],
+                      ['Status', viewingAsset.status],
+                      ['Criticality', viewingAsset.criticality],
+                      ['Building', viewingAsset.building],
+                      ['Floor', viewingAsset.floor],
+                      ['Room', viewingAsset.room],
+                      ['Make', viewingAsset.make],
+                      ['Model', viewingAsset.model],
+                      ['Serial No', viewingAsset.serialNo],
+                      ['Accessories', viewingAsset.accessories],
+                      ['Dealer', viewingAsset.dealer],
+                      ['Mfg Year', viewingAsset.mfgYear],
+                      ['Purchase Cost', viewingAsset.purchaseCost],
+                      ['Purchase Date', viewingAsset.purchaseDate],
+                      ['Maintenance', viewingAsset.maintenanceType],
+                      ['Created At', viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
+                    ].filter(([, v]) => v).map(([label, val]) => (
+                      <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
+                        <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
+                        <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             </>
 
 
