@@ -22385,6 +22385,9 @@ const CompanyPortal = () => {
 
 
                               <option value="Inactive">Inactive</option>
+                              <option value="Verified">Verified</option>
+                              <option value="Under Maintenance">Under Maintenance</option>
+                              <option value="Condemned">Condemned</option>
 
 
 
@@ -24282,48 +24285,84 @@ const CompanyPortal = () => {
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    {[
-                      ['Company', viewingAsset.companyName],
-                      ['Department', viewingAsset.departmentName],
-                      ['Asset Type', viewingAsset.assetType],
-                      ['Status', viewingAsset.status],
-                      ['Criticality', viewingAsset.criticality],
-                      ['Building', viewingAsset.building],
-                      ['Floor', viewingAsset.floor],
-                      ['Room', viewingAsset.room],
-                      ['Make', viewingAsset.make],
-                      ['Model', viewingAsset.model],
-                      ['Serial No', viewingAsset.serialNo],
-                      ['Accessories', viewingAsset.accessories],
-                      ['Dealer', viewingAsset.dealer],
-                      ['Mfg Year', viewingAsset.mfgYear],
-                      ['Purchase Cost', viewingAsset.purchaseCost],
-                      ['Purchase Date', viewingAsset.purchaseDate],
-                      ['Maintenance', viewingAsset.maintenanceType],
-                      ['Created At', viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
-                    ].filter(([, v]) => v).map(([label, val]) => (
-                      <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
-                        <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
-                        <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
-                      </div>
-                    ))}
-                  </div>
                   {(() => {
-                    const imgs = viewingAsset.hcImages || viewingAsset.images || (viewingAsset.metadata && (viewingAsset.metadata.hcImages || viewingAsset.metadata.images)) || [];
-                    const list = Array.isArray(imgs) ? imgs : [];
-                    if (!list.length) return null;
-                    const base = window.location.origin;
+                    const m = viewingAsset.metadata || {};
+                    const mf = (field) => viewingAsset[field] || m[field];
+                    const dateField = (v) => v ? String(v).replace('T00:00:00.000Z','').replace('T',' ').slice(0,10) : '';
+                    const mainItems = [
+                      ['Company',          mf('companyName')],
+                      ['Department',       mf('departmentName')],
+                      ['Asset Type',       mf('assetType')],
+                      ['Status',           mf('status')],
+                      ['Verified',         viewingAsset.isVerified ? 'Yes' : 'No'],
+                      ['Criticality',      mf('criticality')],
+                      ['Building',         mf('building')],
+                      ['Floor',            mf('floor')],
+                      ['Room',             mf('room')],
+                      ['Make / Manufacturer', mf('make')],
+                      ['Model',            mf('model')],
+                      ['Serial No',        mf('serialNo')],
+                      ['Accessories',      mf('accessories')],
+                      ['Dealer',           mf('dealer')],
+                      ['Mfg Year',         mf('mfgYear')],
+                      ['Installation Date',dateField(mf('installationDate'))],
+                      ['Invoice No',       mf('invoiceNo')],
+                      ['Purchase Date',    dateField(mf('purchaseDate'))],
+                      ['Purchase Cost',    mf('purchaseCost') ? String(mf('purchaseCost')) : ''],
+                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} → ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
+                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} → ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
+                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} → ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
+                      ['In House',         m.inHouse ? 'Yes' : ''],
+                      ['Catalyst',         m.catalyst ? 'Yes' : ''],
+                      ['RBER',             (mf('rber') || m.rber) ? 'Yes' : ''],
+                      ['Remarks',          mf('remarks')],
+                      ['Created At',       viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
+                    ];
                     return (
-                      <div style={{ marginTop: '16px' }}>
-                        <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Equipment Images</p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                          {list.map((url, i) => {
-                            const src = url.startsWith('http') ? url : `${base}${url}`;
-                            return <img key={i} src={src} alt={`asset-img-${i}`} style={{ width: 90, height: 90, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />;
-                          })}
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          {mainItems.filter(([, v]) => v).map(([label, val]) => (
+                            <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
+                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
+                              <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
+                            </div>
+                          ))}
                         </div>
-                      </div>
+                        {(() => {
+                          const imgs = mf('hcImages') || mf('images') || m.hcImages || m.images || [];
+                          const list = Array.isArray(imgs) ? imgs : [];
+                          if (!list.length) return null;
+                          const base = window.location.origin;
+                          return (
+                            <div style={{ marginTop: '16px' }}>
+                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Equipment Images</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {list.map((url, i) => {
+                                  const src = url.startsWith('http') ? url : `${base}${url}`;
+                                  return <img key={i} src={src} alt={`asset-img-${i}`} style={{ width: 90, height: 90, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />;
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const invImgs = m.invoiceImages || [];
+                          const list = Array.isArray(invImgs) ? invImgs : [];
+                          if (!list.length) return null;
+                          const base = window.location.origin;
+                          return (
+                            <div style={{ marginTop: '16px' }}>
+                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Invoice / Purchase Receipts</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {list.map((url, i) => {
+                                  const src = url.startsWith('http') ? url : `${base}${url}`;
+                                  return <img key={i} src={src} alt={`invoice-${i}`} style={{ width: 110, height: 110, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />;
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
                     );
                   })()}
                 </div>
