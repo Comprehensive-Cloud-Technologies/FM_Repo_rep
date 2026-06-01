@@ -4334,12 +4334,10 @@ export default function CompanyEmployeePortal() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f1f5f9" }}>
       {/* Sidebar */}
-      <aside style={{ width: sidebarHovered ? "240px" : "62px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10, transition: "width 0.22s cubic-bezier(0.4,0,0.2,1)", overflow: "hidden" }}
-        onMouseEnter={() => setSidebarHovered(true)}
-        onMouseLeave={() => setSidebarHovered(false)}>
+      <aside style={{ width: "240px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10, overflow: "hidden" }}>
         {/* Brand */}
         <div style={{ padding: "18px 12px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: sidebarHovered ? "center" : "center", overflow: "hidden" }}>
-          <img src={logo} alt="Logo" style={{ maxWidth: sidebarHovered ? "150px" : "38px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
+          <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
         </div>
 
         {/* Company role label */}
@@ -4356,7 +4354,7 @@ export default function CompanyEmployeePortal() {
               style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "8px", border: "none", cursor: "pointer", background: nav === item.key ? "#eff6ff" : "transparent", color: nav === item.key ? "#2563eb" : "#475569", fontWeight: nav === item.key ? 700 : 500, fontSize: "13px", textAlign: "left", marginBottom: "2px", transition: "background 0.15s", overflow: "hidden", whiteSpace: "nowrap" }}
               title={item.label}>
               <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
-              <span style={{ opacity: sidebarHovered ? 1 : 0, transition: "opacity 0.15s", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -4367,7 +4365,7 @@ export default function CompanyEmployeePortal() {
             <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#2563eb", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>
               {initials(currentUser.fullName)}
             </div>
-            <div style={{ overflow: "hidden", opacity: sidebarHovered ? 1 : 0, transition: "opacity 0.15s", whiteSpace: "nowrap" }}>
+            <div style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser.fullName}</p>
               <Badge val={currentUser.role} />
             </div>
@@ -4481,7 +4479,7 @@ export default function CompanyEmployeePortal() {
       </aside>
 
       {/* Main content */}
-      <main style={{ marginLeft: sidebarHovered ? "240px" : "62px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden", transition: "margin-left 0.22s cubic-bezier(0.4,0,0.2,1)" }}>
+      <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {

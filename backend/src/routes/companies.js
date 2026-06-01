@@ -81,17 +81,23 @@ router.get("/stats", async (req, res, next) => {
       `SELECT COUNT(*) AS totalAssets ${assetJoin}`, compArgs
     );
     const [[{ criticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS criticalAssets ${assetJoin} AND LOWER(a.status) IN ('critical','breakdown')`, compArgs
+      `SELECT COUNT(*) AS criticalAssets ${assetJoin} AND LOWER(a.criticality) = 'critical'`, compArgs
     );
     const [[{ nonCriticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS nonCriticalAssets ${assetJoin} AND LOWER(a.status) NOT IN ('critical','breakdown','condemned','rber')`, compArgs
+      `SELECT COUNT(*) AS nonCriticalAssets ${assetJoin} AND LOWER(a.criticality) IN ('non_critical','non-critical','noncritical')`, compArgs
     );
     const [[{ condemnedAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.status) = 'condemned'`, compArgs
-    );
+      `SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.condemned) = '1'`, compArgs
+    ).catch(async () => {
+      const [[r]] = await pool.query(`SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.status) = 'condemned'`, compArgs).catch(() => [[{ condemnedAssets: 0 }]]);
+      return [[r]];
+    });
     const [[{ rberAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.status) = 'rber'`, compArgs
-    );
+      `SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.rber) = '1'`, compArgs
+    ).catch(async () => {
+      const [[r]] = await pool.query(`SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.status) = 'rber'`, compArgs).catch(() => [[{ rberAssets: 0 }]]);
+      return [[r]];
+    });
     // New additions this month
     const [[{ newAdditions }]] = await pool.query(
       `SELECT COUNT(*) AS newAdditions ${assetJoin} AND MONTH(a.created_at)=MONTH(NOW()) AND YEAR(a.created_at)=YEAR(NOW())`, compArgs
@@ -154,25 +160,35 @@ router.get("/assets", async (req, res, next) => {
     const params = [userId];
     if (companyId) { where += " AND c.id = ?"; params.push(Number(companyId)); }
     if (status) {
-      if (status === "critical")     { where += " AND LOWER(a.status) IN ('critical','breakdown')"; }
-      else if (status === "non_critical") { where += " AND LOWER(a.status) NOT IN ('critical','breakdown','condemned','rber')"; }
-      else if (status === "condemned") { where += " AND LOWER(a.status) = 'condemned'"; }
-      else if (status === "rber")    { where += " AND LOWER(a.status) = 'rber'"; }
+      if (status === "critical")     { where += " AND LOWER(a.criticality) = 'critical'"; }
+      else if (status === "non_critical") { where += " AND LOWER(a.criticality) IN ('non_critical','non-critical','noncritical')"; }
+      else if (status === "condemned") { where += " AND (LOWER(a.condemned) = '1' OR LOWER(a.status) = 'condemned')"; }
+      else if (status === "rber")    { where += " AND (LOWER(a.rber) = '1' OR LOWER(a.status) = 'rber')"; }
       else if (status === "new_addition") { where += " AND MONTH(a.created_at)=MONTH(NOW()) AND YEAR(a.created_at)=YEAR(NOW())"; }
     }
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
-              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
-              a.make, a.model, a.serial_no AS "serialNo", a.accessories,
-              a.dealer, a.mfg_year AS "mfgYear", a.installation_date AS "installationDate",
-              a.invoice_no AS "invoiceNo", a.purchase_date AS "purchaseDate",
-              a.purchase_cost AS "purchaseCost", a.remarks,
+              a.asset_type AS "assetType", a.status,
+              COALESCE(a.criticality, '') AS "criticality",
+              a.building, a.floor, a.room,
               a.created_at AS "createdAt", a.updated_at AS "updatedAt",
               c.company_name AS "companyName",
-              d.name AS "departmentName"
+              d.name AS "departmentName",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.equipmentName')), a.asset_name) AS "equipmentName",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.manufacturer')), '') AS "make",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model')), '') AS "model",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.serialNo')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.srNo')), '') AS "serialNo",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.accessories')), '') AS "accessories",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.dealer')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.distributor')), '') AS "dealer",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.mfgYear')), '') AS "mfgYear",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), '') AS "purchaseCost",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseDate')), '') AS "purchaseDate",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.maintenanceType')), '') AS "maintenanceType",
+              ad.metadata
        FROM assets a
        JOIN companies c ON c.id = a.company_id
        LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
        ${where}
        ORDER BY c.company_name, a.asset_name`,
       params

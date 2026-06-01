@@ -886,6 +886,7 @@ export default function HealthcareDashboard({ token }) {
   const [activeComplaintKey, setActiveComplaintKey] = useState(null); // complaint tile clicked
   const [complaintRequests, setComplaintRequests] = useState([]);
   const [complaintLoading, setComplaintLoading] = useState(false);
+  const [exportDDOpen, setExportDDOpen] = useState(false);
   const complaintPanelRef = useRef(null);
   const tableRef = useRef(null);  // ref to scroll to asset table on tile click
 
@@ -1010,10 +1011,40 @@ export default function HealthcareDashboard({ token }) {
           </div>
           <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>Complete visibility into your healthcare facility's asset lifecycle</p>
         </div>
-        <button onClick={() => doExport({}, "all")}
-          style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0, marginLeft: "auto" }}>
-          <Icon.Download /> Export All
-        </button>
+        <div style={{ position: "relative", flexShrink: 0, marginLeft: "auto" }}>
+          <button onClick={() => setExportDDOpen(o => !o)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            <Icon.Download /> Export All
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {exportDDOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "220px", overflow: "hidden" }}
+              onMouseLeave={() => setExportDDOpen(false)}>
+              {[
+                { label: "All Assets", filterData: {}, type: "assets" },
+                { label: "Critical Assets", filterData: { criticality: "Critical" }, type: "assets" },
+                { label: "Non-Critical Assets", filterData: { criticality: "Non_Critical" }, type: "assets" },
+                { label: "RBER Assets", filterData: { rber: "1" }, type: "assets" },
+                { label: "Condemned Assets", filterData: { condemned: "1" }, type: "assets" },
+                { label: "New Additions", filterData: { newAddition: "1" }, type: "assets" },
+                { label: "─", type: "divider" },
+                { label: "Call Logs", filterData: {}, type: "call-logs" },
+                { label: "PMS Records", filterData: {}, type: "pms" },
+                { label: "Calibration Records", filterData: {}, type: "calibration" },
+              ].map((opt, i) => opt.type === "divider"
+                ? <div key={i} style={{ height: "1px", background: "#f1f5f9", margin: "4px 0" }} />
+                : (
+                  <button key={i} onClick={() => { doExport(opt.filterData, opt.type); setExportDDOpen(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <Icon.Download style={{ opacity: 0.5 }} /> {opt.label}
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Error state */}

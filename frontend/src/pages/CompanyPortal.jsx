@@ -953,7 +953,7 @@ const SECTORS = [
 
 
 
-  { value: "technical", label: "Technical Assets", icon: "âš™ï¸", description: "Engineering, maintenance, HVAC" },
+  { value: "technical", label: "Technical Assets", icon: "⚙️", description: "Engineering, maintenance, HVAC" },
 
 
 
@@ -4155,7 +4155,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   };
 
   const displayed = employees.filter(e => !search || (e.fullName||"").toLowerCase().includes(search.toLowerCase()) || (e.email||"").toLowerCase().includes(search.toLowerCase()) || (e.designation||"").toLowerCase().includes(search.toLowerCase()));
-  const ROLES = ["admin","supervisor","technician","employee"];
+  const ROLES = ["admin","supervisor","technician","employee","doctor","engineer","nurse","wardboy"];
   const roleColors = { admin:"#dbeafe", supervisor:"#fef9c3", technician:"#dcfce7", employee:"#f1f5f9" };
   const roleTextColors = { admin:"#1d4ed8", supervisor:"#854d0e", technician:"#166534", employee:"#475569" };
   const selectedCo = allCos.find(c => c.id === selCo);
@@ -4517,6 +4517,7 @@ const CompanyPortal = () => {
 
 
   const [assetLoading, setAssetLoading] = useState(false);
+  const [viewingAsset, setViewingAsset] = useState(null);
 
 
 
@@ -6714,7 +6715,51 @@ const CompanyPortal = () => {
 
 
 
-    if (token && nav === "assets") {
+    if (token &&
+              {/* Asset Detail Modal */}
+              {viewingAsset && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setViewingAsset(null)}>
+                  <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: 'min(580px,94vw)', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                      <div>
+                        <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
+                        <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '—'}</p>
+                      </div>
+                      <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                        <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      {[
+                        ['Company', viewingAsset.companyName],
+                        ['Department', viewingAsset.departmentName],
+                        ['Asset Type', viewingAsset.assetType],
+                        ['Status', viewingAsset.status],
+                        ['Criticality', viewingAsset.criticality],
+                        ['Building', viewingAsset.building],
+                        ['Floor', viewingAsset.floor],
+                        ['Room', viewingAsset.room],
+                        ['Make', viewingAsset.make],
+                        ['Model', viewingAsset.model],
+                        ['Serial No', viewingAsset.serialNo],
+                        ['Accessories', viewingAsset.accessories],
+                        ['Dealer', viewingAsset.dealer],
+                        ['Mfg Year', viewingAsset.mfgYear],
+                        ['Purchase Cost', viewingAsset.purchaseCost],
+                        ['Purchase Date', viewingAsset.purchaseDate],
+                        ['Maintenance', viewingAsset.maintenanceType],
+                        ['Created At', viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
+                      ].filter(([,v]) => v).map(([label, val]) => (
+                        <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
+                          <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
+                          <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+ nav === "assets") {
 
 
 
@@ -14148,9 +14193,7 @@ const CompanyPortal = () => {
 
 
 
-      <aside className={`client-side-panel${!sidebarHovered ? " collapsed" : ""}`}
-        onMouseEnter={() => setSidebarHovered(true)}
-        onMouseLeave={() => setSidebarHovered(false)}>
+      <aside className="client-side-panel">
 
         <div className="client-side-header">
           <div className="client-avatar">CP</div>
@@ -20577,13 +20620,13 @@ const CompanyPortal = () => {
 
 
 
-                            <td style={{ padding: "14px 16px", fontWeight: 600, color: "#0f172a" }}>{a.assetName}</td>
+                            <td style={{ padding: "14px 16px", fontWeight: 600 }}><button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontWeight: 700, fontSize: "inherit", padding: 0, textDecoration: "underline" }}>{a.assetName}</button></td>
 
 
 
 
 
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontFamily: "monospace", fontSize: "12px" }}>{a.assetUniqueId || "—"}</td>
+                            <td style={{ padding: "14px 16px", fontFamily: "monospace", fontSize: "12px" }}><button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontWeight: 700, padding: 0, textDecoration: "underline", fontFamily: "monospace" }}>{a.assetUniqueId || "—"}</button></td>
 
 
 
@@ -28354,19 +28397,9 @@ const CompanyPortal = () => {
             }
           };
 
-          // Tile click handler — show drill-down or navigate to relevant section
+          // Tile click handler — show drill-down on same dashboard
           const handleTileClick = (tileId) => {
-            const assetTiles = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
-            const complaintTiles = ["total_complaint","wip","lt7d","gt7d","resolved","closed"];
-            if (assetTiles.includes(tileId)) {
-              setActiveTile(tileId);
-              setNav("assets");
-              setTimeout(() => setActiveTile(null), 100);
-            } else if (complaintTiles.includes(tileId)) {
-              setActiveTile(tileId);
-              setNav("workorders");
-              setTimeout(() => setActiveTile(null), 100);
-            }
+            setActiveTile(prev => prev === tileId ? null : tileId);
           };
           // Navigate from tile to page with smooth animation
           const handleViewAll = (tileId) => {
