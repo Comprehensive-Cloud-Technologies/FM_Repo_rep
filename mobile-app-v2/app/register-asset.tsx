@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useTheme, Spacing, Radius } from '../utils/theme';
 import { registerAssetOnQr, getToken, uploadQueryImage } from '../utils/api';
 
@@ -18,64 +19,258 @@ import { registerAssetOnQr, getToken, uploadQueryImage } from '../utils/api';
 type DateRange = { enabled: boolean; startDate: string; endDate: string };
 const emptyRange = (): DateRange => ({ enabled: false, startDate: '', endDate: '' });
 
-// ─── Date Picker ──────────────────────────────────────────────────────────────
+type DocFile = { uri: string; name: string; mimeType?: string };
+
+// ─── Calendar Date Picker ─────────────────────────────────────────────────────
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
 function DatePickerField({
   value, onChange, placeholder,
 }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   const { theme } = useTheme();
   const [show, setShow] = useState(false);
-  const [d, setD] = useState('');
-  const [m, setM] = useState('');
-  const [y, setY] = useState('');
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+  const [selected, setSelected] = useState<Date | null>(null);
+
+  const parseDate = (v: string): Date | null => {
+    if (!v) return null;
+    const parts = v.split('/');
+    if (parts.length !== 3) return null;
+    const [d, m, y] = parts.map(Number);
+    if (!d || !m || !y || y < 1900 || y > 2100) return null;
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
 
   const open = () => {
-    const parts = value.split('/');
-    setD(parts[0] || '');
-    setM(parts[1] || '');
-    setY(parts[2] || '');
+    const parsed = parseDate(value);
+    const base = parsed ?? new Date();
+    setViewYear(base.getFullYear());
+    setViewMonth(base.getMonth());
+    setSelected(parsed);
     setShow(true);
   };
 
   const confirm = () => {
-    if (d && m && y) onChange(`${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`);
+    if (selected) {
+      const d = String(selected.getDate()).padStart(2, '0');
+      const m = String(selected.getMonth() + 1).padStart(2, '0');
+      const y = selected.getFullYear();
+      onChange(`${d}/${m}/${y}`);
+    }
     setShow(false);
   };
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const today = new Date();
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const isSelected = (d: number) =>
+    selected !== null &&
+    selected.getDate() === d &&
+    selected.getMonth() === viewMonth &&
+    selected.getFullYear() === viewYear;
+
+  const isToday = (d: number) =>
+    today.getDate() === d &&
+    today.getMonth() === viewMonth &&
+    today.getFullYear() === viewYear;
 
   return (
     <>
       <TouchableOpacity
-        style={[sStyles.input, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-        onPress={open}>
-        <Text style={{ color: value ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>{value || placeholder}</Text>
-        <MaterialCommunityIcons name="calendar" size={18} color={theme.textMuted} />
+        style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+        onPress={open}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: value ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+          {value || placeholder}
+        </Text>
+        <MaterialCommunityIcons name="calendar" size={18} color={theme.primary} />
       </TouchableOpacity>
-      <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: theme.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-            <Text style={{ fontWeight: '700', fontSize: 16, color: theme.textPrimary, marginBottom: 16 }}>Select Date</Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              {([['Day', d, setD, 'DD', 2], ['Month', m, setM, 'MM', 2], ['Year', y, setY, 'YYYY', 4]] as const).map(([lbl, val, setter, ph, mx]) => (
-                <View key={lbl} style={{ flex: lbl === 'Year' ? 2 : 1 }}>
-                  <Text style={[sStyles.label, { color: theme.textMuted, marginBottom: 4 }]}>{lbl}</Text>
-                  <TextInput
-                    style={[sStyles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.textPrimary }]}
-                    value={val} onChangeText={v => setter(v.replace(/\D/g, '').slice(0, mx))}
-                    keyboardType="numeric" placeholder={ph} placeholderTextColor={theme.textMuted} maxLength={mx} />
+
+      <Modal visible={show} transparent animationType="fade" onRequestClose={() => setShow(false)} statusBarTranslucent>
+        <View style={calStyles.overlay}>
+          <TouchableOpacity style={calStyles.backdrop} activeOpacity={1} onPress={() => setShow(false)} />
+          <View style={[calStyles.sheet, { backgroundColor: theme.surface }]}>
+            {/* Header */}
+            <View style={calStyles.titleRow}>
+              <Text style={[calStyles.sheetTitle, { color: theme.textPrimary }]}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShow(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <MaterialCommunityIcons name="close" size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Month Navigation */}
+            <View style={calStyles.monthNav}>
+              <TouchableOpacity onPress={prevMonth} style={[calStyles.navBtn, { backgroundColor: theme.background }]} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="chevron-left" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+              <Text style={[calStyles.monthLabel, { color: theme.textPrimary }]}>
+                {MONTH_NAMES[viewMonth]} {viewYear}
+              </Text>
+              <TouchableOpacity onPress={nextMonth} style={[calStyles.navBtn, { backgroundColor: theme.background }]} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Day Labels */}
+            <View style={calStyles.dayLabelRow}>
+              {DAY_LABELS.map((d, i) => (
+                <View key={i} style={calStyles.dayLabelCell}>
+                  <Text style={[calStyles.dayLabelText, { color: i === 0 || i === 6 ? '#dc2626' : theme.textMuted }]}>{d}</Text>
                 </View>
               ))}
             </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: theme.border, alignItems: 'center' }} onPress={() => setShow(false)}>
-                <Text style={{ color: theme.textMuted, fontWeight: '600' }}>Cancel</Text>
+
+            {/* Calendar Grid */}
+            <View style={calStyles.grid}>
+              {Array.from({ length: Math.ceil(cells.length / 7) }).map((_, row) => (
+                <View key={row} style={calStyles.gridRow}>
+                  {cells.slice(row * 7, row * 7 + 7).map((day, col) => (
+                    <View key={col} style={calStyles.gridCell}>
+                      {day ? (
+                        <TouchableOpacity
+                          onPress={() => setSelected(new Date(viewYear, viewMonth, day))}
+                          activeOpacity={0.75}
+                          style={[
+                            calStyles.dayBtn,
+                            isSelected(day) && { backgroundColor: theme.primary },
+                            isToday(day) && !isSelected(day) && { borderWidth: 1.5, borderColor: theme.primary },
+                          ]}
+                        >
+                          <Text style={[
+                            calStyles.dayText,
+                            isSelected(day) && { color: '#fff', fontWeight: '700' },
+                            isToday(day) && !isSelected(day) && { color: theme.primary, fontWeight: '700' },
+                            !isSelected(day) && !isToday(day) && { color: col === 0 || col === 6 ? '#dc2626' : theme.textPrimary },
+                          ]}>
+                            {day}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={calStyles.dayBtn} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+
+            {/* Actions */}
+            <View style={calStyles.actions}>
+              <TouchableOpacity
+                style={[calStyles.cancelBtn, { borderColor: theme.border }]}
+                onPress={() => setShow(false)}
+              >
+                <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 2, padding: 13, borderRadius: 12, backgroundColor: theme.primary, alignItems: 'center' }} onPress={confirm}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Confirm</Text>
+              <TouchableOpacity
+                style={[calStyles.confirmBtn, { backgroundColor: selected ? theme.primary : '#cbd5e1' }]}
+                onPress={confirm}
+                disabled={!selected}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
     </>
+  );
+}
+
+// ─── Document Attach Field ────────────────────────────────────────────────────
+function DocumentAttachField({
+  files, onAdd, onRemove, maxFiles = 3, label,
+}: { files: DocFile[]; onAdd: (f: DocFile) => void; onRemove: (i: number) => void; maxFiles?: number; label: string }) {
+  const { theme } = useTheme();
+
+  const pickDoc = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        const a = result.assets[0];
+        onAdd({ uri: a.uri, name: a.name ?? 'document', mimeType: a.mimeType ?? undefined });
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open document picker. Please try again.');
+    }
+  };
+
+  const iconFor = (mime?: string): any => {
+    if (mime === 'application/pdf') return 'file-pdf-box';
+    if (mime?.startsWith('image/')) return 'file-image-outline';
+    return 'file-document-outline';
+  };
+
+  const colorFor = (mime?: string) => {
+    if (mime === 'application/pdf') return '#dc2626';
+    if (mime?.startsWith('image/')) return '#0284c7';
+    return theme.primary;
+  };
+
+  return (
+    <View>
+      <Text style={[sStyles.label, { color: theme.textMuted, marginBottom: 6 }]}>{label}</Text>
+
+      {files.map((f, i) => (
+        <View
+          key={i}
+          style={[docStyles.fileRow, { backgroundColor: theme.background, borderColor: theme.border }]}
+        >
+          <MaterialCommunityIcons name={iconFor(f.mimeType)} size={22} color={colorFor(f.mimeType)} />
+          <Text
+            style={[docStyles.fileName, { color: theme.textPrimary }]}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
+            {f.name}
+          </Text>
+          <TouchableOpacity onPress={() => onRemove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MaterialCommunityIcons name="close-circle" size={20} color="#dc2626" />
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {files.length < maxFiles && (
+        <TouchableOpacity
+          onPress={pickDoc}
+          activeOpacity={0.8}
+          style={[docStyles.attachBtn, { borderColor: theme.primary, backgroundColor: `${theme.primary}0D` }]}
+        >
+          <MaterialCommunityIcons name="paperclip" size={20} color={theme.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>Attach Document</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 1 }}>PDF, JPG, JPEG, PNG</Text>
+          </View>
+          <MaterialCommunityIcons name="plus-circle-outline" size={20} color={theme.primary} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -100,7 +295,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function RegisterAssetScreen() {
   const { theme } = useTheme();
-  const { qrUid, qrId } = useLocalSearchParams<{ qrUid: string; qrId: string }>();
+  const { qrUid, qrId, companyName } = useLocalSearchParams<{ qrUid: string; qrId: string; companyName?: string }>();
 
   // Equipment Details
   const [assetName,        setAssetName]        = useState('');
@@ -116,7 +311,7 @@ export default function RegisterAssetScreen() {
   const [invoiceNo,     setInvoiceNo]     = useState('');
   const [purchaseDate,  setPurchaseDate]  = useState('');
   const [purchaseCost,  setPurchaseCost]  = useState('');
-  const [invoiceImages, setInvoiceImages] = useState<string[]>([]);
+  const [invoiceDocs,   setInvoiceDocs]   = useState<DocFile[]>([]);
 
   // Maintenance
   const [warranty, setWarranty] = useState<DateRange>(emptyRange());
@@ -136,7 +331,7 @@ export default function RegisterAssetScreen() {
   const [hcImages,   setHcImages]   = useState<string[]>([]);
 
   const inp = (extra?: object) => ([sStyles.input, {
-    backgroundColor: theme.card,
+    backgroundColor: theme.surface,
     borderColor: theme.border,
     color: theme.textPrimary,
     ...(extra || {}),
@@ -162,7 +357,7 @@ export default function RegisterAssetScreen() {
 
       const [imageUrls, invoiceUrls] = await Promise.all([
         uploadAll(hcImages),
-        uploadAll(invoiceImages),
+        uploadAll(invoiceDocs.map(f => f.uri)),
       ]);
 
       const result = await registerAssetOnQr(token, Number(qrId), {
@@ -275,7 +470,11 @@ export default function RegisterAssetScreen() {
 
   return (
     <SafeAreaView style={[sStyles.safe, { backgroundColor: theme.background }]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
         {/* Header */}
         <View style={[sStyles.header, { borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
@@ -283,11 +482,18 @@ export default function RegisterAssetScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={[sStyles.headerTitle, { color: theme.textPrimary }]}>Register Equipment</Text>
+            {companyName ? (
+              <Text style={[sStyles.headerSub, { color: theme.primary, fontWeight: '700', fontFamily: undefined }]}>{companyName}</Text>
+            ) : null}
             <Text style={[sStyles.headerSub, { color: theme.textMuted }]}>{qrUid}</Text>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={sStyles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={sStyles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* QR Banner */}
           <View style={sStyles.banner}>
             <MaterialCommunityIcons name="qrcode-scan" size={24} color="#d97706" />
@@ -355,23 +561,12 @@ export default function RegisterAssetScreen() {
           <Field label="Purchase Date">
             <DatePickerField value={purchaseDate} onChange={setPurchaseDate} placeholder="DD/MM/YYYY" />
           </Field>
-          <PhotoStrip
-            photos={invoiceImages}
-            onRemove={i => setInvoiceImages(p => p.filter((_, j) => j !== i))}
-            onCamera={async () => {
-              const { status } = await ImagePicker.requestCameraPermissionsAsync();
-              if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
-              const r = await ImagePicker.launchCameraAsync({ quality: 0.85 });
-              if (!r.canceled && r.assets[0]) setInvoiceImages(p => [...p, r.assets[0].uri].slice(0, 3));
-            }}
-            onGallery={async () => {
-              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo library access in Settings.'); return; }
-              const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true, quality: 0.85 });
-              if (!r.canceled) setInvoiceImages(p => [...p, ...r.assets.map((a: any) => a.uri)].slice(0, 3));
-            }}
-            max={3}
-            label="Invoice Receipt Photo (up to 3)"
+          <DocumentAttachField
+            files={invoiceDocs}
+            onAdd={f => setInvoiceDocs(p => [...p, f].slice(0, 3))}
+            onRemove={i => setInvoiceDocs(p => p.filter((_, j) => j !== i))}
+            maxFiles={3}
+            label="Invoice Receipt / Document (up to 3)"
           />
 
           {/* ── MAINTENANCE UNDER ─────────────────── */}
@@ -438,13 +633,10 @@ export default function RegisterAssetScreen() {
             max={4}
             label="Equipment Photos (up to 4)"
           />
-
-          {/* bottom padding for footer */}
-          <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* Footer Button */}
-        <View style={[sStyles.footer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+        {/* Footer Button — part of layout flow, not absolute */}
+        <View style={[sStyles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <TouchableOpacity
             onPress={handleRegister}
             disabled={!assetName.trim() || submitting}
@@ -463,12 +655,13 @@ export default function RegisterAssetScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const sStyles = StyleSheet.create({
   safe:          { flex: 1 },
   header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: 1 },
   headerTitle:   { fontSize: 17, fontWeight: '700' },
   headerSub:     { fontSize: 11, fontFamily: 'monospace', marginTop: 1 },
-  scroll:        { padding: Spacing.md, gap: 14, paddingBottom: 20 },
+  scroll:        { padding: Spacing.md, gap: 14, paddingBottom: Spacing.xl },
   banner:        { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fef3c7', borderColor: '#fcd34d', borderWidth: 1, borderRadius: Radius.lg, padding: 14, marginBottom: 4 },
   bannerText:    { flex: 1, fontSize: 12, color: '#92400e', lineHeight: 17 },
   sectionHeader: { backgroundColor: '#1e3a8a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.md, marginTop: 8 },
@@ -479,9 +672,37 @@ const sStyles = StyleSheet.create({
   checkRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checkBox:      { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
   checkLabel:    { fontSize: 14 },
-  footer:        { position: 'absolute', bottom: 0, left: 0, right: 0, padding: Spacing.md, borderTopWidth: 1 },
+  footer:        { padding: Spacing.md, borderTopWidth: 1 },
   btn:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: Radius.lg },
   btnText:       { color: '#fff', fontWeight: '700', fontSize: 16 },
   imgBtn:        { width: 75, height: 75, borderRadius: Radius.md, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   imgBtnLabel:   { fontSize: 10, marginTop: 4 },
+});
+
+const calStyles = StyleSheet.create({
+  overlay:      { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  backdrop:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet:        { borderRadius: 20, paddingBottom: 16, elevation: 24, maxWidth: 340, width: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24 },
+  titleRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 18, paddingBottom: 10 },
+  sheetTitle:   { fontSize: 16, fontWeight: '700' },
+  monthNav:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 8 },
+  navBtn:       { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  monthLabel:   { fontSize: 14, fontWeight: '700' },
+  dayLabelRow:  { flexDirection: 'row', paddingHorizontal: 8, marginBottom: 2 },
+  dayLabelCell: { flex: 1, alignItems: 'center', paddingVertical: 5 },
+  dayLabelText: { fontSize: 11, fontWeight: '600' },
+  grid:         { paddingHorizontal: 8 },
+  gridRow:      { flexDirection: 'row', marginBottom: 2 },
+  gridCell:     { flex: 1, alignItems: 'center' },
+  dayBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  dayText:      { fontSize: 13 },
+  actions:      { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 12 },
+  cancelBtn:    { flex: 1, padding: 12, borderRadius: 10, borderWidth: 1.5, alignItems: 'center' },
+  confirmBtn:   { flex: 2, padding: 12, borderRadius: 10, alignItems: 'center' },
+});
+
+const docStyles = StyleSheet.create({
+  fileRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: Radius.md, padding: 11, marginBottom: 8, borderWidth: 1 },
+  fileName:  { flex: 1, fontSize: 13, fontWeight: '500' },
+  attachBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: Radius.md, padding: 14 },
 });

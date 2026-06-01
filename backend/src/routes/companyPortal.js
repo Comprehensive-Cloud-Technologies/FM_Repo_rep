@@ -4970,6 +4970,10 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       mfgYear, installationDate, invoiceNo, purchaseDate, purchaseCost,
       maintenance, rber, remarks,
       floor, room,
+      // New structured maintenance fields
+      warranty, amc, cmc, inHouse, catalyst,
+      // Media
+      hcImages, invoiceImages,
     } = req.body;
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
 
@@ -5001,7 +5005,15 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       invoiceNo: invoiceNo || null, purchaseDate: purchaseDate || null,
       purchaseCost: purchaseCost || null,
       maintenance: Array.isArray(maintenance) ? maintenance : [],
+      // Structured maintenance contracts
+      warranty: warranty && warranty.enabled ? { enabled: true, startDate: warranty.startDate || null, endDate: warranty.endDate || null } : null,
+      amc:      amc      && amc.enabled      ? { enabled: true, startDate: amc.startDate      || null, endDate: amc.endDate      || null } : null,
+      cmc:      cmc      && cmc.enabled      ? { enabled: true, startDate: cmc.startDate      || null, endDate: cmc.endDate      || null } : null,
+      inHouse: !!inHouse, catalyst: !!catalyst,
       rber: !!rber, remarks: remarks || null, notes: notes || null,
+      // Media uploaded by mobile
+      hcImages:      Array.isArray(hcImages)      ? hcImages      : [],
+      invoiceImages: Array.isArray(invoiceImages) ? invoiceImages : [],
     };
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = VALUES(metadata)`,

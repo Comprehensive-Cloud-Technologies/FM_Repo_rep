@@ -824,21 +824,23 @@ function AssetModal({ existing, token, departments, employees = [], assetTypesLi
       hcInvoiceNo:         meta.invoiceNo         || "",
       hcInvoiceDate:       meta.invoiceDate       || "",
       hcPurchaseCost:      meta.purchaseCost      || "",
-      hcWarranty:  !!(hcMt.warranty || hcLegacyMt === "Warranty" || hcLegacyMt === "AMC+CMC"),
-      hcAmc:       !!(hcMt.amc      || hcLegacyMt === "AMC"      || hcLegacyMt === "AMC+CMC"),
-      hcCmc:       !!(hcMt.cmc      || hcLegacyMt === "CMC"      || hcLegacyMt === "AMC+CMC"),
-      hcInHouse:   !!(hcMt.inHouse),
-      hcCatalyst:  !!(hcMt.catalyst),
-      hcWarrantyStart:     meta.warrantyStart     || "",
-      hcWarrantyEnd:       meta.warrantyEnd       || "",
-      hcAmcStart:          meta.amcStart          || "",
-      hcAmcEnd:            meta.amcEnd            || "",
-      hcCmcStart:          meta.cmcStart          || "",
-      hcCmcEnd:            meta.cmcEnd            || "",
-      hcRber:              !!meta.rber,
+      hcWarranty:  !!(hcMt.warranty || hcLegacyMt === "Warranty" || hcLegacyMt === "AMC+CMC" || meta.warranty?.enabled),
+      hcAmc:       !!(hcMt.amc      || hcLegacyMt === "AMC"      || hcLegacyMt === "AMC+CMC" || meta.amc?.enabled),
+      hcCmc:       !!(hcMt.cmc      || hcLegacyMt === "CMC"      || hcLegacyMt === "AMC+CMC" || meta.cmc?.enabled),
+      hcInHouse:   !!(hcMt.inHouse  || meta.inHouse),
+      hcCatalyst:  !!(hcMt.catalyst || meta.catalyst),
+      hcWarrantyStart:     meta.warrantyStart     || meta.warranty?.startDate || "",
+      hcWarrantyEnd:       meta.warrantyEnd       || meta.warranty?.endDate   || "",
+      hcAmcStart:          meta.amcStart          || meta.amc?.startDate      || "",
+      hcAmcEnd:            meta.amcEnd            || meta.amc?.endDate        || "",
+      hcCmcStart:          meta.cmcStart          || meta.cmc?.startDate      || "",
+      hcCmcEnd:            meta.cmcEnd            || meta.cmc?.endDate        || "",
+      hcRber:              !!(meta.rber),
       hcRemarks:           meta.remarks           || "",
-      hcImages:            Array.isArray(meta.hcImages) ? meta.hcImages : [],
-      hcInvoiceUrl:        meta.hcInvoiceUrl      || "",
+      hcImages:            Array.isArray(meta.hcImages)
+        ? meta.hcImages.map(img => typeof img === 'string' ? { url: img, name: img.split('/').pop() || 'photo' } : img)
+        : [],
+      hcInvoiceUrl:        meta.hcInvoiceUrl || (Array.isArray(meta.invoiceImages) && meta.invoiceImages.length ? meta.invoiceImages[0] : "") || "",
       // Valuation
       purchaseValue:    meta.purchaseValue    || "",
       usefulLifeYears:  meta.usefulLifeYears  || "",
@@ -5502,6 +5504,7 @@ export default function CompanyEmployeePortal() {
                                 const meta = a.metadata || {};
                                 // Derive combined display value
                                 const combined = st === "Inactive" ? "Inactive"
+                                  : st === "Verified" ? "Verified"
                                   : ws === "Condemned" ? "Condemned"
                                   : meta.rber ? "RBER"
                                   : ws === "Not_Working" ? "Not_Working"
@@ -5511,6 +5514,7 @@ export default function CompanyEmployeePortal() {
                                 const COLOR_MAP = {
                                   Active:      { bg: "#f0fdf4", color: "#16a34a" },
                                   Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
+                                  Verified:    { bg: "#dbeafe", color: "#1d4ed8" },
                                   WIP:         { bg: "#fef9c3", color: "#92400e" },
                                   Not_Working: { bg: "#fef2f2", color: "#dc2626" },
                                   Critical:    { bg: "#fce7f3", color: "#9d174d" },
@@ -5525,6 +5529,7 @@ export default function CompanyEmployeePortal() {
                                     onChange={e => {
                                       const v = e.target.value;
                                       if (v === "Inactive")     handleHCStatusUpdate(a.id, { status: "Inactive" });
+                                      else if (v === "Verified")     handleHCStatusUpdate(a.id, { status: "Verified", workingStatus: "Working" });
                                       else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active" });
                                       else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active" });
                                       else if (v === "Critical")    handleHCStatusUpdate(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
@@ -5534,6 +5539,7 @@ export default function CompanyEmployeePortal() {
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
                                     <option value="Active">Active</option>
+                                    <option value="Verified">Verified</option>
                                     <option value="Inactive">Inactive</option>
                                     <option value="WIP">WIP</option>
                                     <option value="Not_Working">Not Working</option>

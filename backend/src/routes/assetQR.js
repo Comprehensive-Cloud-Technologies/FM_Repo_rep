@@ -40,9 +40,11 @@ router.get("/qr-lookup/:uid", async (req, res, next) => {
     const [[qr]] = await pool.query(
       `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
               q.company_id AS companyId,
+              c.company_name AS companyName,
               a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
               a.status, q.linked_at AS linkedAt
        FROM asset_pre_qr q
+       LEFT JOIN companies c ON c.id = q.company_id
        LEFT JOIN assets a ON a.id = q.asset_id
        WHERE q.qr_unique_id = ?`,
       [req.params.uid]

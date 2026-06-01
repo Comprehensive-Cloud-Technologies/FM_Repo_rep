@@ -10925,7 +10925,33 @@ const CompanyPortal = () => {
 
 
 
-  const handleDeleteAllAssets = async () => {
+  const handleInlineAssetStatus = async (assetId, changes) => {
+    try {
+      const { status, workingStatus, criticality, rber } = changes;
+      const existing = assets.find(a => a.id === assetId);
+      const payload = {};
+      if (status) payload.status = status;
+      payload.metadata = {
+        ...(existing?.metadata || {}),
+        ...(workingStatus !== undefined ? { workingStatus } : {}),
+        ...(criticality  !== undefined ? { criticality  } : {}),
+        ...(rber         !== undefined ? { rber         } : {}),
+      };
+      await updateAsset(token, assetId, payload);
+      setAssets(p => p.map(a => a.id !== assetId ? a : {
+        ...a,
+        ...(status ? { status } : {}),
+        metadata: {
+          ...(a.metadata || {}),
+          ...(workingStatus !== undefined ? { workingStatus } : {}),
+          ...(criticality  !== undefined ? { criticality  } : {}),
+          ...(rber         !== undefined ? { rber         } : {}),
+        },
+      }));
+    } catch (_err) { /* non-critical */ }
+  };
+
+    const handleDeleteAllAssets = async () => {
 
 
 
@@ -20484,313 +20510,116 @@ const CompanyPortal = () => {
 
 
 
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-
-
-
-
-
-                    <thead>
-
-
-
-
-
+                  <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "65vh" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "2000px" }}>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                       <tr>
-
-
-
-
-
-                        {["#", "Asset Name", "ID", "Type", "Company", "Department", "Location", "Status", "Actions"].map((h) => (
-
-
-
-
-
-                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-
-
-
-
-
+                        {["SN", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
-
-
-
-
-
                       </tr>
-
-
-
-
-
                     </thead>
-
-
-
-
-
                     <tbody>
-
-
-
-
-
-                      {filteredAssets.length === 0 ? (
-
-
-
-
-
-                        <tr><td colSpan={9} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading…" : "No assets found."}</td></tr>
-
-
-
-
-
-                      ) : filteredAssets.map((a, i) => {
-
-
-
-
-
-                        const typeLabel = assetTypeLabelMap[a.assetType] || assetTypeLabels[a.assetType] || a.assetType;
-
-
-
-
-
-                        return (
-
-
-
-
-
-                          <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", color: "#64748b" }}>{i + 1}</td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", fontWeight: 600 }}><button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontWeight: 700, fontSize: "inherit", padding: 0, textDecoration: "underline" }}>{a.assetName}</button></td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", fontFamily: "monospace", fontSize: "12px" }}><button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontWeight: 700, padding: 0, textDecoration: "underline", fontFamily: "monospace" }}>{a.assetUniqueId || "—"}</button></td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px" }}>
-
-
-
-
-
-                              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: a.assetType === "technical" ? "#eff6ff" : a.assetType === "fleet" ? "#f3e8ff" : "#f0fdf4", color: a.assetType === "technical" ? "#2563eb" : a.assetType === "fleet" ? "#7c3aed" : "#16a34a" }}>
-
-
-
-
-
-                                {typeLabel}
-
-
-
-
-
-                              </span>
-
-
-
-
-
-                            </td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{a.companyName || "—"}</td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{a.departmentName || "—"}</td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "12.5px" }}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
-
-
-
-
-
-                            <td style={{ padding: "14px 16px" }}>
-
-
-
-
-
-                              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: (a.status || "Active").toLowerCase() === "active" ? "#f0fdf4" : "#f8fafc", color: (a.status || "Active").toLowerCase() === "active" ? "#16a34a" : "#94a3b8" }}>
-
-
-
-
-
-                                {a.status || "Active"}
-
-
-
-
-
-                              </span>
-
-
-
-
-
-                            </td>
-
-
-
-
-
-                            <td style={{ padding: "12px 16px" }}>
-
-
-
-
-
-                              <div style={{ display: "flex", gap: "6px" }}>
-
-
-
-
-
-                                <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName, a)}
-
-
-
-
-
-                                  style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-
-
-
-
-
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-
-
-
-
-
-                                </button>
-
-
-
-
-
-                                <button title="Edit" type="button" onClick={() => handleEditAsset(a)}
-
-
-
-
-
-                                  style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-
-
-
-
-
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-
-
-
-
-
-                                </button>
-
-
-
-
-
-                                <button title="Delete" type="button" onClick={() => handleDeleteAsset(a.id)}
-
-
-
-
-
-                                  style={{ width: "30px", height: "30px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-
-
-
-
-
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-
-
-
-
-
-                                </button>
-
-
-
-
-
-                              </div>
-
-
-
-
-
-                            </td>
-
-
-
-
-
-                          </tr>
-
-
-
-
-
-                        );
-
-
-
-
-
-                      })}
-
-
-
-
-
+                      {filteredAssets.length === 0
+                        ? <tr><td colSpan={20} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading…" : "No assets found."}</td></tr>
+                        : filteredAssets.map((a, i) => {
+                          const m = a.metadata || {};
+                          const maint = [
+                            (m.warranty?.enabled || m.maintenanceTypes?.warranty) && "Warranty",
+                            (m.amc?.enabled || m.maintenanceTypes?.amc) && "AMC",
+                            (m.cmc?.enabled || m.maintenanceTypes?.cmc) && "CMC",
+                            (m.inHouse || m.maintenanceTypes?.inHouse) && "In House",
+                            (m.catalyst || m.maintenanceTypes?.catalyst) && "Catalyst",
+                          ].filter(Boolean).join(", ") || m.maintenanceType || "—";
+                          const ws   = a.workingStatus || a.working_status || m.workingStatus || "Working";
+                          const crit = a.criticality || m.criticality || "Non_Critical";
+                          const st   = a.status || "Active";
+                          const combined = st === "Inactive" ? "Inactive"
+                            : st === "Verified" ? "Verified"
+                            : ws === "Condemned" ? "Condemned"
+                            : m.rber ? "RBER"
+                            : ws === "Not_Working" ? "Not_Working"
+                            : ws === "WIP" ? "WIP"
+                            : crit === "Critical" ? "Critical"
+                            : "Active";
+                          const COLOR_MAP = {
+                            Active:      { bg: "#f0fdf4", color: "#16a34a" },
+                            Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
+                            Verified:    { bg: "#dbeafe", color: "#1d4ed8" },
+                            WIP:         { bg: "#fef9c3", color: "#92400e" },
+                            Not_Working: { bg: "#fef2f2", color: "#dc2626" },
+                            Critical:    { bg: "#fce7f3", color: "#9d174d" },
+                            RBER:        { bg: "#fff7ed", color: "#ea580c" },
+                            Condemned:   { bg: "#f5f3ff", color: "#7c3aed" },
+                          };
+                          const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
+                          return (
+                            <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "—"}</td>
+                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.mfgYear || m.manufacturingYear || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "—"}</td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <select
+                                  value={combined}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    if (v === "Inactive")         handleInlineAssetStatus(a.id, { status: "Inactive" });
+                                    else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Verified", workingStatus: "Working" });
+                                    else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active" });
+                                    else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active" });
+                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
+                                    else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", rber: true });
+                                    else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active" });
+                                    else                          handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
+                                  }}
+                                  style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
+                                  <option value="Active">Active</option>
+                                  <option value="Verified">Verified</option>
+                                  <option value="Inactive">Inactive</option>
+                                  <option value="WIP">WIP</option>
+                                  <option value="Not_Working">Not Working</option>
+                                  <option value="Critical">Critical</option>
+                                  <option value="RBER">RBER</option>
+                                  <option value="Condemned">Condemned</option>
+                                </select>
+                              </td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName, a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                  </button>
+                                  <button title="Edit" type="button" onClick={() => handleEditAsset(a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                  </button>
+                                  <button title="Delete" type="button" onClick={() => handleDeleteAsset(a.id)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
-
-
-
-
-
                   </table>
+                  </div>
 
 
 

@@ -54,7 +54,7 @@ export default function QRScannerScreen() {
           const qr = await fetchPreQrByUid(data.trim());
           if (!qr.assetId) {
             // Not yet linked → let user register a new asset
-            router.replace({ pathname: '/register-asset', params: { qrUid: data.trim(), qrId: String(qr.id) } });
+            router.replace({ pathname: '/register-asset', params: { qrUid: data.trim(), qrId: String(qr.id), companyName: qr.companyName ?? '' } });
           } else {
             // Linked → show asset details + query form
             router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? data.trim() } });

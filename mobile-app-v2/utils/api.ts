@@ -310,6 +310,7 @@ export interface PreQrCode {
   assetName?: string;
   assetUniqueId?: string;
   companyId: number;
+  companyName?: string;
   departmentName?: string;
   status?: string;
   metadata?: Record<string, unknown>;
@@ -403,6 +404,12 @@ export async function registerAssetOnQr(
     accessories?: string; dealer?: string; mfgYear?: string;
     installationDate?: string; invoiceNo?: string; purchaseDate?: string;
     purchaseCost?: string; maintenance?: string[]; rber?: boolean; remarks?: string;
+    warranty?: { enabled: boolean; startDate: string; endDate: string };
+    amc?:      { enabled: boolean; startDate: string; endDate: string };
+    cmc?:      { enabled: boolean; startDate: string; endDate: string };
+    inHouse?: boolean; catalyst?: boolean;
+    hcImages?: string[];
+    invoiceImages?: string[];
   },
 ): Promise<{ assetId: number; assetName: string; assetUniqueId: string }> {
   const resp = await fetch(`${API_BASE}/api/company-portal/pre-qr/${qrId}/register-asset`, {
