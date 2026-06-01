@@ -98,10 +98,10 @@ router.get("/stats", async (req, res, next) => {
       const [[r]] = await pool.query(`SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.status) = 'rber'`, compArgs).catch(() => [[{ rberAssets: 0 }]]);
       return [[r]];
     });
-    // New additions this month
-    const [[{ newAdditions }]] = await pool.query(
-      `SELECT COUNT(*) AS newAdditions ${assetJoin} AND MONTH(a.created_at)=MONTH(NOW()) AND YEAR(a.created_at)=YEAR(NOW())`, compArgs
-    );
+    // Verified assets
+    const [[{ verifiedAssets }]] = await pool.query(
+      `SELECT COUNT(*) AS verifiedAssets ${assetJoin} AND a.is_verified = 1`, compArgs
+    ).catch(() => [[{ verifiedAssets: 0 }]]);
 
     // Complaint profile (work orders)
     const woJoin = companyIdFilter
@@ -144,7 +144,7 @@ router.get("/stats", async (req, res, next) => {
     );
     res.json({
       totalCompanies, activeCompanies, totalAssets, totalEmployees,
-      assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, newAdditions },
+      assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, verifiedAssets },
       complaintProfile: { total: totalComplaints, wip: wipComplaints, lt7d: lt7dComplaints, gt7d: gt7dComplaints, resolved: resolvedComplaints, closed: closedComplaints },
       byCompany,
     });
@@ -164,7 +164,7 @@ router.get("/assets", async (req, res, next) => {
       else if (status === "non_critical") { where += " AND LOWER(a.criticality) IN ('non_critical','non-critical','noncritical')"; }
       else if (status === "condemned") { where += " AND (LOWER(a.condemned) = '1' OR LOWER(a.status) = 'condemned')"; }
       else if (status === "rber")    { where += " AND (LOWER(a.rber) = '1' OR LOWER(a.status) = 'rber')"; }
-      else if (status === "new_addition") { where += " AND MONTH(a.created_at)=MONTH(NOW()) AND YEAR(a.created_at)=YEAR(NOW())"; }
+      else if (status === "verified") { where += " AND a.is_verified = 1"; }
     }
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",

@@ -4122,6 +4122,10 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
     if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
   }, [initialCompanyId]);
 
+  useEffect(() => {
+    if (!selCo && allCos.length > 0) setSelCo(allCos[0].id);
+  }, [allCos, selCo]);
+
   const load = useCallback(async (cid) => {
     if (!cid) return; setLoading(true);
     try { const d = await getAdminEmployees(token, cid); setEmp(Array.isArray(d) ? d : []); }
@@ -21548,7 +21552,7 @@ const CompanyPortal = () => {
 
 
 
-                            <label>Make</label>
+                            <label>Make / Manufacturer</label>
 
 
 
@@ -21565,26 +21569,6 @@ const CompanyPortal = () => {
 
 
 
-
-                          <div className="form-group">
-
-
-
-
-
-                            <label>Manufacturer</label>
-
-
-
-
-
-                            <input name="manufacturer" value={assetForm.manufacturer} onChange={handleAssetChange} className="form-input" placeholder="Manufacturer name" />
-
-
-
-
-
-                          </div>
 
 
 
@@ -24325,6 +24309,23 @@ const CompanyPortal = () => {
                       </div>
                     ))}
                   </div>
+                  {(() => {
+                    const imgs = viewingAsset.hcImages || viewingAsset.images || (viewingAsset.metadata && (viewingAsset.metadata.hcImages || viewingAsset.metadata.images)) || [];
+                    const list = Array.isArray(imgs) ? imgs : [];
+                    if (!list.length) return null;
+                    const base = window.location.origin;
+                    return (
+                      <div style={{ marginTop: '16px' }}>
+                        <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Equipment Images</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {list.map((url, i) => {
+                            const src = url.startsWith('http') ? url : `${base}${url}`;
+                            return <img key={i} src={src} alt={`asset-img-${i}`} style={{ width: 90, height: 90, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

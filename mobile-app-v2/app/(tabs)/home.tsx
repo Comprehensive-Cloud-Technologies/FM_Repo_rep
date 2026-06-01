@@ -199,9 +199,14 @@ function HCEngineerHome({ user }: { user: any }) {
             <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
             <Text style={[ss.roleTag, { color: '#1d4ed8', backgroundColor: '#dbeafe' }]}>Engineer</Text>
           </View>
-          <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
-            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[ss.qrBtn, { backgroundColor: '#16a34a' }]} onPress={() => router.push('/add-asset')}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
+              <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (

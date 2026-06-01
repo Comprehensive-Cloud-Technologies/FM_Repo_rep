@@ -107,6 +107,27 @@ router.get("/assets/bulk-import/template", (_req, res) => {
 
 router.use(requireCompanyAuth);
 
+// ── GET /all-companies  (engineer: list all companies for asset assignment) ───
+router.get("/all-companies", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, company_name AS companyName FROM companies ORDER BY company_name"
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── GET /departments-by-company/:companyId  (engineer: deps for any company) ──
+router.get("/departments-by-company/:companyId", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, name FROM departments WHERE company_id = ? ORDER BY name",
+      [req.params.companyId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // ── Startup migrations ────────────────────────────────────────────────────────
 (async () => {
   const migrations = [
@@ -1129,7 +1150,64 @@ router.post("/assets", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put("/assets/:id", async (req, res, next) => {
+// ── POST /assets/manual  (engineer: add asset to ANY company) ────────────────
+router.post("/assets/manual", async (req, res, next) => {
+  try {
+    const { companyId, departmentId, assetName, assetType = "healthcare",
+            building, floor, room, metadata = {} } = req.body;
+    if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
+    if (!companyId)         return res.status(400).json({ message: "companyId is required" });
+
+    const [[company]] = await pool.query("SELECT id FROM companies WHERE id = ?", [companyId]);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+
+    const [result] = await pool.query(
+      `INSERT INTO assets (company_id, department_id, asset_name, asset_type, building, floor, room, status, is_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
+      [companyId, departmentId || null, assetName.trim(), assetType,
+       building || null, floor || null, room || null]
+    );
+    const newId = result.insertId;
+
+    // Auto-generate barcode
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const barcodeNo = `HC-${dateStr}-${rand}`;
+    await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
+
+    const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
+    const metaClean = { ...metadata }; delete metaClean.documents;
+    await pool.query(
+      `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
+      [newId, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
+    );
+
+    const [[asset]] = await pool.query(
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType,
+              status, building, floor, room, department_id AS departmentId, is_verified AS isVerified
+       FROM assets WHERE id = ?`,
+      [newId]
+    );
+    res.status(201).json({ ...asset, metadata, assetId: newId });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /assets/:id/verify  (admin: mark asset as verified) ────────────────
+router.patch("/assets/:id/verify", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const { id } = req.params;
+    const [[check]] = await pool.query(
+      "SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]
+    );
+    if (!check) return res.status(404).json({ message: "Asset not found" });
+    await pool.query("UPDATE assets SET is_verified = 1, updated_at = NOW() WHERE id = ?", [id]);
+    res.json({ message: "Asset verified successfully" });
+  } catch (err) { next(err); }
+});
+
+
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;

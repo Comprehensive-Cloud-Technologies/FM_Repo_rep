@@ -995,7 +995,7 @@ export default function HealthcareDashboard({ token }) {
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
     { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
     { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
-    { key: "newAddition", label: "New Addition",       icon: Icon.Working,     color: "green",  filterData: { newAddition: "1" } },
+    { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
   ];
 
   return (
@@ -1026,7 +1026,7 @@ export default function HealthcareDashboard({ token }) {
                 { label: "Non-Critical Assets", filterData: { criticality: "Non_Critical" }, type: "assets" },
                 { label: "RBER Assets", filterData: { rber: "1" }, type: "assets" },
                 { label: "Condemned Assets", filterData: { condemned: "1" }, type: "assets" },
-                { label: "New Additions", filterData: { newAddition: "1" }, type: "assets" },
+                { label: "Verified Assets", filterData: { verified: "1" }, type: "assets" },
                 { label: "─", type: "divider" },
                 { label: "Call Logs", filterData: {}, type: "call-logs" },
                 { label: "PMS Records", filterData: {}, type: "pms" },
