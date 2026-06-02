@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 
 
 
@@ -2447,7 +2447,16 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-const WO_STATUS_COLORS = { open: { bg:"#fef2f2",color:"#dc2626" }, in_progress: { bg:"#dbeafe",color:"#1d4ed8" }, completed: { bg:"#dcfce7",color:"#166534" }, closed: { bg:"#f1f5f9",color:"#475569" } };
+const WO_STATUS_COLORS = {
+  open:        { bg:"#fef2f2", color:"#dc2626" },
+  assigned:    { bg:"#f5f3ff", color:"#7c3aed" },
+  in_progress: { bg:"#dbeafe", color:"#1d4ed8" },
+  on_hold:     { bg:"#fff7ed", color:"#c2410c" },
+  completed:   { bg:"#dcfce7", color:"#166534" },
+  closed:      { bg:"#f1f5f9", color:"#475569" },
+  escalated:   { bg:"#faf5ff", color:"#7c3aed" },
+  overdue:     { bg:"#fef2f2", color:"#991b1b" },
+};
 
 
 
@@ -2466,959 +2475,193 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 function AdminWorkOrdersSection({ token, companies = [] }) {
-
-
-
-
-
-  const [selCo, setSelCo]   = useState(companies[0]?.id || null);
-
-
-
-
-
-  const [wos, setWos]       = useState([]);
-
-
-
-
-
-  const [users, setUsers]   = useState([]);
-
-
-
-
-
+  const [wos, setWos]         = useState([]);
+  const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(false);
-
-
-
-
-
-  const [filter, setFilter] = useState("all");  // all | open | in_progress | completed | closed | escalated
-
-
-
-
-
-  const [search, setSearch] = useState("");
-
-
-
-
-
+  const [filter, setFilter]   = useState("all");
+  const [search, setSearch]   = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm]       = useState({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"", companyId:"" });
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState(null);
 
-
-
-
-
-  const [form, setForm]     = useState({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"" });
-
-
-
-
-
-  const [saving, setSaving] = useState(false);
-
-
-
-
-
-  const [error, setError]   = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-  const load = useCallback(async (cid) => {
-
-
-
-
-
-    if (!cid) return; setLoading(true);
-
-
-
-
-
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-
-
-
-
-
       const [data, usrs] = await Promise.all([
-
-
-
-
-
-        getAdminWorkOrders(token, cid),
-
-
-
-
-
-        getAdminEmployees(token, cid),
-
-
-
-
-
+        getAdminWorkOrders(token, null),
+        ...(companies.length ? [getAdminEmployees(token, companies[0]?.id)] : [Promise.resolve([])]),
       ]);
-
-
-
-
-
       setWos(Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []);
-
-
-
-
-
       setUsers(Array.isArray(usrs) ? usrs : []);
-
-
-
-
-
     } catch(e) { setError(e.message); }
-
-
-
-
-
     setLoading(false);
+  }, [token, companies]);
 
-
-
-
-
-  }, [token]);
-
-
-
-
-
-
-
-
-
-
-
-  useEffect(() => { if (selCo) load(selCo); }, [selCo, load]);
-
-
-
-
-
-
-
-
-
-
+  useEffect(() => { load(); }, [load]);
 
   const handleCreate = async () => {
-
-
-
-
-
-    if (!form.issueDescription) return;
-
-
-
-
-
+    if (!form.issueDescription || !form.companyId) return;
     setSaving(true);
-
-
-
-
-
     try {
-
-
-
-
-
-      await createAdminWorkOrder(token, { ...form, companyId: selCo, assignedTo: form.assignedTo ? Number(form.assignedTo) : undefined });
-
-
-
-
-
-      await load(selCo);
-
-
-
-
-
+      await createAdminWorkOrder(token, { ...form, assignedTo: form.assignedTo ? Number(form.assignedTo) : undefined });
+      await load();
       setShowCreate(false);
-
-
-
-
-
-      setForm({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"" });
-
-
-
-
-
+      setForm({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"", companyId:"" });
     } catch(e) { alert(e.message); }
-
-
-
-
-
     setSaving(false);
-
-
-
-
-
   };
-
-
-
-
-
-
-
-
-
-
 
   const updateStatus = async (wo, status) => {
-
-
-
-
-
     try {
-
-
-
-
-
       await updateAdminWOStatus(token, wo.id, status);
-
-
-
-
-
       setWos(prev => prev.map(w => w.id === wo.id ? { ...w, status } : w));
-
-
-
-
-
     } catch(e) { alert(e.message); }
-
-
-
-
-
   };
 
-
-
-
-
-
-
-
-
-
-
-  const counts = { all: wos.length, open:0, in_progress:0, completed:0, closed:0, escalated:0 };
-
-
-
-
-
+  const now = Date.now();
+  const counts = { all:0, open:0, assigned:0, in_progress:0, on_hold:0, completed:0, closed:0, escalated:0, overdue:0 };
   for (const w of wos) {
-
-
-
-
-
+    counts.all++;
     if (counts[w.status] !== undefined) counts[w.status]++;
-
-
-
-
-
     if (Number(w.escalationLevel) > 0 || w.flagEscalated) counts.escalated++;
-
-
-
-
-
+    if (w.expectedCompletionAt && new Date(w.expectedCompletionAt).getTime() < now && !["completed","closed"].includes(w.status)) counts.overdue++;
   }
 
-
-
-
-
   const displayed = wos.filter(w => {
-
-
-
-
-
     if (filter === "escalated") return Number(w.escalationLevel) > 0 || w.flagEscalated;
-
-
-
-
-
+    if (filter === "overdue") return w.expectedCompletionAt && new Date(w.expectedCompletionAt).getTime() < now && !["completed","closed"].includes(w.status);
     if (filter !== "all") return w.status === filter;
-
-
-
-
-
     return true;
+  }).filter(w => !search || (w.workOrderNumber||"").toLowerCase().includes(search.toLowerCase()) || (w.issueDescription||"").toLowerCase().includes(search.toLowerCase()) || (w.assetName||"").toLowerCase().includes(search.toLowerCase()) || (w.companyName||"").toLowerCase().includes(search.toLowerCase()));
 
+  const exportToExcel = () => {
+    const rows = [["WO #","Company","Asset","Description","Priority","Status","Assigned To","Created At"]];
+    displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.companyName||"", w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace("_"," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" }); const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `requests-${filter}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
 
-
-
-
-  }).filter(w => !search || (w.workOrderNumber||"").toLowerCase().includes(search.toLowerCase()) || (w.issueDescription||"").toLowerCase().includes(search.toLowerCase()) || (w.assetName||"").toLowerCase().includes(search.toLowerCase()));
-
-
-
-
-
-
-
-
-
-
+  const TILES = [
+    ["open","Open",counts.open,"#dc2626"],["assigned","Assigned",counts.assigned,"#7c3aed"],
+    ["in_progress","In Progress",counts.in_progress,"#1d4ed8"],["on_hold","On Hold",counts.on_hold,"#c2410c"],
+    ["completed","Completed",counts.completed,"#166534"],["closed","Closed",counts.closed,"#475569"],
+    ["escalated","Escalated",counts.escalated,"#7c3aed"],["overdue","Overdue",counts.overdue,"#991b1b"],
+  ];
 
   return (
-
-
-
-
-
-    <div style={{ padding:"24px", maxWidth:"1300px" }}>
-
-
-
-
-
+    <div style={{ padding:"24px", maxWidth:"1400px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px", flexWrap:"wrap", gap:"10px" }}>
-
-
-
-
-
-        <div><h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Requests</h1><p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Track and manage maintenance tasks across companies</p></div>
-
-
-
-
-
-        <button type="button" onClick={() => setShowCreate(true)} style={{ padding:"9px 18px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13.5px", fontWeight:700, cursor:"pointer" }}>+ New Work Order</button>
-
-
-
-
-
+        <div>
+          <h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Requests</h1>
+          <p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Track and manage maintenance tasks and all issue resolutions</p>
+        </div>
+        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+          <button type="button" onClick={exportToExcel} style={{ padding:"9px 16px", background:"#fff", color:"#166534", border:"1.5px solid #22c55e", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+          <button type="button" onClick={() => setShowCreate(true)} style={{ padding:"9px 18px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13.5px", fontWeight:700, cursor:"pointer" }}>+ Create Request</button>
+        </div>
       </div>
 
-
-
-
-
-
-
-
-
-
-
-      {/* Company selector */}
-
-
-
-
-
-      <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", padding:"12px 16px", marginBottom:"16px", display:"flex", alignItems:"center", gap:"10px", flexWrap:"wrap" }}>
-
-
-
-
-
-        <span style={{ fontSize:"13px", fontWeight:700, color:"#374151" }}>Company:</span>
-
-
-
-
-
-        {companies.map(c => (
-
-
-
-
-
-          <button key={c.id} type="button" onClick={() => setSelCo(c.id)} style={{ padding:"5px 12px", borderRadius:"7px", fontSize:"12.5px", fontWeight:600, cursor:"pointer", border: selCo===c.id ? "none":"1px solid #e2e8f0", background: selCo===c.id ? "#2563eb":"#f8fafc", color: selCo===c.id ? "#fff":"#475569" }}>{c.companyName||c.name}</button>
-
-
-
-
-
-        ))}
-
-
-
-
-
-      </div>
-
-
-
-
-
-
-
-
-
-
-
-      {/* Stat row */}
-
-
-
-
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px", marginBottom:"16px" }}>
-
-
-
-
-
-        {[["open","Open",counts.open],["in_progress","In Progress",counts.in_progress],["completed","Completed",counts.completed],["closed","Closed",counts.closed]].map(([k,l,v]) => (
-
-
-
-
-
-          <div key={k} style={{ background:"#fff", borderRadius:"10px", border:`1px solid ${WO_STATUS_COLORS[k]?.color}30`, padding:"16px", cursor:"pointer" }} onClick={() => setFilter(k)}>
-
-
-
-
-
-            <p style={{ fontSize:"11px", fontWeight:700, color:"#64748b", textTransform:"uppercase", margin:"0 0 4px" }}>{l}</p>
-
-
-
-
-
-            <p style={{ fontSize:"26px", fontWeight:800, color: WO_STATUS_COLORS[k]?.color, margin:0 }}>{v}</p>
-
-
-
-
-
+      {/* 8 stat tiles */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:"10px", marginBottom:"20px" }}>
+        {TILES.map(([k,l,v,clr]) => (
+          <div key={k} onClick={() => setFilter(filter===k?"all":k)} style={{ background:"#fff", borderRadius:"10px", border:`1.5px solid ${filter===k ? clr : "#e2e8f0"}`, padding:"14px 12px", cursor:"pointer", textAlign:"center", transition:"all 0.15s", boxShadow: filter===k ? `0 0 0 3px ${clr}22` : "none" }}>
+            <p style={{ fontSize:"10px", fontWeight:700, color:"#64748b", textTransform:"uppercase", margin:"0 0 6px", letterSpacing:"0.5px" }}>{l}</p>
+            <p style={{ fontSize:"24px", fontWeight:800, color:clr, margin:0 }}>{v}</p>
           </div>
-
-
-
-
-
         ))}
-
-
-
-
-
       </div>
-
-
-
-
-
-
-
-
-
-
 
       {/* Filter tabs + search */}
-
-
-
-
-
       <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid #e2e8f0", marginBottom:"16px", alignItems:"center", flexWrap:"wrap" }}>
-
-
-
-
-
-        {[["all","All"],["open","Open"],["in_progress","In Progress"],["completed","Completed"],["closed","Closed"],["escalated","Escalated ⏫"]].map(([k,l]) => (
-
-
-
-
-
-          <button key={k} type="button" onClick={() => setFilter(k)} style={{ padding:"10px 16px", background:"none", border:"none", borderBottom: filter===k ? "2.5px solid #2563eb":"2.5px solid transparent", marginBottom:"-2px", fontSize:"13px", fontWeight: filter===k ? 700:500, color: filter===k ? "#2563eb":"#64748b", cursor:"pointer" }}>{l} {counts[k] > 0 && <span style={{ background: filter===k ? "#2563eb":"#f1f5f9", color: filter===k ? "#fff":"#64748b", borderRadius:"9px", padding:"1px 6px", fontSize:"11px", marginLeft:"4px" }}>{counts[k]}</span>}</button>
-
-
-
-
-
+        {[["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],["escalated","Escalated ⏫"],["overdue","Overdue ⚠️"]].map(([k,l]) => (
+          <button key={k} type="button" onClick={() => setFilter(k)} style={{ padding:"10px 14px", background:"none", border:"none", borderBottom: filter===k ? "2.5px solid #2563eb":"2.5px solid transparent", marginBottom:"-2px", fontSize:"13px", fontWeight: filter===k ? 700:500, color: filter===k ? "#2563eb":"#64748b", cursor:"pointer", whiteSpace:"nowrap" }}>
+            {l} {(counts[k]||0) > 0 && <span style={{ background: filter===k ? "#2563eb":"#f1f5f9", color: filter===k ? "#fff":"#64748b", borderRadius:"9px", padding:"1px 6px", fontSize:"11px", marginLeft:"4px" }}>{counts[k]}</span>}
+          </button>
         ))}
-
-
-
-
-
         <div style={{ marginLeft:"auto" }}>
-
-
-
-
-
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search work orders…" style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"220px" }} />
-
-
-
-
-
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requests…" style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"220px" }} />
         </div>
-
-
-
-
-
       </div>
 
-
-
-
-
-
-
-
-
-
-
       {/* Create modal */}
-
-
-
-
-
       {showCreate && (
-
-
-
-
-
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
-
-
-
-
-
           <div style={{ background:"#fff", borderRadius:"16px", padding:"28px", width:"480px", maxWidth:"92vw" }}>
-
-
-
-
-
-            <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>New Work Order</h3>
-
-
-
-
-
+            <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>Create Request</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-
-
-
-
-
+              <select value={form.companyId} onChange={e=>setForm({...form,companyId:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
+                <option value="">— Select Company *—</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.companyName||c.name}</option>)}
+              </select>
               <textarea value={form.issueDescription} onChange={e=>setForm({...form,issueDescription:e.target.value})} placeholder="Issue description *" rows={3} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", resize:"vertical" }} />
-
-
-
-
-
               <input value={form.assetName} onChange={e=>setForm({...form,assetName:e.target.value})} placeholder="Asset name (optional)" style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }} />
-
-
-
-
-
               <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-
-
-
-
-
                 {["low","medium","high","critical"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
-
-
-
-
-
               </select>
-
-
-
-
-
               <select value={form.assignedTo} onChange={e=>setForm({...form,assignedTo:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-
-
-
-
-
                 <option value="">— Assign to (optional) —</option>
-
-
-
-
-
                 {users.filter(u=>u.role==="admin"||u.role==="supervisor").map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-
-
-
-
-
               </select>
-
-
-
-
-
             </div>
-
-
-
-
-
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"20px" }}>
-
-
-
-
-
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding:"9px 18px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer" }}>Cancel</button>
-
-
-
-
-
-              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creating…":"Create WO"}</button>
-
-
-
-
-
+              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creating…":"Create Request"}</button>
             </div>
-
-
-
-
-
           </div>
-
-
-
-
-
         </div>
-
-
-
-
-
       )}
-
-
-
-
-
-
-
-
-
-
 
       {loading ? (
-
-
-
-
-
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading work orders…</div>
-
-
-
-
-
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading requests…</div>
       ) : displayed.length === 0 ? (
-
-
-
-
-
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No requests found.</div>
-
-
-
-
-
       ) : (
-
-
-
-
-
         <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
-
-
-
-
-
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"14px" }}>
-
-
-
-
-
             <thead>
-
-
-
-
-
               <tr style={{ background:"#f8fafc" }}>
-
-
-
-
-
-                {["WO #","Asset","Description","Priority","Status","Assigned To","Actions"].map(h=>(
-
-
-
-
-
+                {["WO #","Company","Asset","Description","Priority","Status","Assigned To","Actions"].map(h=>(
                   <th key={h} style={{ padding:"11px 14px", textAlign:"left", color:"#475569", fontWeight:600, fontSize:"12px", textTransform:"uppercase", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
-
-
-
-
-
                 ))}
-
-
-
-
-
               </tr>
-
-
-
-
-
             </thead>
-
-
-
-
-
             <tbody>
-
-
-
-
-
               {displayed.map(w => {
-
-
-
-
-
                 const sc = WO_STATUS_COLORS[w.status] || { bg:"#f1f5f9", color:"#475569" };
-
-
-
-
-
                 const pc = WO_PRI_COLORS[w.priority] || { bg:"#f1f5f9", color:"#475569" };
-
-
-
-
-
+                const isOverdue = w.expectedCompletionAt && new Date(w.expectedCompletionAt).getTime() < now && !["completed","closed"].includes(w.status);
                 return (
-
-
-
-
-
-                  <tr key={w.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
-
-
-
-
-
+                  <tr key={w.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOverdue ? "#fff7f7":"#fff" }}>
                     <td style={{ padding:"11px 14px", fontWeight:700, color:"#2563eb", fontSize:"12.5px" }}>
-
-
-
-
-
                       {w.workOrderNumber || `WO-${w.id}`}
-
-
-
-
-
                       {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>⏫</span>}
-
-
-
-
-
+                      {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>⚠️</span>}
                     </td>
-
-
-
-
-
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"—"}</td>
                     <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"—"}</td>
-
-
-
-
-
-                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"200px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"—"}</div></td>
-
-
-
-
-
+                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"—"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
-
-
-
-
-
-                    <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace("_"," ")}</span></td>
-
-
-
-
-
+                    <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
-
-
-
-
-
                     <td style={{ padding:"11px 14px" }}>
-
-
-
-
-
                       <select value={w.status} onChange={e=>updateStatus(w,e.target.value)} style={{ padding:"5px 8px", borderRadius:"6px", border:"1px solid #e2e8f0", fontSize:"12px", cursor:"pointer" }}>
-
-
-
-
-
-                        {["open","in_progress","completed","closed"].map(s=><option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>)}
-
-
-
-
-
+                        {["open","assigned","in_progress","on_hold","completed","closed","escalated"].map(s=><option key={s} value={s}>{s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>)}
                       </select>
-
-
-
-
-
                     </td>
-
-
-
-
-
                   </tr>
-
-
-
-
-
                 );
-
-
-
-
-
               })}
-
-
-
-
-
             </tbody>
-
-
-
-
-
           </table>
-
-
-
-
-
         </div>
-
-
-
-
-
       )}
-
-
-
-
-
     </div>
-
-
-
-
-
   );
-
-
-
-
-
 }
 
 
@@ -19598,1015 +18841,7 @@ const CompanyPortal = () => {
 
 
 
-              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
-
-
-
-
-
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-
-
-
-
-
-                  <div>
-
-
-
-
-
-                    <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", lineHeight: 1.3 }}>Asset Type Manager</p>
-
-
-
-
-
-                    <p style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px" }}>Create asset types with dynamic field layouts and workflow configuration.</p>
-
-
-
-
-
-                  </div>
-
-
-
-
-
-                  <span style={{ background: "#eff6ff", color: "#2563eb", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, flexShrink: 0 }}>{assetTypes.length} types</span>
-
-
-
-
-
-                </div>
-
-
-
-
-
-                <div style={{ padding: "16px 20px" }}>
-
-
-
-
-
-                  <form onSubmit={handleCreateAssetType}>
-
-
-
-
-
-                    {/* Basic info row */}
-
-
-
-
-
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", alignItems: "end", marginBottom: "12px" }}>
-
-
-
-
-
-                      <div>
-
-
-
-
-
-                        <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Type Code *</label>
-
-
-
-
-
-                        <input className="form-input" value={assetTypeDraft.code} onChange={(e) => setAssetTypeDraft({ ...assetTypeDraft, code: e.target.value })} placeholder="e.g. kitchen" required disabled={!!editingAssetTypeId} />
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                      <div>
-
-
-
-
-
-                        <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Label *</label>
-
-
-
-
-
-                        <input className="form-input" value={assetTypeDraft.label} onChange={(e) => setAssetTypeDraft({ ...assetTypeDraft, label: e.target.value })} placeholder="Kitchen Equipment" required />
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                      <div>
-
-
-
-
-
-                        <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Category</label>
-
-
-
-
-
-                        <input className="form-input" value={assetTypeDraft.category} onChange={(e) => setAssetTypeDraft({ ...assetTypeDraft, category: e.target.value })} placeholder="Grouping (optional)" />
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                      <div>
-
-
-
-
-
-                        <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Workflow Type</label>
-
-
-
-
-
-                        <select className="form-select" value={assetTypeDraft.workflowType} onChange={(e) => setAssetTypeDraft({ ...assetTypeDraft, workflowType: e.target.value })}>
-
-
-
-
-
-                          <option value="standard">Standard</option>
-
-
-
-
-
-                          <option value="soft">Soft Services</option>
-
-
-
-
-
-                          <option value="technical">Technical</option>
-
-
-
-
-
-                          <option value="fleet">Fleet</option>
-
-
-
-
-
-                        </select>
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                    </div>
-
-
-
-
-
-
-
-
-
-
-
-                    {/* Field Layout Builder */}
-
-
-
-
-
-                    <div style={{ marginBottom: "12px" }}>
-
-
-
-
-
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-
-
-
-
-
-                        <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#475569" }}>Custom Fields (Asset Form Layout)</span>
-
-
-
-
-
-                        <button type="button" onClick={addFieldToLayout}
-
-
-
-
-
-                          style={{ padding: "4px 12px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-
-
-
-
-
-                          + Add Field
-
-
-
-
-
-                        </button>
-
-
-
-
-
-                        {(assetTypeDraft.fieldLayout?.fields?.length > 0) && (
-
-
-
-
-
-                          <span style={{ fontSize: "11px", color: "#64748b" }}>{assetTypeDraft.fieldLayout.fields.length} custom field(s)</span>
-
-
-
-
-
-                        )}
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                      {showFieldLayoutBuilder && assetTypeDraft.fieldLayout?.fields?.map((field, idx) => (
-
-
-
-
-
-                        <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px auto", gap: "8px", alignItems: "end", marginBottom: "8px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
-
-
-
-
-
-                          <div>
-
-
-
-
-
-                            <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "3px" }}>Label</label>
-
-
-
-
-
-                            <input className="form-input" value={field.label} placeholder="e.g. Serial Number"
-
-
-
-
-
-                              onChange={(e) => updateLayoutField(idx, { label: e.target.value, key: field.key || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, "") })} />
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <div>
-
-
-
-
-
-                            <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "3px" }}>Placeholder</label>
-
-
-
-
-
-                            <input className="form-input" value={field.placeholder || ""} placeholder="e.g. Enter serial..."
-
-
-
-
-
-                              onChange={(e) => updateLayoutField(idx, { placeholder: e.target.value })} />
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <div>
-
-
-
-
-
-                            <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "3px" }}>Type</label>
-
-
-
-
-
-                            <select className="form-select" value={field.type} onChange={(e) => updateLayoutField(idx, { type: e.target.value })}>
-
-
-
-
-
-                              <option value="text">Text</option>
-
-
-
-
-
-                              <option value="number">Number</option>
-
-
-
-
-
-                              <option value="date">Date</option>
-
-
-
-
-
-                              <option value="textarea">Textarea</option>
-
-
-
-
-
-                              <option value="select">Dropdown</option>
-
-
-
-
-
-                            </select>
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <div>
-
-
-
-
-
-                            <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "3px" }}>Required</label>
-
-
-
-
-
-                            <select className="form-select" value={field.required ? "yes" : "no"} onChange={(e) => updateLayoutField(idx, { required: e.target.value === "yes" })}>
-
-
-
-
-
-                              <option value="no">No</option>
-
-
-
-
-
-                              <option value="yes">Yes</option>
-
-
-
-
-
-                            </select>
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                          <button type="button" onClick={() => removeLayoutField(idx)}
-
-
-
-
-
-                            style={{ width: "30px", height: "30px", background: "#fef2f2", color: "#dc2626", border: "none", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "flex-end" }}>
-
-
-
-
-
-                            ✕
-
-
-
-
-
-                          </button>
-
-
-
-
-
-                        </div>
-
-
-
-
-
-                      ))}
-
-
-
-
-
-                    </div>
-
-
-
-
-
-
-
-
-
-
-
-                    <div style={{ display: "flex", gap: "8px" }}>
-
-
-
-
-
-                      <button type="submit" disabled={assetLoading}
-
-
-
-
-
-                        style={{ padding: "8px 20px", background: assetLoading ? "#93c5fd" : "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 600, fontSize: "14px", cursor: "pointer" }}>
-
-
-
-
-
-                        {assetLoading ? "Saving…" : editingAssetTypeId ? "Update Type" : "Add Type"}
-
-
-
-
-
-                      </button>
-
-
-
-
-
-                      {editingAssetTypeId && (
-
-
-
-
-
-                        <button type="button" onClick={() => { setEditingAssetTypeId(null); setAssetTypeDraft({ code: "", label: "", category: "", workflowType: "standard", fieldLayout: { fields: [] } }); setShowFieldLayoutBuilder(false); }}
-
-
-
-
-
-                          style={{ padding: "8px 16px", background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: "8px", fontWeight: 600, fontSize: "14px", cursor: "pointer" }}>
-
-
-
-
-
-                          Cancel Edit
-
-
-
-
-
-                        </button>
-
-
-
-
-
-                      )}
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                  </form>
-
-
-
-
-
-
-
-
-
-
-
-                  {/* Existing types list */}
-
-
-
-
-
-                  {assetTypes.length > 0 && (
-
-
-
-
-
-                    <div style={{ marginTop: "16px", borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
-
-
-
-
-
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-
-
-
-
-
-                        {assetTypes.map((at) => (
-
-
-
-
-
-                          <div key={at.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "20px", fontSize: "13px" }}>
-
-
-
-
-
-                            <span style={{ fontWeight: 600, color: "#0f172a" }}>{at.label}</span>
-
-
-
-
-
-                            <span style={{ color: "#94a3b8", fontSize: "11px" }}>({at.code})</span>
-
-
-
-
-
-                            {at.workflowType && at.workflowType !== 'standard' && (
-
-
-
-
-
-                              <span style={{ padding: "1px 7px", borderRadius: "10px", fontSize: "10px", fontWeight: 600,
-
-
-
-
-
-                                background: at.workflowType === 'soft' ? '#f0fdf4' : at.workflowType === 'technical' ? '#eff6ff' : '#faf5ff',
-
-
-
-
-
-                                color: at.workflowType === 'soft' ? '#16a34a' : at.workflowType === 'technical' ? '#2563eb' : '#7c3aed' }}>
-
-
-
-
-
-                                {at.workflowType}
-
-
-
-
-
-                              </span>
-
-
-
-
-
-                            )}
-
-
-
-
-
-                            {at.fieldLayout?.fields?.length > 0 && (
-
-
-
-
-
-                              <span style={{ padding: "1px 7px", borderRadius: "10px", fontSize: "10px", fontWeight: 600, background: "#fffbeb", color: "#92400e" }}>
-
-
-
-
-
-                                {at.fieldLayout.fields.length} fields
-
-
-
-
-
-                              </span>
-
-
-
-
-
-                            )}
-
-
-
-
-
-                            <button type="button" onClick={() => handleEditAssetType(at)}
-
-
-
-
-
-                              style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "12px", fontWeight: 600, padding: "0 2px" }}>Edit</button>
-
-
-
-
-
-                            <button type="button" onClick={() => handleDeleteAssetType(at.id)}
-
-
-
-
-
-                              style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: "12px", fontWeight: 600, padding: "0 2px" }}>✕</button>
-
-
-
-
-
-                          </div>
-
-
-
-
-
-                        ))}
-
-
-
-
-
-                      </div>
-
-
-
-
-
-                    </div>
-
-
-
-
-
-                  )}
-
-
-
-
-
-                </div>
-
-
-
-
-
-              </div>
-
-
-
-
-
-
-
-
-
-
-
-              {/* Assets List */}
-
-
-
-
-
-              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-
-
-
-
-
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-
-
-
-
-
-                  <div>
-
-
-
-
-
-                    <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", lineHeight: 1.3 }}>Asset List</p>
-
-
-
-
-
-                    <p style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px" }}>{filteredAssets.length} assets</p>
-
-
-
-
-
-                  </div>
-
-
-
-
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-
-
-
-
-
-                    <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
-
-
-
-
-
-                      style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-
-
-
-
-
-                      <option value="all">All Types</option>
-
-
-
-
-
-                      {(assetTypes.length ? assetTypes : [{ code: "soft", label: "Soft" }, { code: "technical", label: "Technical" }, { code: "fleet", label: "Fleet" }]).map((t) => (
-
-
-
-
-
-                        <option key={t.code} value={t.code}>{t.label}</option>
-
-
-
-
-
-                      ))}
-
-
-
-
-
-                    </select>
-
-
-
-
-
-                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search…"
-
-
-
-
-
-                      style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "160px" }} />
-
-
-
-
-
-                  </div>
-
-
-
-
-
-                </div>
-
-
-
-
-
-                {assetLoading ? (
-
-
-
-
-
-                  <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading…</p>
-
-
-
-
-
-                ) : (
-
-
-
-
-
-                  <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "65vh" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "2000px" }}>
-                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                      <tr>
-                        {["SN", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
-                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAssets.length === 0
-                        ? <tr><td colSpan={20} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading…" : "No assets found."}</td></tr>
-                        : filteredAssets.map((a, i) => {
-                          const m = a.metadata || {};
-                          const maint = [
-                            (m.warranty?.enabled || m.maintenanceTypes?.warranty) && "Warranty",
-                            (m.amc?.enabled || m.maintenanceTypes?.amc) && "AMC",
-                            (m.cmc?.enabled || m.maintenanceTypes?.cmc) && "CMC",
-                            (m.inHouse || m.maintenanceTypes?.inHouse) && "In House",
-                            (m.catalyst || m.maintenanceTypes?.catalyst) && "Catalyst",
-                          ].filter(Boolean).join(", ") || m.maintenanceType || "—";
-                          const ws   = a.workingStatus || a.working_status || m.workingStatus || "Working";
-                          const crit = a.criticality || m.criticality || "Non_Critical";
-                          const st   = a.status || "Active";
-                          const combined = st === "Inactive" ? "Inactive"
-                            : st === "Verified" ? "Verified"
-                            : ws === "Condemned" ? "Condemned"
-                            : m.rber ? "RBER"
-                            : ws === "Not_Working" ? "Not_Working"
-                            : ws === "WIP" ? "WIP"
-                            : crit === "Critical" ? "Critical"
-                            : "Active";
-                          const COLOR_MAP = {
-                            Active:      { bg: "#f0fdf4", color: "#16a34a" },
-                            Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
-                            Verified:    { bg: "#dbeafe", color: "#1d4ed8" },
-                            WIP:         { bg: "#fef9c3", color: "#92400e" },
-                            Not_Working: { bg: "#fef2f2", color: "#dc2626" },
-                            Critical:    { bg: "#fce7f3", color: "#9d174d" },
-                            RBER:        { bg: "#fff7ed", color: "#ea580c" },
-                            Condemned:   { bg: "#f5f3ff", color: "#7c3aed" },
-                          };
-                          const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
-                          return (
-                            <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "—"}</td>
-                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.mfgYear || m.manufacturingYear || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "—"}</td>
-                              <td style={{ padding: "10px 14px" }}>
-                                <select
-                                  value={combined}
-                                  onChange={e => {
-                                    const v = e.target.value;
-                                    if (v === "Inactive")         handleInlineAssetStatus(a.id, { status: "Inactive" });
-                                    else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Verified", workingStatus: "Working" });
-                                    else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active" });
-                                    else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active" });
-                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
-                                    else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", rber: true });
-                                    else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active" });
-                                    else                          handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
-                                  }}
-                                  style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
-                                  <option value="Active">Active</option>
-                                  <option value="Verified">Verified</option>
-                                  <option value="Inactive">Inactive</option>
-                                  <option value="WIP">WIP</option>
-                                  <option value="Not_Working">Not Working</option>
-                                  <option value="Critical">Critical</option>
-                                  <option value="RBER">RBER</option>
-                                  <option value="Condemned">Condemned</option>
-                                </select>
-                              </td>
-                              <td style={{ padding: "10px 14px" }}>
-                                <div style={{ display: "flex", gap: "6px" }}>
-                                  <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName, a)}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                                  </button>
-                                  <button title="Edit" type="button" onClick={() => handleEditAsset(a)}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              ht="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                   </button>
                                   <button title="Delete" type="button" onClick={() => handleDeleteAsset(a.id)}
                                     style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -28426,10 +26661,7 @@ const CompanyPortal = () => {
                     <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
                     <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                   </div>
-                  <button onClick={() => setDashboardStats(null)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", fontSize: "11px", color: "#64748b", cursor: "pointer", fontWeight: 600 }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                    Refresh
-                  </button>
+
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {

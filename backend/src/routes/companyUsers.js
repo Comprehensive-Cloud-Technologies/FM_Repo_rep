@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import bcrypt from "bcryptjs";
 import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
@@ -303,16 +303,18 @@ router.get("/ojt-progress", requireAuth, async (req, res, next) => {
 });
 
 // ── Admin: work orders by company ─────────────────────────────────────────
-// GET /api/company-users/work-orders?companyId=X[&status=open]
+// GET /api/company-users/work-orders?[companyId=X][&status=open]
 router.get("/work-orders", requireAuth, async (req, res, next) => {
   try {
     const { companyId, status, limit = 200, offset = 0 } = req.query;
-    if (!companyId) return res.status(400).json({ message: "companyId is required" });
-    let where = "WHERE wo.company_id = ?";
-    const params = [companyId];
+    let where = "WHERE 1=1";
+    const params = [];
+    if (companyId) { where += " AND wo.company_id = ?"; params.push(companyId); }
     if (status) { where += " AND wo.status = ?"; params.push(status); }
     const [rows] = await pool.query(
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",
+              wo.company_id AS "companyId",
+              c.company_name AS "companyName",
               wo.asset_id AS "assetId", wo.asset_name AS "assetName",
               wo.location, wo.issue_source AS "issueSource",
               wo.issue_description AS "issueDescription",
@@ -329,6 +331,7 @@ router.get("/work-orders", requireAuth, async (req, res, next) => {
               f.severity AS "flagSeverity", f.source AS "flagSource",
               COALESCE(f.escalated, FALSE) AS "flagEscalated"
        FROM work_orders wo
+       LEFT JOIN companies c ON c.id = wo.company_id
        LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
        LEFT JOIN company_users cb ON cb.id = wo.cp_created_by
        LEFT JOIN flags f ON f.id = wo.flag_id
@@ -338,12 +341,11 @@ router.get("/work-orders", requireAuth, async (req, res, next) => {
       [...params, Number(limit), Number(offset)]
     );
     const [[countRow]] = await pool.query(
-      `SELECT COUNT(*) AS total FROM work_orders wo ${where}`, params
+      `SELECT COUNT(*) AS total FROM work_orders wo LEFT JOIN companies c ON c.id = wo.company_id ${where}`, params
     );
     res.json({ total: Number(countRow?.total ?? 0), data: rows });
   } catch (err) { next(err); }
 });
-
 // POST /api/company-users/work-orders  – create work order (admin)
 router.post("/work-orders", requireAuth, async (req, res, next) => {
   try {
@@ -363,7 +365,7 @@ router.post("/work-orders", requireAuth, async (req, res, next) => {
 router.put("/work-orders/:id/status", requireAuth, async (req, res, next) => {
   try {
     const { status } = req.body;
-    const validStatuses = ["open", "in_progress", "completed", "closed"];
+    const validStatuses = ["open", "assigned", "in_progress", "on_hold", "completed", "closed", "escalated"];
     if (!validStatuses.includes(status)) return res.status(400).json({ message: "Invalid status" });
     await pool.query("UPDATE work_orders SET status = ?, updated_at = NOW() WHERE id = ?", [status, req.params.id]);
     res.json({ message: "Updated" });

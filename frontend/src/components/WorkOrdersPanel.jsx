@@ -37,10 +37,13 @@ const SOURCE_STYLES = {
 const STATUS_TABS = [
   { key: "all",         label: "All" },
   { key: "open",        label: "Open",        color: "#dc2626" },
+  { key: "assigned",    label: "Assigned",    color: "#7c3aed" },
   { key: "in_progress", label: "In Progress", color: "#1d4ed8" },
+  { key: "on_hold",     label: "On Hold",     color: "#c2410c" },
   { key: "completed",   label: "Completed",   color: "#16a34a" },
   { key: "closed",      label: "Closed",      color: "#64748b" },
   { key: "escalated",   label: "Escalated",   color: "#7c3aed" },
+  { key: "overdue",     label: "Overdue",     color: "#991b1b" },
 ];
 
 /* ── Assign Modal ─────────────────────────────────────────────────────── */
@@ -228,7 +231,7 @@ function CreateWOModal({ assets, users, companyPortalToken, preselectedAssetId, 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "520px", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
-        <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a", marginBottom: "18px" }}>Create Work Order</h3>
+        <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a", marginBottom: "18px" }}>Create Request</h3>
 
         {err && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "9px 12px", borderRadius: "7px", marginBottom: "14px", fontSize: "13px" }}>{err}</div>}
 
@@ -307,7 +310,7 @@ function CreateWOModal({ assets, users, companyPortalToken, preselectedAssetId, 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "22px" }}>
           <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Creating…" : "Create Work Order"}
+            {saving ? "Creating…" : "Create Request"}
           </button>
         </div>
       </div>
@@ -380,12 +383,16 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
       })
     : filter === "escalated"
       ? workOrders.filter((w) => Number(w.escalationLevel) > 0 || w.flagEscalated === true)
-      : workOrders;
+      : filter === "overdue"
+        ? workOrders.filter((w) => w.expectedCompletionAt && new Date(w.expectedCompletionAt).getTime() < Date.now() && !["completed","closed"].includes(w.status))
+        : workOrders;
 
-  const counts = { open: 0, in_progress: 0, completed: 0, closed: 0, escalated: 0 };
+  const counts = { open: 0, assigned: 0, in_progress: 0, on_hold: 0, completed: 0, closed: 0, escalated: 0, overdue: 0 };
+  const nowTs = Date.now();
   for (const w of workOrders) {
     if (counts[w.status] !== undefined) counts[w.status]++;
     if (Number(w.escalationLevel) > 0) counts.escalated++;
+    if (w.expectedCompletionAt && new Date(w.expectedCompletionAt).getTime() < nowTs && !["completed","closed"].includes(w.status)) counts.overdue++;
   }
 
   return (
@@ -398,22 +405,36 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
           <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#64748b" }}>Track and manage maintenance tasks and issue resolutions</p>
         </div>
         <button onClick={() => load()} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>↻ Refresh</button>
+        <button onClick={() => {
+          const rows = [["WO #","Asset","Description","Priority","Status","Assigned To","Created At"]];
+          displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace(/_/g," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
+          const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+          const blob = new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
+          const a=document.createElement("a"); a.href=url; a.download=`requests-${filter}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+        }} style={{ padding: "8px 16px", borderRadius: "8px", border: "1.5px solid #22c55e", background: "#fff", color: "#166534", fontWeight: 700, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
         <button onClick={() => setShowCreate(true)} style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span> New Work Order
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span> Create Request
         </button>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: "10px", marginBottom: "20px" }}>
         {[
           { key: "open",        label: "Open",        bg: "#fef2f2", border: "#fecaca", color: "#dc2626" },
+          { key: "assigned",    label: "Assigned",    bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed" },
           { key: "in_progress", label: "In Progress", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8" },
+          { key: "on_hold",     label: "On Hold",     bg: "#fff7ed", border: "#fed7aa", color: "#c2410c" },
           { key: "completed",   label: "Completed",   bg: "#f0fdf4", border: "#bbf7d0", color: "#16a34a" },
           { key: "closed",      label: "Closed",      bg: "#f8fafc", border: "#e2e8f0", color: "#475569" },
+          { key: "escalated",   label: "Escalated",   bg: "#faf5ff", border: "#e9d5ff", color: "#7c3aed" },
+          { key: "overdue",     label: "Overdue",     bg: "#fef2f2", border: "#fca5a5", color: "#991b1b" },
         ].map((s) => (
-          <div key={s.key} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: "10px", padding: "16px 20px", cursor: "pointer" }} onClick={() => setFilter(s.key)}>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
-            <div style={{ fontSize: "30px", fontWeight: 800, color: s.color, lineHeight: 1 }}>{counts[s.key]}</div>
+          <div key={s.key} style={{ background: filter===s.key ? s.bg : "#fff", border: `1.5px solid ${filter===s.key ? s.color : s.border}`, borderRadius: "10px", padding: "14px 10px", cursor: "pointer", textAlign: "center", boxShadow: filter===s.key ? `0 0 0 3px ${s.color}22` : "none" }} onClick={() => setFilter(filter===s.key?"all":s.key)}>
+            <div style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
+            <div style={{ fontSize: "26px", fontWeight: 800, color: s.color, lineHeight: 1 }}>{counts[s.key]}</div>
           </div>
         ))}
       </div>

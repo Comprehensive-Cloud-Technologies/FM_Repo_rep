@@ -1,4 +1,4 @@
-import { buildApiUrl, getApiBaseUrl } from "./utils/runtimeConfig";
+﻿import { buildApiUrl, getApiBaseUrl } from "./utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
 
@@ -224,7 +224,7 @@ export const getAdminOjtTrainings = (token, companyId) => request("GET", `/api/c
 export const getAdminOjtProgress  = (token, companyId) => request("GET", `/api/company-users/ojt-progress?companyId=${companyId}`,  undefined, { authToken: token });
 
 // â”€â”€ Admin-level CRUD for Work Orders (client portal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export const getAdminWorkOrders    = (token, companyId, status) => request("GET", `/api/company-users/work-orders?companyId=${companyId}${status ? `&status=${status}` : ""}`, undefined, { authToken: token });
+export const getAdminWorkOrders    = (token, companyId, status) => { const p = []; if (companyId) p.push(`companyId=${companyId}`); if (status) p.push(`status=${status}`); const qs = p.length ? `?${p.join("&")}` : ""; return request("GET", `/api/company-users/work-orders${qs}`, undefined, { authToken: token }); };
 export const createAdminWorkOrder  = (token, data) => request("POST", "/api/company-users/work-orders", data, { authToken: token });
 export const updateAdminWOStatus   = (token, id, status) => request("PUT", `/api/company-users/work-orders/${id}/status`, { status }, { authToken: token });
 export const assignAdminWO         = (token, id, data) => request("PUT", `/api/company-users/work-orders/${id}/assign`, data, { authToken: token });
