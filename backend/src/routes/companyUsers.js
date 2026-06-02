@@ -504,4 +504,63 @@ router.delete("/employees/:id", requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Admin QR Code management ────────────────────────────────────────────────
+
+// GET /api/company-users/qr-codes?companyId=X  – list QR codes for a company
+router.get("/qr-codes", requireAuth, async (req, res, next) => {
+  try {
+    const companyId = req.query.companyId;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const [rows] = await pool.query(
+      `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
+              a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              q.linked_at AS linkedAt, q.created_at AS createdAt
+       FROM asset_pre_qr q
+       LEFT JOIN assets a ON a.id = q.asset_id
+       WHERE q.company_id = ?
+       ORDER BY q.id DESC`,
+      [companyId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/company-users/qr-codes/generate  – generate N QR codes for a company
+router.post("/qr-codes/generate", requireAuth, async (req, res, next) => {
+  try {
+    const { companyId, count = 1 } = req.body;
+    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    const n = Math.min(Math.max(Number(count) || 1, 1), 200);
+    const created = [];
+    for (let i = 0; i < n; i++) {
+      const uid = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      await pool.query("INSERT INTO asset_pre_qr (company_id, qr_unique_id) VALUES (?, ?)", [companyId, uid]);
+      const [[row]] = await pool.query(
+        `SELECT id, qr_unique_id AS qrUniqueId, asset_id AS assetId, NULL AS assetName, linked_at AS linkedAt, created_at AS createdAt FROM asset_pre_qr WHERE qr_unique_id = ?`,
+        [uid]
+      );
+      created.push(row);
+    }
+    res.status(201).json(created);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/company-users/qr-codes/bulk  – delete multiple QR codes
+router.delete("/qr-codes/bulk", requireAuth, async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ message: "ids required" });
+    await pool.query(`DELETE FROM asset_pre_qr WHERE id IN (${ids.map(() => "?").join(",")})`, ids);
+    res.json({ message: "Deleted" });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/company-users/qr-codes/:id  – delete single QR code
+router.delete("/qr-codes/:id", requireAuth, async (req, res, next) => {
+  try {
+    await pool.query("DELETE FROM asset_pre_qr WHERE id = ?", [req.params.id]);
+    res.json({ message: "Deleted" });
+  } catch (err) { next(err); }
+});
+
 export default router;

@@ -3498,6 +3498,7 @@ export default function CompanyEmployeePortal() {
   const qrStopRef = useRef(false);
   const [qrAlert, setQrAlert] = useState(null);
   const [selectedPreQrIds, setSelectedPreQrIds] = useState(new Set());
+  const [qrFilter, setQrFilter] = useState("all");
   const [expandedQueryId, setExpandedQueryId] = useState(null); // expanded request card
   // Fleet State
   const [fleetAssets, setFleetAssets] = useState([]);
@@ -5914,6 +5915,7 @@ export default function CompanyEmployeePortal() {
         {nav === "qrcodes" && (() => {
           const linked = preQrCodes.filter((q) => q.assetId);
           const unlinked = preQrCodes.filter((q) => !q.assetId);
+          const filteredQrCodes = qrFilter === "linked" ? linked : qrFilter === "unlinked" ? unlinked : preQrCodes;
 
           const handleGenerate = async () => {
             if (!preQrCount || preQrCount < 1) return;
@@ -6102,11 +6104,11 @@ export default function CompanyEmployeePortal() {
               {/* Stats */}
               <div style={{ display: "flex", gap: "14px", marginBottom: "24px", flexWrap: "wrap" }}>
                 {[
-                  { label: "Total Generated", value: preQrCodes.length, color: "#0ea5e9" },
-                  { label: "Linked to Assets", value: linked.length, color: "#22c55e" },
-                  { label: "Unlinked", value: unlinked.length, color: "#f59e0b" },
+                  { label: "Total Generated", value: preQrCodes.length, color: "#0ea5e9", filter: "all" },
+                  { label: "Linked to Assets", value: linked.length, color: "#22c55e", filter: "linked" },
+                  { label: "Unlinked", value: unlinked.length, color: "#f59e0b", filter: "unlinked" },
                 ].map((s) => (
-                  <div key={s.label} style={{ flex: "1 1 160px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 20px" }}>
+                  <div key={s.label} onClick={() => setQrFilter(s.filter)} style={{ flex: "1 1 160px", background: qrFilter === s.filter ? "#f0f9ff" : "#fff", border: `2px solid ${qrFilter === s.filter ? s.color : "#e2e8f0"}`, borderRadius: "12px", padding: "16px 20px", cursor: "pointer", transition: "all 0.15s" }}>
                     <div style={{ fontSize: "28px", fontWeight: 700, color: s.color }}>{s.value}</div>
                     <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{s.label}</div>
                   </div>
@@ -6175,6 +6177,19 @@ export default function CompanyEmployeePortal() {
                     </button>
                   </>
                 )}
+                {selectedPreQrIds.size === 0 && qrFilter !== "all" && filteredQrCodes.length > 0 && (
+                  <button onClick={async () => {
+                    if (!window.confirm("Delete all " + filteredQrCodes.length + " " + qrFilter + " QR codes?")) return;
+                    const ids = filteredQrCodes.map(q => q.id);
+                    try {
+                      await bulkDeleteCompanyPortalPreQr(token, ids);
+                      setPreQrCodes(prev => prev.filter(q => !ids.includes(q.id)));
+                      setQrFilter("all");
+                    } catch(e) { alert("Delete failed"); }
+                  }} style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 600, cursor: "pointer", fontSize: "13px" }}>
+                    Delete All {qrFilter} ({filteredQrCodes.length})
+                  </button>
+                )}
               </div>
 
               {/* Table */}
@@ -6191,8 +6206,8 @@ export default function CompanyEmployeePortal() {
                       <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                         <th style={{ padding: "10px 14px", width: "40px" }}>
                           <input type="checkbox"
-                            checked={preQrCodes.length > 0 && preQrCodes.every(q => selectedPreQrIds.has(q.id))}
-                            onChange={(e) => setSelectedPreQrIds(e.target.checked ? new Set(preQrCodes.map(q => q.id)) : new Set())}
+                            checked={filteredQrCodes.length > 0 && filteredQrCodes.every(q => selectedPreQrIds.has(q.id))}
+                            onChange={(e) => setSelectedPreQrIds(e.target.checked ? new Set(filteredQrCodes.map(q => q.id)) : new Set())}
                             style={{ cursor: "pointer" }} />
                         </th>
                         {["QR Unique ID", "Status", "Linked Asset", "Linked At", "Actions"].map((h) => (
@@ -6201,7 +6216,7 @@ export default function CompanyEmployeePortal() {
                       </tr>
                     </thead>
                     <tbody>
-                      {preQrCodes.map((qr) => (
+                      {filteredQrCodes.map((qr) => (
                         <tr key={qr.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedPreQrIds.has(qr.id) ? "#fef2f2" : undefined }}>
                           <td style={{ padding: "10px 14px", textAlign: "center" }}>
                             <input type="checkbox" checked={selectedPreQrIds.has(qr.id)}
@@ -7843,7 +7858,7 @@ export default function CompanyEmployeePortal() {
                   </div>
                   <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
                     <button onClick={regenerate} disabled={settingsRegen} style={{ padding: "7px 14px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 600, fontSize: "12.5px", cursor: settingsRegen ? "not-allowed" : "pointer" }}>
-                      {settingsRegen ? "Regenerating…" : "🔄 Regenerate Link"}
+                      {settingsRegen ? "Regenerating…" : "Regenerate Link"}
                     </button>
                     <p style={{ margin: 0, fontSize: "11.5px", color: "#94a3b8" }}>Regenerating invalidates the old link.</p>
                   </div>

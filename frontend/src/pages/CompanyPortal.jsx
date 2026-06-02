@@ -65,6 +65,7 @@ import {
 
 
   deleteAsset,
+  bulkVerifyAssets,
 
 
 
@@ -329,6 +330,10 @@ import {
 
 
   assignAdminWO,
+  getAdminQrCodes,
+  generateAdminQrCodes,
+  deleteAdminQrCode,
+  bulkDeleteAdminQrCodes,
 
 
 
@@ -1553,7 +1558,7 @@ const emptyAsset = {
 
 
 
-  hcImages: [],          // Array of { url, name } ΓÇö up to 5 equipment photos
+  hcImages: [],          // Array of { url, name } - up to 5 equipment photos
 
 
 
@@ -1949,7 +1954,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-        <div style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading OJT dataΓÇª</div>
+        <div style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading OJT data...</div>
 
 
 
@@ -2117,7 +2122,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                    <td style={{ padding: "12px 16px", color: "#94a3b8", fontSize: "12px" }}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "ΓÇö"}</td>
+                    <td style={{ padding: "12px 16px", color: "#94a3b8", fontSize: "12px" }}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "-"}</td>
 
 
 
@@ -2333,7 +2338,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                      {p.score != null ? `${p.score}%` : "ΓÇö"}
+                      {p.score != null ? `${p.score}%` : "-"}
 
 
 
@@ -2363,7 +2368,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                      ) : <span style={{ fontSize: "12px", color: "#94a3b8" }}>ΓÇö</span>}
+                      ) : <span style={{ fontSize: "12px", color: "#94a3b8" }}>-</span>}
 
 
 
@@ -2474,12 +2479,184 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 
+function AdminQrCodesSection({ token, companies = [] }) {
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState("");
+  const [qrCodes, setQrCodes] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [qrFilter, setQrFilter] = React.useState("all");
+  const [generateCount, setGenerateCount] = React.useState(10);
+  const [generating, setGenerating] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState([]);
+  const [msg, setMsg] = React.useState("");
+
+  const loadQrCodes = async (companyId) => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const data = await getAdminQrCodes(token, companyId);
+      setQrCodes(Array.isArray(data) ? data : []);
+    } catch(e) {
+      setMsg("Failed to load QR codes");
+    } finally { setLoading(false); }
+  };
+
+  React.useEffect(() => {
+    if (selectedCompanyId) loadQrCodes(selectedCompanyId);
+    else setQrCodes([]);
+    setSelectedIds([]);
+    setQrFilter("all");
+  }, [selectedCompanyId]);
+
+  const filtered = qrCodes.filter(q => {
+    if (qrFilter === "linked") return !!q.assetId;
+    if (qrFilter === "unlinked") return !q.assetId;
+    return true;
+  });
+
+  const handleGenerate = async () => {
+    if (!selectedCompanyId) return setMsg("Select a company first");
+    setGenerating(true);
+    try {
+      const newCodes = await generateAdminQrCodes(token, selectedCompanyId, generateCount);
+      setQrCodes(prev => [...(Array.isArray(newCodes) ? newCodes : []), ...prev]);
+      setMsg("Generated " + (Array.isArray(newCodes) ? newCodes.length : 0) + " QR codes");
+    } catch(e) { setMsg("Failed to generate"); }
+    finally { setGenerating(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this QR code?")) return;
+    try {
+      await deleteAdminQrCode(token, id);
+      setQrCodes(prev => prev.filter(q => q.id !== id));
+    } catch(e) { setMsg("Failed to delete"); }
+  };
+
+  const handleBulkDelete = async () => {
+    const toDelete = selectedIds.length > 0 ? selectedIds : filtered.map(q => q.id);
+    if (!toDelete.length) return;
+    if (!window.confirm("Delete " + toDelete.length + " QR code(s)?")) return;
+    try {
+      await bulkDeleteAdminQrCodes(token, toDelete);
+      setQrCodes(prev => prev.filter(q => !toDelete.includes(q.id)));
+      setSelectedIds([]);
+    } catch(e) { setMsg("Failed to delete"); }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const toggleAll = () => {
+    if (selectedIds.length === filtered.length) setSelectedIds([]);
+    else setSelectedIds(filtered.map(q => q.id));
+  };
+
+  const total = qrCodes.length;
+  const linked = qrCodes.filter(q => !!q.assetId).length;
+  const unlinked = qrCodes.filter(q => !q.assetId).length;
+
+  return (
+    <div style={{ padding: "24px" }}>
+      <h2 style={{ marginBottom: 16, fontSize: 20, fontWeight: 700 }}>QR Codes</h2>
+      {msg && <div style={{ padding: "8px 12px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{msg}<button onClick={() => setMsg("")} style={{ marginLeft: 8, background: "none", border: "none", cursor: "pointer", color: "#64748b" }}>x</button></div>}
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
+        <select value={selectedCompanyId} onChange={e => setSelectedCompanyId(e.target.value)} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 200 }}>
+          <option value="">-- Select Company --</option>
+          {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+        </select>
+        <input type="number" min={1} max={200} value={generateCount} onChange={e => setGenerateCount(Number(e.target.value) || 1)} style={{ width: 80, padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        <button onClick={handleGenerate} disabled={generating || !selectedCompanyId} style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+          {generating ? "Generating..." : "Generate QR Codes"}
+        </button>
+      </div>
+
+      {/* Stats tiles */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+        <div onClick={() => setQrFilter("all")} style={{ flex: 1, padding: "16px", background: qrFilter === "all" ? "#eff6ff" : "#f8fafc", border: "2px solid " + (qrFilter === "all" ? "#3b82f6" : "#e2e8f0"), borderRadius: 10, cursor: "pointer", textAlign: "center" }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#1e40af" }}>{total}</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Total Generated</div>
+        </div>
+        <div onClick={() => setQrFilter("linked")} style={{ flex: 1, padding: "16px", background: qrFilter === "linked" ? "#f0fdf4" : "#f8fafc", border: "2px solid " + (qrFilter === "linked" ? "#22c55e" : "#e2e8f0"), borderRadius: 10, cursor: "pointer", textAlign: "center" }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#15803d" }}>{linked}</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Linked to Assets</div>
+        </div>
+        <div onClick={() => setQrFilter("unlinked")} style={{ flex: 1, padding: "16px", background: qrFilter === "unlinked" ? "#fff7ed" : "#f8fafc", border: "2px solid " + (qrFilter === "unlinked" ? "#f97316" : "#e2e8f0"), borderRadius: 10, cursor: "pointer", textAlign: "center" }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#c2410c" }}>{unlinked}</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Unlinked</div>
+        </div>
+      </div>
+
+      {/* Table actions */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, justifyContent: "flex-end", alignItems: "center" }}>
+        {qrFilter !== "all" && <span style={{ fontSize: 12, color: "#64748b", marginRight: "auto" }}>Showing: {filtered.length} {qrFilter} QR codes</span>}
+        {(selectedIds.length > 0 || filtered.length > 0) && (
+          <button onClick={handleBulkDelete} style={{ padding: "6px 14px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>
+            {selectedIds.length > 0 ? "Delete Selected (" + selectedIds.length + ")" : "Delete All Filtered (" + filtered.length + ")"}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", color: "#94a3b8", padding: 40 }}>Loading QR codes...</div>
+      ) : !selectedCompanyId ? (
+        <div style={{ textAlign: "center", color: "#94a3b8", padding: 40 }}>Select a company to view QR codes</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                <th style={{ padding: "10px 8px", textAlign: "center", width: 40 }}>
+                  <input type="checkbox" checked={filtered.length > 0 && selectedIds.length === filtered.length} onChange={toggleAll} />
+                </th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>QR ID</th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>Status</th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>Linked Asset</th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>Linked At</th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>Created At</th>
+                <th style={{ padding: "10px 8px", textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign: "center", padding: 30, color: "#94a3b8" }}>No QR codes found</td></tr>
+              ) : filtered.map(q => (
+                <tr key={q.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.includes(q.id) ? "#eff6ff" : "transparent" }}>
+                  <td style={{ textAlign: "center", padding: "8px" }}>
+                    <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelect(q.id)} />
+                  </td>
+                  <td style={{ padding: "8px", fontFamily: "monospace", fontSize: 12 }}>{q.qrUniqueId}</td>
+                  <td style={{ padding: "8px" }}>
+                    {q.assetId ? (
+                      <span style={{ background: "#dcfce7", color: "#16a34a", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Linked</span>
+                    ) : (
+                      <span style={{ background: "#fef9c3", color: "#a16207", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Unlinked</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "8px", color: q.assetName ? "#1e293b" : "#94a3b8" }}>{q.assetName || "-"}</td>
+                  <td style={{ padding: "8px", color: "#64748b", fontSize: 12 }}>{q.linkedAt ? new Date(q.linkedAt).toLocaleDateString() : "-"}</td>
+                  <td style={{ padding: "8px", color: "#64748b", fontSize: 12 }}>{q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "-"}</td>
+                  <td style={{ textAlign: "center", padding: "8px" }}>
+                    <button onClick={() => handleDelete(q.id)} style={{ padding: "4px 10px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function AdminWorkOrdersSection({ token, companies = [] }) {
   const [wos, setWos]         = useState([]);
   const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter]   = useState("all");
   const [search, setSearch]   = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const prevWoCountRef = React.useRef(0);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm]       = useState({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"", companyId:"" });
   const [saving, setSaving]   = useState(false);
@@ -2489,16 +2666,39 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
     setLoading(true);
     try {
       const [data, usrs] = await Promise.all([
-        getAdminWorkOrders(token, null),
+        getAdminWorkOrders(token, companyFilter || null),
         ...(companies.length ? [getAdminEmployees(token, companies[0]?.id)] : [Promise.resolve([])]),
       ]);
       setWos(Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []);
       setUsers(Array.isArray(usrs) ? usrs : []);
     } catch(e) { setError(e.message); }
     setLoading(false);
-  }, [token, companies]);
+  }, [token, companies, companyFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Poll every 30s, play beep notification when new requests arrive
+  React.useEffect(() => {
+    const iv = setInterval(async () => {
+      try {
+        const data = await getAdminWorkOrders(token, companyFilter || null);
+        const nw = Array.isArray(data && data.data) ? data.data : Array.isArray(data) ? data : [];
+        if (nw.length > prevWoCountRef.current && prevWoCountRef.current > 0) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.connect(g); g.connect(ctx.destination);
+            osc.frequency.value = 880; g.gain.value = 0.3;
+            osc.start(); setTimeout(() => { osc.stop(); ctx.close(); }, 400);
+          } catch(e) {}
+        }
+        prevWoCountRef.current = nw.length;
+        setWos(nw);
+      } catch(e) {}
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [token, companyFilter]);
 
   const handleCreate = async () => {
     if (!form.issueDescription || !form.companyId) return;
@@ -2576,13 +2776,17 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
       </div>
 
       <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid #e2e8f0", marginBottom:"16px", alignItems:"center", flexWrap:"wrap" }}>
-        {[["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],["escalated","Escalated â«"],["overdue","Overdue âš ï¸"]].map(([k,l]) => (
+        {[["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],["escalated","Escalated (!)"],["overdue","Overdue"]].map(([k,l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)} style={{ padding:"10px 14px", background:"none", border:"none", borderBottom: filter===k ? "2.5px solid #2563eb":"2.5px solid transparent", marginBottom:"-2px", fontSize:"13px", fontWeight: filter===k ? 700:500, color: filter===k ? "#2563eb":"#64748b", cursor:"pointer", whiteSpace:"nowrap" }}>
             {l} {(counts[k]||0) > 0 && <span style={{ background: filter===k ? "#2563eb":"#f1f5f9", color: filter===k ? "#fff":"#64748b", borderRadius:"9px", padding:"1px 6px", fontSize:"11px", marginLeft:"4px" }}>{counts[k]}</span>}
           </button>
         ))}
-        <div style={{ marginLeft:"auto" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requestsâ€¦" style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"220px" }} />
+        <div style={{ display:"flex", gap:"8px", alignItems:"center", marginLeft:"auto" }}>
+          <select value={companyFilter} onChange={e=>setCompanyFilter(e.target.value)} style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", minWidth:"150px" }}>
+            <option value="">All Companies</option>
+            {companies.map(co => <option key={co.id} value={co.id}>{co.companyName||co.name}</option>)}
+          </select>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requests..." style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"190px" }} />
         </div>
       </div>
 
@@ -2592,7 +2796,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
             <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>Create Request</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
               <select value={form.companyId} onChange={e=>setForm({...form,companyId:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">â€” Select Company * â€”</option>
+                <option value="">â€” Select Company * --</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.companyName||c.name}</option>)}
               </select>
               <textarea value={form.issueDescription} onChange={e=>setForm({...form,issueDescription:e.target.value})} placeholder="Issue description *" rows={3} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", resize:"vertical" }} />
@@ -2601,20 +2805,20 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                 {["low","medium","high","critical"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
               <select value={form.assignedTo} onChange={e=>setForm({...form,assignedTo:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">â€” Assign to (optional) â€”</option>
+                <option value="">â€” Assign to (optional) --</option>
                 {users.filter(u=>u.role==="admin"||u.role==="supervisor").map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
               </select>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"20px" }}>
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding:"9px 18px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer" }}>Cancel</button>
-              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creatingâ€¦":"Create Request"}</button>
+              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creating...":"Create Request"}</button>
             </div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading requestsâ€¦</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading requests...</div>
       ) : displayed.length === 0 ? (
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No requests found.</div>
       ) : (
@@ -3127,7 +3331,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "SavingΓÇª":"Save Shift"}</button>
+              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Saving...":"Save Shift"}</button>
 
 
 
@@ -3169,7 +3373,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading shiftsΓÇª</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading shifts...</div>
 
 
 
@@ -3410,7 +3614,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px", gap:"10px", flexWrap:"wrap" }}>
         <div><h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Employees</h1><p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Manage employees across companies</p></div>
         <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employeesΓÇª" style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employees..." style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
           <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setFormErr(null); setShowCreate(true); }} style={{ padding:"8px 16px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>+ Add User</button>
         </div>
       </div>
@@ -3427,7 +3631,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
           {coDropOpen && (
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, zIndex:9999, background:"#fff", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", minWidth:"220px", overflow:"hidden" }}>
               <div style={{ padding:"8px" }}>
-                <input autoFocus value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="Search companyΓÇª" style={{ width:"100%", padding:"7px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }} />
+                <input autoFocus value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="Search company..." style={{ width:"100%", padding:"7px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }} />
               </div>
               <div style={{ maxHeight:"200px", overflowY:"auto" }}>
                 {filteredCos.length === 0 && <div style={{ padding:"12px", color:"#94a3b8", fontSize:"12px", textAlign:"center" }}>No companies found</div>}
@@ -3501,14 +3705,14 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
               <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
-              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "SavingΓÇª" : editEmp ? "Save Changes" : "Add User"}</button>
+              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving..." : editEmp ? "Save Changes" : "Add User"}</button>
             </div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading employeesΓÇª</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading employees...</div>
       ) : displayed.length === 0 ? (
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No employees found.</div>
       ) : (
@@ -3532,8 +3736,8 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                     </div>
                   </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.email}</td>
-                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"ΓÇö"}</td>
-                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"ΓÇö"}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"-"}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"-"}</td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: e.status==="Active"||e.status==="active" ? "#dcfce7":"#fee2e2", color: e.status==="Active"||e.status==="active" ? "#166534":"#dc2626", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700 }}>{e.status||"Active"}</span></td>
                   <td style={{ padding:"10px 14px" }}>
@@ -3636,7 +3840,7 @@ const CompanyPortal = () => {
 
 
 
-  // URL-driven navigation: /client?tab=dashboard ΓÇö enables browser back/forward
+  // URL-driven navigation: /client?tab=dashboard - enables browser back/forward
 
 
 
@@ -3792,12 +3996,9 @@ const CompanyPortal = () => {
 
 
   const [assetSearch, setAssetSearch] = useState("");
-
-
-
-
-
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
+  const [assetStatusFilter, setAssetStatusFilter] = useState("all");
+  const [selectedAssetIds, setSelectedAssetIds] = useState([]);
 
 
 
@@ -4415,7 +4616,7 @@ const CompanyPortal = () => {
 
 
 
-  // Modular alert sound hook ΓÇö single shared AudioContext, throttled, localStorage preference
+  // Modular alert sound hook - single shared AudioContext, throttled, localStorage preference
 
 
 
@@ -4979,7 +5180,7 @@ const CompanyPortal = () => {
 
 
 
-      return matchesType && matchesTerm;
+      return matchesType && matchesTerm && (assetStatusFilter === "all" || (assetStatusFilter === "unverified" ? !a.verified : a.status === assetStatusFilter));
 
 
 
@@ -4991,7 +5192,7 @@ const CompanyPortal = () => {
 
 
 
-  }, [assets, assetTypeFilter, assetSearch]);
+  }, [assets, assetTypeFilter, assetSearch, assetStatusFilter]);
 
 
 
@@ -6319,7 +6520,7 @@ const CompanyPortal = () => {
 
 
 
-  // ΓöÇΓöÇ Poll for new flags every 30 s ΓÇö show toast when count increases ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ΓöÇΓöÇ Poll for new flags every 30 s - show toast when count increases ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 
 
@@ -6631,7 +6832,7 @@ const CompanyPortal = () => {
 
 
 
-    // Pre-load open flag count for nav badge ΓÇö use admin endpoint
+    // Pre-load open flag count for nav badge - use admin endpoint
 
 
 
@@ -9667,7 +9868,7 @@ const CompanyPortal = () => {
 
 
 
-    // Soft services don't require a department ΓÇö auto-pick first available
+    // Soft services don't require a department - auto-pick first available
 
 
 
@@ -10153,6 +10354,25 @@ const CompanyPortal = () => {
 
 
 
+  };
+
+  const handleBulkDeleteAssets = async () => {
+    if (!selectedAssetIds.length) return;
+    if (!window.confirm("Delete " + selectedAssetIds.length + " selected asset(s)?")) return;
+    try {
+      await Promise.all(selectedAssetIds.map(id => deleteAsset(token, id)));
+      setAssets(prev => prev.filter(a => !selectedAssetIds.includes(a.id)));
+      setSelectedAssetIds([]);
+    } catch(err) { alert(err.message || "Bulk delete failed"); }
+  };
+
+  const handleBulkVerifyAssets = async () => {
+    if (!selectedAssetIds.length) return;
+    try {
+      await bulkVerifyAssets(token, selectedAssetIds, 1);
+      setAssets(prev => prev.map(a => selectedAssetIds.includes(a.id) ? { ...a, verified: 1 } : a));
+      setSelectedAssetIds([]);
+    } catch(err) { alert(err.message || "Bulk verify failed"); }
   };
 
 
@@ -12255,7 +12475,7 @@ const CompanyPortal = () => {
 
 
 
-                {loading ? "Signing inΓÇª" : "Sign In"}
+                {loading ? "Signing in..." : "Sign In"}
 
 
 
@@ -12375,7 +12595,7 @@ const CompanyPortal = () => {
 
 
 
-                  {detailModal.loading ? "LoadingΓÇª" : (detailModal.data?.templateName || (detailModal.type === "logsheet" ? "Logsheet Entry" : "Checklist Submission"))}
+                  {detailModal.loading ? "Loading..." : (detailModal.data?.templateName || (detailModal.type === "logsheet" ? "Logsheet Entry" : "Checklist Submission"))}
 
 
 
@@ -12465,7 +12685,7 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.loading && <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", fontSize: "14px" }}>Loading submission detailsΓÇª</div>}
+              {detailModal.loading && <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", fontSize: "14px" }}>Loading submission details...</div>}
 
 
 
@@ -12537,19 +12757,19 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Frequency", value: d.frequency || "ΓÇö" },
+                        { label: "Frequency", value: d.frequency || "-" },
 
 
 
 
 
-                        { label: "Submitted By", value: d.submittedBy || "ΓÇö" },
+                        { label: "Submitted By", value: d.submittedBy || "-" },
 
 
 
 
 
-                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "ΓÇö" },
+                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "-" },
 
 
 
@@ -13071,19 +13291,19 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Submitted By", value: d.submittedBy || "ΓÇö" },
+                        { label: "Submitted By", value: d.submittedBy || "-" },
 
 
 
 
 
-                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "ΓÇö" },
+                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "-" },
 
 
 
 
 
-                        { label: "Frequency", value: d.frequency || "ΓÇö" },
+                        { label: "Frequency", value: d.frequency || "-" },
 
 
 
@@ -13209,7 +13429,7 @@ const CompanyPortal = () => {
 
 
 
-                            const val = a.answerJson?.value ?? a.optionSelected ?? "ΓÇö";
+                            const val = a.answerJson?.value ?? a.optionSelected ?? "-";
 
 
 
@@ -13245,7 +13465,7 @@ const CompanyPortal = () => {
 
 
 
-                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{a.inputType || a.answerType || "ΓÇö"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{a.inputType || a.answerType || "-"}</td>
 
 
 
@@ -13269,7 +13489,7 @@ const CompanyPortal = () => {
 
 
 
-                                    const v = val !== null && val !== undefined ? val : "ΓÇö";
+                                    const v = val !== null && val !== undefined ? val : "-";
 
 
 
@@ -13454,7 +13674,7 @@ const CompanyPortal = () => {
                     </div>
                   );
                 })}
-                {warnOpenCount > 5 && <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}><button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>+{warnOpenCount - recentAlerts.length} more ΓÇö View all</button></div>}
+                {warnOpenCount > 5 && <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}><button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>+{warnOpenCount - recentAlerts.length} more - View all</button></div>}
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
@@ -13528,6 +13748,10 @@ const CompanyPortal = () => {
           <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }} title="Requests">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span className="nav-label">Requests</span>
+          </button>
+          <button className={nav === "qrcodes" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("qrcodes"); setShowAddForm(false); }} title="QR Codes">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="16" y="16" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/></svg>
+            <span className="nav-label">QR Codes</span>
           </button>
 
           {/* Analytics */}
@@ -13798,7 +14022,7 @@ const CompanyPortal = () => {
 
 
 
-                    Users ΓÇö {adminCompany?.companyName || "Company"}
+                    Users - {adminCompany?.companyName || "Company"}
 
 
 
@@ -14218,7 +14442,7 @@ const CompanyPortal = () => {
 
 
 
-                        <tr><td colSpan="8" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>LoadingΓÇª</td></tr>
+                        <tr><td colSpan="8" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading...</td></tr>
 
 
 
@@ -14968,7 +15192,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button type="submit" className="btn-submit" disabled={userFormLoading}>{userFormLoading ? "SavingΓÇª" : (editUserId ? "Save Changes" : "Add User")}</button>
+                        <button type="submit" className="btn-submit" disabled={userFormLoading}>{userFormLoading ? "Saving..." : (editUserId ? "Save Changes" : "Add User")}</button>
 
 
 
@@ -15058,7 +15282,7 @@ const CompanyPortal = () => {
 
 
 
-                  <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading overviewΓÇª</div>
+                  <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading overview...</div>
 
 
 
@@ -16492,7 +16716,7 @@ const CompanyPortal = () => {
 
 
 
-                          {companyLoading ? "Loading companiesΓÇª" : "No companies found."}
+                          {companyLoading ? "Loading companies..." : "No companies found."}
 
 
 
@@ -16648,7 +16872,7 @@ const CompanyPortal = () => {
 
 
 
-                                    {c.description?.slice(0, 18) || "ΓÇö"}
+                                    {c.description?.slice(0, 18) || "-"}
 
 
 
@@ -16750,7 +16974,7 @@ const CompanyPortal = () => {
 
 
 
-                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>ΓÇö</span>
+                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>-</span>
 
 
 
@@ -17314,7 +17538,7 @@ const CompanyPortal = () => {
 
 
 
-                            <div style={{ fontWeight: "600", color: "#0f172a" }}>{val || "ΓÇö"}</div>
+                            <div style={{ fontWeight: "600", color: "#0f172a" }}>{val || "-"}</div>
 
 
 
@@ -17872,7 +18096,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button type="submit" className="btn-submit" disabled={editCompanyLoading}>{editCompanyLoading ? "SavingΓÇª" : "Save Changes"}</button>
+                        <button type="submit" className="btn-submit" disabled={editCompanyLoading}>{editCompanyLoading ? "Saving..." : "Save Changes"}</button>
 
 
 
@@ -18028,7 +18252,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button type="button" onClick={handleSaveModules} className="btn-submit" disabled={modulesSaving}>{modulesSaving ? "SavingΓÇª" : "Save Access"}</button>
+                      <button type="button" onClick={handleSaveModules} className="btn-submit" disabled={modulesSaving}>{modulesSaving ? "Saving..." : "Save Access"}</button>
 
 
 
@@ -18364,7 +18588,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button type="button" onClick={handleSaveRolePerms} className="btn-submit" disabled={rolePermsSaving}>{rolePermsSaving ? "SavingΓÇª" : "Save Permissions"}</button>
+                      <button type="button" onClick={handleSaveRolePerms} className="btn-submit" disabled={rolePermsSaving}>{rolePermsSaving ? "Saving..." : "Save Permissions"}</button>
 
 
 
@@ -18874,66 +19098,28 @@ const CompanyPortal = () => {
 
 
 
-                  <div style={{ display: "flex", gap: "8px" }}>
-
-
-
-
-
-                    <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
-
-
-
-
-
-                      style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-
-
-
-
-
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                    <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
                       <option value="all">All Types</option>
-
-
-
-
-
                       {(assetTypes.length ? assetTypes : [{ code: "soft", label: "Soft" }, { code: "technical", label: "Technical" }, { code: "fleet", label: "Fleet" }]).map((t) => (
-
-
-
-
-
                         <option key={t.code} value={t.code}>{t.label}</option>
-
-
-
-
-
                       ))}
-
-
-
-
-
                     </select>
-
-
-
-
-
-                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="SearchΓÇª"
-
-
-
-
-
-                      style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "160px" }} />
-
-
-
-
-
+                    <select value={assetStatusFilter} onChange={(e) => setAssetStatusFilter(e.target.value)} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
+                      <option value="all">All Status</option>
+                      <option value="unverified">Unverified</option>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Verified">Verified</option>
+                    </select>
+                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search..." style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "140px" }} />
+                    {selectedAssetIds.length > 0 && (
+                      <>
+                        <button type="button" onClick={handleBulkVerifyAssets} style={{ padding: "6px 12px", borderRadius: "7px", border: "none", background: "#22c55e", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Verify ({selectedAssetIds.length})</button>
+                        <button type="button" onClick={handleBulkDeleteAssets} style={{ padding: "6px 12px", borderRadius: "7px", border: "none", background: "#ef4444", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Delete ({selectedAssetIds.length})</button>
+                        <button type="button" onClick={() => setSelectedAssetIds([])} style={{ padding: "6px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", fontSize: "12px", cursor: "pointer" }}>Clear</button>
+                      </>
+                    )}
                   </div>
 
 
@@ -18952,7 +19138,7 @@ const CompanyPortal = () => {
 
 
 
-                  <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>LoadingΓÇª</p>
+                  <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading...</p>
 
 
 
@@ -18968,6 +19154,9 @@ const CompanyPortal = () => {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "2000px" }}>
                     <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                       <tr>
+                        <th style={{ padding: "10px 8px", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
+                          <input type="checkbox" onChange={e => setSelectedAssetIds(e.target.checked ? filteredAssets.map(a => a.id) : [])} checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length} />
+                        </th>
                         {["SN", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
@@ -18975,7 +19164,7 @@ const CompanyPortal = () => {
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={20} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "LoadingΓÇª" : "No assets found."}</td></tr>
+                        ? <tr><td colSpan={21} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading..." : "No assets found."}</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const maint = [
@@ -18984,7 +19173,7 @@ const CompanyPortal = () => {
                             (m.cmc?.enabled || m.maintenanceTypes?.cmc) && "CMC",
                             (m.inHouse || m.maintenanceTypes?.inHouse) && "In House",
                             (m.catalyst || m.maintenanceTypes?.catalyst) && "Catalyst",
-                          ].filter(Boolean).join(", ") || m.maintenanceType || "ΓÇö";
+                          ].filter(Boolean).join(", ") || m.maintenanceType || "-";
                           const ws   = a.workingStatus || a.working_status || m.workingStatus || "Working";
                           const crit = a.criticality || m.criticality || "Non_Critical";
                           const st   = a.status || "Active";
@@ -19008,26 +19197,30 @@ const CompanyPortal = () => {
                           };
                           const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
                           return (
-                            <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedAssetIds.includes(a.id) ? "#f0f9ff" : undefined }}>
+                              <td style={{ padding: "8px 14px" }}>
+                                <input type="checkbox" checked={selectedAssetIds.includes(a.id)} onChange={e => setSelectedAssetIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} />
+                              </td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "-"}</td>
+                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.mfgYear || m.manufacturingYear || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Γé╣ ${m.purchaseCost}` : "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "ΓÇö"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.mfgYear || m.manufacturingYear || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Rs. ${m.purchaseCost}` : "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "-"}</td>
                               <td style={{ padding: "10px 14px" }}>
+                                {!a.verified && <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", background: "#fef9c3", color: "#92400e", fontSize: "10px", fontWeight: 700, marginBottom: "4px" }}>Unverified</span>}
                                 <select
                                   value={combined}
                                   onChange={e => {
@@ -19163,7 +19356,7 @@ const CompanyPortal = () => {
 
 
 
-                  {/* ΓöÇΓöÇ Asset Type ΓÇö filtered by company sector ΓöÇΓöÇ */}
+                  {/* ΓöÇΓöÇ Asset Type - filtered by company sector ΓöÇΓöÇ */}
 
 
 
@@ -19223,7 +19416,7 @@ const CompanyPortal = () => {
 
 
 
-                            <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment ΓÇö barcode auto-generated on save</div>
+                            <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment - barcode auto-generated on save</div>
 
 
 
@@ -19583,7 +19776,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span>≡ƒÅÑ</span> Healthcare equipment registration ΓÇö barcode will be auto-generated.
+                          <span>≡ƒÅÑ</span> Healthcare equipment registration - barcode will be auto-generated.
 
 
 
@@ -19601,7 +19794,7 @@ const CompanyPortal = () => {
 
 
 
-                        {/* Equipment Photos ΓÇö up to 5 */}
+                        {/* Equipment Photos - up to 5 */}
 
 
 
@@ -20265,7 +20458,7 @@ const CompanyPortal = () => {
 
 
 
-                            <label>Purchase Cost (Γé╣)</label>
+                            <label>Purchase Cost (Rs.)</label>
 
 
 
@@ -20613,7 +20806,7 @@ const CompanyPortal = () => {
 
 
 
-                              <option value="">ΓÇö None ΓÇö</option>
+                              <option value="">- None -</option>
 
 
 
@@ -20814,7 +21007,7 @@ const CompanyPortal = () => {
 
 
 
-                      {/* Non-soft: standard fields ΓÇö NOT shown for healthcare (has its own location section above) */}
+                      {/* Non-soft: standard fields - NOT shown for healthcare (has its own location section above) */}
 
 
 
@@ -20844,7 +21037,7 @@ const CompanyPortal = () => {
 
 
 
-                            <option value="">ΓÇö None ΓÇö</option>
+                            <option value="">- None -</option>
 
 
 
@@ -21606,7 +21799,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button type="submit" disabled={assetLoading} style={{ padding: "9px 24px", borderRadius: "8px", border: "none", background: assetLoading ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 600, cursor: assetLoading ? "default" : "pointer", fontSize: "14px" }}>{assetLoading ? "SavingΓÇª" : editingAssetId ? "Update Asset" : "Add Asset"}</button>
+                    <button type="submit" disabled={assetLoading} style={{ padding: "9px 24px", borderRadius: "8px", border: "none", background: assetLoading ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 600, cursor: assetLoading ? "default" : "pointer", fontSize: "14px" }}>{assetLoading ? "Saving..." : editingAssetId ? "Update Asset" : "Add Asset"}</button>
 
 
 
@@ -21942,7 +22135,7 @@ const CompanyPortal = () => {
 
 
 
-                    {bulkImporting ? "UploadingΓÇª" : "Upload & Register Assets"}
+                    {bulkImporting ? "Uploading..." : "Upload & Register Assets"}
 
 
 
@@ -22074,7 +22267,7 @@ const CompanyPortal = () => {
 
 
 
-                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" ΓÇö ` : ""}{e.reason}</p>
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" - ` : ""}{e.reason}</p>
 
 
 
@@ -22562,7 +22755,7 @@ const CompanyPortal = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                     <div>
                       <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
-                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || 'ΓÇö'}</p>
+                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '-'}</p>
                     </div>
                     <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -22933,7 +23126,7 @@ const CompanyPortal = () => {
 
 
 
-                    {departmentLoading ? "SavingΓÇª" : "Add Department"}
+                    {departmentLoading ? "Saving..." : "Add Department"}
 
 
 
@@ -23005,7 +23198,7 @@ const CompanyPortal = () => {
 
 
 
-                <input value={departmentSearch} onChange={(e) => setDepartmentSearch(e.target.value)} placeholder="SearchΓÇª"
+                <input value={departmentSearch} onChange={(e) => setDepartmentSearch(e.target.value)} placeholder="Search..."
 
 
 
@@ -23083,7 +23276,7 @@ const CompanyPortal = () => {
 
 
 
-                    <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{departmentLoading ? "LoadingΓÇª" : "No departments found"}</td></tr>
+                    <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{departmentLoading ? "Loading..." : "No departments found"}</td></tr>
 
 
 
@@ -23113,13 +23306,13 @@ const CompanyPortal = () => {
 
 
 
-                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.companyName || companies.find((c) => String(c.id) === String(d.companyId))?.companyName || "ΓÇö"}</td>
+                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.companyName || companies.find((c) => String(c.id) === String(d.companyId))?.companyName || "-"}</td>
 
 
 
 
 
-                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "ΓÇö"}</td>
+                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "-"}</td>
 
 
 
@@ -24006,6 +24199,11 @@ const CompanyPortal = () => {
 
 
 
+
+
+        {nav === "qrcodes" && (
+          <AdminQrCodesSection token={token} companies={companies} />
+        )}
 
         {nav === "workorders" && (
 
@@ -25405,7 +25603,7 @@ const CompanyPortal = () => {
 
 
 
-                  {hospitalLoading ? "SavingΓÇª" : "Register Hospital"}
+                  {hospitalLoading ? "Saving..." : "Register Hospital"}
 
 
 
@@ -26527,7 +26725,7 @@ const CompanyPortal = () => {
 
 
 
-                  {companyLoading ? "SavingΓÇª" : "Add Company"}
+                  {companyLoading ? "Saving..." : "Add Company"}
 
 
 
@@ -26653,7 +26851,7 @@ const CompanyPortal = () => {
                       <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", flex:1, minWidth:"50px" }}>
                         {d.assetCount > 0 && <span style={{ fontSize:"10px", fontWeight:700, color:col }}>{d.assetCount}</span>}
                         <div title={`${d.companyName}: ${d.assetCount} assets`} style={{ width:"100%", maxWidth:"32px", background:col, borderRadius:"4px 4px 0 0", height:`${barH}px`, transition:"opacity 0.12s", cursor:"default" }} onMouseEnter={e=>e.target.style.opacity="0.75"} onMouseLeave={e=>e.target.style.opacity="1"} />
-                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"ΓÇª":""}</div>
+                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"...":""}</div>
                       </div>
                     );
                   })}
@@ -26720,7 +26918,7 @@ const CompanyPortal = () => {
             }
           };
 
-          // Tile click handler ΓÇö show drill-down on same dashboard
+          // Tile click handler - show drill-down on same dashboard
           const handleTileClick = (tileId) => {
             setActiveTile(prev => prev === tileId ? null : tileId);
           };
@@ -26792,7 +26990,7 @@ const CompanyPortal = () => {
                   {isActive && <svg style={{ marginLeft: "auto" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>}
                 </div>
                 <div style={{ fontSize: "32px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
-                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>ΓÇª</span>}
+                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>...</span>}
                 </div>
               </div>
             );
@@ -26850,14 +27048,14 @@ const CompanyPortal = () => {
                         {dashExportOpen && (
                           <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "210px", overflow: "hidden" }}>
                             {[
-                              { id: "total_assets",    label: "All Assets",       icon: "≡ƒôª" },
-                              { id: "critical",        label: "Critical Assets",   icon: "≡ƒÜ¿" },
-                              { id: "non_critical",    label: "Non-Critical Assets",icon: "Γ£à" },
-                              { id: "rber",            label: "RBER Assets",       icon: "≡ƒö╡" },
-                              { id: "condemned",       label: "Condemned Assets",  icon: "Γ¢ö" },
-                              { id: "new_addition",    label: "New Addition Assets",icon: "Γ₧ò" },
-                              { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "≡ƒÆ¼" },
-                              { id: "companies",       label: "Companies Summary", icon: "≡ƒÅó" },
+                              { id: "total_assets",    label: "All Assets",         icon: "" },
+                              { id: "critical",        label: "Critical Assets",     icon: "" },
+                              { id: "non_critical",    label: "Non-Critical Assets", icon: "" },
+                              { id: "rber",            label: "RBER Assets",         icon: "" },
+                              { id: "condemned",       label: "Condemned Assets",    icon: "" },
+                              { id: "new_addition",    label: "New Addition Assets",  icon: "" },
+                              { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "" },
+                              { id: "companies",       label: "Companies Summary",   icon: "" },
                             ].map(opt => (
                               <button key={opt.id} onClick={() => { handleExport(opt.id); setDashExportOpen(false); }}
                                 style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
@@ -26913,8 +27111,8 @@ const CompanyPortal = () => {
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
-                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} ΓÇö Company Breakdown</span>
-                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "ΓÇª"}</strong></span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} - Company Breakdown</span>
+                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "..."}</strong></span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
@@ -26928,7 +27126,7 @@ const CompanyPortal = () => {
                   <div style={{ padding: "16px 20px" }}>
                     {byCompany.length === 0 ? (
                       <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
-                        {dashboardStats ? "No company data available" : "Loading dataΓÇª"}
+                        {dashboardStats ? "No company data available" : "Loading data..."}
                       </div>
                     ) : (
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -27000,14 +27198,14 @@ const CompanyPortal = () => {
                 {[
                   { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },
                   { label: "Active Companies", value: activeCompanies, col: "#16a34a", bg: "#f0fdf4", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
-                  { label: "Total Assets", value: dashboardStats ? totalAssets : "ΓÇª", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
-                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "ΓÇª", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+                  { label: "Total Assets", value: dashboardStats ? totalAssets : "...", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "...", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
                 ].map(k => (
                   <div key={k.label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
                     <div style={{ width: "40px", height: "40px", background: k.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: k.col, flexShrink: 0 }}>{k.icon}</div>
                     <div>
                       <p style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, margin: 0, marginBottom: "3px" }}>{k.label}</p>
-                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "ΓÇª"}</p>
+                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "..."}</p>
                     </div>
                   </div>
                 ))}

@@ -184,6 +184,7 @@ router.get(
                 a.asset_type      AS assetType,
                 a.building, a.floor, a.room,
                 a.status,
+                a.verified,
                 a.qr_code         AS qrCode,
                 a.department_id   AS departmentId,
                 d.name            AS departmentName,
@@ -389,8 +390,8 @@ router.post(
       const [result] = await conn.execute(
         `INSERT INTO assets
            (company_id, department_id, asset_name, asset_unique_id, asset_type,
-            building, floor, room, status, qr_code, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            building, floor, room, status, qr_code, created_by, verified)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [companyId, departmentId, assetName, uniqueIdToUse, assetTypeRecord.code,
          building || null, floor || null, room || null, status, qrCode || null, req.user.id]
       );
@@ -505,6 +506,52 @@ router.put(
     }
   }
 );
+
+// ── PUT /api/assets/bulk-verify ──────────────────────────────────────────────
+// Mark one or more assets as verified (verified = 1) by the admin.
+// Body: { ids: [1,2,3], verified: 1|0 }
+router.put("/bulk-verify", async (req, res, next) => {
+  const { ids, verified = 1 } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: "ids array is required" });
+  }
+  const safeIds = ids.map(Number).filter(n => Number.isInteger(n) && n > 0);
+  if (!safeIds.length) return res.status(400).json({ message: "No valid ids provided" });
+
+  try {
+    const placeholders = safeIds.map(() => "?").join(",");
+    // Verify ownership: all assets must belong to this user's companies
+    const [owned] = await pool.query(
+      `SELECT a.id FROM assets a
+       JOIN companies c ON a.company_id = c.id
+       WHERE a.id IN (${placeholders}) AND c.user_id = ?`,
+      [...safeIds, req.user.id]
+    );
+    const ownedIds = owned.map(r => r.id);
+    if (!ownedIds.length) return res.status(404).json({ message: "No assets found" });
+
+    const ph = ownedIds.map(() => "?").join(",");
+    await pool.query(
+      `UPDATE assets SET verified = ? WHERE id IN (${ph})`,
+      [verified ? 1 : 0, ...ownedIds]
+    );
+    res.json({ updated: ownedIds.length, message: `${ownedIds.length} asset(s) updated` });
+  } catch (err) { next(err); }
+});
+
+// ── PUT /api/assets/:id/verify ────────────────────────────────────────────────
+router.put("/:id/verify", async (req, res, next) => {
+  const { verified = 1 } = req.body;
+  try {
+    const [[asset]] = await pool.query(
+      `SELECT a.id FROM assets a JOIN companies c ON a.company_id = c.id
+       WHERE a.id = ? AND c.user_id = ?`, [req.params.id, req.user.id]
+    );
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    await pool.query("UPDATE assets SET verified = ? WHERE id = ?", [verified ? 1 : 0, req.params.id]);
+    res.json({ message: "Asset verification updated" });
+  } catch (err) { next(err); }
+});
 
 // ── DELETE /api/assets/delete-all ────────────────────────────────────────────
 // Permanently deletes ALL assets for a company (no limit). Admin-only.

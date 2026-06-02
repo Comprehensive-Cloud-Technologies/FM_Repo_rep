@@ -59,6 +59,8 @@ export const createAsset = (token, data) => request("POST", "/api/assets", data,
 export const updateAsset = (token, id, data) => request("PUT", `/api/assets/${id}`, data, { authToken: token });
 export const deleteAsset = (token, id) => request("DELETE", `/api/assets/${id}`, undefined, { authToken: token });
 export const deleteAllAssets = (token, companyId) => request("DELETE", `/api/assets/delete-all?companyId=${companyId}`, undefined, { authToken: token });
+export const bulkVerifyAssets = (token, ids, verified = 1) => request("PUT", "/api/assets/bulk-verify", { ids, verified }, { authToken: token });
+export const verifyAsset = (token, id, verified = 1) => request("PUT", `/api/assets/${id}/verify`, { verified }, { authToken: token });
 
 /** Bulk-import assets from an Excel/CSV file (multipart upload). */
 export const bulkImportAssets = async (token, file, companyId) => {
@@ -228,6 +230,12 @@ export const getAdminWorkOrders    = (token, companyId, status) => { const p = [
 export const createAdminWorkOrder  = (token, data) => request("POST", "/api/company-users/work-orders", data, { authToken: token });
 export const updateAdminWOStatus   = (token, id, status) => request("PUT", `/api/company-users/work-orders/${id}/status`, { status }, { authToken: token });
 export const assignAdminWO         = (token, id, data) => request("PUT", `/api/company-users/work-orders/${id}/assign`, data, { authToken: token });
+
+// -- Admin-level QR Code management (client portal) --
+export const getAdminQrCodes       = (token, companyId) => request("GET", `/api/company-users/qr-codes?companyId=${companyId}`, undefined, { authToken: token });
+export const generateAdminQrCodes  = (token, companyId, count) => request("POST", "/api/company-users/qr-codes/generate", { companyId, count }, { authToken: token });
+export const deleteAdminQrCode     = (token, id) => request("DELETE", `/api/company-users/qr-codes/${id}`, undefined, { authToken: token });
+export const bulkDeleteAdminQrCodes = (token, ids) => request("DELETE", "/api/company-users/qr-codes/bulk", { ids }, { authToken: token });
 
 // â”€â”€ Admin-level CRUD for Shifts (client portal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getAdminShifts    = (token, companyId) => request("GET", `/api/company-users/shifts?companyId=${companyId}`, undefined, { authToken: token });
