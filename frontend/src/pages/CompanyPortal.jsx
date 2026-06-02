@@ -479,7 +479,7 @@ const TOKEN_KEY = "company_portal_token";
 
 
 
-/* ─── Photo thumbnail + full-screen lightbox ─────────────────── */
+/* ΓöÇΓöÇΓöÇ Photo thumbnail + full-screen lightbox ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 
 
@@ -587,7 +587,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-          🔍 View
+          ≡ƒöì View
 
 
 
@@ -725,7 +725,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-              ×
+              ├ù
 
 
 
@@ -941,31 +941,31 @@ const SECTORS = [
 
 
 
-  { value: "healthcare", label: "Healthcare / Medical", icon: "🏥", description: "Hospitals, clinics, medical colleges" },
+  { value: "healthcare", label: "Healthcare / Medical", icon: "≡ƒÅÑ", description: "Hospitals, clinics, medical colleges" },
 
 
 
 
 
-  { value: "soft_services", label: "Soft Services", icon: "🧹", description: "Housekeeping, catering, security" },
+  { value: "soft_services", label: "Soft Services", icon: "≡ƒº╣", description: "Housekeeping, catering, security" },
 
 
 
 
 
-  { value: "technical", label: "Technical Assets", icon: "⚙️", description: "Engineering, maintenance, HVAC" },
+  { value: "technical", label: "Technical Assets", icon: "ΓÜÖ∩╕Å", description: "Engineering, maintenance, HVAC" },
 
 
 
 
 
-  { value: "fleet", label: "Fleet Management", icon: "🚗", description: "Vehicles, logistics, transport" },
+  { value: "fleet", label: "Fleet Management", icon: "≡ƒÜù", description: "Vehicles, logistics, transport" },
 
 
 
 
 
-  { value: "general", label: "General / Other", icon: "🏢", description: "Other industries" },
+  { value: "general", label: "General / Other", icon: "≡ƒÅó", description: "Other industries" },
 
 
 
@@ -1421,7 +1421,7 @@ const emptyAsset = {
 
 
 
-  // ── Healthcare-specific fields (stored in metadata) ──
+  // ΓöÇΓöÇ Healthcare-specific fields (stored in metadata) ΓöÇΓöÇ
 
 
 
@@ -1553,7 +1553,7 @@ const emptyAsset = {
 
 
 
-  hcImages: [],          // Array of { url, name } — up to 5 equipment photos
+  hcImages: [],          // Array of { url, name } ΓÇö up to 5 equipment photos
 
 
 
@@ -1643,7 +1643,7 @@ const assetTypeLabels = {
 
 
 
-/* ─── Admin OJT Section ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Admin OJT Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 
 
@@ -1949,7 +1949,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-        <div style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading OJT data…</div>
+        <div style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading OJT dataΓÇª</div>
 
 
 
@@ -2117,7 +2117,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                    <td style={{ padding: "12px 16px", color: "#94a3b8", fontSize: "12px" }}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "—"}</td>
+                    <td style={{ padding: "12px 16px", color: "#94a3b8", fontSize: "12px" }}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "ΓÇö"}</td>
 
 
 
@@ -2333,7 +2333,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                      {p.score != null ? `${p.score}%` : "—"}
+                      {p.score != null ? `${p.score}%` : "ΓÇö"}
 
 
 
@@ -2357,13 +2357,13 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>🏅 Issued</span>
+                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>≡ƒÅà Issued</span>
 
 
 
 
 
-                      ) : <span style={{ fontSize: "12px", color: "#94a3b8" }}>—</span>}
+                      ) : <span style={{ fontSize: "12px", color: "#94a3b8" }}>ΓÇö</span>}
 
 
 
@@ -2441,7 +2441,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-/* ─── Admin Work Orders Section ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Admin Work Orders Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 
 
@@ -2537,7 +2537,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
 
   const exportToExcel = () => {
     const rows = [["WO #","Company","Asset","Description","Priority","Status","Assigned To","Created At"]];
-    displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.companyName||"", w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace("_"," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
+    displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.companyName||"", w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace(/_/g," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type:"text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `requests-${filter}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -2566,7 +2566,6 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
         </div>
       </div>
 
-      {/* 8 stat tiles */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:"10px", marginBottom:"20px" }}>
         {TILES.map(([k,l,v,clr]) => (
           <div key={k} onClick={() => setFilter(filter===k?"all":k)} style={{ background:"#fff", borderRadius:"10px", border:`1.5px solid ${filter===k ? clr : "#e2e8f0"}`, padding:"14px 12px", cursor:"pointer", textAlign:"center", transition:"all 0.15s", boxShadow: filter===k ? `0 0 0 3px ${clr}22` : "none" }}>
@@ -2576,26 +2575,24 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
         ))}
       </div>
 
-      {/* Filter tabs + search */}
       <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid #e2e8f0", marginBottom:"16px", alignItems:"center", flexWrap:"wrap" }}>
-        {[["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],["escalated","Escalated ⏫"],["overdue","Overdue ⚠️"]].map(([k,l]) => (
+        {[["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],["escalated","Escalated â«"],["overdue","Overdue âš ï¸"]].map(([k,l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)} style={{ padding:"10px 14px", background:"none", border:"none", borderBottom: filter===k ? "2.5px solid #2563eb":"2.5px solid transparent", marginBottom:"-2px", fontSize:"13px", fontWeight: filter===k ? 700:500, color: filter===k ? "#2563eb":"#64748b", cursor:"pointer", whiteSpace:"nowrap" }}>
             {l} {(counts[k]||0) > 0 && <span style={{ background: filter===k ? "#2563eb":"#f1f5f9", color: filter===k ? "#fff":"#64748b", borderRadius:"9px", padding:"1px 6px", fontSize:"11px", marginLeft:"4px" }}>{counts[k]}</span>}
           </button>
         ))}
         <div style={{ marginLeft:"auto" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requests…" style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"220px" }} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requestsâ€¦" style={{ padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"220px" }} />
         </div>
       </div>
 
-      {/* Create modal */}
       {showCreate && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <div style={{ background:"#fff", borderRadius:"16px", padding:"28px", width:"480px", maxWidth:"92vw" }}>
             <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>Create Request</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
               <select value={form.companyId} onChange={e=>setForm({...form,companyId:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">— Select Company *—</option>
+                <option value="">â€” Select Company * â€”</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.companyName||c.name}</option>)}
               </select>
               <textarea value={form.issueDescription} onChange={e=>setForm({...form,issueDescription:e.target.value})} placeholder="Issue description *" rows={3} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", resize:"vertical" }} />
@@ -2604,20 +2601,20 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                 {["low","medium","high","critical"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
               <select value={form.assignedTo} onChange={e=>setForm({...form,assignedTo:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">— Assign to (optional) —</option>
+                <option value="">â€” Assign to (optional) â€”</option>
                 {users.filter(u=>u.role==="admin"||u.role==="supervisor").map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
               </select>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"20px" }}>
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding:"9px 18px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer" }}>Cancel</button>
-              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creating…":"Create Request"}</button>
+              <button type="button" onClick={handleCreate} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Creatingâ€¦":"Create Request"}</button>
             </div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading requests…</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading requestsâ€¦</div>
       ) : displayed.length === 0 ? (
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No requests found.</div>
       ) : (
@@ -2639,12 +2636,12 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                   <tr key={w.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOverdue ? "#fff7f7":"#fff" }}>
                     <td style={{ padding:"11px 14px", fontWeight:700, color:"#2563eb", fontSize:"12.5px" }}>
                       {w.workOrderNumber || `WO-${w.id}`}
-                      {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>⏫</span>}
-                      {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>⚠️</span>}
+                      {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>â«</span>}
+                      {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>âš ï¸</span>}
                     </td>
-                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"—"}</td>
-                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"—"}</td>
-                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"—"}</div></td>
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"â€”"}</td>
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"â€”"}</td>
+                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"â€”"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
@@ -2674,7 +2671,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
 
 
 
-/* ─── Admin Shifts Section ───────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Admin Shifts Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 
 
@@ -3130,7 +3127,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "Saving…":"Save Shift"}</button>
+              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 18px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer" }}>{saving ? "SavingΓÇª":"Save Shift"}</button>
 
 
 
@@ -3172,7 +3169,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading shifts…</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading shiftsΓÇª</div>
 
 
 
@@ -3232,7 +3229,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</p>
+                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} ΓÇô {fmt12(s.endTime)}</p>
 
 
 
@@ -3340,7 +3337,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-/* ─── Admin Employees Section ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Admin Employees Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 
 
@@ -3413,7 +3410,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px", gap:"10px", flexWrap:"wrap" }}>
         <div><h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Employees</h1><p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Manage employees across companies</p></div>
         <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employees…" style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employeesΓÇª" style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
           <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setFormErr(null); setShowCreate(true); }} style={{ padding:"8px 16px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>+ Add User</button>
         </div>
       </div>
@@ -3430,7 +3427,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
           {coDropOpen && (
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, zIndex:9999, background:"#fff", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", minWidth:"220px", overflow:"hidden" }}>
               <div style={{ padding:"8px" }}>
-                <input autoFocus value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="Search company…" style={{ width:"100%", padding:"7px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }} />
+                <input autoFocus value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="Search companyΓÇª" style={{ width:"100%", padding:"7px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }} />
               </div>
               <div style={{ maxHeight:"200px", overflowY:"auto" }}>
                 {filteredCos.length === 0 && <div style={{ padding:"12px", color:"#94a3b8", fontSize:"12px", textAlign:"center" }}>No companies found</div>}
@@ -3504,14 +3501,14 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
               <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
-              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : editEmp ? "Save Changes" : "Add User"}</button>
+              <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "SavingΓÇª" : editEmp ? "Save Changes" : "Add User"}</button>
             </div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading employees…</div>
+        <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>Loading employeesΓÇª</div>
       ) : displayed.length === 0 ? (
         <div style={{ padding:"48px", textAlign:"center", color:"#94a3b8", background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0" }}>No employees found.</div>
       ) : (
@@ -3535,8 +3532,8 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                     </div>
                   </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.email}</td>
-                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"—"}</td>
-                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"—"}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"ΓÇö"}</td>
+                  <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"ΓÇö"}</td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: e.status==="Active"||e.status==="active" ? "#dcfce7":"#fee2e2", color: e.status==="Active"||e.status==="active" ? "#166534":"#dc2626", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700 }}>{e.status||"Active"}</span></td>
                   <td style={{ padding:"10px 14px" }}>
@@ -3639,7 +3636,7 @@ const CompanyPortal = () => {
 
 
 
-  // URL-driven navigation: /client?tab=dashboard — enables browser back/forward
+  // URL-driven navigation: /client?tab=dashboard ΓÇö enables browser back/forward
 
 
 
@@ -4238,7 +4235,7 @@ const CompanyPortal = () => {
 
 
 
-        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" · ") || null,
+        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" ┬╖ ") || null,
 
 
 
@@ -4418,7 +4415,7 @@ const CompanyPortal = () => {
 
 
 
-  // Modular alert sound hook — single shared AudioContext, throttled, localStorage preference
+  // Modular alert sound hook ΓÇö single shared AudioContext, throttled, localStorage preference
 
 
 
@@ -6322,7 +6319,7 @@ const CompanyPortal = () => {
 
 
 
-  // ── Poll for new flags every 30 s — show toast when count increases ─────────
+  // ΓöÇΓöÇ Poll for new flags every 30 s ΓÇö show toast when count increases ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 
 
@@ -6454,7 +6451,7 @@ const CompanyPortal = () => {
 
 
 
-            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} – ${newest.assetName || "unknown asset"}`
+            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} ΓÇô ${newest.assetName || "unknown asset"}`
 
 
 
@@ -6526,7 +6523,7 @@ const CompanyPortal = () => {
 
 
 
-  // ── Initial data load on login ────────────────────────────────────────────
+  // ΓöÇΓöÇ Initial data load on login ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 
 
@@ -6634,7 +6631,7 @@ const CompanyPortal = () => {
 
 
 
-    // Pre-load open flag count for nav badge — use admin endpoint
+    // Pre-load open flag count for nav badge ΓÇö use admin endpoint
 
 
 
@@ -9670,7 +9667,7 @@ const CompanyPortal = () => {
 
 
 
-    // Soft services don't require a department — auto-pick first available
+    // Soft services don't require a department ΓÇö auto-pick first available
 
 
 
@@ -10224,7 +10221,7 @@ const CompanyPortal = () => {
 
 
 
-      `âš ï¸ WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
+      `├ó┼í┬á├»┬╕┬Å WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
 
 
 
@@ -10260,7 +10257,7 @@ const CompanyPortal = () => {
 
 
 
-      alert(`✅ ${result?.deleted ?? 0} assets deleted successfully.`);
+      alert(`Γ£à ${result?.deleted ?? 0} assets deleted successfully.`);
 
 
 
@@ -10920,7 +10917,7 @@ const CompanyPortal = () => {
 
 
 
-  // ── Company Users (Admin) ─────────────────────────────────────────────────
+  // ΓöÇΓöÇ Company Users (Admin) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 
 
@@ -12258,7 +12255,7 @@ const CompanyPortal = () => {
 
 
 
-                {loading ? "Signing in…" : "Sign In"}
+                {loading ? "Signing inΓÇª" : "Sign In"}
 
 
 
@@ -12324,7 +12321,7 @@ const CompanyPortal = () => {
 
 
 
-      {/* ── Submission Detail Modal ───────────────────────────────────────── */}
+      {/* ΓöÇΓöÇ Submission Detail Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
 
 
 
@@ -12378,7 +12375,7 @@ const CompanyPortal = () => {
 
 
 
-                  {detailModal.loading ? "Loading…" : (detailModal.data?.templateName || (detailModal.type === "logsheet" ? "Logsheet Entry" : "Checklist Submission"))}
+                  {detailModal.loading ? "LoadingΓÇª" : (detailModal.data?.templateName || (detailModal.type === "logsheet" ? "Logsheet Entry" : "Checklist Submission"))}
 
 
 
@@ -12438,7 +12435,7 @@ const CompanyPortal = () => {
 
 
 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>Γ£ò</button>
 
 
 
@@ -12468,13 +12465,13 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.loading && <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", fontSize: "14px" }}>Loading submission details…</div>}
+              {detailModal.loading && <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", fontSize: "14px" }}>Loading submission detailsΓÇª</div>}
 
 
 
 
 
-              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>⚠ {detailModal.error}</div>}
+              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>ΓÜá {detailModal.error}</div>}
 
 
 
@@ -12534,25 +12531,25 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` · Shift ${d.shift}` : ""}` },
+                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` ┬╖ Shift ${d.shift}` : ""}` },
 
 
 
 
 
-                        { label: "Frequency", value: d.frequency || "—" },
+                        { label: "Frequency", value: d.frequency || "ΓÇö" },
 
 
 
 
 
-                        { label: "Submitted By", value: d.submittedBy || "—" },
+                        { label: "Submitted By", value: d.submittedBy || "ΓÇö" },
 
 
 
 
 
-                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "—" },
+                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "ΓÇö" },
 
 
 
@@ -13074,19 +13071,19 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Submitted By", value: d.submittedBy || "—" },
+                        { label: "Submitted By", value: d.submittedBy || "ΓÇö" },
 
 
 
 
 
-                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "—" },
+                        { label: "Submitted At", value: d.submittedAt ? new Date(d.submittedAt).toLocaleString() : "ΓÇö" },
 
 
 
 
 
-                        { label: "Frequency", value: d.frequency || "—" },
+                        { label: "Frequency", value: d.frequency || "ΓÇö" },
 
 
 
@@ -13212,7 +13209,7 @@ const CompanyPortal = () => {
 
 
 
-                            const val = a.answerJson?.value ?? a.optionSelected ?? "—";
+                            const val = a.answerJson?.value ?? a.optionSelected ?? "ΓÇö";
 
 
 
@@ -13248,7 +13245,7 @@ const CompanyPortal = () => {
 
 
 
-                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{a.inputType || a.answerType || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{a.inputType || a.answerType || "ΓÇö"}</td>
 
 
 
@@ -13260,7 +13257,7 @@ const CompanyPortal = () => {
 
 
 
-                                  {isIssue && <span style={{ marginRight: "4px" }}>⚠</span>}
+                                  {isIssue && <span style={{ marginRight: "4px" }}>ΓÜá</span>}
 
 
 
@@ -13272,7 +13269,7 @@ const CompanyPortal = () => {
 
 
 
-                                    const v = val !== null && val !== undefined ? val : "—";
+                                    const v = val !== null && val !== undefined ? val : "ΓÇö";
 
 
 
@@ -13440,8 +13437,8 @@ const CompanyPortal = () => {
             {bellOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.12)", zIndex: 9999, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>⚠️ Active Warnings</span>
-                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>ΓÜá∩╕Å Active Warnings</span>
+                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all ΓåÆ</button>
                 </div>
                 {recentAlerts.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>}
                 {recentAlerts.map((a) => {
@@ -13457,12 +13454,12 @@ const CompanyPortal = () => {
                     </div>
                   );
                 })}
-                {warnOpenCount > 5 && <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}><button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>+{warnOpenCount - recentAlerts.length} more — View all</button></div>}
+                {warnOpenCount > 5 && <div style={{ padding: "10px 16px", textAlign: "center", borderTop: "1px solid #f1f5f9" }}><button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>+{warnOpenCount - recentAlerts.length} more ΓÇö View all</button></div>}
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
-                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">⚙</button>
-                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "🔊 On" : "🔇 Off"}</button>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">ΓÜÖ</button>
+                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "≡ƒöè On" : "≡ƒöç Off"}</button>
                   </div>
                 </div>
                 {alarmSettingsOpen && (
@@ -13477,7 +13474,7 @@ const CompanyPortal = () => {
                         <div key={key} className="fm-sev-row">
                           <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
                           <div className="fm-sev-actions">
-                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>▶ Test</button>
+                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>Γû╢ Test</button>
                             <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>{isOn ? "ON" : "OFF"}</button>
                           </div>
                         </div>
@@ -13747,7 +13744,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>}
+              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}</span>}
 
 
 
@@ -13801,7 +13798,7 @@ const CompanyPortal = () => {
 
 
 
-                    Users — {adminCompany?.companyName || "Company"}
+                    Users ΓÇö {adminCompany?.companyName || "Company"}
 
 
 
@@ -13909,13 +13906,13 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Users", value: userStats.active, sub: "✓ Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Users", value: userStats.active, sub: "Γ£ô Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
 
 
-                  { label: "Inactive Users", value: userStats.inactive, sub: "⏸ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+                  { label: "Inactive Users", value: userStats.inactive, sub: "ΓÅ╕ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
 
 
 
@@ -13993,7 +13990,7 @@ const CompanyPortal = () => {
 
 
 
-              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>âš ï¸ {companyUsersError}</div>}
+              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>├ó┼í┬á├»┬╕┬Å {companyUsersError}</div>}
 
 
 
@@ -14221,7 +14218,7 @@ const CompanyPortal = () => {
 
 
 
-                        <tr><td colSpan="8" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
+                        <tr><td colSpan="8" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>LoadingΓÇª</td></tr>
 
 
 
@@ -14623,7 +14620,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -14635,7 +14632,7 @@ const CompanyPortal = () => {
 
 
 
-                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>âš ï¸ {userFormError}</div>}
+                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>├ó┼í┬á├»┬╕┬Å {userFormError}</div>}
 
 
 
@@ -14971,7 +14968,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button type="submit" className="btn-submit" disabled={userFormLoading}>{userFormLoading ? "Saving…" : (editUserId ? "Save Changes" : "Add User")}</button>
+                        <button type="submit" className="btn-submit" disabled={userFormLoading}>{userFormLoading ? "SavingΓÇª" : (editUserId ? "Save Changes" : "Add User")}</button>
 
 
 
@@ -15013,7 +15010,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Company Data Overview ── */}
+              {/* ΓöÇΓöÇ Company Data Overview ΓöÇΓöÇ */}
 
 
 
@@ -15061,7 +15058,7 @@ const CompanyPortal = () => {
 
 
 
-                  <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading overview…</div>
+                  <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading overviewΓÇª</div>
 
 
 
@@ -16015,7 +16012,7 @@ const CompanyPortal = () => {
 
 
 
-              {sortField === field ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
+              {sortField === field ? (sortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}
 
 
 
@@ -16081,7 +16078,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Header ── */}
+              {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
 
 
 
@@ -16153,7 +16150,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Stat Cards ── */}
+              {/* ΓöÇΓöÇ Stat Cards ΓöÇΓöÇ */}
 
 
 
@@ -16177,7 +16174,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Companies", value: companyStats.active, sub: "✓ Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Companies", value: companyStats.active, sub: "Γ£ô Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
@@ -16189,7 +16186,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Companies", value: companyStats.inactive, sub: "⏸ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+                  { label: "Inactive Companies", value: companyStats.inactive, sub: "ΓÅ╕ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
 
 
 
@@ -16267,7 +16264,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Companies Table Card ── */}
+              {/* ΓöÇΓöÇ Companies Table Card ΓöÇΓöÇ */}
 
 
 
@@ -16495,7 +16492,7 @@ const CompanyPortal = () => {
 
 
 
-                          {companyLoading ? "Loading companies…" : "No companies found."}
+                          {companyLoading ? "Loading companiesΓÇª" : "No companies found."}
 
 
 
@@ -16651,7 +16648,7 @@ const CompanyPortal = () => {
 
 
 
-                                    {c.description?.slice(0, 18) || "—"}
+                                    {c.description?.slice(0, 18) || "ΓÇö"}
 
 
 
@@ -16753,7 +16750,7 @@ const CompanyPortal = () => {
 
 
 
-                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>
+                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>ΓÇö</span>
 
 
 
@@ -17191,7 +17188,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── View Company Modal ── */}
+              {/* ΓöÇΓöÇ View Company Modal ΓöÇΓöÇ */}
 
 
 
@@ -17281,7 +17278,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -17317,7 +17314,7 @@ const CompanyPortal = () => {
 
 
 
-                            <div style={{ fontWeight: "600", color: "#0f172a" }}>{val || "—"}</div>
+                            <div style={{ fontWeight: "600", color: "#0f172a" }}>{val || "ΓÇö"}</div>
 
 
 
@@ -17419,7 +17416,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Edit Company Modal ── */}
+              {/* ΓöÇΓöÇ Edit Company Modal ΓöÇΓöÇ */}
 
 
 
@@ -17455,7 +17452,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -17467,7 +17464,7 @@ const CompanyPortal = () => {
 
 
 
-                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>âš ï¸ {editCompanyError}</div>}
+                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>├ó┼í┬á├»┬╕┬Å {editCompanyError}</div>}
 
 
 
@@ -17875,7 +17872,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button type="submit" className="btn-submit" disabled={editCompanyLoading}>{editCompanyLoading ? "Saving…" : "Save Changes"}</button>
+                        <button type="submit" className="btn-submit" disabled={editCompanyLoading}>{editCompanyLoading ? "SavingΓÇª" : "Save Changes"}</button>
 
 
 
@@ -17917,7 +17914,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Module Access Modal ── */}
+              {/* ΓöÇΓöÇ Module Access Modal ΓöÇΓöÇ */}
 
 
 
@@ -17953,7 +17950,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -18031,7 +18028,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button type="button" onClick={handleSaveModules} className="btn-submit" disabled={modulesSaving}>{modulesSaving ? "Saving…" : "Save Access"}</button>
+                      <button type="button" onClick={handleSaveModules} className="btn-submit" disabled={modulesSaving}>{modulesSaving ? "SavingΓÇª" : "Save Access"}</button>
 
 
 
@@ -18067,7 +18064,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ── Role Permissions Modal ── */}
+              {/* ΓöÇΓöÇ Role Permissions Modal ΓöÇΓöÇ */}
 
 
 
@@ -18103,7 +18100,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -18367,7 +18364,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button type="button" onClick={handleSaveRolePerms} className="btn-submit" disabled={rolePermsSaving}>{rolePermsSaving ? "Saving…" : "Save Permissions"}</button>
+                      <button type="button" onClick={handleSaveRolePerms} className="btn-submit" disabled={rolePermsSaving}>{rolePermsSaving ? "SavingΓÇª" : "Save Permissions"}</button>
 
 
 
@@ -18433,7 +18430,7 @@ const CompanyPortal = () => {
 
 
 
-            âš ï¸ {companyError}
+            ├ó┼í┬á├»┬╕┬Å {companyError}
 
 
 
@@ -18469,7 +18466,7 @@ const CompanyPortal = () => {
 
 
 
-            âš ï¸ {assetError}
+            ├ó┼í┬á├»┬╕┬Å {assetError}
 
 
 
@@ -18637,7 +18634,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>}
+              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}</span>}
 
 
 
@@ -18841,7 +18838,229 @@ const CompanyPortal = () => {
 
 
 
-              ht="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+
+
+
+
+
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+
+
+
+
+
+                  <div>
+
+
+
+
+
+                    <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", lineHeight: 1.3 }}>Asset List</p>
+
+
+
+
+
+                    <p style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px" }}>{filteredAssets.length} assets</p>
+
+
+
+
+
+                  </div>
+
+
+
+
+
+                  <div style={{ display: "flex", gap: "8px" }}>
+
+
+
+
+
+                    <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
+
+
+
+
+
+                      style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
+
+
+
+
+
+                      <option value="all">All Types</option>
+
+
+
+
+
+                      {(assetTypes.length ? assetTypes : [{ code: "soft", label: "Soft" }, { code: "technical", label: "Technical" }, { code: "fleet", label: "Fleet" }]).map((t) => (
+
+
+
+
+
+                        <option key={t.code} value={t.code}>{t.label}</option>
+
+
+
+
+
+                      ))}
+
+
+
+
+
+                    </select>
+
+
+
+
+
+                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="SearchΓÇª"
+
+
+
+
+
+                      style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "160px" }} />
+
+
+
+
+
+                  </div>
+
+
+
+
+
+                </div>
+
+
+
+
+
+                {assetLoading ? (
+
+
+
+
+
+                  <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>LoadingΓÇª</p>
+
+
+
+
+
+                ) : (
+
+
+
+
+
+                  <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "65vh" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "2000px" }}>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
+                      <tr>
+                        {["SN", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAssets.length === 0
+                        ? <tr><td colSpan={20} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "LoadingΓÇª" : "No assets found."}</td></tr>
+                        : filteredAssets.map((a, i) => {
+                          const m = a.metadata || {};
+                          const maint = [
+                            (m.warranty?.enabled || m.maintenanceTypes?.warranty) && "Warranty",
+                            (m.amc?.enabled || m.maintenanceTypes?.amc) && "AMC",
+                            (m.cmc?.enabled || m.maintenanceTypes?.cmc) && "CMC",
+                            (m.inHouse || m.maintenanceTypes?.inHouse) && "In House",
+                            (m.catalyst || m.maintenanceTypes?.catalyst) && "Catalyst",
+                          ].filter(Boolean).join(", ") || m.maintenanceType || "ΓÇö";
+                          const ws   = a.workingStatus || a.working_status || m.workingStatus || "Working";
+                          const crit = a.criticality || m.criticality || "Non_Critical";
+                          const st   = a.status || "Active";
+                          const combined = st === "Inactive" ? "Inactive"
+                            : st === "Verified" ? "Verified"
+                            : ws === "Condemned" ? "Condemned"
+                            : m.rber ? "RBER"
+                            : ws === "Not_Working" ? "Not_Working"
+                            : ws === "WIP" ? "WIP"
+                            : crit === "Critical" ? "Critical"
+                            : "Active";
+                          const COLOR_MAP = {
+                            Active:      { bg: "#f0fdf4", color: "#16a34a" },
+                            Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
+                            Verified:    { bg: "#dbeafe", color: "#1d4ed8" },
+                            WIP:         { bg: "#fef9c3", color: "#92400e" },
+                            Not_Working: { bg: "#fef2f2", color: "#dc2626" },
+                            Critical:    { bg: "#fce7f3", color: "#9d174d" },
+                            RBER:        { bg: "#fff7ed", color: "#ea580c" },
+                            Condemned:   { bg: "#f5f3ff", color: "#7c3aed" },
+                          };
+                          const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
+                          return (
+                            <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.mfgYear || m.manufacturingYear || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Γé╣ ${m.purchaseCost}` : "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "ΓÇö"}</td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <select
+                                  value={combined}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    if (v === "Inactive")         handleInlineAssetStatus(a.id, { status: "Inactive" });
+                                    else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Verified", workingStatus: "Working" });
+                                    else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active" });
+                                    else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active" });
+                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
+                                    else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", rber: true });
+                                    else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active" });
+                                    else                          handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
+                                  }}
+                                  style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
+                                  <option value="Active">Active</option>
+                                  <option value="Verified">Verified</option>
+                                  <option value="Inactive">Inactive</option>
+                                  <option value="WIP">WIP</option>
+                                  <option value="Not_Working">Not Working</option>
+                                  <option value="Critical">Critical</option>
+                                  <option value="RBER">RBER</option>
+                                  <option value="Condemned">Condemned</option>
+                                </select>
+                              </td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  <button title="Show QR Code" type="button" onClick={() => handleShowAssetQR(a.id, a.assetName, a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                  </button>
+                                  <button title="Edit" type="button" onClick={() => handleEditAsset(a)}
+                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                   </button>
                                   <button title="Delete" type="button" onClick={() => handleDeleteAsset(a.id)}
                                     style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -18926,7 +19145,7 @@ const CompanyPortal = () => {
 
 
 
-                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -18944,7 +19163,7 @@ const CompanyPortal = () => {
 
 
 
-                  {/* ── Asset Type — filtered by company sector ── */}
+                  {/* ΓöÇΓöÇ Asset Type ΓÇö filtered by company sector ΓöÇΓöÇ */}
 
 
 
@@ -18986,7 +19205,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span style={{ fontSize: "18px" }}>🏥</span>
+                          <span style={{ fontSize: "18px" }}>≡ƒÅÑ</span>
 
 
 
@@ -19004,7 +19223,7 @@ const CompanyPortal = () => {
 
 
 
-                            <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment — barcode auto-generated on save</div>
+                            <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment ΓÇö barcode auto-generated on save</div>
 
 
 
@@ -19364,7 +19583,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span>🏥</span> Healthcare equipment registration — barcode will be auto-generated.
+                          <span>≡ƒÅÑ</span> Healthcare equipment registration ΓÇö barcode will be auto-generated.
 
 
 
@@ -19382,7 +19601,7 @@ const CompanyPortal = () => {
 
 
 
-                        {/* Equipment Photos — up to 5 */}
+                        {/* Equipment Photos ΓÇö up to 5 */}
 
 
 
@@ -19442,7 +19661,7 @@ const CompanyPortal = () => {
 
 
 
-                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>├ù</button>
 
 
 
@@ -19896,7 +20115,7 @@ const CompanyPortal = () => {
 
 
 
-                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>📄 View Invoice</a>
+                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>≡ƒôä View Invoice</a>
 
 
 
@@ -19926,7 +20145,7 @@ const CompanyPortal = () => {
 
 
 
-                                  📎 Upload Invoice
+                                  ≡ƒôÄ Upload Invoice
 
 
 
@@ -20046,7 +20265,7 @@ const CompanyPortal = () => {
 
 
 
-                            <label>Purchase Cost (₹)</label>
+                            <label>Purchase Cost (Γé╣)</label>
 
 
 
@@ -20394,7 +20613,7 @@ const CompanyPortal = () => {
 
 
 
-                              <option value="">— None —</option>
+                              <option value="">ΓÇö None ΓÇö</option>
 
 
 
@@ -20595,7 +20814,7 @@ const CompanyPortal = () => {
 
 
 
-                      {/* Non-soft: standard fields — NOT shown for healthcare (has its own location section above) */}
+                      {/* Non-soft: standard fields ΓÇö NOT shown for healthcare (has its own location section above) */}
 
 
 
@@ -20625,7 +20844,7 @@ const CompanyPortal = () => {
 
 
 
-                            <option value="">— None —</option>
+                            <option value="">ΓÇö None ΓÇö</option>
 
 
 
@@ -21387,7 +21606,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button type="submit" disabled={assetLoading} style={{ padding: "9px 24px", borderRadius: "8px", border: "none", background: assetLoading ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 600, cursor: assetLoading ? "default" : "pointer", fontSize: "14px" }}>{assetLoading ? "Saving…" : editingAssetId ? "Update Asset" : "Add Asset"}</button>
+                    <button type="submit" disabled={assetLoading} style={{ padding: "9px 24px", borderRadius: "8px", border: "none", background: assetLoading ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 600, cursor: assetLoading ? "default" : "pointer", fontSize: "14px" }}>{assetLoading ? "SavingΓÇª" : editingAssetId ? "Update Asset" : "Add Asset"}</button>
 
 
 
@@ -21489,7 +21708,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
 
 
 
@@ -21723,7 +21942,7 @@ const CompanyPortal = () => {
 
 
 
-                    {bulkImporting ? "Uploading…" : "Upload & Register Assets"}
+                    {bulkImporting ? "UploadingΓÇª" : "Upload & Register Assets"}
 
 
 
@@ -21855,7 +22074,7 @@ const CompanyPortal = () => {
 
 
 
-                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" — ` : ""}{e.reason}</p>
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#7f1d1d" }}>Row {e.row}: {e.assetName ? `"${e.assetName}" ΓÇö ` : ""}{e.reason}</p>
 
 
 
@@ -21969,7 +22188,7 @@ const CompanyPortal = () => {
 
 
 
-                    /* ── Barcode label preview (industry standard 3.5" x 2" ratio) ── */
+                    /* ΓöÇΓöÇ Barcode label preview (industry standard 3.5" x 2" ratio) ΓöÇΓöÇ */
 
 
 
@@ -22077,7 +22296,7 @@ const CompanyPortal = () => {
 
 
 
-                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>📍 {assetQrModal.location}</div>}
+                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>≡ƒôì {assetQrModal.location}</div>}
 
 
 
@@ -22107,7 +22326,7 @@ const CompanyPortal = () => {
 
 
 
-                        Scan QR to view details &amp; raise queries · {new Date().getFullYear()}
+                        Scan QR to view details &amp; raise queries ┬╖ {new Date().getFullYear()}
 
 
 
@@ -22343,7 +22562,7 @@ const CompanyPortal = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                     <div>
                       <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
-                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '—'}</p>
+                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || 'ΓÇö'}</p>
                     </div>
                     <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -22373,9 +22592,9 @@ const CompanyPortal = () => {
                       ['Invoice No',       mf('invoiceNo')],
                       ['Purchase Date',    dateField(mf('purchaseDate'))],
                       ['Purchase Cost',    mf('purchaseCost') ? String(mf('purchaseCost')) : ''],
-                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} → ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
-                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} → ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
-                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} → ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
+                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} ΓåÆ ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
+                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} ΓåÆ ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
+                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} ΓåÆ ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
                       ['In House',         m.inHouse ? 'Yes' : ''],
                       ['Catalyst',         m.catalyst ? 'Yes' : ''],
                       ['RBER',             (mf('rber') || m.rber) ? 'Yes' : ''],
@@ -22714,7 +22933,7 @@ const CompanyPortal = () => {
 
 
 
-                    {departmentLoading ? "Saving…" : "Add Department"}
+                    {departmentLoading ? "SavingΓÇª" : "Add Department"}
 
 
 
@@ -22786,7 +23005,7 @@ const CompanyPortal = () => {
 
 
 
-                <input value={departmentSearch} onChange={(e) => setDepartmentSearch(e.target.value)} placeholder="Search…"
+                <input value={departmentSearch} onChange={(e) => setDepartmentSearch(e.target.value)} placeholder="SearchΓÇª"
 
 
 
@@ -22864,7 +23083,7 @@ const CompanyPortal = () => {
 
 
 
-                    <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{departmentLoading ? "Loading…" : "No departments found"}</td></tr>
+                    <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{departmentLoading ? "LoadingΓÇª" : "No departments found"}</td></tr>
 
 
 
@@ -22894,13 +23113,13 @@ const CompanyPortal = () => {
 
 
 
-                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.companyName || companies.find((c) => String(c.id) === String(d.companyId))?.companyName || "—"}</td>
+                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.companyName || companies.find((c) => String(c.id) === String(d.companyId))?.companyName || "ΓÇö"}</td>
 
 
 
 
 
-                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "—"}</td>
+                      <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "ΓÇö"}</td>
 
 
 
@@ -23860,7 +24079,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ── Toast notifications (fixed overlay on every page) ── */}
+        {/* ΓöÇΓöÇ Toast notifications (fixed overlay on every page) ΓöÇΓöÇ */}
 
 
 
@@ -23896,7 +24115,7 @@ const CompanyPortal = () => {
 
 
 
-            const icon  = { critical: "🚨", high: "âš ï¸", medium: "⚡", low: "🔔", info: "â„¹ï¸" }[t.severity] || "âš ï¸";
+            const icon  = { critical: "≡ƒÜ¿", high: "├ó┼í┬á├»┬╕┬Å", medium: "ΓÜí", low: "≡ƒöö", info: "├óΓÇ₧┬╣├»┬╕┬Å" }[t.severity] || "├ó┼í┬á├»┬╕┬Å";
 
 
 
@@ -23992,7 +24211,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ── Sector Selection Modal ── */}
+        {/* ΓöÇΓöÇ Sector Selection Modal ΓöÇΓöÇ */}
 
 
 
@@ -24166,7 +24385,7 @@ const CompanyPortal = () => {
 
 
 
-                  ✓ Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
+                  Γ£ô Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
 
 
 
@@ -24262,7 +24481,7 @@ const CompanyPortal = () => {
 
 
 
-                  Continue →
+                  Continue ΓåÆ
 
 
 
@@ -24424,7 +24643,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>🏥</span>
+                  <span style={{ fontSize: "18px" }}>≡ƒÅÑ</span>
 
 
 
@@ -24778,7 +24997,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>📍</span>
+                  <span style={{ fontSize: "18px" }}>≡ƒôì</span>
 
 
 
@@ -24964,7 +25183,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>👤</span>
+                  <span style={{ fontSize: "18px" }}>≡ƒæñ</span>
 
 
 
@@ -25186,7 +25405,7 @@ const CompanyPortal = () => {
 
 
 
-                  {hospitalLoading ? "Saving…" : "Register Hospital"}
+                  {hospitalLoading ? "SavingΓÇª" : "Register Hospital"}
 
 
 
@@ -26308,7 +26527,7 @@ const CompanyPortal = () => {
 
 
 
-                  {companyLoading ? "Saving…" : "Add Company"}
+                  {companyLoading ? "SavingΓÇª" : "Add Company"}
 
 
 
@@ -26434,7 +26653,7 @@ const CompanyPortal = () => {
                       <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", flex:1, minWidth:"50px" }}>
                         {d.assetCount > 0 && <span style={{ fontSize:"10px", fontWeight:700, color:col }}>{d.assetCount}</span>}
                         <div title={`${d.companyName}: ${d.assetCount} assets`} style={{ width:"100%", maxWidth:"32px", background:col, borderRadius:"4px 4px 0 0", height:`${barH}px`, transition:"opacity 0.12s", cursor:"default" }} onMouseEnter={e=>e.target.style.opacity="0.75"} onMouseLeave={e=>e.target.style.opacity="1"} />
-                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"…":""}</div>
+                        <div style={{ fontSize:"9px", color:"#64748b", textAlign:"center", wordBreak:"break-all", lineHeight:1.2, maxWidth:"48px" }}>{(d.companyName||"").slice(0,10)}{(d.companyName||"").length>10?"ΓÇª":""}</div>
                       </div>
                     );
                   })}
@@ -26501,7 +26720,7 @@ const CompanyPortal = () => {
             }
           };
 
-          // Tile click handler — show drill-down on same dashboard
+          // Tile click handler ΓÇö show drill-down on same dashboard
           const handleTileClick = (tileId) => {
             setActiveTile(prev => prev === tileId ? null : tileId);
           };
@@ -26573,7 +26792,7 @@ const CompanyPortal = () => {
                   {isActive && <svg style={{ marginLeft: "auto" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>}
                 </div>
                 <div style={{ fontSize: "32px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
-                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>…</span>}
+                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>ΓÇª</span>}
                 </div>
               </div>
             );
@@ -26599,7 +26818,7 @@ const CompanyPortal = () => {
           return (
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
-              {/* ── Header ── */}
+              {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
@@ -26631,14 +26850,14 @@ const CompanyPortal = () => {
                         {dashExportOpen && (
                           <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "210px", overflow: "hidden" }}>
                             {[
-                              { id: "total_assets",    label: "All Assets",       icon: "📦" },
-                              { id: "critical",        label: "Critical Assets",   icon: "🚨" },
-                              { id: "non_critical",    label: "Non-Critical Assets",icon: "✅" },
-                              { id: "rber",            label: "RBER Assets",       icon: "🔵" },
-                              { id: "condemned",       label: "Condemned Assets",  icon: "⛔" },
-                              { id: "new_addition",    label: "New Addition Assets",icon: "➕" },
-                              { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "💬" },
-                              { id: "companies",       label: "Companies Summary", icon: "🏢" },
+                              { id: "total_assets",    label: "All Assets",       icon: "≡ƒôª" },
+                              { id: "critical",        label: "Critical Assets",   icon: "≡ƒÜ¿" },
+                              { id: "non_critical",    label: "Non-Critical Assets",icon: "Γ£à" },
+                              { id: "rber",            label: "RBER Assets",       icon: "≡ƒö╡" },
+                              { id: "condemned",       label: "Condemned Assets",  icon: "Γ¢ö" },
+                              { id: "new_addition",    label: "New Addition Assets",icon: "Γ₧ò" },
+                              { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "≡ƒÆ¼" },
+                              { id: "companies",       label: "Companies Summary", icon: "≡ƒÅó" },
                             ].map(opt => (
                               <button key={opt.id} onClick={() => { handleExport(opt.id); setDashExportOpen(false); }}
                                 style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
@@ -26653,7 +26872,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ── ASSET PROFILE ── */}
+              {/* ΓöÇΓöÇ ASSET PROFILE ΓöÇΓöÇ */}
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
@@ -26661,7 +26880,7 @@ const CompanyPortal = () => {
                     <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
                     <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                   </div>
-
+                  
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
@@ -26671,7 +26890,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ── COMPLAINT PROFILE ── */}
+              {/* ΓöÇΓöÇ COMPLAINT PROFILE ΓöÇΓöÇ */}
               <div style={{ marginBottom: "24px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
@@ -26688,18 +26907,18 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ── Drill-down panel (when tile clicked) ── */}
+              {/* ΓöÇΓöÇ Drill-down panel (when tile clicked) ΓöÇΓöÇ */}
               {activeTile && (
                 <div style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
-                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} — Company Breakdown</span>
-                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "…"}</strong></span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} ΓÇö Company Breakdown</span>
+                      <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "ΓÇª"}</strong></span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        View All →
+                        View All ΓåÆ
                       </button>
                       <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -26709,7 +26928,7 @@ const CompanyPortal = () => {
                   <div style={{ padding: "16px 20px" }}>
                     {byCompany.length === 0 ? (
                       <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
-                        {dashboardStats ? "No company data available" : "Loading data…"}
+                        {dashboardStats ? "No company data available" : "Loading dataΓÇª"}
                       </div>
                     ) : (
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -26732,7 +26951,7 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 12px", textAlign: "right" }}>
                                 <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
                                   style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                                  View Assets →
+                                  View Assets ΓåÆ
                                 </button>
                               </td>
                             </tr>
@@ -26744,7 +26963,7 @@ const CompanyPortal = () => {
                 </div>
               )}
 
-              {/* ── Charts Row ── */}
+              {/* ΓöÇΓöÇ Charts Row ΓöÇΓöÇ */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
 
                 {/* Asset Status Pie */}
@@ -26776,19 +26995,19 @@ const CompanyPortal = () => {
 
               </div>
 
-              {/* ── Summary Stats Row ── */}
+              {/* ΓöÇΓöÇ Summary Stats Row ΓöÇΓöÇ */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
                 {[
                   { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },
                   { label: "Active Companies", value: activeCompanies, col: "#16a34a", bg: "#f0fdf4", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
-                  { label: "Total Assets", value: dashboardStats ? totalAssets : "…", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
-                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "…", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+                  { label: "Total Assets", value: dashboardStats ? totalAssets : "ΓÇª", col: "#7c3aed", bg: "#faf5ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+                  { label: "Total Employees", value: dashboardStats ? totalEmployees : "ΓÇª", col: "#0d9488", bg: "#f0fdfa", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
                 ].map(k => (
                   <div key={k.label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
                     <div style={{ width: "40px", height: "40px", background: k.bg, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: k.col, flexShrink: 0 }}>{k.icon}</div>
                     <div>
                       <p style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, margin: 0, marginBottom: "3px" }}>{k.label}</p>
-                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "…"}</p>
+                      <p style={{ fontSize: "24px", fontWeight: 800, color: k.col, margin: 0, lineHeight: 1 }}>{k.value ?? "ΓÇª"}</p>
                     </div>
                   </div>
                 ))}
