@@ -2480,14 +2480,14 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 function AdminQrCodesSection({ token, companies = [] }) {
-  const [selectedCompanyId, setSelectedCompanyId] = React.useState("");
-  const [qrCodes, setQrCodes] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-  const [qrFilter, setQrFilter] = React.useState("all");
-  const [generateCount, setGenerateCount] = React.useState(10);
-  const [generating, setGenerating] = React.useState(false);
-  const [selectedIds, setSelectedIds] = React.useState([]);
-  const [msg, setMsg] = React.useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [qrCodes, setQrCodes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [qrFilter, setQrFilter] = useState("all");
+  const [generateCount, setGenerateCount] = useState(10);
+  const [generating, setGenerating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [msg, setMsg] = useState("");
 
   const loadQrCodes = async (companyId) => {
     if (!companyId) return;
@@ -2500,7 +2500,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
     } finally { setLoading(false); }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedCompanyId) loadQrCodes(selectedCompanyId);
     else setQrCodes([]);
     setSelectedIds([]);
@@ -2656,7 +2656,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
   const [filter, setFilter]   = useState("all");
   const [search, setSearch]   = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
-  const prevWoCountRef = React.useRef(0);
+  const prevWoCountRef = useRef(0);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm]       = useState({ issueDescription:"", priority:"medium", assignedTo:"", assetName:"", companyId:"" });
   const [saving, setSaving]   = useState(false);
@@ -2678,7 +2678,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
   useEffect(() => { load(); }, [load]);
 
   // Poll every 30s, play beep notification when new requests arrive
-  React.useEffect(() => {
+  useEffect(() => {
     const iv = setInterval(async () => {
       try {
         const data = await getAdminWorkOrders(token, companyFilter || null);
