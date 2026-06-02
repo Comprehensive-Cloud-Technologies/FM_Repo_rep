@@ -2560,9 +2560,9 @@ function AdminQrCodesSection({ token, companies = [] }) {
       <h2 style={{ marginBottom: 16, fontSize: 20, fontWeight: 700 }}>QR Codes</h2>
       {msg && <div style={{ padding: "8px 12px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{msg}<button onClick={() => setMsg("")} style={{ marginLeft: 8, background: "none", border: "none", cursor: "pointer", color: "#64748b" }}>x</button></div>}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-        <select value={selectedCompanyId} onChange={e => setSelectedCompanyId(e.target.value)} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 200 }}>
+        <select value={selectedCompanyId} onChange={e => setSelectedCompanyId(e.target.value)} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 200, background: "#fff", color: "#374151" }}>
           <option value="">-- Select Company --</option>
-          {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+          {companies.map(co => <option key={co.id} value={co.id}>{co.companyName || co.name}</option>)}
         </select>
         <input type="number" min={1} max={200} value={generateCount} onChange={e => setGenerateCount(Number(e.target.value) || 1)} style={{ width: 80, padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
         <button onClick={handleGenerate} disabled={generating || !selectedCompanyId} style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
@@ -12655,7 +12655,7 @@ const CompanyPortal = () => {
 
 
 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>Γ£ò</button>
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
 
 
 
@@ -13658,7 +13658,7 @@ const CompanyPortal = () => {
               <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.12)", zIndex: 9999, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>ΓÜá∩╕Å Active Warnings</span>
-                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all ΓåÆ</button>
+                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
                 </div>
                 {recentAlerts.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>}
                 {recentAlerts.map((a) => {
@@ -13968,7 +13968,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}</span>}
+              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "▲" : "Γû╝") : "⇅"}</span>}
 
 
 
@@ -14844,7 +14844,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -16236,7 +16236,7 @@ const CompanyPortal = () => {
 
 
 
-              {sortField === field ? (sortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}
+              {sortField === field ? (sortDir === "asc" ? "▲" : "Γû╝") : "⇅"}
 
 
 
@@ -17502,7 +17502,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -17676,7 +17676,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -18174,7 +18174,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -18324,7 +18324,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -18858,7 +18858,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "Γû▓" : "Γû╝") : "Γçà"}</span>}
+              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>}
 
 
 
@@ -19338,7 +19338,7 @@ const CompanyPortal = () => {
 
 
 
-                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -21901,7 +21901,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>Γ£ò</button>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
 
 
 
@@ -22785,9 +22785,9 @@ const CompanyPortal = () => {
                       ['Invoice No',       mf('invoiceNo')],
                       ['Purchase Date',    dateField(mf('purchaseDate'))],
                       ['Purchase Cost',    mf('purchaseCost') ? String(mf('purchaseCost')) : ''],
-                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} ΓåÆ ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
-                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} ΓåÆ ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
-                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} ΓåÆ ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
+                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} → ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
+                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} → ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
+                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} → ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
                       ['In House',         m.inHouse ? 'Yes' : ''],
                       ['Catalyst',         m.catalyst ? 'Yes' : ''],
                       ['RBER',             (mf('rber') || m.rber) ? 'Yes' : ''],
@@ -24679,7 +24679,7 @@ const CompanyPortal = () => {
 
 
 
-                  Continue ΓåÆ
+                  Continue →
 
 
 
@@ -27116,7 +27116,7 @@ const CompanyPortal = () => {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        View All ΓåÆ
+                        View All →
                       </button>
                       <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -27149,7 +27149,7 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 12px", textAlign: "right" }}>
                                 <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
                                   style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                                  View Assets ΓåÆ
+                                  View Assets →
                                 </button>
                               </td>
                             </tr>

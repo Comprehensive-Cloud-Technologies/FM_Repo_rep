@@ -104,15 +104,19 @@ export async function clearSession() {
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 export async function authenticatedFetch(
   path: string,
-  opts: RequestInit = {}
+  opts: RequestInit = {},
+  timeoutMs = 15000
 ): Promise<Response> {
   const token = await getToken();
   const headers = new Headers(opts.headers ?? {});
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Content-Type') && opts.body) headers.set('Content-Type', 'application/json');
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+    const res = await fetch(`${API_BASE}${path}`, { ...opts, headers, signal: controller.signal });
     // Only mark online on success — marking offline is handled by the
     // dedicated network monitor (expo-network), not by backend connectivity.
     notifyNetworkStatus(true);
@@ -121,6 +125,8 @@ export async function authenticatedFetch(
     // Do NOT call notifyNetworkStatus(false) here — a backend error or dropped
     // tunnel does not mean the device has no internet.
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
