@@ -171,8 +171,8 @@ router.get(
       if (status)       { where += " AND a.status = ?";        params.push(status); }
       if (search) {
         const like = `%${search}%`;
-        where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ? OR a.building LIKE ? OR a.room LIKE ?)";
-        params.push(like, like, like, like);
+        where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ? OR a.qr_code LIKE ? OR CAST(a.id AS CHAR) LIKE ? OR a.building LIKE ? OR a.room LIKE ?)";
+        params.push(like, like, like, like, like, like);
       }
 
       const [rows] = await pool.query(

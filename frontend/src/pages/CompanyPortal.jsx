@@ -2485,30 +2485,30 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AdminLocationsSection  –  full Location Management Module
+// AdminLocationsSection  –  Location Management (Building → Floor → Room)
+// Departments are managed separately via AdminDepartmentsSection
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState("");
-  const [tab, setTab] = useState("tree"); // tree | buildings | floors | departments | rooms
+  const [tab, setTab] = useState("tree"); // tree | buildings | floors | rooms
   const [msg, setMsg] = useState({ text: "", type: "" });
 
   // master data
-  const [buildings,    setBuildings]    = useState([]);
-  const [floors,       setFloors]       = useState([]);
-  const [departments,  setDepartments]  = useState([]);
-  const [rooms,        setRooms]        = useState([]);
-  const [tree,         setTree]         = useState([]);
-  const [loading,      setLoading]      = useState(false);
+  const [buildings, setBuildings] = useState([]);
+  const [floors,    setFloors]    = useState([]);
+  const [rooms,     setRooms]     = useState([]);
+  const [tree,      setTree]      = useState([]);
+  const [loading,   setLoading]   = useState(false);
 
   // filter cascades for list views
-  const [filterBld,  setFilterBld]  = useState("");
-  const [filterFlr,  setFilterFlr]  = useState("");
-  const [filterDept, setFilterDept] = useState("");
+  const [filterBld, setFilterBld] = useState("");
+  const [filterFlr, setFilterFlr] = useState("");
 
-  // floors/depts/rooms loaded for dropdowns
-  const [bldFloors,  setBldFloors]  = useState([]);
-  const [flrDepts,   setFlrDepts]   = useState([]);
-  const [deptRooms,  setDeptRooms]  = useState([]);
+  // dropdowns for modal cascades
+  const [bldFloors, setBldFloors] = useState([]);
+  // (flrDepts no longer needed here; rooms are under floors directly)
+  const [flrDepts,  setFlrDepts]  = useState([]); // kept for room modal dept info only
+  const [deptRooms, setDeptRooms] = useState([]);
 
   // modal state
   const [modal, setModal] = useState(null); // null | { type, mode, data }
@@ -2530,7 +2530,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       const r = await fetch(`${API}/hierarchy?companyId=${cId}`, { headers: H });
       const d = await r.json();
       setTree(Array.isArray(d) ? d : []);
-    } finally { setLoading(false); }
+    } catch { setTree([]); } finally { setLoading(false); }
   };
 
   const loadBuildings = async (cId) => {
@@ -2543,48 +2543,37 @@ function AdminLocationsSection({ token, companies = [] }) {
     try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); }
   };
 
-  const loadDepts = async (fId) => {
-    if (!fId) { setDepartments([]); return; }
-    try { const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H }); const d = await r.json(); setDepartments(Array.isArray(d) ? d : []); } catch { setDepartments([]); }
-  };
-
-  const loadRooms = async (dId) => {
-    if (!dId) { setRooms([]); return; }
-    try { const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
+  const loadRooms = async (fId) => {
+    if (!fId) { setRooms([]); return; }
+    try { const r = await fetch(`${API}/rooms?floorId=${fId}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
   };
 
   // When company changes
   useEffect(() => {
-    if (!companyId) { setBuildings([]); setFloors([]); setDepartments([]); setRooms([]); setTree([]); return; }
+    if (!companyId) { setBuildings([]); setFloors([]); setRooms([]); setTree([]); return; }
     loadTree(companyId);
     loadBuildings(companyId);
-    setFilterBld(""); setFilterFlr(""); setFilterDept("");
-    setFloors([]); setDepartments([]); setRooms([]);
+    setFilterBld(""); setFilterFlr("");
+    setFloors([]); setRooms([]);
   }, [companyId]);
 
   // Cascade loads for filter dropdowns
-  useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
-  useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
-  useEffect(() => { loadRooms(filterDept); }, [filterDept]);
+  useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setRooms([]); }, [filterBld]);
+  useEffect(() => { loadRooms(filterFlr); }, [filterFlr]);
 
   // Load dropdowns for modal
   useEffect(() => {
     if (!modal) return;
-    if (modal.type === "floor") loadBuildings(companyId).then(() => {});
-    if (modal.type === "department") {
-      fetch(`${API}/floors?buildingId=${form.buildingId || ""}`, { headers: H }).then(r => r.json()).then(d => setBldFloors(Array.isArray(d) ? d : []));
+    if (modal.type === "floor" || modal.type === "room") {
+      if (form.buildingId) fetch(`${API}/floors?buildingId=${form.buildingId}`, { headers: H }).then(r => r.json()).then(d => setBldFloors(Array.isArray(d) ? d : []));
     }
-    if (modal.type === "room") {
-      fetch(`${API}/departments?floorId=${form.floorId || ""}`, { headers: H }).then(r => r.json()).then(d => setFlrDepts(Array.isArray(d) ? d : []));
-    }
-  }, [modal?.type, form.buildingId, form.floorId]);
+  }, [modal?.type, form.buildingId]);
 
   const openModal = (type, mode = "add", data = {}) => {
     const defaults = {
-      building:    { buildingCode: "", buildingName: "", description: "" },
-      floor:       { buildingId: filterBld || "", floorCode: "", floorName: "", floorNumber: "" },
-      department:  { buildingId: filterBld || "", floorId: filterFlr || "", departmentCode: "", departmentName: "", description: "" },
-      room:        { buildingId: filterBld || "", floorId: filterFlr || "", departmentId: filterDept || "", roomCode: "", roomName: "", roomType: "", capacity: "" },
+      building:   { buildingCode: "", buildingName: "", description: "" },
+      floor:      { buildingId: filterBld || "", floorCode: "", floorName: "", floorNumber: "" },
+      room:       { buildingId: filterBld || "", floorId: filterFlr || "", roomCode: "", roomName: "", roomType: "", capacity: "" },
     };
     setForm(mode === "edit" ? { ...data } : { ...defaults[type] });
     setModal({ type, mode, data });
@@ -2611,11 +2600,9 @@ function AdminLocationsSection({ token, companies = [] }) {
 
       flash(`${type.charAt(0).toUpperCase() + type.slice(1)} ${mode === "edit" ? "updated" : "created"} successfully!`);
       closeModal();
-      // Reload relevant list
       if (type === "building") { loadBuildings(companyId); loadTree(companyId); }
       if (type === "floor")    { loadFloors(form.buildingId || filterBld); loadTree(companyId); }
-      if (type === "department") { loadDepts(form.floorId || filterFlr); loadTree(companyId); }
-      if (type === "room")     { loadRooms(form.departmentId || filterDept); loadTree(companyId); }
+      if (type === "room")     { loadRooms(form.floorId || filterFlr); loadTree(companyId); }
     } finally { setSaving(false); }
   };
 
@@ -2626,8 +2613,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       flash(`${type} deleted`);
       if (type === "building") loadBuildings(companyId);
       if (type === "floor")    loadFloors(filterBld);
-      if (type === "department") loadDepts(filterFlr);
-      if (type === "room")     loadRooms(filterDept);
+      if (type === "room")     loadRooms(filterFlr);
       loadTree(companyId);
     } else {
       const d = await r.json();
@@ -2670,12 +2656,12 @@ function AdminLocationsSection({ token, companies = [] }) {
   // ── Tree View ──────────────────────────────────────────────
   const TreeNode = ({ node, depth = 0 }) => {
     const [open, setOpen] = useState(true);
-    const icons = { Building: "🏢", Floor: "📐", Department: "🏥", Room: "🚪" };
-    const colors = { Building: "#2563eb", Floor: "#7c3aed", Department: "#0891b2", Room: "#16a34a" };
-    const children = node.floors || node.departments || node.rooms || [];
+    const icons = { Building: "🏢", Floor: "📐", Room: "🚪" };
+    const colors = { Building: "#2563eb", Floor: "#7c3aed", Room: "#16a34a" };
+    const children = node.floors || node.rooms || [];
     return (
       <div style={{ marginLeft: depth * 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default", background: "transparent" }}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default" }}
           onClick={() => children.length && setOpen(!open)}>
           {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▼" : "▶"}</span>}
           {!children.length && <span style={{ width: "10px" }} />}
@@ -2738,7 +2724,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>Location Management</h1>
-        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Manage the Building → Floor → Department → Room hierarchy for each company.</p>
+        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building → Floor → Room. Departments are managed separately.</p>
       </div>
 
       {/* Company picker */}
@@ -2763,7 +2749,6 @@ function AdminLocationsSection({ token, companies = [] }) {
             <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
             <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
             <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
-            <button style={tabBtn("departments")} onClick={() => setTab("departments")}>🏥 Departments</button>
             <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
           </div>
 
@@ -2832,34 +2817,6 @@ function AdminLocationsSection({ token, companies = [] }) {
           )}
 
           {/* ── Departments ───────────────────────────── */}
-          {tab === "departments" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Departments</h2>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
-                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Building</option>
-                    {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
-                  </select>
-                  <select value={filterFlr} onChange={e => setFilterFlr(e.target.value)} disabled={!filterBld}
-                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Floor</option>
-                    {floors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
-                  </select>
-                  <Btn onClick={() => openModal("department")}>+ Add Department</Btn>
-                </div>
-              </div>
-              {!filterFlr ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building and floor to view departments.</p>
-                : renderTable(departments, "department", [
-                  { key: "departmentName", label: "Department Name" },
-                  { key: "departmentCode", label: "Code" },
-                  { key: "description", label: "Description" },
-                  { key: "floorName", label: "Floor" },
-                  { key: "status", label: "Status" },
-                ])}
-            </div>
-          )}
 
           {/* ── Rooms ─────────────────────────────────── */}
           {tab === "rooms" && (
@@ -2877,21 +2834,16 @@ function AdminLocationsSection({ token, companies = [] }) {
                     <option value="">Select Floor</option>
                     {floors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                   </select>
-                  <select value={filterDept} onChange={e => setFilterDept(e.target.value)} disabled={!filterFlr}
-                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Department</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
-                  </select>
                   <Btn onClick={() => openModal("room")}>+ Add Room</Btn>
                 </div>
               </div>
-              {!filterDept ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select building → floor → department to view rooms.</p>
+              {!filterFlr ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select building → floor to view rooms.</p>
                 : renderTable(rooms, "room", [
                   { key: "roomName", label: "Room Name" },
                   { key: "roomCode", label: "Code" },
                   { key: "roomType", label: "Type" },
                   { key: "capacity", label: "Capacity" },
-                  { key: "departmentName", label: "Department" },
+                  { key: "floorName", label: "Floor" },
                   { key: "status", label: "Status" },
                 ])}
             </div>
@@ -2940,8 +2892,8 @@ function AdminLocationsSection({ token, companies = [] }) {
               </>
             )}
 
-            {/* Department form */}
-            {modal.type === "department" && (
+            {/* Room form */}
+            {modal.type === "room" && (
               <>
                 <Sel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
                   const bid = e.target.value;
@@ -2951,36 +2903,8 @@ function AdminLocationsSection({ token, companies = [] }) {
                 }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
                 <Sel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required
                   options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
-                <Inp label="Department Name" name="departmentName" value={form.departmentName} onChange={e => setForm(p => ({ ...p, departmentName: e.target.value }))} required />
-                <Inp label="Department Code" name="departmentCode" value={form.departmentCode} onChange={e => setForm(p => ({ ...p, departmentCode: e.target.value }))} placeholder="e.g. ICU" />
-                <Inp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-                {modal.mode === "edit" && (
-                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
-                    options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
-                )}
-              </>
-            )}
-
-            {/* Room form */}
-            {modal.type === "room" && (
-              <>
-                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
-                  const bid = e.target.value;
-                  setForm(p => ({ ...p, buildingId: bid, floorId: "", departmentId: "" }));
-                  const r = await fetch(`${API}/floors?buildingId=${bid}`, { headers: H });
-                  setBldFloors(await r.json());
-                  setFlrDepts([]);
-                }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
-                <Sel label="Floor" name="floorId" value={form.floorId} onChange={async e => {
-                  const fid = e.target.value;
-                  setForm(p => ({ ...p, floorId: fid, departmentId: "" }));
-                  const r = await fetch(`${API}/departments?floorId=${fid}`, { headers: H });
-                  setFlrDepts(await r.json());
-                }} required options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
-                <Sel label="Department" name="departmentId" value={form.departmentId} onChange={e => setForm(p => ({ ...p, departmentId: e.target.value }))} required
-                  options={flrDepts.map(d => ({ value: d.id, label: d.departmentName }))} placeholder="Select Department" />
                 <Inp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required />
-                <Inp label="Room Code" name="roomCode" value={form.roomCode} onChange={e => setForm(p => ({ ...p, roomCode: e.target.value }))} placeholder="e.g. ICU-101" />
+                <Inp label="Room Code" name="roomCode" value={form.roomCode} onChange={e => setForm(p => ({ ...p, roomCode: e.target.value }))} placeholder="e.g. R-101" />
                 <Inp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" />
                 <Inp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />
                 {modal.mode === "edit" && (
@@ -5686,11 +5610,8 @@ const CompanyPortal = () => {
 
 
           a.room?.toLowerCase().includes(term) ||
-
-
-
-
-
+          (a.qrCode && a.qrCode.toLowerCase().includes(term)) ||
+          String(a.id).includes(term) ||
           a.companyName?.toLowerCase().includes(term)
 
 
@@ -19513,14 +19434,14 @@ const CompanyPortal = () => {
                         <th style={{ padding: "10px 8px", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
                           <input type="checkbox" onChange={e => setSelectedAssetIds(e.target.checked ? filteredAssets.map(a => a.id) : [])} checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length} />
                         </th>
-                        {["SN", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                        {["SN", "Asset ID", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={21} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading..." : "No assets found."}</td></tr>
+                        ? <tr><td colSpan={22} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading..." : "No assets found."}</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const maint = [
@@ -19558,6 +19479,7 @@ const CompanyPortal = () => {
                                 <input type="checkbox" checked={selectedAssetIds.includes(a.id)} onChange={e => setSelectedAssetIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} />
                               </td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>{a.id}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "-"}</td>
                               <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "-"}</td>
