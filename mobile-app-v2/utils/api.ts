@@ -767,7 +767,7 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 /** Compress an image so it is under 5 MB. Returns the (possibly new) URI. */
 async function compressToUnder5MB(uri: string): Promise<string> {
   try {
-    const info = await FileSystem.getInfoAsync(uri, { size: true });
+    const info = await FileSystem.getInfoAsync(uri);
     const size = (info as any).size as number | undefined;
     if (!size || size <= MAX_PHOTO_BYTES) return uri; // already fine
 
@@ -776,7 +776,7 @@ async function compressToUnder5MB(uri: string): Promise<string> {
       const result = await ImageManipulator.manipulateAsync(
         uri, [], { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
       );
-      const info2 = await FileSystem.getInfoAsync(result.uri, { size: true });
+      const info2 = await FileSystem.getInfoAsync(result.uri);
       if (!(info2 as any).size || (info2 as any).size <= MAX_PHOTO_BYTES) {
         return result.uri;
       }

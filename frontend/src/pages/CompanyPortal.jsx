@@ -1208,7 +1208,6 @@ const emptyAsset = {
   locationId: "",
 
   status: "Active",
-  status: "Active",
 
 
 
@@ -27368,7 +27367,7 @@ const CompanyPortal = () => {
             return (
               <div
                 onClick={() => handleTileClick(id)}
-                style={{ background: "#fff", borderRadius: "10px", border: `1px solid ${isActive ? col : "#e2e8f0"}`, borderLeft: `3px solid ${col}`, padding: "14px 16px", boxShadow: isActive ? `0 0 0 2px ${col}22, 0 4px 12px rgba(0,0,0,0.08)` : "0 1px 3px rgba(0,0,0,0.05)", cursor: "pointer", transition: "all 0.15s", userSelect: "none", background: isActive ? `${col}08` : "#fff" }}>
+                style={{ borderRadius: "10px", border: `1px solid ${isActive ? col : "#e2e8f0"}`, borderLeft: `3px solid ${col}`, padding: "14px 16px", boxShadow: isActive ? `0 0 0 2px ${col}22, 0 4px 12px rgba(0,0,0,0.08)` : "0 1px 3px rgba(0,0,0,0.05)", cursor: "pointer", transition: "all 0.15s", userSelect: "none", background: isActive ? `${col}08` : "#fff" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
                   <span style={{ color: col, display: "flex", opacity: 0.85 }}>{icon}</span>
                   <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
