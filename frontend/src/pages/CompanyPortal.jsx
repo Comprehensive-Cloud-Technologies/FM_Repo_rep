@@ -2535,26 +2535,22 @@ function AdminLocationsSection({ token, companies = [] }) {
 
   const loadBuildings = async (cId) => {
     if (!cId) return;
-    const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H });
-    setBuildings(await r.json());
+    try { const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H }); const d = await r.json(); setBuildings(Array.isArray(d) ? d : []); } catch { setBuildings([]); }
   };
 
   const loadFloors = async (bId) => {
     if (!bId) { setFloors([]); return; }
-    const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H });
-    setFloors(await r.json());
+    try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); }
   };
 
   const loadDepts = async (fId) => {
     if (!fId) { setDepartments([]); return; }
-    const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H });
-    setDepartments(await r.json());
+    try { const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H }); const d = await r.json(); setDepartments(Array.isArray(d) ? d : []); } catch { setDepartments([]); }
   };
 
   const loadRooms = async (dId) => {
     if (!dId) { setRooms([]); return; }
-    const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H });
-    setRooms(await r.json());
+    try { const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
   };
 
   // When company changes
@@ -2696,9 +2692,11 @@ function AdminLocationsSection({ token, companies = [] }) {
   };
 
   // ── Table for a specific level ────────────────────────────
-  const renderTable = (rows, type, cols) => (
+  const renderTable = (rows, type, cols) => {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    return (
     <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-      {rows.length === 0
+      {safeRows.length === 0
         ? <p style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>No {type}s found. Create one to get started.</p>
         : <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -2709,7 +2707,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {safeRows.map((row, i) => (
                 <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                   {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}
                   <td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}>
@@ -2723,7 +2721,8 @@ function AdminLocationsSection({ token, companies = [] }) {
         </div>
       }
     </div>
-  );
+    );
+  };
 
   if (!companies.length) return <div style={{ padding: "40px", color: "#94a3b8", textAlign: "center" }}>No companies available.</div>;
 

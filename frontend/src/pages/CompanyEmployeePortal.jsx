@@ -3308,11 +3308,11 @@ function AdminLocationsSection({ token, companies = [] }) {
 
   const flash = (text, type = "success") => { setMsg({ text, type }); setTimeout(() => setMsg({ text: "", type: "" }), 3500); };
 
-  const loadTree = async (cId) => { if (!cId) return; setLoading(true); try { const r = await fetch(`${API}/hierarchy?companyId=${cId}`, { headers: H }); const d = await r.json(); setTree(Array.isArray(d) ? d : []); } finally { setLoading(false); } };
-  const loadBuildings = async (cId) => { if (!cId) return; const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H }); setBuildings(await r.json()); };
-  const loadFloors = async (bId) => { if (!bId) { setFloors([]); return; } const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); setFloors(await r.json()); };
-  const loadDepts = async (fId) => { if (!fId) { setDepartments([]); return; } const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H }); setDepartments(await r.json()); };
-  const loadRooms = async (dId) => { if (!dId) { setRooms([]); return; } const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H }); setRooms(await r.json()); };
+  const loadTree = async (cId) => { if (!cId) return; setLoading(true); try { const r = await fetch(`${API}/hierarchy?companyId=${cId}`, { headers: H }); const d = await r.json(); setTree(Array.isArray(d) ? d : []); } catch { setTree([]); } finally { setLoading(false); } };
+  const loadBuildings = async (cId) => { if (!cId) return; try { const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H }); const d = await r.json(); setBuildings(Array.isArray(d) ? d : []); } catch { setBuildings([]); } };
+  const loadFloors = async (bId) => { if (!bId) { setFloors([]); return; } try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); } };
+  const loadDepts = async (fId) => { if (!fId) { setDepartments([]); return; } try { const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H }); const d = await r.json(); setDepartments(Array.isArray(d) ? d : []); } catch { setDepartments([]); } };
+  const loadRooms = async (dId) => { if (!dId) { setRooms([]); return; } try { const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); } };
 
   useEffect(() => {
     if (!companyId) { setBuildings([]); setFloors([]); setDepartments([]); setRooms([]); setTree([]); return; }
@@ -3387,7 +3387,7 @@ function AdminLocationsSection({ token, companies = [] }) {
   );
 
   const TreeNode = ({ node, depth = 0 }) => {
-    const [open, setOpen] = React.useState(true);
+    const [open, setOpen] = useState(true);
     const icons = { Building: "🏢", Floor: "📐", Department: "🏥", Room: "🚪" };
     const colors = { Building: "#2563eb", Floor: "#7c3aed", Department: "#0891b2", Room: "#16a34a" };
     const children = node.floors || node.departments || node.rooms || [];
@@ -3406,17 +3406,20 @@ function AdminLocationsSection({ token, companies = [] }) {
     );
   };
 
-  const renderTable = (rows, type, cols) => (
+  const renderTable = (rows, type, cols) => {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    return (
     <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-      {rows.length === 0
+      {safeRows.length === 0
         ? <p style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>No {type}s found.</p>
         : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead><tr style={{ background: "#f8fafc" }}>{cols.map(c => <th key={c.key} style={{ padding: "10px 14px", textAlign: "left", color: "#64748b", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{c.label}</th>)}<th style={{ padding: "10px 14px", color: "#64748b", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>Actions</th></tr></thead>
-            <tbody>{rows.map((row, i) => <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>{cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}<td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}><EditBtn onClick={() => openModal(type, "edit", row)} /><DelBtn onClick={() => handleDelete(type, row.id)} /></td></tr>)}</tbody>
+            <tbody>{safeRows.map((row, i) => <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>{cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}<td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}><EditBtn onClick={() => openModal(type, "edit", row)} /><DelBtn onClick={() => handleDelete(type, row.id)} /></td></tr>)}</tbody>
           </table></div>
       }
     </div>
-  );
+    );
+  };
 
   return (
     <div>
