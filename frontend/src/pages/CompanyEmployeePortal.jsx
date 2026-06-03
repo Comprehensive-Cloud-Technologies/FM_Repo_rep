@@ -3285,23 +3285,23 @@ function AssetTypesPanel({ token, onLayoutSaved }) {
 
 /* ─── AdminLocationsSection ──────────────────────────────────────── */
 function AdminLocationsSection({ token, companies = [] }) {
-  const [companyId, setCompanyId] = React.useState(() => companies[0]?.id ? String(companies[0].id) : "");
-  const [tab, setTab] = React.useState("tree");
-  const [msg, setMsg] = React.useState({ text: "", type: "" });
-  const [buildings, setBuildings] = React.useState([]);
-  const [floors, setFloors] = React.useState([]);
-  const [departments, setDepartments] = React.useState([]);
-  const [rooms, setRooms] = React.useState([]);
-  const [tree, setTree] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-  const [filterBld, setFilterBld] = React.useState("");
-  const [filterFlr, setFilterFlr] = React.useState("");
-  const [filterDept, setFilterDept] = React.useState("");
-  const [bldFloors, setBldFloors] = React.useState([]);
-  const [flrDepts, setFlrDepts] = React.useState([]);
-  const [modal, setModal] = React.useState(null);
-  const [form, setForm] = React.useState({});
-  const [saving, setSaving] = React.useState(false);
+  const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
+  const [tab, setTab] = useState("tree");
+  const [msg, setMsg] = useState({ text: "", type: "" });
+  const [buildings, setBuildings] = useState([]);
+  const [floors, setFloors] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [tree, setTree] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [filterBld, setFilterBld] = useState("");
+  const [filterFlr, setFilterFlr] = useState("");
+  const [filterDept, setFilterDept] = useState("");
+  const [bldFloors, setBldFloors] = useState([]);
+  const [flrDepts, setFlrDepts] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const API = "/api/locations";
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -3314,16 +3314,16 @@ function AdminLocationsSection({ token, companies = [] }) {
   const loadDepts = async (fId) => { if (!fId) { setDepartments([]); return; } const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H }); setDepartments(await r.json()); };
   const loadRooms = async (dId) => { if (!dId) { setRooms([]); return; } const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H }); setRooms(await r.json()); };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!companyId) { setBuildings([]); setFloors([]); setDepartments([]); setRooms([]); setTree([]); return; }
     loadTree(companyId); loadBuildings(companyId);
     setFilterBld(""); setFilterFlr(""); setFilterDept("");
     setFloors([]); setDepartments([]); setRooms([]);
   }, [companyId]);
 
-  React.useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
-  React.useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
-  React.useEffect(() => { loadRooms(filterDept); }, [filterDept]);
+  useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
+  useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
+  useEffect(() => { loadRooms(filterDept); }, [filterDept]);
 
   const openModal = (type, mode = "add", data = {}) => {
     const defaults = {

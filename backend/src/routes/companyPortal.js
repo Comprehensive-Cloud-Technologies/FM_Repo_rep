@@ -3034,8 +3034,7 @@ router.post("/work-orders", async (req, res, next) => {
           issue_source, issue_description, priority, status,
           flag_id, cp_assigned_to, assigned_note, cp_created_by,
           expected_completion_at, escalation_interval_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)
-       RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
       [
         workOrderNumber, companyId, assetId || null, assetName, location,
         issueSource, issueDescription, priority,
@@ -3043,7 +3042,7 @@ router.post("/work-orders", async (req, res, next) => {
         resolvedDeadline, resolvedInterval,
       ]
     );
-    const woId = result.insertId ?? result[0]?.id;
+    const woId = result.insertId;
 
     // Log history
     await pool.execute(

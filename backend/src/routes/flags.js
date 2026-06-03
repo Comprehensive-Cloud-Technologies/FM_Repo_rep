@@ -122,12 +122,10 @@ router.get(
       );
       const [[totals]] = await pool.query(
         `SELECT
-           COUNT(*)                                                        AS total,
-           COUNT(*) FILTER (WHERE status IN ('open','in_progress'))       AS open,
-           COUNT(*) FILTER (WHERE severity='critical'
-                              AND status IN ('open','in_progress'))       AS critical,
-           COUNT(*) FILTER (WHERE escalated=TRUE
-                              AND status IN ('open','in_progress'))       AS escalated
+           COUNT(*) AS total,
+           SUM(CASE WHEN status IN ('open','in_progress') THEN 1 ELSE 0 END) AS open,
+           SUM(CASE WHEN severity='critical' AND status IN ('open','in_progress') THEN 1 ELSE 0 END) AS critical,
+           SUM(CASE WHEN escalated=TRUE AND status IN ('open','in_progress') THEN 1 ELSE 0 END) AS escalated
          FROM flags WHERE company_id = ?`,
         [companyId]
       );
@@ -364,12 +362,10 @@ router.get("/summary", async (req, res, next) => {
 
     const [[totals]] = await pool.query(
       `SELECT
-         COUNT(*)                                               AS total,
-         COUNT(*) FILTER (WHERE f.status IN ('open', 'in_progress')) AS open,
-         COUNT(*) FILTER (WHERE f.severity = 'critical'
-                            AND f.status IN ('open', 'in_progress'))  AS critical,
-         COUNT(*) FILTER (WHERE f.escalated = TRUE
-                            AND f.status IN ('open', 'in_progress'))  AS escalated
+         COUNT(*) AS total,
+         SUM(CASE WHEN f.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) AS open,
+         SUM(CASE WHEN f.severity = 'critical' AND f.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) AS critical,
+         SUM(CASE WHEN f.escalated = TRUE AND f.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) AS escalated
        FROM flags f
        WHERE ${where}`,
       params
