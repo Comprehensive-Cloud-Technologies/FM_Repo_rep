@@ -224,7 +224,7 @@ router.post("/floors", async (req, res, next) => {
     const [ins] = await conn.execute(
       `INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by)
        VALUES (?, ?, ?, ?, 'Active', ?)`,
-      [buildingId, floorCode ?? null, floorName.trim(), floorNumber ?? null, req.user.id],
+      [buildingId, floorCode || null, floorName.trim(), floorNumber !== undefined && floorNumber !== '' ? Number(floorNumber) : null, req.user.id],
     );
     const floorId = ins.insertId;
 
@@ -474,7 +474,7 @@ router.post("/rooms", async (req, res, next) => {
     const [ins] = await conn.execute(
       `INSERT INTO rooms (department_id, room_code, room_name, room_type, capacity, status, created_by)
        VALUES (?, ?, ?, ?, ?, 'Active', ?)`,
-      [departmentId, roomCode ?? null, roomName.trim(), roomType ?? null, capacity ?? null, req.user.id],
+      [departmentId, roomCode || null, roomName.trim(), roomType || null, capacity !== undefined && capacity !== '' ? Number(capacity) : null, req.user.id],
     );
     const roomId = ins.insertId;
 

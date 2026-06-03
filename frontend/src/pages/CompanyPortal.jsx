@@ -2558,7 +2558,7 @@ function AdminLocationsSection({ token, companies = [] }) {
   };
 
   // When company changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (!companyId) { setBuildings([]); setFloors([]); setDepartments([]); setRooms([]); setTree([]); return; }
     loadTree(companyId);
     loadBuildings(companyId);
@@ -2567,12 +2567,12 @@ function AdminLocationsSection({ token, companies = [] }) {
   }, [companyId]);
 
   // Cascade loads for filter dropdowns
-  React.useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
-  React.useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
-  React.useEffect(() => { loadRooms(filterDept); }, [filterDept]);
+  useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
+  useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
+  useEffect(() => { loadRooms(filterDept); }, [filterDept]);
 
   // Load dropdowns for modal
-  React.useEffect(() => {
+  useEffect(() => {
     if (!modal) return;
     if (modal.type === "floor") loadBuildings(companyId).then(() => {});
     if (modal.type === "department") {
@@ -2673,7 +2673,7 @@ function AdminLocationsSection({ token, companies = [] }) {
 
   // ── Tree View ──────────────────────────────────────────────
   const TreeNode = ({ node, depth = 0 }) => {
-    const [open, setOpen] = React.useState(true);
+    const [open, setOpen] = useState(true);
     const icons = { Building: "🏢", Floor: "📐", Department: "🏥", Room: "🚪" };
     const colors = { Building: "#2563eb", Floor: "#7c3aed", Department: "#0891b2", Room: "#16a34a" };
     const children = node.floors || node.departments || node.rooms || [];
