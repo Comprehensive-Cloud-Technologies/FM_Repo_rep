@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 
 
 
@@ -1200,10 +1200,14 @@ const emptyAsset = {
 
   room: "",
 
+  // Structured location IDs (from Location Management)
+  buildingId: "",
+  floorId: "",
+  locDeptId: "",
+  roomId: "",
+  locationId: "",
 
-
-
-
+  status: "Active",
   status: "Active",
 
 
@@ -2478,6 +2482,529 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AdminLocationsSection  –  full Location Management Module
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminLocationsSection({ token, companies = [] }) {
+  const [companyId, setCompanyId] = useState("");
+  const [tab, setTab] = useState("tree"); // tree | buildings | floors | departments | rooms
+  const [msg, setMsg] = useState({ text: "", type: "" });
+
+  // master data
+  const [buildings,    setBuildings]    = useState([]);
+  const [floors,       setFloors]       = useState([]);
+  const [departments,  setDepartments]  = useState([]);
+  const [rooms,        setRooms]        = useState([]);
+  const [tree,         setTree]         = useState([]);
+  const [loading,      setLoading]      = useState(false);
+
+  // filter cascades for list views
+  const [filterBld,  setFilterBld]  = useState("");
+  const [filterFlr,  setFilterFlr]  = useState("");
+  const [filterDept, setFilterDept] = useState("");
+
+  // floors/depts/rooms loaded for dropdowns
+  const [bldFloors,  setBldFloors]  = useState([]);
+  const [flrDepts,   setFlrDepts]   = useState([]);
+  const [deptRooms,  setDeptRooms]  = useState([]);
+
+  // modal state
+  const [modal, setModal] = useState(null); // null | { type, mode, data }
+  const [form,  setForm]  = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const API = "/api/locations";
+  const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const flash = (text, type = "success") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: "", type: "" }), 3500);
+  };
+
+  const loadTree = async (cId) => {
+    if (!cId) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/hierarchy?companyId=${cId}`, { headers: H });
+      const d = await r.json();
+      setTree(Array.isArray(d) ? d : []);
+    } finally { setLoading(false); }
+  };
+
+  const loadBuildings = async (cId) => {
+    if (!cId) return;
+    const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H });
+    setBuildings(await r.json());
+  };
+
+  const loadFloors = async (bId) => {
+    if (!bId) { setFloors([]); return; }
+    const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H });
+    setFloors(await r.json());
+  };
+
+  const loadDepts = async (fId) => {
+    if (!fId) { setDepartments([]); return; }
+    const r = await fetch(`${API}/departments?floorId=${fId}`, { headers: H });
+    setDepartments(await r.json());
+  };
+
+  const loadRooms = async (dId) => {
+    if (!dId) { setRooms([]); return; }
+    const r = await fetch(`${API}/rooms?departmentId=${dId}`, { headers: H });
+    setRooms(await r.json());
+  };
+
+  // When company changes
+  React.useEffect(() => {
+    if (!companyId) { setBuildings([]); setFloors([]); setDepartments([]); setRooms([]); setTree([]); return; }
+    loadTree(companyId);
+    loadBuildings(companyId);
+    setFilterBld(""); setFilterFlr(""); setFilterDept("");
+    setFloors([]); setDepartments([]); setRooms([]);
+  }, [companyId]);
+
+  // Cascade loads for filter dropdowns
+  React.useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setFilterDept(""); }, [filterBld]);
+  React.useEffect(() => { loadDepts(filterFlr); setFilterDept(""); }, [filterFlr]);
+  React.useEffect(() => { loadRooms(filterDept); }, [filterDept]);
+
+  // Load dropdowns for modal
+  React.useEffect(() => {
+    if (!modal) return;
+    if (modal.type === "floor") loadBuildings(companyId).then(() => {});
+    if (modal.type === "department") {
+      fetch(`${API}/floors?buildingId=${form.buildingId || ""}`, { headers: H }).then(r => r.json()).then(d => setBldFloors(Array.isArray(d) ? d : []));
+    }
+    if (modal.type === "room") {
+      fetch(`${API}/departments?floorId=${form.floorId || ""}`, { headers: H }).then(r => r.json()).then(d => setFlrDepts(Array.isArray(d) ? d : []));
+    }
+  }, [modal?.type, form.buildingId, form.floorId]);
+
+  const openModal = (type, mode = "add", data = {}) => {
+    const defaults = {
+      building:    { buildingCode: "", buildingName: "", description: "" },
+      floor:       { buildingId: filterBld || "", floorCode: "", floorName: "", floorNumber: "" },
+      department:  { buildingId: filterBld || "", floorId: filterFlr || "", departmentCode: "", departmentName: "", description: "" },
+      room:        { buildingId: filterBld || "", floorId: filterFlr || "", departmentId: filterDept || "", roomCode: "", roomName: "", roomType: "", capacity: "" },
+    };
+    setForm(mode === "edit" ? { ...data } : { ...defaults[type] });
+    setModal({ type, mode, data });
+    setBldFloors([]); setFlrDepts([]); setDeptRooms([]);
+  };
+
+  const closeModal = () => { setModal(null); setForm({}); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { type, mode } = modal;
+      let url = `${API}/${type}s`;
+      let body = { ...form };
+
+      if (type === "building") body.companyId = companyId;
+
+      const method = mode === "edit" ? "PUT" : "POST";
+      if (mode === "edit") url += `/${form.id}`;
+
+      const r = await fetch(url, { method, headers: H, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok) { flash(d.message || "Error saving", "error"); return; }
+
+      flash(`${type.charAt(0).toUpperCase() + type.slice(1)} ${mode === "edit" ? "updated" : "created"} successfully!`);
+      closeModal();
+      // Reload relevant list
+      if (type === "building") { loadBuildings(companyId); loadTree(companyId); }
+      if (type === "floor")    { loadFloors(form.buildingId || filterBld); loadTree(companyId); }
+      if (type === "department") { loadDepts(form.floorId || filterFlr); loadTree(companyId); }
+      if (type === "room")     { loadRooms(form.departmentId || filterDept); loadTree(companyId); }
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (type, id) => {
+    if (!window.confirm(`Delete this ${type}? All child records will also be deactivated.`)) return;
+    const r = await fetch(`${API}/${type}s/${id}`, { method: "DELETE", headers: H });
+    if (r.ok) {
+      flash(`${type} deleted`);
+      if (type === "building") loadBuildings(companyId);
+      if (type === "floor")    loadFloors(filterBld);
+      if (type === "department") loadDepts(filterFlr);
+      if (type === "room")     loadRooms(filterDept);
+      loadTree(companyId);
+    } else {
+      const d = await r.json();
+      flash(d.message || "Delete failed", "error");
+    }
+  };
+
+  // ── Styles ────────────────────────────────────────────────
+  const tabBtn = (key) => ({
+    padding: "7px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
+    background: tab === key ? "#2563eb" : "#f1f5f9", color: tab === key ? "#fff" : "#475569",
+  });
+  const Btn = ({ onClick, children, color = "#2563eb", small }) => (
+    <button onClick={onClick} style={{ padding: small ? "5px 10px" : "7px 14px", borderRadius: "7px", border: "none", cursor: "pointer", background: color, color: "#fff", fontSize: small ? "11px" : "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>{children}</button>
+  );
+  const DelBtn = ({ onClick }) => (
+    <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 600 }}>Delete</button>
+  );
+  const EditBtn = ({ onClick }) => (
+    <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#eff6ff", color: "#2563eb", fontSize: "11px", fontWeight: 600 }}>Edit</button>
+  );
+  const Inp = ({ label, name, value, onChange, placeholder, required, type = "text" }) => (
+    <div style={{ marginBottom: "14px" }}>
+      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
+      <input type={type} name={name} value={value ?? ""} onChange={onChange} required={required} placeholder={placeholder || ""}
+        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+    </div>
+  );
+  const Sel = ({ label, name, value, onChange, options, required, placeholder }) => (
+    <div style={{ marginBottom: "14px" }}>
+      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
+      <select name={name} value={value ?? ""} onChange={onChange} required={required}
+        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}>
+        <option value="">{placeholder || `Select ${label}`}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+
+  // ── Tree View ──────────────────────────────────────────────
+  const TreeNode = ({ node, depth = 0 }) => {
+    const [open, setOpen] = React.useState(true);
+    const icons = { Building: "🏢", Floor: "📐", Department: "🏥", Room: "🚪" };
+    const colors = { Building: "#2563eb", Floor: "#7c3aed", Department: "#0891b2", Room: "#16a34a" };
+    const children = node.floors || node.departments || node.rooms || [];
+    return (
+      <div style={{ marginLeft: depth * 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default", background: "transparent" }}
+          onClick={() => children.length && setOpen(!open)}>
+          {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▼" : "▶"}</span>}
+          {!children.length && <span style={{ width: "10px" }} />}
+          <span style={{ fontSize: "14px" }}>{icons[node.type] || "📍"}</span>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: colors[node.type] || "#374151" }}>{node.name}</span>
+          {node.code && <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>({node.code})</span>}
+          <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "9px", background: node.status === "Active" ? "#f0fdf4" : "#fef2f2", color: node.status === "Active" ? "#16a34a" : "#dc2626" }}>{node.type}</span>
+          {node.roomType && <span style={{ fontSize: "11px", color: "#64748b" }}>· {node.roomType}</span>}
+          {node.capacity && <span style={{ fontSize: "11px", color: "#64748b" }}>· cap: {node.capacity}</span>}
+        </div>
+        {open && children.map((c, i) => <TreeNode key={i} node={c} depth={depth + 1} />)}
+      </div>
+    );
+  };
+
+  // ── Table for a specific level ────────────────────────────
+  const renderTable = (rows, type, cols) => (
+    <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+      {rows.length === 0
+        ? <p style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>No {type}s found. Create one to get started.</p>
+        : <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {cols.map(c => <th key={c.key} style={{ padding: "10px 14px", textAlign: "left", color: "#64748b", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{c.label}</th>)}
+                <th style={{ padding: "10px 14px", textAlign: "left", color: "#64748b", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}
+                  <td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}>
+                    <EditBtn onClick={() => openModal(type, "edit", row)} />
+                    <DelBtn onClick={() => handleDelete(type, row.id)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  );
+
+  if (!companies.length) return <div style={{ padding: "40px", color: "#94a3b8", textAlign: "center" }}>No companies available.</div>;
+
+  return (
+    <div style={{ padding: "0" }}>
+      {/* Flash message */}
+      {msg.text && (
+        <div style={{ marginBottom: "12px", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, background: msg.type === "error" ? "#fef2f2" : "#f0fdf4", color: msg.type === "error" ? "#dc2626" : "#16a34a", border: `1px solid ${msg.type === "error" ? "#fecaca" : "#bbf7d0"}` }}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ marginBottom: "16px" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>Location Management</h1>
+        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Manage the Building → Floor → Department → Room hierarchy for each company.</p>
+      </div>
+
+      {/* Company picker */}
+      <div style={{ marginBottom: "16px" }}>
+        <select value={companyId} onChange={e => setCompanyId(e.target.value)}
+          style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", minWidth: "260px" }}>
+          <option value="">— Select a Company —</option>
+          {companies.map(c => <option key={c.id} value={c.id}>{c.companyName || c.company_name}</option>)}
+        </select>
+      </div>
+
+      {!companyId ? (
+        <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>🏢</div>
+          <div style={{ fontWeight: 700, marginBottom: "4px" }}>Select a Company to Manage Locations</div>
+          <div style={{ fontSize: "13px" }}>Choose a company from the dropdown above to view and manage its location hierarchy.</div>
+        </div>
+      ) : (
+        <>
+          {/* Tab bar */}
+          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
+            <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
+            <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
+            <button style={tabBtn("departments")} onClick={() => setTab("departments")}>🏥 Departments</button>
+            <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
+          </div>
+
+          {/* ── Tree View ─────────────────────────────── */}
+          {tab === "tree" && (
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Location Hierarchy</h2>
+                <button onClick={() => loadTree(companyId)} style={{ padding: "6px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>⟳ Refresh</button>
+              </div>
+              {loading ? <p style={{ color: "#94a3b8", textAlign: "center" }}>Loading…</p>
+                : tree.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                    <div style={{ fontSize: "28px", marginBottom: "8px" }}>🏗️</div>
+                    <div style={{ fontWeight: 600, marginBottom: "4px" }}>No locations yet</div>
+                    <div style={{ fontSize: "13px" }}>Start by adding a Building, then Floors, Departments, and Rooms.</div>
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+                    {tree.map((b, i) => <TreeNode key={i} node={b} />)}
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+          {/* ── Buildings ─────────────────────────────── */}
+          {tab === "buildings" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Buildings ({buildings.length})</h2>
+                <Btn onClick={() => openModal("building")}>+ Add Building</Btn>
+              </div>
+              {renderTable(buildings, "building", [
+                { key: "buildingName", label: "Building Name" },
+                { key: "buildingCode", label: "Code" },
+                { key: "description", label: "Description" },
+                { key: "status", label: "Status" },
+              ])}
+            </div>
+          )}
+
+          {/* ── Floors ────────────────────────────────── */}
+          {tab === "floors" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Floors</h2>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Building</option>
+                    {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                  </select>
+                  <Btn onClick={() => openModal("floor")}>+ Add Floor</Btn>
+                </div>
+              </div>
+              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view its floors.</p>
+                : renderTable(floors, "floor", [
+                  { key: "floorName", label: "Floor Name" },
+                  { key: "floorCode", label: "Code" },
+                  { key: "floorNumber", label: "Floor No." },
+                  { key: "buildingName", label: "Building" },
+                  { key: "status", label: "Status" },
+                ])}
+            </div>
+          )}
+
+          {/* ── Departments ───────────────────────────── */}
+          {tab === "departments" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Departments</h2>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Building</option>
+                    {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                  </select>
+                  <select value={filterFlr} onChange={e => setFilterFlr(e.target.value)} disabled={!filterBld}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Floor</option>
+                    {floors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                  </select>
+                  <Btn onClick={() => openModal("department")}>+ Add Department</Btn>
+                </div>
+              </div>
+              {!filterFlr ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building and floor to view departments.</p>
+                : renderTable(departments, "department", [
+                  { key: "departmentName", label: "Department Name" },
+                  { key: "departmentCode", label: "Code" },
+                  { key: "description", label: "Description" },
+                  { key: "floorName", label: "Floor" },
+                  { key: "status", label: "Status" },
+                ])}
+            </div>
+          )}
+
+          {/* ── Rooms ─────────────────────────────────── */}
+          {tab === "rooms" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Rooms</h2>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Building</option>
+                    {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                  </select>
+                  <select value={filterFlr} onChange={e => setFilterFlr(e.target.value)} disabled={!filterBld}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Floor</option>
+                    {floors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                  </select>
+                  <select value={filterDept} onChange={e => setFilterDept(e.target.value)} disabled={!filterFlr}
+                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
+                    <option value="">Select Department</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                  </select>
+                  <Btn onClick={() => openModal("room")}>+ Add Room</Btn>
+                </div>
+              </div>
+              {!filterDept ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select building → floor → department to view rooms.</p>
+                : renderTable(rooms, "room", [
+                  { key: "roomName", label: "Room Name" },
+                  { key: "roomCode", label: "Code" },
+                  { key: "roomType", label: "Type" },
+                  { key: "capacity", label: "Capacity" },
+                  { key: "departmentName", label: "Department" },
+                  { key: "status", label: "Status" },
+                ])}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Modal ──────────────────────────────────────── */}
+      {modal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+          onClick={closeModal}>
+          <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                {modal.mode === "edit" ? "Edit" : "Add"} {modal.type.charAt(0).toUpperCase() + modal.type.slice(1)}
+              </h2>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+            </div>
+
+            {/* Building form */}
+            {modal.type === "building" && (
+              <>
+                <Inp label="Building Name" name="buildingName" value={form.buildingName} onChange={e => setForm(p => ({ ...p, buildingName: e.target.value }))} required />
+                <Inp label="Building Code" name="buildingCode" value={form.buildingCode} onChange={e => setForm(p => ({ ...p, buildingCode: e.target.value }))} placeholder="e.g. BLK-A" />
+                <Inp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+                {modal.mode === "edit" && (
+                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
+                )}
+              </>
+            )}
+
+            {/* Floor form */}
+            {modal.type === "floor" && (
+              <>
+                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required
+                  options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
+                <Inp label="Floor Name" name="floorName" value={form.floorName} onChange={e => setForm(p => ({ ...p, floorName: e.target.value }))} required />
+                <Inp label="Floor Code" name="floorCode" value={form.floorCode} onChange={e => setForm(p => ({ ...p, floorCode: e.target.value }))} placeholder="e.g. F1" />
+                <Inp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" placeholder="e.g. 1" />
+                {modal.mode === "edit" && (
+                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
+                )}
+              </>
+            )}
+
+            {/* Department form */}
+            {modal.type === "department" && (
+              <>
+                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
+                  const bid = e.target.value;
+                  setForm(p => ({ ...p, buildingId: bid, floorId: "" }));
+                  const r = await fetch(`${API}/floors?buildingId=${bid}`, { headers: H });
+                  setBldFloors(await r.json());
+                }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
+                <Sel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required
+                  options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
+                <Inp label="Department Name" name="departmentName" value={form.departmentName} onChange={e => setForm(p => ({ ...p, departmentName: e.target.value }))} required />
+                <Inp label="Department Code" name="departmentCode" value={form.departmentCode} onChange={e => setForm(p => ({ ...p, departmentCode: e.target.value }))} placeholder="e.g. ICU" />
+                <Inp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+                {modal.mode === "edit" && (
+                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
+                )}
+              </>
+            )}
+
+            {/* Room form */}
+            {modal.type === "room" && (
+              <>
+                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
+                  const bid = e.target.value;
+                  setForm(p => ({ ...p, buildingId: bid, floorId: "", departmentId: "" }));
+                  const r = await fetch(`${API}/floors?buildingId=${bid}`, { headers: H });
+                  setBldFloors(await r.json());
+                  setFlrDepts([]);
+                }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
+                <Sel label="Floor" name="floorId" value={form.floorId} onChange={async e => {
+                  const fid = e.target.value;
+                  setForm(p => ({ ...p, floorId: fid, departmentId: "" }));
+                  const r = await fetch(`${API}/departments?floorId=${fid}`, { headers: H });
+                  setFlrDepts(await r.json());
+                }} required options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
+                <Sel label="Department" name="departmentId" value={form.departmentId} onChange={e => setForm(p => ({ ...p, departmentId: e.target.value }))} required
+                  options={flrDepts.map(d => ({ value: d.id, label: d.departmentName }))} placeholder="Select Department" />
+                <Inp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required />
+                <Inp label="Room Code" name="roomCode" value={form.roomCode} onChange={e => setForm(p => ({ ...p, roomCode: e.target.value }))} placeholder="e.g. ICU-101" />
+                <Inp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" />
+                <Inp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />
+                {modal.mode === "edit" && (
+                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
+                )}
+              </>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving…" : (modal.mode === "edit" ? "Update" : "Create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminQrCodesSection({ token, companies = [] }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
@@ -3979,15 +4506,13 @@ const CompanyPortal = () => {
 
   const [showAssetModal, setShowAssetModal] = useState(false);
 
-
-
-
+  // Location cascade state for asset registration form
+  const [locBuildings, setLocBuildings] = useState([]);
+  const [locFloors,    setLocFloors]    = useState([]);
+  const [locDepts,     setLocDepts]     = useState([]);
+  const [locRooms,     setLocRooms]     = useState([]);
 
   const [assetQrModal, setAssetQrModal] = useState(null);
-
-
-
-
 
   const [assetQrDataUrl, setAssetQrDataUrl] = useState("");
 
@@ -10110,249 +10635,89 @@ const CompanyPortal = () => {
 
         building: assetForm.building,
 
-
-
-
-
         floor: assetForm.floor,
-
-
-
-
 
         room: assetForm.room,
 
-
-
-
+        buildingId: assetForm.buildingId || null,
+        floorId: assetForm.floorId || null,
+        locDeptId: assetForm.locDeptId || null,
+        roomId: assetForm.roomId || null,
+        locationId: assetForm.locationId || null,
 
         status: assetForm.status,
 
-
-
-
-
         qrCode: assetForm.qrCode,
-
-
-
-
 
         metadata,
 
-
-
-
-
       };
-
-
-
-
-
-
-
-
-
-
 
       if (editingAssetId) {
 
-
-
-
-
         await updateAsset(token, editingAssetId, payload);
 
-
-
-
-
         await loadAssets(token, companyId);
-
-
-
-
 
       } else {
 
-
-
-
-
         await createAsset(token, payload);
-
-
-
-
 
         await loadAssets(token, companyId);
 
-
-
-
-
       }
-
-
-
-
-
-
-
-
-
-
 
       setAssetForm({ ...emptyAsset, companyId, departmentId: assetForm.departmentId });
 
-
-
-
-
       setEditingAssetId(null);
-
-
-
-
 
       setShowAssetModal(false);
 
-
-
-
-
     } catch (err) {
-
-
-
-
 
       setAssetError(err.message || "Could not save asset");
 
-
-
-
-
     } finally {
-
-
-
-
 
       setAssetLoading(false);
 
-
-
-
-
     }
 
-
-
-
-
   };
-
-
-
-
-
-
-
-
-
-
-
   const handleEditAsset = (asset) => {
-
-
-
-
 
     setEditingAssetId(asset.id);
 
-
-
-
-
     setAssetForm(normalizeAssetFormFromRecord(asset));
-
-
-
-
 
     setShowAssetModal(true);
 
-
-
-
+    // Load location buildings for cascading dropdowns
+    const cId = asset.companyId || selectedCompanyId || companies[0]?.id;
+    if (cId) {
+      fetch(`/api/locations/buildings?companyId=${cId}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setLocBuildings(Array.isArray(d) ? d : [])).catch(() => setLocBuildings([]));
+    }
 
   };
 
-
-
-
-
-
-
-
-
-
-
   const handleDeleteAsset = async (id) => {
-
-
-
-
 
     if (!token) return;
 
-
-
-
-
     if (!window.confirm("Delete this asset?")) return;
-
-
-
-
 
     try {
 
-
-
-
-
       await deleteAsset(token, id);
-
-
-
-
 
       setAssets((prev) => prev.filter((a) => a.id !== id));
 
-
-
-
-
     } catch (err) {
-
-
-
-
 
       setAssetError(err.message || "Delete failed");
 
-
-
-
-
     }
-
-
-
-
 
   };
 
@@ -10374,16 +10739,6 @@ const CompanyPortal = () => {
       setSelectedAssetIds([]);
     } catch(err) { alert(err.message || "Bulk verify failed"); }
   };
-
-
-
-
-
-
-
-
-
-
 
   const handleInlineAssetStatus = async (assetId, changes) => {
     try {
@@ -10410,8 +10765,7 @@ const CompanyPortal = () => {
       }));
     } catch (_err) { /* non-critical */ }
   };
-
-    const handleDeleteAllAssets = async () => {
+  const handleDeleteAllAssets = async () => {
 
 
 
@@ -13729,6 +14083,10 @@ const CompanyPortal = () => {
           <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }} title="Departments">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><path d="M5 9v3M12 9v3M19 9v3"/><rect x="5" y="15" width="14" height="6" rx="1"/></svg>
             <span className="nav-label">Departments</span>
+          </button>
+          <button className={nav === "locations" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("locations"); setShowAddForm(false); }} title="Locations">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span className="nav-label">Locations</span>
           </button>
 
           {/* Operations */}
@@ -18930,7 +19288,7 @@ const CompanyPortal = () => {
 
 
 
-                  onClick={() => { const defaultCompany = selectedCompanyId || companies[0]?.id || ""; const sectorTypes = getCompanySectorTypes(defaultCompany); const defaultAssetType = sectorTypes?.length === 1 ? sectorTypes[0].code : (sectorTypes?.[0]?.code || assetTypes[0]?.code || ""); setAssetForm({ ...emptyAsset, companyId: defaultCompany, assetType: defaultAssetType }); setEditingAssetId(null); setShowAssetModal(true); }}
+                  onClick={() => { const defaultCompany = selectedCompanyId || companies[0]?.id || ""; const sectorTypes = getCompanySectorTypes(defaultCompany); const defaultAssetType = sectorTypes?.length === 1 ? sectorTypes[0].code : (sectorTypes?.[0]?.code || assetTypes[0]?.code || ""); setAssetForm({ ...emptyAsset, companyId: defaultCompany, assetType: defaultAssetType }); setEditingAssetId(null); setShowAssetModal(true); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (defaultCompany) { fetch(`/api/locations/buildings?companyId=${defaultCompany}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(d => setLocBuildings(Array.isArray(d) ? d : [])).catch(() => setLocBuildings([])); } else { setLocBuildings([]); } }}
 
 
 
@@ -20830,13 +21188,28 @@ const CompanyPortal = () => {
 
 
 
-                          <div className="form-group"><label>Building / Ward</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. OT Block" /></div>
-
-
-
-
-
-                          <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 2nd Floor" /></div>
+                          {/* Cascading location dropdowns */}
+                          {locBuildings.length > 0 ? (
+                            <>
+                              <div className="form-group"><label>Building / Ward</label>
+                                <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
+                                  <option value="">— Select Building —</option>
+                                  {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                                </select>
+                              </div>
+                              <div className="form-group"><label>Floor</label>
+                                <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
+                                  <option value="">— Select Floor —</option>
+                                  {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                                </select>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="form-group"><label>Building / Ward</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. OT Block" /></div>
+                              <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 2nd Floor" /></div>
+                            </>
+                          )}
 
 
 
@@ -20935,19 +21308,41 @@ const CompanyPortal = () => {
 
 
 
-                              <div className="form-group"><label>Building</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. Block A" /></div>
-
-
-
-
-
-                              <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 3rd Floor" /></div>
-
-
-
-
-
-                              <div className="form-group"><label>Room / Area <span style={{ color: "#ef4444" }}>*</span></label><input name="room" value={assetForm.room} onChange={handleAssetChange} className="form-input" required placeholder="e.g. Hot Kitchen, Lobby Area" /></div>
+                              {/* Cascading location dropdowns */}
+                              {locBuildings.length > 0 ? (
+                                <>
+                                  <div className="form-group"><label>Building</label>
+                                    <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
+                                      <option value="">— Select Building —</option>
+                                      {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Floor</label>
+                                    <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
+                                      <option value="">— Select Floor —</option>
+                                      {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Department</label>
+                                    <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; const dpt = locDepts.find(d => String(d.id) === did); setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); setLocRooms([]); if (did) { const r = await fetch(`/api/locations/rooms?departmentId=${did}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                      <option value="">— Select Department —</option>
+                                      {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Room / Area</label>
+                                    <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
+                                      <option value="">— Select Room —</option>
+                                      {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
+                                    </select>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="form-group"><label>Building</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. Block A" /></div>
+                                  <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 3rd Floor" /></div>
+                                  <div className="form-group"><label>Room / Area <span style={{ color: "#ef4444" }}>*</span></label><input name="room" value={assetForm.room} onChange={handleAssetChange} className="form-input" required placeholder="e.g. Hot Kitchen, Lobby Area" /></div>
+                                </>
+                              )}
 
 
 
@@ -21177,63 +21572,49 @@ const CompanyPortal = () => {
 
                             <h3 style={{ marginBottom: "8px" }}>Location</h3>
 
-
-
-
-
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-
-
-
-
-
-                              <div className="form-group"><label>Building</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
-                              <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
-                              <div className="form-group"><label>Room/Area</label><input name="room" value={assetForm.room} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
+                              {locBuildings.length > 0 ? (
+                                <>
+                                  <div className="form-group"><label>Building</label>
+                                    <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
+                                      <option value="">— Select Building —</option>
+                                      {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Floor</label>
+                                    <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
+                                      <option value="">— Select Floor —</option>
+                                      {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Department</label>
+                                    <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); setLocRooms([]); if (did) { const r = await fetch(`/api/locations/rooms?departmentId=${did}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                      <option value="">— Select Department —</option>
+                                      {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="form-group"><label>Room/Area</label>
+                                    <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
+                                      <option value="">— Select Room —</option>
+                                      {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
+                                    </select>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="form-group"><label>Building</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" /></div>
+                                  <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" /></div>
+                                  <div className="form-group"><label>Room/Area</label><input name="room" value={assetForm.room} onChange={handleAssetChange} className="form-input" /></div>
+                                </>
+                              )}
                             </div>
 
-
-
-
-
                           </div>
-
-
-
-
 
                         )}
 
 
-
-
-
-
-
-
-
-
-
                         <div className="form-group" style={{ marginBottom: "12px" }}>
-
-
-
-
 
                           <label>Asset Description</label>
 
@@ -24203,6 +24584,10 @@ const CompanyPortal = () => {
 
         {nav === "qrcodes" && (
           <AdminQrCodesSection token={token} companies={companies} />
+        )}
+
+        {nav === "locations" && (
+          <AdminLocationsSection token={token} companies={companies} />
         )}
 
         {nav === "workorders" && (

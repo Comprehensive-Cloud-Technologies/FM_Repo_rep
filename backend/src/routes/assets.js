@@ -372,6 +372,7 @@ router.post(
       const {
         companyId, departmentId, assetName, assetType,
         assetUniqueId, building, floor, room,
+        buildingId, floorId, locDeptId, roomId, locationId,
         status = "Active", qrCode, metadata = {},
       } = req.body;
 
@@ -390,10 +391,13 @@ router.post(
       const [result] = await conn.execute(
         `INSERT INTO assets
            (company_id, department_id, asset_name, asset_unique_id, asset_type,
-            building, floor, room, status, qr_code, created_by, verified)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+            building, floor, room, building_id, floor_id, loc_dept_id, room_id, location_id,
+            status, qr_code, created_by, verified)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [companyId, departmentId, assetName, uniqueIdToUse, assetTypeRecord.code,
-         building || null, floor || null, room || null, status, qrCode || null, req.user.id]
+         building || null, floor || null, room || null,
+         buildingId || null, floorId || null, locDeptId || null, roomId || null, locationId || null,
+         status, qrCode || null, req.user.id]
       );
 
       const assetId = result.insertId;

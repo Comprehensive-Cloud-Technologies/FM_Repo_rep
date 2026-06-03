@@ -37,6 +37,7 @@ import uploadRouter from "./routes/upload.js";
 import softServiceRequestsRouter from "./routes/softServiceRequests.js";
 import publicDashboardRouter from "./routes/publicDashboard.js";
 import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
+import locationsRouter from "./routes/locations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -98,6 +99,7 @@ app.use("/api/upload", uploadRouter);
 app.use("/api/soft-service", softServiceRequestsRouter);
 app.use("/api/public", publicDashboardRouter);
 app.use("/api/mobile/case-logs", mobileCaseLogsRouter);
+app.use("/api/locations", locationsRouter);
 
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
