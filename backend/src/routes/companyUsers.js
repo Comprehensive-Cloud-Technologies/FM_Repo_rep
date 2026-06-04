@@ -40,6 +40,16 @@ const router = Router();
   await safeAlter(`CREATE UNIQUE INDEX uq_company_users_email ON company_users(email)`);
   await safeAlter(`CREATE UNIQUE INDEX uq_company_users_username ON company_users(username)`);
   await safeAlter(`CREATE INDEX idx_company_users_company ON company_users(company_id)`);
+
+  // Keep admin work-order endpoints compatible with older MySQL schemas.
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN updated_at DATETIME NULL DEFAULT NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN closed_at DATETIME NULL DEFAULT NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN company_id INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN cp_assigned_to INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN cp_created_by INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN assigned_note TEXT NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN expected_completion_at DATETIME NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN escalation_level INT NOT NULL DEFAULT 0`);
 })();
 
 router.use(requireAuth);
