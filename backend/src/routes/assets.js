@@ -115,6 +115,139 @@ const splitMeta = (metadata = {}) => {
   return { meta, docs };
 };
 
+const upsertLocationHierarchy = async (conn, {
+  companyId,
+  buildingName,
+  floorName,
+  roomName,
+  createdBy,
+}) => {
+  const norm = (v) => (v || "").trim();
+  const bName = norm(buildingName);
+  const fName = norm(floorName);
+  const rName = norm(roomName);
+
+  let buildingId = null;
+  let floorId = null;
+  let roomId = null;
+  let locationId = null;
+  let buildingLocId = null;
+  let floorLocId = null;
+
+  if (bName) {
+    const [[b]] = await conn.query(
+      `SELECT id, building_name AS buildingName FROM buildings
+       WHERE company_id = ? AND LOWER(building_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [companyId, bName]
+    );
+    if (b) {
+      buildingId = b.id;
+    } else {
+      const [[{ cnt: bCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM buildings WHERE company_id = ?", [companyId]);
+      const bCode = `BLD-${String(bCount + 1).padStart(3, "0")}`;
+      const [insB] = await conn.execute(
+        `INSERT INTO buildings (company_id, building_code, building_name, status, created_by)
+         VALUES (?, ?, ?, 'Active', ?)`,
+        [companyId, bCode, bName, createdBy || null]
+      );
+      buildingId = insB.insertId;
+      const [locB] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Building', ?, NULL, ?, ?, 'Active', ?)`,
+        [companyId, buildingId, bCode, bName, createdBy || null]
+      );
+      buildingLocId = locB.insertId;
+    }
+
+    if (!buildingLocId) {
+      const [[bLoc]] = await conn.query(
+        `SELECT id FROM locations WHERE location_type = 'Building' AND reference_id = ? LIMIT 1`,
+        [buildingId]
+      );
+      buildingLocId = bLoc?.id || null;
+    }
+  }
+
+  if (buildingId && fName) {
+    const [[f]] = await conn.query(
+      `SELECT id, floor_name AS floorName FROM floors
+       WHERE building_id = ? AND LOWER(floor_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [buildingId, fName]
+    );
+    if (f) {
+      floorId = f.id;
+    } else {
+      const [[{ cnt: fCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM floors WHERE building_id = ?", [buildingId]);
+      const fCode = `FLR-${String(fCount + 1).padStart(3, "0")}`;
+      const parsedFloorNum = /^\d+$/.test(fName) ? Number(fName) : null;
+      const [insF] = await conn.execute(
+        `INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by)
+         VALUES (?, ?, ?, ?, 'Active', ?)`,
+        [buildingId, fCode, fName, parsedFloorNum, createdBy || null]
+      );
+      floorId = insF.insertId;
+      const [locF] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Floor', ?, ?, ?, ?, 'Active', ?)`,
+        [companyId, floorId, buildingLocId, fCode, fName, createdBy || null]
+      );
+      floorLocId = locF.insertId;
+    }
+
+    if (!floorLocId) {
+      const [[fLoc]] = await conn.query(
+        `SELECT id FROM locations WHERE location_type = 'Floor' AND reference_id = ? LIMIT 1`,
+        [floorId]
+      );
+      floorLocId = fLoc?.id || null;
+    }
+  }
+
+  if (floorId && rName) {
+    const [[r]] = await conn.query(
+      `SELECT id, room_name AS roomName FROM rooms
+       WHERE floor_id = ? AND LOWER(room_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [floorId, rName]
+    );
+    if (r) {
+      roomId = r.id;
+    } else {
+      const [[{ cnt: rCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM rooms WHERE floor_id = ?", [floorId]);
+      const rCode = `RM-${String(rCount + 1).padStart(3, "0")}`;
+      const [insR] = await conn.execute(
+        `INSERT INTO rooms (floor_id, room_code, room_name, status, created_by)
+         VALUES (?, ?, ?, 'Active', ?)`,
+        [floorId, rCode, rName, createdBy || null]
+      );
+      roomId = insR.insertId;
+      const [locR] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Room', ?, ?, ?, ?, 'Active', ?)`,
+        [companyId, roomId, floorLocId, rCode, rName, createdBy || null]
+      );
+      locationId = locR.insertId;
+    }
+
+    if (!locationId) {
+      const [[rLoc]] = await conn.query(
+        `SELECT id FROM locations WHERE location_type = 'Room' AND reference_id = ? LIMIT 1`,
+        [roomId]
+      );
+      locationId = rLoc?.id || null;
+    }
+  }
+
+  return {
+    buildingId,
+    floorId,
+    roomId,
+    locationId,
+    building: bName || null,
+    floor: fName || null,
+    room: rName || null,
+  };
+};
+
 const createRules = [
   body("companyId").isInt({ min: 1 }).withMessage("companyId is required"),
   body("departmentId").isInt({ min: 1 }).withMessage("departmentId is required"),
@@ -171,8 +304,8 @@ router.get(
       if (status)       { where += " AND a.status = ?";        params.push(status); }
       if (search) {
         const like = `%${search}%`;
-        where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ? OR a.qr_code LIKE ? OR CAST(a.id AS CHAR) LIKE ? OR a.building LIKE ? OR a.room LIKE ?)";
-        params.push(like, like, like, like, like, like);
+        where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ? OR a.qr_code LIKE ? OR CAST(a.id AS CHAR) LIKE ? OR a.generated_asset_id LIKE ? OR a.building LIKE ? OR a.room LIKE ?)";
+        params.push(like, like, like, like, like, like, like);
       }
 
       const [rows] = await pool.query(
@@ -181,10 +314,11 @@ router.get(
                 c.company_name    AS companyName,
                 a.asset_name      AS assetName,
                 a.asset_unique_id AS assetUniqueId,
+                a.generated_asset_id AS generatedAssetId,
                 a.asset_type      AS assetType,
                 a.building, a.floor, a.room,
                 a.status,
-                a.verified,
+                a.is_verified     AS verified,
                 a.qr_code         AS qrCode,
                 a.department_id   AS departmentId,
                 d.name            AS departmentName,
@@ -276,6 +410,18 @@ router.post(
       const created = [];
       const skipped = [];
 
+      // Fetch company code and state code for generating asset IDs
+      const [[compInfo]] = await conn.query(
+        `SELECT c.company_code, s.state_code FROM companies c LEFT JOIN states s ON c.state_id = s.id WHERE c.id = ?`,
+        [companyId]
+      );
+      const [[{ cnt: initialCount }]] = await conn.query(
+        "SELECT COUNT(*) as cnt FROM assets WHERE company_id = ?", [companyId]
+      );
+      const bulkCCode = (compInfo?.company_code || "CO").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const bulkSCode = (compInfo?.state_code  || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      let assetSeqCounter = initialCount;
+
       for (let i = 0; i < rawRows.length; i++) {
         const row    = normaliseRow(rawRows[i]);
         const rowNum = i + 2; // Excel row number (header = row 1)
@@ -313,13 +459,25 @@ router.post(
         const departmentId = deptNameRaw ? (deptByName.get(deptNameRaw.toLowerCase()) ?? null) : null;
 
         try {
+          const loc = await upsertLocationHierarchy(conn, {
+            companyId,
+            buildingName: building,
+            floorName: floor,
+            roomName: room,
+            createdBy: req.user.id,
+          });
+
+          assetSeqCounter++;
+          const bulkGeneratedId = `${bulkCCode}-${bulkSCode}-${String(assetSeqCounter).padStart(6, "0")}`;
           const [result] = await conn.execute(
             `INSERT INTO assets
-               (company_id, department_id, asset_name, asset_unique_id, asset_type,
-                building, floor, room, status, qr_code, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [companyId, departmentId, assetName, uniqueIdToUse, assetType,
-             building, floor, room, status, uniqueIdToUse, req.user.id]
+               (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
+                building, floor, room, building_id, floor_id, room_id, location_id,
+                status, qr_code, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [companyId, departmentId, assetName, uniqueIdToUse, bulkGeneratedId, assetType,
+             loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
+             status, uniqueIdToUse, req.user.id]
           );
           const assetId = result.insertId;
 
@@ -340,7 +498,11 @@ router.post(
             { assetName, assetType, departmentId, status, source: "bulk-import" }, req.user.id);
 
           created.push({ row: rowNum, id: assetId, assetName, assetUniqueId: uniqueIdToUse,
-            assetType, qrCode: uniqueIdToUse, building, floor, room, status, departmentName: deptNameRaw || null });
+            generatedAssetId: bulkGeneratedId,
+            assetType, qrCode: uniqueIdToUse,
+            building: loc.building, floor: loc.floor, room: loc.room,
+            buildingId: loc.buildingId, floorId: loc.floorId, roomId: loc.roomId,
+            status, departmentName: deptNameRaw || null });
         } catch (rowErr) {
           skipped.push({ row: rowNum, assetName, reason: rowErr.message });
         }
@@ -388,15 +550,40 @@ router.post(
       const sectors = Array.isArray(co.sectors) ? co.sectors : safeMeta(co.sectors);
       const uniqueIdToUse = assetUniqueId || generateAssetUniqueId(sectors, co.sector);
 
+      // ── Generate formatted Asset ID: COMPANY_CODE-STATE_CODE-000001 ──────────
+      const [[compInfo]] = await conn.query(
+        `SELECT c.company_code, s.state_code FROM companies c
+         LEFT JOIN states s ON c.state_id = s.id WHERE c.id = ?`,
+        [companyId]
+      );
+      const [[{ cnt: assetSeq }]] = await conn.query(
+        "SELECT COUNT(*) as cnt FROM assets WHERE company_id = ?", [companyId]
+      );
+      const cCode = (compInfo?.company_code || "CO").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const sCode = (compInfo?.state_code  || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const generatedAssetId = `${cCode}-${sCode}-${String(assetSeq + 1).padStart(6, "0")}`;
+
+      const loc = await upsertLocationHierarchy(conn, {
+        companyId,
+        buildingName: building,
+        floorName: floor,
+        roomName: room,
+        createdBy: req.user.id,
+      });
+
       const [result] = await conn.execute(
         `INSERT INTO assets
-           (company_id, department_id, asset_name, asset_unique_id, asset_type,
+           (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
             building, floor, room, building_id, floor_id, loc_dept_id, room_id, location_id,
             status, qr_code, created_by, verified)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-        [companyId, departmentId, assetName, uniqueIdToUse, assetTypeRecord.code,
-         building || null, floor || null, room || null,
-         buildingId || null, floorId || null, locDeptId || null, roomId || null, locationId || null,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        [companyId, departmentId, assetName, uniqueIdToUse, generatedAssetId, assetTypeRecord.code,
+        loc.building, loc.floor, loc.room,
+        buildingId || loc.buildingId || null,
+        floorId || loc.floorId || null,
+        locDeptId || null,
+        roomId || loc.roomId || null,
+        locationId || loc.locationId || null,
          status, qrCode || null, req.user.id]
       );
 
@@ -416,7 +603,8 @@ router.post(
 
       res.status(201).json({
         id: assetId, companyId, assetName,
-        assetUniqueId: uniqueIdToUse, assetType: assetTypeRecord.code,
+        assetUniqueId: uniqueIdToUse, generatedAssetId,
+        assetType: assetTypeRecord.code,
         departmentId, departmentName: dept.name,
         building: building || null, floor: floor || null, room: room || null,
         status, qrCode: qrCode || null, metadata, createdBy: req.user.id,
@@ -595,6 +783,67 @@ router.delete(
 
       await conn.commit();
       res.json({ deleted: result.affectedRows, message: `${result.affectedRows} assets deleted` });
+    } catch (err) {
+      await conn.rollback();
+      next(err);
+    } finally {
+      conn.release();
+    }
+  }
+);
+
+// ── DELETE /api/assets/bulk ─────────────────────────────────────────────────
+// Permanently deletes selected assets for a company (no hard count limit).
+// Body: { ids: number[] }, Query: companyId
+router.delete(
+  "/bulk",
+  validate([query("companyId").isInt({ min: 1 }).withMessage("companyId is required")]),
+  async (req, res, next) => {
+    const companyId = parseInt(req.query.companyId, 10);
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
+      : [];
+
+    if (!ids.length) return res.status(400).json({ message: "ids array is required" });
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const co = await verifyCompanyOwnership(conn, companyId, req.user.id);
+      if (!co) {
+        await conn.rollback();
+        return res.status(404).json({ message: "Company not found for user" });
+      }
+
+      let deleted = 0;
+      const CHUNK_SIZE = 500;
+
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => "?").join(",");
+
+        await conn.execute(
+          `DELETE FROM asset_pre_qr WHERE company_id = ? AND asset_id IN (${placeholders})`,
+          [companyId, ...chunk]
+        );
+        await conn.execute(
+          `DELETE FROM asset_details WHERE asset_id IN (${placeholders})`,
+          chunk
+        );
+        await conn.execute(
+          `DELETE FROM asset_history WHERE asset_id IN (${placeholders})`,
+          chunk
+        );
+        const [result] = await conn.execute(
+          `DELETE FROM assets WHERE company_id = ? AND id IN (${placeholders})`,
+          [companyId, ...chunk]
+        );
+        deleted += Number(result.affectedRows || 0);
+      }
+
+      await conn.commit();
+      res.json({ deleted, message: `${deleted} asset(s) deleted` });
     } catch (err) {
       await conn.rollback();
       next(err);

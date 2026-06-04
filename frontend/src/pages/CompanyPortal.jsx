@@ -65,6 +65,7 @@ import {
 
 
   deleteAsset,
+  bulkDeleteAssets,
   bulkVerifyAssets,
 
 
@@ -592,7 +593,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-          ≡ƒöì View
+          View
 
 
 
@@ -946,31 +947,31 @@ const SECTORS = [
 
 
 
-  { value: "healthcare", label: "Healthcare / Medical", icon: "≡ƒÅÑ", description: "Hospitals, clinics, medical colleges" },
+  { value: "healthcare", label: "Healthcare / Medical", icon: "🏥", description: "Hospitals, clinics, medical colleges" },
 
 
 
 
 
-  { value: "soft_services", label: "Soft Services", icon: "≡ƒº╣", description: "Housekeeping, catering, security" },
+  { value: "soft_services", label: "Soft Services", icon: "🛡️", description: "Housekeeping, catering, security" },
 
 
 
 
 
-  { value: "technical", label: "Technical Assets", icon: "ΓÜÖ∩╕Å", description: "Engineering, maintenance, HVAC" },
+  { value: "technical", label: "Technical Assets", icon: "⚙️", description: "Engineering, maintenance, HVAC" },
 
 
 
 
 
-  { value: "fleet", label: "Fleet Management", icon: "≡ƒÜù", description: "Vehicles, logistics, transport" },
+  { value: "fleet", label: "Fleet Management", icon: "🚚", description: "Vehicles, logistics, transport" },
 
 
 
 
 
-  { value: "general", label: "General / Other", icon: "≡ƒÅó", description: "Other industries" },
+  { value: "general", label: "General / Other", icon: "🏭", description: "Other industries" },
 
 
 
@@ -1598,6 +1599,24 @@ const emptyDepartment = {
 
 
   description: "",
+
+
+
+
+
+  buildingId: "",
+
+
+
+
+
+  floorId: "",
+
+
+
+
+
+  roomId: "",
 
 
 
@@ -2365,7 +2384,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>≡ƒÅà Issued</span>
+                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>✅ Issued</span>
 
 
 
@@ -2485,11 +2504,213 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AdminStatesSection  –  State Management
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminStatesSection({ token }) {
+  const [states, setStates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", data }
+  const [form, setForm] = useState({ stateName: "", stateCode: "" });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ text: "", type: "" });
+
+  const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const flash = (text, type = "success") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: "", type: "" }), 3500);
+  };
+
+  const loadStates = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/states", { headers: H });
+      const d = await r.json();
+      setStates(Array.isArray(d) ? d : []);
+    } catch { setStates([]); } finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadStates(); }, []);
+
+  const openAdd = () => { setForm({ stateName: "", stateCode: "" }); setModal({ mode: "add" }); };
+  const openEdit = (row) => { setForm({ stateName: row.state_name, stateCode: row.state_code, id: row.id }); setModal({ mode: "edit", data: row }); };
+  const closeModal = () => { setModal(null); setForm({ stateName: "", stateCode: "" }); };
+
+  const handleSave = async () => {
+    if (!form.stateName.trim()) return flash("State name is required", "error");
+    if (!form.stateCode.trim()) return flash("State code is required", "error");
+    setSaving(true);
+    try {
+      const url = modal.mode === "edit" ? `/api/states/${form.id}` : "/api/states";
+      const method = modal.mode === "edit" ? "PUT" : "POST";
+      const r = await fetch(url, { method, headers: H, body: JSON.stringify({ stateName: form.stateName, stateCode: form.stateCode }) });
+      const d = await r.json();
+      if (!r.ok) return flash(d.message || "Error saving", "error");
+      flash(`State ${modal.mode === "edit" ? "updated" : "created"} successfully!`);
+      closeModal();
+      loadStates();
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this state? This cannot be undone.")) return;
+    const r = await fetch(`/api/states/${id}`, { method: "DELETE", headers: H });
+    const d = await r.json();
+    if (r.ok) { flash("State deleted"); loadStates(); }
+    else flash(d.message || "Delete failed", "error");
+  };
+
+  return (
+    <div style={{ padding: "0" }}>
+      {msg.text && (
+        <div style={{ marginBottom: "12px", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, background: msg.type === "error" ? "#fef2f2" : "#f0fdf4", color: msg.type === "error" ? "#dc2626" : "#16a34a", border: `1px solid ${msg.type === "error" ? "#fecaca" : "#bbf7d0"}` }}>
+          {msg.text}
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+        <div>
+          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>States / Regions</h1>
+          <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Manage state codes used in generating Asset IDs (Company Code - State Code - 000001).</p>
+        </div>
+        <button onClick={openAdd} style={{ padding: "9px 18px", borderRadius: "8px", border: "none", cursor: "pointer", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "13px", display: "inline-flex", alignItems: "center", gap: "6px" }}>+ Add State</button>
+      </div>
+
+      {loading ? (
+        <p style={{ color: "#94a3b8", textAlign: "center", padding: "40px" }}>Loading…</p>
+      ) : (
+        <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {states.length === 0 ? (
+            <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
+              <div style={{ fontSize: "28px", marginBottom: "8px" }}>🗺️</div>
+              <div style={{ fontWeight: 600 }}>No states yet</div>
+              <div style={{ fontSize: "13px" }}>Add states so companies can be linked to a state for asset ID generation.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    {["#", "State Name", "State Code", "Status", "Actions"].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", color: "#64748b", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {states.map((s, i) => (
+                    <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      <td style={{ padding: "10px 16px", color: "#94a3b8", fontSize: "12px" }}>{i + 1}</td>
+                      <td style={{ padding: "10px 16px", fontWeight: 600, color: "#0f172a" }}>{s.state_name}</td>
+                      <td style={{ padding: "10px 16px", fontFamily: "monospace", fontWeight: 700, color: "#2563eb", fontSize: "13px" }}>{s.state_code}</td>
+                      <td style={{ padding: "10px 16px" }}>
+                        <span style={{ padding: "2px 8px", borderRadius: "8px", background: s.status === "Active" ? "#f0fdf4" : "#fef2f2", color: s.status === "Active" ? "#16a34a" : "#dc2626", fontSize: "11px", fontWeight: 700 }}>{s.status}</span>
+                      </td>
+                      <td style={{ padding: "10px 16px", display: "flex", gap: "6px" }}>
+                        <button onClick={() => openEdit(s)} style={{ padding: "4px 10px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#eff6ff", color: "#2563eb", fontSize: "11px", fontWeight: 600 }}>Edit</button>
+                        <button onClick={() => handleDelete(s.id)} style={{ padding: "4px 10px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 600 }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={closeModal}>
+          <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>{modal.mode === "edit" ? "Edit" : "Add"} State</h2>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>State Name <span style={{ color: "#ef4444" }}>*</span></label>
+              <input value={form.stateName} onChange={e => setForm(p => ({ ...p, stateName: e.target.value }))} placeholder="e.g. Maharashtra"
+                style={{ width: "100%", padding: "9px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>State Code <span style={{ color: "#ef4444" }}>*</span></label>
+              <input value={form.stateCode} onChange={e => setForm(p => ({ ...p, stateCode: e.target.value.toUpperCase() }))} placeholder="e.g. MH" maxLength={10}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "monospace", letterSpacing: "1px" }} />
+              <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", margin: "4px 0 0" }}>Short code used in Asset ID (2-10 chars, e.g. MH, KA, DL)</p>
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving…" : (modal.mode === "edit" ? "Update" : "Create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared UI primitives for Location sections (defined at module scope so React
+// doesn't unmount/remount inputs on every re-render → typing works correctly)
+// ─────────────────────────────────────────────────────────────────────────────
+function LocBtn({ onClick, children, color = "#2563eb", small }) {
+  return <button onClick={onClick} style={{ padding: small ? "5px 10px" : "7px 14px", borderRadius: "7px", border: "none", cursor: "pointer", background: color, color: "#fff", fontSize: small ? "11px" : "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>{children}</button>;
+}
+function LocDelBtn({ onClick }) {
+  return <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 600 }}>Delete</button>;
+}
+function LocEditBtn({ onClick }) {
+  return <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#eff6ff", color: "#2563eb", fontSize: "11px", fontWeight: 600 }}>Edit</button>;
+}
+function LocInp({ label, name, value, onChange, placeholder, required, type = "text" }) {
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
+      <input type={type} name={name} value={value ?? ""} onChange={onChange} required={required} placeholder={placeholder || ""}
+        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+    </div>
+  );
+}
+function LocSel({ label, name, value, onChange, options, required, placeholder }) {
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
+      <select name={name} value={value ?? ""} onChange={onChange} required={required}
+        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}>
+        <option value="">{placeholder || `Select ${label}`}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+function LocTreeNode({ node, depth = 0 }) {
+  const [open, setOpen] = useState(true);
+  const icons = { Building: "🏢", Floor: "📐", Room: "🚪" };
+  const colors = { Building: "#2563eb", Floor: "#7c3aed", Room: "#16a34a" };
+  const children = node.floors || node.rooms || [];
+  return (
+    <div style={{ marginLeft: depth * 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default" }}
+        onClick={() => children.length && setOpen(!open)}>
+        {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▼" : "▶"}</span>}
+        {!children.length && <span style={{ width: "10px" }} />}
+        <span style={{ fontSize: "14px" }}>{icons[node.type] || "📍"}</span>
+        <span style={{ fontSize: "13px", fontWeight: 600, color: colors[node.type] || "#374151" }}>{node.name}</span>
+        {node.code && <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>({node.code})</span>}
+        <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "9px", background: node.status === "Active" ? "#f0fdf4" : "#fef2f2", color: node.status === "Active" ? "#16a34a" : "#dc2626" }}>{node.type}</span>
+        {node.roomType && <span style={{ fontSize: "11px", color: "#64748b" }}>· {node.roomType}</span>}
+        {node.capacity && <span style={{ fontSize: "11px", color: "#64748b" }}>· cap: {node.capacity}</span>}
+      </div>
+      {open && children.map((c, i) => <LocTreeNode key={i} node={c} depth={depth + 1} />)}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AdminLocationsSection  –  Location Management (Building → Floor → Room)
 // Departments are managed separately via AdminDepartmentsSection
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminLocationsSection({ token, companies = [] }) {
-  const [companyId, setCompanyId] = useState("");
+  const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
   const [tab, setTab] = useState("tree"); // tree | buildings | floors | rooms
   const [msg, setMsg] = useState({ text: "", type: "" });
 
@@ -2514,6 +2735,8 @@ function AdminLocationsSection({ token, companies = [] }) {
   const [modal, setModal] = useState(null); // null | { type, mode, data }
   const [form,  setForm]  = useState({});
   const [saving, setSaving] = useState(false);
+  const [importingLocations, setImportingLocations] = useState(false);
+  const locationImportInputRef = useRef(null);
 
   const API = "/api/locations";
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -2543,10 +2766,18 @@ function AdminLocationsSection({ token, companies = [] }) {
     try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); }
   };
 
-  const loadRooms = async (fId) => {
-    if (!fId) { setRooms([]); return; }
-    try { const r = await fetch(`${API}/rooms?floorId=${fId}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
+  const loadRooms = async ({ floorId, buildingId } = {}) => {
+    if (!floorId && !buildingId) { setRooms([]); return; }
+    const q = floorId ? `floorId=${floorId}` : `buildingId=${buildingId}`;
+    try { const r = await fetch(`${API}/rooms?${q}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
   };
+
+  // Pre-select first company when companies prop arrives (async load)
+  useEffect(() => {
+    if (!companyId && companies.length > 0) {
+      setCompanyId(String(companies[0].id));
+    }
+  }, [companies]);
 
   // When company changes
   useEffect(() => {
@@ -2559,7 +2790,13 @@ function AdminLocationsSection({ token, companies = [] }) {
 
   // Cascade loads for filter dropdowns
   useEffect(() => { loadFloors(filterBld); setFilterFlr(""); setRooms([]); }, [filterBld]);
-  useEffect(() => { loadRooms(filterFlr); }, [filterFlr]);
+  useEffect(() => {
+    if (tab === "rooms") {
+      loadRooms({ buildingId: filterBld });
+      return;
+    }
+    loadRooms({ floorId: filterFlr });
+  }, [tab, filterBld, filterFlr]);
 
   // Load dropdowns for modal
   useEffect(() => {
@@ -2602,7 +2839,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       closeModal();
       if (type === "building") { loadBuildings(companyId); loadTree(companyId); }
       if (type === "floor")    { loadFloors(form.buildingId || filterBld); loadTree(companyId); }
-      if (type === "room")     { loadRooms(form.floorId || filterFlr); loadTree(companyId); }
+      if (type === "room")     { loadRooms({ floorId: form.floorId || filterFlr, buildingId: form.buildingId || filterBld }); loadTree(companyId); }
     } finally { setSaving(false); }
   };
 
@@ -2613,11 +2850,56 @@ function AdminLocationsSection({ token, companies = [] }) {
       flash(`${type} deleted`);
       if (type === "building") loadBuildings(companyId);
       if (type === "floor")    loadFloors(filterBld);
-      if (type === "room")     loadRooms(filterFlr);
+      if (type === "room")     loadRooms({ floorId: filterFlr, buildingId: filterBld });
       loadTree(companyId);
     } else {
       const d = await r.json();
       flash(d.message || "Delete failed", "error");
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const r = await fetch(`${API}/import/template`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("Template download failed");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "location-import-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      flash(err.message || "Template download failed", "error");
+    }
+  };
+
+  const importLocations = async (file) => {
+    if (!file || !companyId) return;
+    setImportingLocations(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("companyId", companyId);
+      const r = await fetch(`${API}/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.message || "Import failed");
+      flash(`Imported locations: Buildings ${d.createdBuildings || 0}, Floors ${d.createdFloors || 0}, Rooms ${d.createdRooms || 0}${d.skipped ? `, Skipped ${d.skipped}` : ""}`);
+      loadBuildings(companyId);
+      loadTree(companyId);
+      if (filterBld) loadFloors(filterBld);
+      if (filterFlr || filterBld) loadRooms({ floorId: filterFlr, buildingId: filterBld });
+    } catch (err) {
+      flash(err.message || "Import failed", "error");
+    } finally {
+      setImportingLocations(false);
+      if (locationImportInputRef.current) locationImportInputRef.current.value = "";
     }
   };
 
@@ -2626,56 +2908,6 @@ function AdminLocationsSection({ token, companies = [] }) {
     padding: "7px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
     background: tab === key ? "#2563eb" : "#f1f5f9", color: tab === key ? "#fff" : "#475569",
   });
-  const Btn = ({ onClick, children, color = "#2563eb", small }) => (
-    <button onClick={onClick} style={{ padding: small ? "5px 10px" : "7px 14px", borderRadius: "7px", border: "none", cursor: "pointer", background: color, color: "#fff", fontSize: small ? "11px" : "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>{children}</button>
-  );
-  const DelBtn = ({ onClick }) => (
-    <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 600 }}>Delete</button>
-  );
-  const EditBtn = ({ onClick }) => (
-    <button onClick={onClick} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#eff6ff", color: "#2563eb", fontSize: "11px", fontWeight: 600 }}>Edit</button>
-  );
-  const Inp = ({ label, name, value, onChange, placeholder, required, type = "text" }) => (
-    <div style={{ marginBottom: "14px" }}>
-      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
-      <input type={type} name={name} value={value ?? ""} onChange={onChange} required={required} placeholder={placeholder || ""}
-        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
-    </div>
-  );
-  const Sel = ({ label, name, value, onChange, options, required, placeholder }) => (
-    <div style={{ marginBottom: "14px" }}>
-      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
-      <select name={name} value={value ?? ""} onChange={onChange} required={required}
-        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}>
-        <option value="">{placeholder || `Select ${label}`}</option>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-
-  // ── Tree View ──────────────────────────────────────────────
-  const TreeNode = ({ node, depth = 0 }) => {
-    const [open, setOpen] = useState(true);
-    const icons = { Building: "🏢", Floor: "📐", Room: "🚪" };
-    const colors = { Building: "#2563eb", Floor: "#7c3aed", Room: "#16a34a" };
-    const children = node.floors || node.rooms || [];
-    return (
-      <div style={{ marginLeft: depth * 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default" }}
-          onClick={() => children.length && setOpen(!open)}>
-          {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▼" : "▶"}</span>}
-          {!children.length && <span style={{ width: "10px" }} />}
-          <span style={{ fontSize: "14px" }}>{icons[node.type] || "📍"}</span>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: colors[node.type] || "#374151" }}>{node.name}</span>
-          {node.code && <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>({node.code})</span>}
-          <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "9px", background: node.status === "Active" ? "#f0fdf4" : "#fef2f2", color: node.status === "Active" ? "#16a34a" : "#dc2626" }}>{node.type}</span>
-          {node.roomType && <span style={{ fontSize: "11px", color: "#64748b" }}>· {node.roomType}</span>}
-          {node.capacity && <span style={{ fontSize: "11px", color: "#64748b" }}>· cap: {node.capacity}</span>}
-        </div>
-        {open && children.map((c, i) => <TreeNode key={i} node={c} depth={depth + 1} />)}
-      </div>
-    );
-  };
 
   // ── Table for a specific level ────────────────────────────
   const renderTable = (rows, type, cols) => {
@@ -2697,8 +2929,8 @@ function AdminLocationsSection({ token, companies = [] }) {
                 <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                   {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}
                   <td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}>
-                    <EditBtn onClick={() => openModal(type, "edit", row)} />
-                    <DelBtn onClick={() => handleDelete(type, row.id)} />
+                    <LocEditBtn onClick={() => openModal(type, "edit", row)} />
+                    <LocDelBtn onClick={() => handleDelete(type, row.id)} />
                   </td>
                 </tr>
               ))}
@@ -2745,11 +2977,27 @@ function AdminLocationsSection({ token, companies = [] }) {
       ) : (
         <>
           {/* Tab bar */}
-          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-            <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
-            <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
-            <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
-            <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
+              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
+              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
+              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={downloadTemplate} style={{ padding: "7px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Download Template</button>
+              <button onClick={() => locationImportInputRef.current?.click()} disabled={importingLocations}
+                style={{ padding: "7px 12px", borderRadius: "7px", border: "none", background: "#2563eb", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: importingLocations ? "not-allowed" : "pointer", opacity: importingLocations ? 0.7 : 1 }}>
+                {importingLocations ? "Importing..." : "Import Excel"}
+              </button>
+              <input
+                ref={locationImportInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: "none" }}
+                onChange={(e) => importLocations(e.target.files?.[0])}
+              />
+            </div>
           </div>
 
           {/* ── Tree View ─────────────────────────────── */}
@@ -2768,7 +3016,7 @@ function AdminLocationsSection({ token, companies = [] }) {
                   </div>
                 ) : (
                   <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-                    {tree.map((b, i) => <TreeNode key={i} node={b} />)}
+                    {tree.map((b, i) => <LocTreeNode key={i} node={b} />)}
                   </div>
                 )
               }
@@ -2780,11 +3028,10 @@ function AdminLocationsSection({ token, companies = [] }) {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Buildings ({buildings.length})</h2>
-                <Btn onClick={() => openModal("building")}>+ Add Building</Btn>
+                <LocBtn onClick={() => openModal("building")}>+ Add Building</LocBtn>
               </div>
               {renderTable(buildings, "building", [
                 { key: "buildingName", label: "Building Name" },
-                { key: "buildingCode", label: "Code" },
                 { key: "description", label: "Description" },
                 { key: "status", label: "Status" },
               ])}
@@ -2802,13 +3049,12 @@ function AdminLocationsSection({ token, companies = [] }) {
                     <option value="">Select Building</option>
                     {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                   </select>
-                  <Btn onClick={() => openModal("floor")}>+ Add Floor</Btn>
+                  <LocBtn onClick={() => openModal("floor")}>+ Add Floor</LocBtn>
                 </div>
               </div>
               {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view its floors.</p>
                 : renderTable(floors, "floor", [
                   { key: "floorName", label: "Floor Name" },
-                  { key: "floorCode", label: "Code" },
                   { key: "floorNumber", label: "Floor No." },
                   { key: "buildingName", label: "Building" },
                   { key: "status", label: "Status" },
@@ -2829,18 +3075,12 @@ function AdminLocationsSection({ token, companies = [] }) {
                     <option value="">Select Building</option>
                     {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                   </select>
-                  <select value={filterFlr} onChange={e => setFilterFlr(e.target.value)} disabled={!filterBld}
-                    style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Floor</option>
-                    {floors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
-                  </select>
-                  <Btn onClick={() => openModal("room")}>+ Add Room</Btn>
+                  <LocBtn onClick={() => openModal("room")}>+ Add Room</LocBtn>
                 </div>
               </div>
-              {!filterFlr ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select building → floor to view rooms.</p>
+              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view rooms.</p>
                 : renderTable(rooms, "room", [
                   { key: "roomName", label: "Room Name" },
-                  { key: "roomCode", label: "Code" },
                   { key: "roomType", label: "Type" },
                   { key: "capacity", label: "Capacity" },
                   { key: "floorName", label: "Floor" },
@@ -2867,11 +3107,10 @@ function AdminLocationsSection({ token, companies = [] }) {
             {/* Building form */}
             {modal.type === "building" && (
               <>
-                <Inp label="Building Name" name="buildingName" value={form.buildingName} onChange={e => setForm(p => ({ ...p, buildingName: e.target.value }))} required />
-                <Inp label="Building Code" name="buildingCode" value={form.buildingCode} onChange={e => setForm(p => ({ ...p, buildingCode: e.target.value }))} placeholder="e.g. BLK-A" />
-                <Inp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+                <LocInp label="Building Name" name="buildingName" value={form.buildingName} onChange={e => setForm(p => ({ ...p, buildingName: e.target.value }))} required />
+                <LocInp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
                 {modal.mode === "edit" && (
-                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                  <LocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
                     options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
                 )}
               </>
@@ -2880,13 +3119,12 @@ function AdminLocationsSection({ token, companies = [] }) {
             {/* Floor form */}
             {modal.type === "floor" && (
               <>
-                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required
+                <LocSel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required
                   options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
-                <Inp label="Floor Name" name="floorName" value={form.floorName} onChange={e => setForm(p => ({ ...p, floorName: e.target.value }))} required />
-                <Inp label="Floor Code" name="floorCode" value={form.floorCode} onChange={e => setForm(p => ({ ...p, floorCode: e.target.value }))} placeholder="e.g. F1" />
-                <Inp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" placeholder="e.g. 1" />
+                <LocInp label="Floor Name" name="floorName" value={form.floorName} onChange={e => setForm(p => ({ ...p, floorName: e.target.value }))} required />
+                <LocInp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" placeholder="e.g. 1" />
                 {modal.mode === "edit" && (
-                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                  <LocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
                     options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
                 )}
               </>
@@ -2895,20 +3133,19 @@ function AdminLocationsSection({ token, companies = [] }) {
             {/* Room form */}
             {modal.type === "room" && (
               <>
-                <Sel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
+                <LocSel label="Building" name="buildingId" value={form.buildingId} onChange={async e => {
                   const bid = e.target.value;
                   setForm(p => ({ ...p, buildingId: bid, floorId: "" }));
                   const r = await fetch(`${API}/floors?buildingId=${bid}`, { headers: H });
                   setBldFloors(await r.json());
                 }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
-                <Sel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required
+                <LocSel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required
                   options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
-                <Inp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required />
-                <Inp label="Room Code" name="roomCode" value={form.roomCode} onChange={e => setForm(p => ({ ...p, roomCode: e.target.value }))} placeholder="e.g. R-101" />
-                <Inp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" />
-                <Inp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />
+                <LocInp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required />
+                <LocInp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" />
+                <LocInp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />
                 {modal.mode === "edit" && (
-                  <Sel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                  <LocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
                     options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />
                 )}
               </>
@@ -2933,6 +3170,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
   const [qrCodes, setQrCodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [qrFilter, setQrFilter] = useState("all");
+  const [qrSearch, setQrSearch] = useState("");
   const [generateCount, setGenerateCount] = useState(10);
   const [generating, setGenerating] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -2954,11 +3192,16 @@ function AdminQrCodesSection({ token, companies = [] }) {
     else setQrCodes([]);
     setSelectedIds([]);
     setQrFilter("all");
+    setQrSearch("");
   }, [selectedCompanyId]);
 
   const filtered = qrCodes.filter(q => {
-    if (qrFilter === "linked") return !!q.assetId;
-    if (qrFilter === "unlinked") return !q.assetId;
+    if (qrFilter === "linked" && !q.assetId) return false;
+    if (qrFilter === "unlinked" && q.assetId) return false;
+    if (qrSearch) {
+      const s = qrSearch.toLowerCase();
+      if (!(q.qrUniqueId?.toLowerCase().includes(s) || (q.assetName || "").toLowerCase().includes(s) || (q.assetUniqueId || "").toLowerCase().includes(s))) return false;
+    }
     return true;
   });
 
@@ -3035,9 +3278,20 @@ function AdminQrCodesSection({ token, companies = [] }) {
         </div>
       </div>
 
+      {/* Search */}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          type="text"
+          placeholder="Search by QR ID, asset name or asset ID…"
+          value={qrSearch}
+          onChange={e => setQrSearch(e.target.value)}
+          style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+        />
+      </div>
+
       {/* Table actions */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, justifyContent: "flex-end", alignItems: "center" }}>
-        {qrFilter !== "all" && <span style={{ fontSize: 12, color: "#64748b", marginRight: "auto" }}>Showing: {filtered.length} {qrFilter} QR codes</span>}
+        {(qrFilter !== "all" || qrSearch) && <span style={{ fontSize: 12, color: "#64748b", marginRight: "auto" }}>Showing: {filtered.length} {qrFilter !== "all" ? qrFilter : ""} QR codes{qrSearch ? ` matching "${qrSearch}"` : ""}</span>}
         {(selectedIds.length > 0 || filtered.length > 0) && (
           <button onClick={handleBulkDelete} style={{ padding: "6px 14px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>
             {selectedIds.length > 0 ? "Delete Selected (" + selectedIds.length + ")" : "Delete All Filtered (" + filtered.length + ")"}
@@ -3882,7 +4136,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} ΓÇô {fmt12(s.endTime)}</p>
+                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</p>
 
 
 
@@ -4020,13 +4274,21 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   }, [allCos, selCo]);
 
   const load = useCallback(async (cid) => {
-    if (!cid) return; setLoading(true);
-    try { const d = await getAdminEmployees(token, cid); setEmp(Array.isArray(d) ? d : []); }
+    setLoading(true);
+    try {
+      if (!cid) {
+        // All Companies: fetch from each in parallel
+        const all = await Promise.all(allCos.map(c => getAdminEmployees(token, c.id).catch(() => [])));
+        setEmp(all.flat());
+      } else {
+        const d = await getAdminEmployees(token, cid); setEmp(Array.isArray(d) ? d : []);
+      }
+    }
     catch(e) { console.error(e); }
     setLoading(false);
-  }, [token]);
+  }, [token, allCos]);
 
-  useEffect(() => { if (selCo) load(selCo); }, [selCo, load]);
+  useEffect(() => { load(selCo); }, [selCo, load]);
 
   const handleSave = async () => {
     setFormErr(null);
@@ -4064,7 +4326,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
         <div><h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Employees</h1><p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Manage employees across companies</p></div>
         <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employees..." style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13px", outline:"none", width:"200px" }} />
-          <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setFormErr(null); setShowCreate(true); }} style={{ padding:"8px 16px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>+ Add User</button>
+          <button type="button" onClick={() => { setForm(emptyForm); setEditEmp(null); setFormErr(null); setShowCreate(true); }} disabled={!selCo} style={{ padding:"8px 16px", background: selCo ? "#2563eb" : "#e2e8f0", color: selCo ? "#fff" : "#94a3b8", border:"none", borderRadius:"8px", fontSize:"13px", fontWeight:700, cursor: selCo ? "pointer" : "not-allowed" }}>+ Add User</button>
         </div>
       </div>
 
@@ -4074,7 +4336,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
         <div style={{ position:"relative", minWidth:"220px" }}>
           <button type="button" onClick={() => setCoDropOpen(o => !o)}
             style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", padding:"7px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontSize:"13px", fontWeight:600, cursor:"pointer", color:"#374151" }}>
-            <span>{selectedCo ? (selectedCo.companyName||selectedCo.name) : "Select Company"}</span>
+            <span>{selCo ? (selectedCo?.companyName||selectedCo?.name||"Select Company") : "All Companies"}</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           {coDropOpen && (
@@ -4084,6 +4346,10 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
               </div>
               <div style={{ maxHeight:"200px", overflowY:"auto" }}>
                 {filteredCos.length === 0 && <div style={{ padding:"12px", color:"#94a3b8", fontSize:"12px", textAlign:"center" }}>No companies found</div>}
+                <button key="all" type="button" onClick={() => { setSelCo(null); setCoDropOpen(false); setCoSearch(""); }}
+                  style={{ width:"100%", display:"block", padding:"9px 14px", border:"none", background: !selCo ? "#eff6ff" : "transparent", color: !selCo ? "#2563eb" : "#374151", fontWeight: !selCo ? 700 : 500, fontSize:"13px", cursor:"pointer", textAlign:"left" }}>
+                  All Companies
+                </button>
                 {filteredCos.map(c => (
                   <button key={c.id} type="button" onClick={() => { setSelCo(c.id); setCoDropOpen(false); setCoSearch(""); }}
                     style={{ width:"100%", display:"block", padding:"9px 14px", border:"none", background: selCo===c.id ? "#eff6ff" : "transparent", color: selCo===c.id ? "#2563eb" : "#374151", fontWeight: selCo===c.id ? 700 : 500, fontSize:"13px", cursor:"pointer", textAlign:"left" }}
@@ -4379,6 +4645,13 @@ const CompanyPortal = () => {
 
   const [hospitalError, setHospitalError] = useState(null);
 
+  // States lookup for company/hospital registration dropdowns
+  const [statesList, setStatesList] = useState([]);
+  useEffect(() => {
+    fetch('/api/states', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setStatesList(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [token]);
+
 
 
 
@@ -4488,6 +4761,24 @@ const CompanyPortal = () => {
 
 
   const [departmentForm, setDepartmentForm] = useState(emptyDepartment);
+
+
+
+
+
+  const [deptLocBuildings, setDeptLocBuildings] = useState([]);
+
+
+
+
+
+  const [deptLocFloors, setDeptLocFloors] = useState([]);
+
+
+
+
+
+  const [deptLocRooms, setDeptLocRooms] = useState([]);
 
 
 
@@ -6416,6 +6707,48 @@ const CompanyPortal = () => {
 
 
 
+      try {
+
+
+
+
+
+        const r = await fetch(`/api/locations/buildings?companyId=${companyId}`, { headers: { Authorization: `Bearer ${authToken}` } });
+
+
+
+
+
+        const d = await r.json();
+
+
+
+
+
+        setDeptLocBuildings(Array.isArray(d) ? d : []);
+
+
+
+
+
+      } catch {
+
+
+
+
+
+        setDeptLocBuildings([]);
+
+
+
+
+
+      }
+
+
+
+
+
     } catch (err) {
 
 
@@ -7096,7 +7429,7 @@ const CompanyPortal = () => {
 
 
 
-            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} ΓÇô ${newest.assetName || "unknown asset"}`
+            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} – ${newest.assetName || "unknown asset"}`
 
 
 
@@ -8050,6 +8383,186 @@ const CompanyPortal = () => {
 
 
 
+    if (name === "companyId") {
+
+
+
+
+
+      setDepartmentForm((prev) => ({ ...prev, companyId: value, buildingId: "", floorId: "", roomId: "" }));
+
+
+
+
+
+      setDeptLocFloors([]);
+
+
+
+
+
+      setDeptLocRooms([]);
+
+
+
+
+
+      if (!value || !token) { setDeptLocBuildings([]); return; }
+
+
+
+
+
+      fetch(`/api/locations/buildings?companyId=${value}`, { headers: { Authorization: `Bearer ${token}` } })
+
+
+
+
+
+        .then((r) => r.json())
+
+
+
+
+
+        .then((d) => setDeptLocBuildings(Array.isArray(d) ? d : []))
+
+
+
+
+
+        .catch(() => setDeptLocBuildings([]));
+
+
+
+
+
+      return;
+
+
+
+
+
+    }
+
+
+
+
+
+    if (name === "buildingId") {
+
+
+
+
+
+      setDepartmentForm((prev) => ({ ...prev, buildingId: value, floorId: "", roomId: "" }));
+
+
+
+
+
+      setDeptLocRooms([]);
+
+
+
+
+
+      if (!value || !token) { setDeptLocFloors([]); return; }
+
+
+
+
+
+      fetch(`/api/locations/floors?buildingId=${value}`, { headers: { Authorization: `Bearer ${token}` } })
+
+
+
+
+
+        .then((r) => r.json())
+
+
+
+
+
+        .then((d) => setDeptLocFloors(Array.isArray(d) ? d : []))
+
+
+
+
+
+        .catch(() => setDeptLocFloors([]));
+
+
+
+
+
+      return;
+
+
+
+
+
+    }
+
+
+
+
+
+    if (name === "floorId") {
+
+
+
+
+
+      setDepartmentForm((prev) => ({ ...prev, floorId: value, roomId: "" }));
+
+
+
+
+
+      if (!value || !token) { setDeptLocRooms([]); return; }
+
+
+
+
+
+      fetch(`/api/locations/rooms?floorId=${value}`, { headers: { Authorization: `Bearer ${token}` } })
+
+
+
+
+
+        .then((r) => r.json())
+
+
+
+
+
+        .then((d) => setDeptLocRooms(Array.isArray(d) ? d : []))
+
+
+
+
+
+        .catch(() => setDeptLocRooms([]));
+
+
+
+
+
+      return;
+
+
+
+
+
+    }
+
+
+
+
+
     setDepartmentForm((prev) => ({ ...prev, [name]: value }));
 
 
@@ -8279,6 +8792,24 @@ const CompanyPortal = () => {
 
 
         description: departmentForm.description,
+
+
+
+
+
+        buildingId: departmentForm.buildingId ? Number(departmentForm.buildingId) : null,
+
+
+
+
+
+        floorId: departmentForm.floorId ? Number(departmentForm.floorId) : null,
+
+
+
+
+
+        roomId: departmentForm.roomId ? Number(departmentForm.roomId) : null,
 
 
 
@@ -10644,7 +11175,14 @@ const CompanyPortal = () => {
     if (!selectedAssetIds.length) return;
     if (!window.confirm("Delete " + selectedAssetIds.length + " selected asset(s)?")) return;
     try {
-      await Promise.all(selectedAssetIds.map(id => deleteAsset(token, id)));
+      const companyId = selectedCompanyId || companies[0]?.id;
+      if (!companyId) throw new Error("Select a company first");
+
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < selectedAssetIds.length; i += CHUNK_SIZE) {
+        const chunk = selectedAssetIds.slice(i, i + CHUNK_SIZE);
+        await bulkDeleteAssets(token, companyId, chunk);
+      }
       setAssets(prev => prev.filter(a => !selectedAssetIds.includes(a.id)));
       setSelectedAssetIds([]);
     } catch(err) { alert(err.message || "Bulk delete failed"); }
@@ -12964,7 +13502,7 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>ΓÜá {detailModal.error}</div>}
+              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>⚠️ {detailModal.error}</div>}
 
 
 
@@ -13750,7 +14288,7 @@ const CompanyPortal = () => {
 
 
 
-                                  {isIssue && <span style={{ marginRight: "4px" }}>ΓÜá</span>}
+                                  {isIssue && <span style={{ marginRight: "4px" }}>⚠️</span>}
 
 
 
@@ -13930,7 +14468,7 @@ const CompanyPortal = () => {
             {bellOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.12)", zIndex: 9999, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>ΓÜá∩╕Å Active Warnings</span>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>⚠️ Active Warnings</span>
                   <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
                 </div>
                 {recentAlerts.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>}
@@ -13951,8 +14489,8 @@ const CompanyPortal = () => {
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
-                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">ΓÜÖ</button>
-                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "≡ƒöè On" : "≡ƒöç Off"}</button>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">⚙️</button>
+                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "🔊 On" : "🔇 Off"}</button>
                   </div>
                 </div>
                 {alarmSettingsOpen && (
@@ -13999,13 +14537,17 @@ const CompanyPortal = () => {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span className="nav-label">Employees</span>
           </button>
+          <button className={nav === "locations" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("locations"); setShowAddForm(false); }} title="Locations">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span className="nav-label">Locations</span>
+          </button>
           <button className={nav === "departments" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("departments"); setShowAddForm(false); }} title="Departments">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><path d="M5 9v3M12 9v3M19 9v3"/><rect x="5" y="15" width="14" height="6" rx="1"/></svg>
             <span className="nav-label">Departments</span>
           </button>
-          <button className={nav === "locations" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("locations"); setShowAddForm(false); }} title="Locations">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span className="nav-label">Locations</span>
+          <button className={nav === "states" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("states"); setShowAddForm(false); }} title="States">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            <span className="nav-label">States</span>
           </button>
 
           {/* Operations */}
@@ -18109,7 +18651,10 @@ const CompanyPortal = () => {
 
 
 
-                          <input name="state" value={editCompanyForm.state} onChange={handleEditCompanyChange} className="form-input" />
+                          <select name="state" value={editCompanyForm.state} onChange={handleEditCompanyChange} className="form-input">
+                          <option value="">Select State</option>
+                          {statesList.map(s => <option key={s.id} value={s.state_name}>{s.state_name} ({s.state_code})</option>)}
+                          </select>
 
 
 
@@ -19434,14 +19979,14 @@ const CompanyPortal = () => {
                         <th style={{ padding: "10px 8px", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
                           <input type="checkbox" onChange={e => setSelectedAssetIds(e.target.checked ? filteredAssets.map(a => a.id) : [])} checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length} />
                         </th>
-                        {["SN", "Asset ID", "Company", "QR Code", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                        {["SN", "Asset ID", "Company", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={22} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading..." : "No assets found."}</td></tr>
+                        ? <tr><td colSpan={21} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>{assetLoading ? "Loading..." : "No assets found."}</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const maint = [
@@ -19479,9 +20024,8 @@ const CompanyPortal = () => {
                                 <input type="checkbox" checked={selectedAssetIds.includes(a.id)} onChange={e => setSelectedAssetIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} />
                               </td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>{a.id}</td>
+                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.generatedAssetId || a.id}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "-"}</td>
-                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.assetUniqueId || "-"}</td>
                               <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "-"}</td>
@@ -19676,7 +20220,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span style={{ fontSize: "18px" }}>≡ƒÅÑ</span>
+                          <span style={{ fontSize: "18px" }}>🏥</span>
 
 
 
@@ -20054,7 +20598,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span>≡ƒÅÑ</span> Healthcare equipment registration - barcode will be auto-generated.
+                          <span>🏥</span> Healthcare equipment registration - barcode will be auto-generated.
 
 
 
@@ -20586,7 +21130,7 @@ const CompanyPortal = () => {
 
 
 
-                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>≡ƒôä View Invoice</a>
+                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>📄 View Invoice</a>
 
 
 
@@ -20616,7 +21160,7 @@ const CompanyPortal = () => {
 
 
 
-                                  ≡ƒôÄ Upload Invoice
+                                  📂 Upload Invoice
 
 
 
@@ -21109,27 +21653,20 @@ const CompanyPortal = () => {
 
 
                           {/* Cascading location dropdowns */}
-                          {locBuildings.length > 0 ? (
-                            <>
-                              <div className="form-group"><label>Building / Ward</label>
-                                <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                  <option value="">— Select Building —</option>
-                                  {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
-                                </select>
-                              </div>
-                              <div className="form-group"><label>Floor</label>
-                                <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
-                                  <option value="">— Select Floor —</option>
-                                  {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
-                                </select>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="form-group"><label>Building / Ward</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. OT Block" /></div>
-                              <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 2nd Floor" /></div>
-                            </>
-                          )}
+                          <>
+                            <div className="form-group"><label>Building / Ward</label>
+                              <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
+                                <option value="">— Select Building —</option>
+                                {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                              </select>
+                            </div>
+                            <div className="form-group"><label>Floor</label>
+                              <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                <option value="">— Select Floor —</option>
+                                {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                              </select>
+                            </div>
+                          </>
 
 
 
@@ -21229,40 +21766,32 @@ const CompanyPortal = () => {
 
 
                               {/* Cascading location dropdowns */}
-                              {locBuildings.length > 0 ? (
-                                <>
-                                  <div className="form-group"><label>Building</label>
-                                    <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                      <option value="">— Select Building —</option>
-                                      {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="form-group"><label>Floor</label>
-                                    <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
-                                      <option value="">— Select Floor —</option>
-                                      {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="form-group"><label>Department</label>
-                                    <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; const dpt = locDepts.find(d => String(d.id) === did); setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); setLocRooms([]); if (did) { const r = await fetch(`/api/locations/rooms?departmentId=${did}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                      <option value="">— Select Department —</option>
-                                      {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="form-group"><label>Room / Area</label>
-                                    <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                      <option value="">— Select Room —</option>
-                                      {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
-                                    </select>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="form-group"><label>Building</label><input name="building" value={assetForm.building} onChange={handleAssetChange} className="form-input" placeholder="e.g. Block A" /></div>
-                                  <div className="form-group"><label>Floor</label><input name="floor" value={assetForm.floor} onChange={handleAssetChange} className="form-input" placeholder="e.g. 3rd Floor" /></div>
-                                  <div className="form-group"><label>Room / Area <span style={{ color: "#ef4444" }}>*</span></label><input name="room" value={assetForm.room} onChange={handleAssetChange} className="form-input" required placeholder="e.g. Hot Kitchen, Lobby Area" /></div>
-                                </>
-                              )}
+                              <>
+                                <div className="form-group"><label>Building</label>
+                                  <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
+                                    <option value="">— Select Building —</option>
+                                    {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+                                  </select>
+                                </div>
+                                <div className="form-group"><label>Floor</label>
+                                  <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                    <option value="">— Select Floor —</option>
+                                    {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                                  </select>
+                                </div>
+                                <div className="form-group"><label>Department</label>
+                                  <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                    <option value="">— Select Department —</option>
+                                    {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                                  </select>
+                                </div>
+                                <div className="form-group"><label>Room / Area</label>
+                                  <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
+                                    <option value="">— Select Room —</option>
+                                    {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
+                                  </select>
+                                </div>
+                              </>
 
 
 
@@ -21502,13 +22031,13 @@ const CompanyPortal = () => {
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Floor</label>
-                                    <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/departments?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocDepts(await r.json()); } }}>
+                                    <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
                                       <option value="">— Select Floor —</option>
                                       {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Department</label>
-                                    <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); setLocRooms([]); if (did) { const r = await fetch(`/api/locations/rooms?departmentId=${did}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
+                                    <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
                                       <option value="">— Select Department —</option>
                                       {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                                     </select>
@@ -22790,7 +23319,7 @@ const CompanyPortal = () => {
 
 
 
-                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>≡ƒôì {assetQrModal.location}</div>}
+                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>📍 {assetQrModal.location}</div>}
 
 
 
@@ -23368,6 +23897,162 @@ const CompanyPortal = () => {
 
 
                         style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", outline: "none" }} required />
+
+
+
+
+
+                    </div>
+
+
+
+
+
+                  </div>
+
+
+
+
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+
+
+
+
+
+                    <div>
+
+
+
+
+
+                      <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Building</label>
+
+
+
+
+
+                      <select name="buildingId" value={departmentForm.buildingId || ""} onChange={handleDepartmentChange}
+
+
+
+
+
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", outline: "none", background: "#fff" }}>
+
+
+
+
+
+                        <option value="">Optional</option>
+
+
+
+
+
+                        {deptLocBuildings.map((b) => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
+
+
+
+
+
+                      </select>
+
+
+
+
+
+                    </div>
+
+
+
+
+
+                    <div>
+
+
+
+
+
+                      <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Floor</label>
+
+
+
+
+
+                      <select name="floorId" value={departmentForm.floorId || ""} onChange={handleDepartmentChange}
+
+
+
+
+
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", outline: "none", background: "#fff" }}>
+
+
+
+
+
+                        <option value="">Optional</option>
+
+
+
+
+
+                        {deptLocFloors.map((f) => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+
+
+
+
+
+                      </select>
+
+
+
+
+
+                    </div>
+
+
+
+
+
+                    <div>
+
+
+
+
+
+                      <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Room</label>
+
+
+
+
+
+                      <select name="roomId" value={departmentForm.roomId || ""} onChange={handleDepartmentChange}
+
+
+
+
+
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13.5px", outline: "none", background: "#fff" }}>
+
+
+
+
+
+                        <option value="">Optional</option>
+
+
+
+
+
+                        {deptLocRooms.map((r) => <option key={r.id} value={r.id}>{r.roomName}</option>)}
+
+
+
+
+
+                      </select>
 
 
 
@@ -24510,6 +25195,10 @@ const CompanyPortal = () => {
           <AdminLocationsSection token={token} companies={companies} />
         )}
 
+        {nav === "states" && (
+          <AdminStatesSection token={token} />
+        )}
+
         {nav === "workorders" && (
 
 
@@ -24618,7 +25307,7 @@ const CompanyPortal = () => {
 
 
 
-            const icon  = { critical: "≡ƒÜ¿", high: "├ó┼í┬á├»┬╕┬Å", medium: "ΓÜí", low: "≡ƒöö", info: "├óΓÇ₧┬╣├»┬╕┬Å" }[t.severity] || "├ó┼í┬á├»┬╕┬Å";
+            const icon  = { critical: "🚨", high: "⚠️", medium: "⚡", low: "📊", info: "ℹ️" }[t.severity] || "⚠️";
 
 
 
@@ -25146,7 +25835,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>≡ƒÅÑ</span>
+                  <span style={{ fontSize: "18px" }}>🏥</span>
 
 
 
@@ -25500,7 +26189,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>≡ƒôì</span>
+                  <span style={{ fontSize: "18px" }}>📍</span>
 
 
 
@@ -25590,13 +26279,11 @@ const CompanyPortal = () => {
 
 
 
-                    <input name="state" value={hospitalForm.state} onChange={handleHospitalChange} required
-
-
-
-
-
-                      className="form-input" placeholder="e.g. Maharashtra" style={{ width: "100%", boxSizing: "border-box" }} />
+                    <select name="state" value={hospitalForm.state} onChange={handleHospitalChange} required
+                      className="form-input" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">Select State</option>
+                      {statesList.map(s => <option key={s.id} value={s.state_name}>{s.state_name} ({s.state_code})</option>)}
+                    </select>
 
 
 
@@ -25686,7 +26373,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>≡ƒæñ</span>
+                  <span style={{ fontSize: "18px" }}>📞</span>
 
 
 
@@ -26346,7 +27033,10 @@ const CompanyPortal = () => {
 
 
 
-                    <input name="state" value={companyForm.state} onChange={handleCompanyChange} className="form-input" placeholder="State" style={{ width: "100%", boxSizing: "border-box" }} />
+                    <select name="state" value={companyForm.state} onChange={handleCompanyChange} className="form-input" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">Select State</option>
+                      {statesList.map(s => <option key={s.id} value={s.state_name}>{s.state_name} ({s.state_code})</option>)}
+                    </select>
 
 
 

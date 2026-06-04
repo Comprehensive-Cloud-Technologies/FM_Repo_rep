@@ -214,6 +214,143 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
 
 const cid = (req) => req.companyUser.companyId;
 
+const sanitizeAssetIdPart = (value, fallback) => {
+  const cleaned = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return cleaned || fallback;
+};
+
+const getNextGeneratedAssetId = async (conn, companyId) => {
+  const [[co]] = await conn.query(
+    `SELECT c.company_code AS companyCode, s.state_code AS stateCode
+     FROM companies c
+     LEFT JOIN states s ON s.id = c.state_id
+     WHERE c.id = ?`,
+    [companyId]
+  );
+  const [[{ cnt }]] = await conn.query("SELECT COUNT(*) AS cnt FROM assets WHERE company_id = ?", [companyId]);
+  const cCode = sanitizeAssetIdPart(co?.companyCode, "CO");
+  const sCode = sanitizeAssetIdPart(co?.stateCode, "NA");
+  return `${cCode}-${sCode}-${String(Number(cnt || 0) + 1).padStart(6, "0")}`;
+};
+
+const upsertLocationHierarchyForCompany = async (conn, {
+  companyId,
+  buildingName,
+  floorName,
+  roomName,
+  createdBy,
+}) => {
+  const norm = (v) => (v || "").trim();
+  const bName = norm(buildingName);
+  const fName = norm(floorName);
+  const rName = norm(roomName);
+
+  let buildingId = null;
+  let floorId = null;
+  let roomId = null;
+  let locationId = null;
+  let buildingLocId = null;
+  let floorLocId = null;
+
+  if (bName) {
+    const [[b]] = await conn.query(
+      `SELECT id FROM buildings WHERE company_id = ? AND LOWER(building_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [companyId, bName]
+    );
+    if (b) {
+      buildingId = b.id;
+    } else {
+      const [[{ cnt: bCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM buildings WHERE company_id = ?", [companyId]);
+      const bCode = `BLD-${String(bCount + 1).padStart(3, "0")}`;
+      const [insB] = await conn.execute(
+        `INSERT INTO buildings (company_id, building_code, building_name, status, created_by)
+         VALUES (?, ?, ?, 'Active', ?)`,
+        [companyId, bCode, bName, createdBy || null]
+      );
+      buildingId = insB.insertId;
+      const [locB] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Building', ?, NULL, ?, ?, 'Active', ?)`,
+        [companyId, buildingId, bCode, bName, createdBy || null]
+      );
+      buildingLocId = locB.insertId;
+    }
+    if (!buildingLocId) {
+      const [[loc]] = await conn.query("SELECT id FROM locations WHERE location_type = 'Building' AND reference_id = ? LIMIT 1", [buildingId]);
+      buildingLocId = loc?.id || null;
+    }
+  }
+
+  if (buildingId && fName) {
+    const [[f]] = await conn.query(
+      `SELECT id FROM floors WHERE building_id = ? AND LOWER(floor_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [buildingId, fName]
+    );
+    if (f) {
+      floorId = f.id;
+    } else {
+      const [[{ cnt: fCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM floors WHERE building_id = ?", [buildingId]);
+      const fCode = `FLR-${String(fCount + 1).padStart(3, "0")}`;
+      const parsedFloorNum = /^\d+$/.test(fName) ? Number(fName) : null;
+      const [insF] = await conn.execute(
+        `INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by)
+         VALUES (?, ?, ?, ?, 'Active', ?)`,
+        [buildingId, fCode, fName, parsedFloorNum, createdBy || null]
+      );
+      floorId = insF.insertId;
+      const [locF] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Floor', ?, ?, ?, ?, 'Active', ?)`,
+        [companyId, floorId, buildingLocId, fCode, fName, createdBy || null]
+      );
+      floorLocId = locF.insertId;
+    }
+    if (!floorLocId) {
+      const [[loc]] = await conn.query("SELECT id FROM locations WHERE location_type = 'Floor' AND reference_id = ? LIMIT 1", [floorId]);
+      floorLocId = loc?.id || null;
+    }
+  }
+
+  if (floorId && rName) {
+    const [[r]] = await conn.query(
+      `SELECT id FROM rooms WHERE floor_id = ? AND LOWER(room_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+      [floorId, rName]
+    );
+    if (r) {
+      roomId = r.id;
+    } else {
+      const [[{ cnt: rCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM rooms WHERE floor_id = ?", [floorId]);
+      const rCode = `RM-${String(rCount + 1).padStart(3, "0")}`;
+      const [insR] = await conn.execute(
+        `INSERT INTO rooms (floor_id, room_code, room_name, status, created_by)
+         VALUES (?, ?, ?, 'Active', ?)`,
+        [floorId, rCode, rName, createdBy || null]
+      );
+      roomId = insR.insertId;
+      const [locR] = await conn.execute(
+        `INSERT INTO locations (company_id, location_type, reference_id, parent_location_id, location_code, location_name, status, created_by)
+         VALUES (?, 'Room', ?, ?, ?, ?, 'Active', ?)`,
+        [companyId, roomId, floorLocId, rCode, rName, createdBy || null]
+      );
+      locationId = locR.insertId;
+    }
+    if (!locationId) {
+      const [[loc]] = await conn.query("SELECT id FROM locations WHERE location_type = 'Room' AND reference_id = ? LIMIT 1", [roomId]);
+      locationId = loc?.id || null;
+    }
+  }
+
+  return {
+    building: bName || null,
+    floor: fName || null,
+    room: rName || null,
+    buildingId,
+    floorId,
+    roomId,
+    locationId,
+  };
+};
+
 /* ── Helper: compute cutoff status from expectedCompletionAt ─────────────────
    Returns 'overdue' | 'at_risk' | 'on_time' | null                           */
 const getCutoffStatus = (expectedCompletionAt, status) => {
@@ -673,11 +810,32 @@ router.delete("/asset-types/:id", async (req, res, next) => {
 });
 
 /* ── Departments ────────────────────────────────────────────────────────────── */
+let deptLocationColumnsReady = false;
+const ensureDepartmentLocationColumns = async () => {
+  if (deptLocationColumnsReady) return;
+  const { isMigrationSafeError } = await import('../db.js');
+  const safeAlter = async (sql) => {
+    try { await pool.query(sql); } catch (e) { if (!isMigrationSafeError(e)) throw e; }
+  };
+  await safeAlter(`ALTER TABLE departments ADD COLUMN building_id INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE departments ADD COLUMN floor_id INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE departments ADD COLUMN room_id INT UNSIGNED NULL`);
+  deptLocationColumnsReady = true;
+};
+
 router.get("/departments", async (req, res, next) => {
   try {
+    await ensureDepartmentLocationColumns();
     const [rows] = await pool.query(
-      `SELECT id, name AS "departmentName", description, created_at AS "createdAt"
-       FROM departments WHERE company_id = ? ORDER BY name`,
+      `SELECT d.id, d.name AS "departmentName", d.description,
+              d.building_id AS "buildingId", d.floor_id AS "floorId", d.room_id AS "roomId",
+              b.building_name AS "buildingName", f.floor_name AS "floorName", r.room_name AS "roomName",
+              d.created_at AS "createdAt"
+       FROM departments d
+       LEFT JOIN buildings b ON b.id = d.building_id
+       LEFT JOIN floors f ON f.id = d.floor_id
+       LEFT JOIN rooms r ON r.id = d.room_id
+       WHERE d.company_id = ? ORDER BY d.name`,
       [cid(req)]
     );
     res.json(rows);
@@ -688,12 +846,17 @@ router.get("/departments", async (req, res, next) => {
 
 router.post("/departments", async (req, res, next) => {
   try {
+    await ensureDepartmentLocationColumns();
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const { name, description } = req.body;
+    const { name, description, buildingId, floorId, roomId } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "name is required" });
     const [rows] = await pool.query(
-      `INSERT INTO departments (company_id, name, description) VALUES (?, ?, ?) RETURNING id, name AS "departmentName", description, created_at AS "createdAt"`,
-      [cid(req), name.trim(), description || null]
+      `INSERT INTO departments (company_id, name, description, building_id, floor_id, room_id)
+       VALUES (?, ?, ?, ?, ?, ?)
+       RETURNING id, name AS "departmentName", description,
+                 building_id AS "buildingId", floor_id AS "floorId", room_id AS "roomId",
+                 created_at AS "createdAt"`,
+      [cid(req), name.trim(), description || null, buildingId || null, floorId || null, roomId || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -704,14 +867,24 @@ router.post("/departments", async (req, res, next) => {
 
 router.put("/departments/:id", async (req, res, next) => {
   try {
+    await ensureDepartmentLocationColumns();
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, buildingId, floorId, roomId } = req.body;
     const [[check]] = await pool.query("SELECT id FROM departments WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Department not found" });
     const [rows] = await pool.query(
-      `UPDATE departments SET name = COALESCE(?, name), description = ? WHERE id = ? RETURNING id, name AS "departmentName", description, created_at AS "createdAt"`,
-      [name?.trim() || null, description ?? null, id]
+      `UPDATE departments
+       SET name = COALESCE(?, name),
+           description = ?,
+           building_id = ?,
+           floor_id = ?,
+           room_id = ?
+       WHERE id = ?
+       RETURNING id, name AS "departmentName", description,
+                 building_id AS "buildingId", floor_id AS "floorId", room_id AS "roomId",
+                 created_at AS "createdAt"`,
+      [name?.trim() || null, description ?? null, buildingId || null, floorId || null, roomId || null, id]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -819,6 +992,7 @@ router.get("/assets", async (req, res, next) => {
 
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.department_id AS "departmentId",
               a.assigned_to AS "assignedTo",
@@ -887,6 +1061,17 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
       const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
       return isHC ? `HC-${dateStr}-${rand}` : `AST-${Date.now().toString(36).toUpperCase()}-${rand}`;
     };
+
+    const [[coCode]] = await pool.query(
+      `SELECT c.company_code AS companyCode, s.state_code AS stateCode
+       FROM companies c LEFT JOIN states s ON s.id = c.state_id
+       WHERE c.id = ?`,
+      [cid(req)]
+    );
+    const cCode = sanitizeAssetIdPart(coCode?.companyCode, "CO");
+    const sCode = sanitizeAssetIdPart(coCode?.stateCode, "NA");
+    const [[{ cnt: initialAssetCount }]] = await pool.query("SELECT COUNT(*) AS cnt FROM assets WHERE company_id = ?", [cid(req)]);
+    let assetSeq = Number(initialAssetCount || 0);
 
     const { read, utils } = await import("xlsx");
     const wb      = read(req.file.buffer, { type: "buffer" });
@@ -978,6 +1163,14 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
       }
 
       try {
+        const loc = await upsertLocationHierarchyForCompany(pool, {
+          companyId: cid(req),
+          buildingName: building,
+          floorName: floor,
+          roomName: room,
+          createdBy: req.companyUser.id || null,
+        });
+
         // Duplicate guard: skip if this uniqueId is already registered for this company
         const [[existing]] = await pool.query(
           "SELECT id FROM assets WHERE asset_unique_id = ? AND company_id = ? LIMIT 1",
@@ -988,13 +1181,17 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
           continue;
         }
 
+          assetSeq += 1;
+          const generatedAssetId = `${cCode}-${sCode}-${String(assetSeq).padStart(6, "0")}`;
         const [result] = await pool.execute(
           `INSERT INTO assets
-             (company_id, department_id, asset_name, asset_unique_id, asset_type,
-              building, floor, room, status, qr_code)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [cid(req), departmentId, assetName, uniqueIdToUse, assetType,
-           building, floor, room, status, uniqueIdToUse]
+             (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
+              building, floor, room, building_id, floor_id, room_id, location_id,
+              status, qr_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           [cid(req), departmentId, assetName, uniqueIdToUse, generatedAssetId, assetType,
+            loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
+            status, uniqueIdToUse]
         );
         const assetId = result.insertId;
 
@@ -1038,7 +1235,8 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
 
         created.push({
           row: rowNum, id: assetId, assetName, assetUniqueId: uniqueIdToUse,
-          assetType, qrCode: uniqueIdToUse, building, floor, room, status,
+          generatedAssetId,
+          assetType, qrCode: uniqueIdToUse, building: loc.building, floor: loc.floor, room: loc.room, status,
           departmentName: deptNameRaw || null,
         });
       } catch (rowErr) {
@@ -1058,6 +1256,7 @@ router.get("/assets/:id", async (req, res, next) => {
     const { id } = req.params;
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.created_at AS "createdAt",
               d.name AS "departmentName",
@@ -1122,21 +1321,34 @@ router.post("/assets", async (req, res, next) => {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status = "Active", metadata = {} } = req.body;
     if (!assetName?.trim() || !assetType) return res.status(400).json({ message: "assetName and assetType are required" });
-    const [result] = await pool.query(
-      `INSERT INTO assets (company_id, department_id, asset_name, asset_unique_id, asset_type, building, floor, room, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cid(req), departmentId || null, assetName.trim(), assetUniqueId || null, assetType, building || null, floor || null, room || null, status]
-    );
-    const newId = result.insertId;
-    // Auto-generate barcode number for healthcare assets when not supplied
-    if (!assetUniqueId && assetType === "healthcare") {
+
+    const loc = await upsertLocationHierarchyForCompany(pool, {
+      companyId: cid(req),
+      buildingName: building,
+      floorName: floor,
+      roomName: room,
+      createdBy: req.companyUser.id || null,
+    });
+
+    const uniqueIdToUse = assetUniqueId || (() => {
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-      const barcodeNo = `HC-${dateStr}-${rand}`;
-      await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
-    }
+      return `HC-${dateStr}-${rand}`;
+    })();
+    const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
+
+    const [result] = await pool.query(
+      `INSERT INTO assets (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
+                          building, floor, room, building_id, floor_id, room_id, location_id, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid(req), departmentId || null, assetName.trim(), uniqueIdToUse, generatedAssetId, assetType,
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId, status]
+    );
+    const newId = result.insertId;
     const [[asset]] = await pool.query(
-      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status, building, floor, room, department_id AS departmentId FROM assets WHERE id = ?`,
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, generated_asset_id AS generatedAssetId,
+              asset_type AS assetType, status, building, floor, room, department_id AS departmentId
+       FROM assets WHERE id = ?`,
       [newId]
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
@@ -1161,11 +1373,22 @@ router.post("/assets/manual", async (req, res, next) => {
     const [[company]] = await pool.query("SELECT id FROM companies WHERE id = ?", [companyId]);
     if (!company) return res.status(404).json({ message: "Company not found" });
 
+    const loc = await upsertLocationHierarchyForCompany(pool, {
+      companyId,
+      buildingName: building,
+      floorName: floor,
+      roomName: room,
+      createdBy: req.companyUser?.id || null,
+    });
+    const generatedAssetId = await getNextGeneratedAssetId(pool, companyId);
+
     const [result] = await pool.query(
-      `INSERT INTO assets (company_id, department_id, asset_name, asset_type, building, floor, room, status, is_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
-      [companyId, departmentId || null, assetName.trim(), assetType,
-       building || null, floor || null, room || null]
+      `INSERT INTO assets (company_id, department_id, asset_name, generated_asset_id, asset_type,
+                           building, floor, room, building_id, floor_id, room_id, location_id,
+                           status, is_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
+      [companyId, departmentId || null, assetName.trim(), generatedAssetId, assetType,
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
     );
     const newId = result.insertId;
 
@@ -1184,7 +1407,7 @@ router.post("/assets/manual", async (req, res, next) => {
     );
 
     const [[asset]] = await pool.query(
-      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType,
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, generated_asset_id AS generatedAssetId, asset_type AS assetType,
               status, building, floor, room, department_id AS departmentId, is_verified AS isVerified
        FROM assets WHERE id = ?`,
       [newId]
@@ -1263,18 +1486,31 @@ router.delete("/assets/delete-all", async (req, res, next) => {
 router.delete("/assets/bulk", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const ids = req.body.ids;
-    if (!Array.isArray(ids) || ids.length === 0)
+    const ids = Array.isArray(req.body.ids)
+      ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
+      : [];
+    if (ids.length === 0)
       return res.status(400).json({ message: "ids array is required" });
-    if (ids.length > 500) return res.status(400).json({ message: "Maximum 500 assets per bulk delete" });
-    const placeholders = ids.map(() => "?").join(",");
-    // Cascade: delete linked QR codes first
-    await pool.query(`DELETE FROM asset_pre_qr WHERE asset_id IN (${placeholders}) AND company_id = ?`, [...ids, cid(req)]);
-    const [result] = await pool.query(
-      `DELETE FROM assets WHERE id IN (${placeholders}) AND company_id = ?`,
-      [...ids, cid(req)]
-    );
-    res.json({ deleted: result.affectedRows });
+
+    const companyId = cid(req);
+    let deleted = 0;
+    const CHUNK_SIZE = 500;
+
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => "?").join(",");
+      await pool.query(
+        `DELETE FROM asset_pre_qr WHERE asset_id IN (${placeholders}) AND company_id = ?`,
+        [...chunk, companyId]
+      );
+      const [result] = await pool.query(
+        `DELETE FROM assets WHERE id IN (${placeholders}) AND company_id = ?`,
+        [...chunk, companyId]
+      );
+      deleted += Number(result.affectedRows || 0);
+    }
+
+    res.json({ deleted });
   } catch (err) { next(err); }
 });
 
@@ -4983,10 +5219,23 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     if (!qr) return res.status(404).json({ message: "QR not found" });
     if (qr.asset_id) return res.status(409).json({ message: "This QR code is already linked to an asset" });
 
+    const loc = await upsertLocationHierarchyForCompany(pool, {
+      companyId: cid(req),
+      buildingName: location,
+      floorName: floor,
+      roomName: room,
+      createdBy: req.companyUser?.id || null,
+    });
+    const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
+
     // Create the new asset
     const [result] = await pool.query(
-      `INSERT INTO assets (company_id, asset_name, asset_type, building, floor, room, status) VALUES (?, ?, ?, ?, ?, ?, 'Active')`,
-      [cid(req), assetName.trim(), assetType, location || null, floor || null, room || null]
+      `INSERT INTO assets
+         (company_id, asset_name, asset_type, generated_asset_id,
+          building, floor, room, building_id, floor_id, room_id, location_id, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
+      [cid(req), assetName.trim(), assetType, generatedAssetId,
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
     );
     const newAssetId = result.insertId;
 
@@ -5028,6 +5277,7 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     res.status(201).json({
       assetId: newAssetId,
       assetName: assetName.trim(),
+      generatedAssetId,
       assetUniqueId: uniqueId,
     });
   } catch (err) { next(err); }

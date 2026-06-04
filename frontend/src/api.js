@@ -59,6 +59,7 @@ export const createAsset = (token, data) => request("POST", "/api/assets", data,
 export const updateAsset = (token, id, data) => request("PUT", `/api/assets/${id}`, data, { authToken: token });
 export const deleteAsset = (token, id) => request("DELETE", `/api/assets/${id}`, undefined, { authToken: token });
 export const deleteAllAssets = (token, companyId) => request("DELETE", `/api/assets/delete-all?companyId=${companyId}`, undefined, { authToken: token });
+export const bulkDeleteAssets = (token, companyId, ids) => request("DELETE", `/api/assets/bulk?companyId=${companyId}`, { ids }, { authToken: token });
 export const bulkVerifyAssets = (token, ids, verified = 1) => request("PUT", "/api/assets/bulk-verify", { ids, verified }, { authToken: token });
 export const verifyAsset = (token, id, verified = 1) => request("PUT", `/api/assets/${id}/verify`, { verified }, { authToken: token });
 

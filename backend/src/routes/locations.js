@@ -12,11 +12,21 @@
  */
 
 import { Router } from "express";
+import multer from "multer";
 import pool from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 router.use(requireAuth);
+
+const locationImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.(xlsx|xls|csv)$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error("Only Excel (.xlsx, .xls) or CSV files are allowed"));
+  },
+});
 
 async function insertLocation(conn, {
   companyId, locationType, referenceId, parentLocationId,
@@ -28,6 +38,212 @@ async function insertLocation(conn, {
   );
   return r.insertId;
 }
+
+const firstCell = (row, keys) => {
+  for (const k of keys) {
+    const v = row?.[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+};
+
+router.get("/import/template", async (_req, res, next) => {
+  try {
+    const { default: XLSX } = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const headers = ["Building", "Floor", "Floor Number", "Room", "Room Type", "Capacity"];
+    const sample1 = ["Main Building", "Ground Floor", "0", "Reception", "Lobby", "8"];
+    const sample2 = ["Main Building", "1st Floor", "1", "ICU-1", "ICU", "12"];
+    const sample3 = ["Annex Block", "2nd Floor", "2", "OT-2", "OT", "6"];
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample1, sample2, sample3]);
+    XLSX.utils.book_append_sheet(wb, ws, "Locations");
+
+    const notes = [
+      ["Notes"],
+      ["1. Building is required for every row."],
+      ["2. Floor is optional, but Room requires a Floor in the same row."],
+      ["3. Duplicate names are auto-merged by company/building/floor context."],
+      ["4. This upload creates Building -> Floor -> Room hierarchy in one go."],
+    ];
+    const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+    XLSX.utils.book_append_sheet(wb, wsNotes, "Instructions");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", 'attachment; filename="location-import-template.xlsx"');
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/import", locationImportUpload.single("file"), async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    const companyId = Number(req.body?.companyId || req.query?.companyId);
+    if (!companyId) return res.status(400).json({ message: "companyId is required" });
+    if (!req.file?.buffer) return res.status(400).json({ message: "file is required" });
+
+    const { default: XLSX } = await import("xlsx");
+    const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ message: "No rows found in uploaded file" });
+    }
+
+    await conn.beginTransaction();
+
+    let createdBuildings = 0;
+    let createdFloors = 0;
+    let createdRooms = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      const buildingName = firstCell(row, ["Building", "building", "Building Name", "building_name"]);
+      const floorNameTemplate = firstCell(row, ["Floor", "floor", "Floor Name", "floor_name"]);
+      const floorNumberRaw = firstCell(row, ["Floor Number", "floor_number", "Floor No", "floor_no"]);
+      const roomName = firstCell(row, ["Room", "room", "Room Name", "room_name", "Room / Area"]);
+      const roomType = firstCell(row, ["Room Type", "room_type", "Type"]);
+      const capacityRaw = firstCell(row, ["Capacity", "capacity"]);
+
+      if (!buildingName) { skipped += 1; continue; }
+
+      let buildingId;
+      let buildingLocId;
+      const [[bExisting]] = await conn.execute(
+        `SELECT id FROM buildings WHERE company_id = ? AND LOWER(building_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+        [companyId, buildingName]
+      );
+      if (bExisting?.id) {
+        buildingId = bExisting.id;
+      } else {
+        const [[{ cnt: bCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM buildings WHERE company_id = ?", [companyId]);
+        const bCode = `BLD-${String(Number(bCount || 0) + 1).padStart(3, "0")}`;
+        const [insB] = await conn.execute(
+          `INSERT INTO buildings (company_id, building_code, building_name, status, created_by) VALUES (?, ?, ?, 'Active', ?)`,
+          [companyId, bCode, buildingName, req.user.id]
+        );
+        buildingId = insB.insertId;
+        createdBuildings += 1;
+      }
+
+      const [[bLoc]] = await conn.execute(
+        `SELECT id FROM locations WHERE location_type = 'Building' AND reference_id = ? LIMIT 1`,
+        [buildingId]
+      );
+      buildingLocId = bLoc?.id || await insertLocation(conn, {
+        companyId,
+        locationType: "Building",
+        referenceId: buildingId,
+        parentLocationId: null,
+        locationCode: null,
+        locationName: buildingName,
+        createdBy: req.user.id,
+      });
+
+      // Parse floor count: if floor_number > 1, create that many floors; else create 1
+      const floorCount = (floorNumberRaw !== "" && Number(floorNumberRaw) > 1) ? Number(floorNumberRaw) : 1;
+      const shouldMultiplyFloors = floorCount > 1 && floorNameTemplate;
+
+      // Loop to create N floors (usually 1, unless floor_number > 1)
+      for (let fIdx = 0; fIdx < floorCount; fIdx++) {
+        const floorName = shouldMultiplyFloors ? `${floorNameTemplate} ${fIdx + 1}` : floorNameTemplate;
+        const floorNum = fIdx;
+
+        let floorId = null;
+        let floorLocId = null;
+        if (floorName) {
+          const [[fExisting]] = await conn.execute(
+            `SELECT id FROM floors WHERE building_id = ? AND LOWER(floor_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+            [buildingId, floorName]
+          );
+          if (fExisting?.id) {
+            floorId = fExisting.id;
+          } else {
+            const [[{ cnt: fCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM floors WHERE building_id = ?", [buildingId]);
+            const fCode = `FLR-${String(Number(fCount || 0) + 1).padStart(3, "0")}`;
+            const [insF] = await conn.execute(
+              `INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by)
+               VALUES (?, ?, ?, ?, 'Active', ?)`,
+              [buildingId, fCode, floorName, floorNum, req.user.id]
+            );
+            floorId = insF.insertId;
+            createdFloors += 1;
+          }
+
+          const [[fLoc]] = await conn.execute(
+            `SELECT id FROM locations WHERE location_type = 'Floor' AND reference_id = ? LIMIT 1`,
+            [floorId]
+          );
+          floorLocId = fLoc?.id || await insertLocation(conn, {
+            companyId,
+            locationType: "Floor",
+            referenceId: floorId,
+            parentLocationId: buildingLocId,
+            locationCode: null,
+            locationName: floorName,
+            createdBy: req.user.id,
+          });
+        }
+
+        if (roomName) {
+          if (!floorId) { skipped += 1; continue; }
+          const [[rExisting]] = await conn.execute(
+            `SELECT id FROM rooms WHERE floor_id = ? AND LOWER(room_name) = LOWER(?) AND status != 'Deleted' LIMIT 1`,
+            [floorId, roomName]
+          );
+          let roomId;
+          if (rExisting?.id) {
+            roomId = rExisting.id;
+          } else {
+            const [[{ cnt: rCount }]] = await conn.query("SELECT COUNT(*) AS cnt FROM rooms WHERE floor_id = ?", [floorId]);
+            const rCode = `RM-${String(Number(rCount || 0) + 1).padStart(3, "0")}`;
+            const cap = capacityRaw !== "" ? Number(capacityRaw) : null;
+            const [insR] = await conn.execute(
+              `INSERT INTO rooms (floor_id, room_code, room_name, room_type, capacity, status, created_by)
+               VALUES (?, ?, ?, ?, ?, 'Active', ?)`,
+              [floorId, rCode, roomName, roomType || null, Number.isFinite(cap) ? cap : null, req.user.id]
+            );
+            roomId = insR.insertId;
+            createdRooms += 1;
+          }
+
+          const [[rLoc]] = await conn.execute(
+            `SELECT id FROM locations WHERE location_type = 'Room' AND reference_id = ? LIMIT 1`,
+            [roomId]
+          );
+          if (!rLoc?.id) {
+            await insertLocation(conn, {
+              companyId,
+              locationType: "Room",
+              referenceId: roomId,
+              parentLocationId: floorLocId,
+              locationCode: null,
+              locationName: roomName,
+              createdBy: req.user.id,
+            });
+          }
+        }
+      }
+    }
+
+    await conn.commit();
+    res.json({
+      success: true,
+      createdBuildings,
+      createdFloors,
+      createdRooms,
+      skipped,
+      processedRows: rows.length,
+    });
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+});
 
 // BUILDINGS
 router.get("/buildings", async (req, res, next) => {
@@ -46,13 +262,15 @@ router.post("/buildings", async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { companyId, buildingCode, buildingName, description } = req.body;
+    const { companyId, buildingName, description } = req.body;
     if (!companyId || !buildingName?.trim()) return res.status(400).json({ message: "companyId and buildingName are required" });
     const [[dup]] = await conn.execute(`SELECT id FROM buildings WHERE company_id = ? AND LOWER(building_name) = LOWER(?) AND status != 'Deleted'`, [companyId, buildingName.trim()]);
     if (dup) return res.status(409).json({ message: "Building already exists in this company." });
-    const [ins] = await conn.execute(`INSERT INTO buildings (company_id, building_code, building_name, description, status, created_by) VALUES (?, ?, ?, ?, 'Active', ?)`, [companyId, buildingCode ?? null, buildingName.trim(), description ?? null, req.user.id]);
+    const [[{ cnt: bCount }]] = await conn.query("SELECT COUNT(*) as cnt FROM buildings WHERE company_id = ?", [companyId]);
+    const autoCode = `BLD-${String(bCount + 1).padStart(3, '0')}`;
+    const [ins] = await conn.execute(`INSERT INTO buildings (company_id, building_code, building_name, description, status, created_by) VALUES (?, ?, ?, ?, 'Active', ?)`, [companyId, autoCode, buildingName.trim(), description ?? null, req.user.id]);
     const buildingId = ins.insertId;
-    const locationId = await insertLocation(conn, { companyId, locationType: "Building", referenceId: buildingId, parentLocationId: null, locationCode: buildingCode, locationName: buildingName.trim(), createdBy: req.user.id });
+    const locationId = await insertLocation(conn, { companyId, locationType: "Building", referenceId: buildingId, parentLocationId: null, locationCode: autoCode, locationName: buildingName.trim(), createdBy: req.user.id });
     await conn.commit();
     res.status(201).json({ id: buildingId, locationId, buildingName: buildingName.trim() });
   } catch (err) { await conn.rollback(); if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ message: "Building already exists." }); next(err); } finally { conn.release(); }
@@ -99,15 +317,17 @@ router.post("/floors", async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { buildingId, floorCode, floorName, floorNumber } = req.body;
+    const { buildingId, floorName, floorNumber } = req.body;
     if (!buildingId || !floorName?.trim()) return res.status(400).json({ message: "buildingId and floorName are required" });
     const [[dup]] = await conn.execute(`SELECT id FROM floors WHERE building_id = ? AND LOWER(floor_name) = LOWER(?) AND status != 'Deleted'`, [buildingId, floorName.trim()]);
     if (dup) return res.status(409).json({ message: "Floor already exists in this building." });
     const [[building]] = await conn.execute(`SELECT b.company_id, l.id AS locationId FROM buildings b LEFT JOIN locations l ON l.location_type = 'Building' AND l.reference_id = b.id WHERE b.id = ?`, [buildingId]);
     if (!building) return res.status(404).json({ message: "Building not found" });
-    const [ins] = await conn.execute(`INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by) VALUES (?, ?, ?, ?, 'Active', ?)`, [buildingId, floorCode || null, floorName.trim(), floorNumber !== undefined && floorNumber !== '' ? Number(floorNumber) : null, req.user.id]);
+    const [[{ cnt: fCount }]] = await conn.query("SELECT COUNT(*) as cnt FROM floors WHERE building_id = ?", [buildingId]);
+    const autoCode = `FLR-${String(fCount + 1).padStart(3, '0')}`;
+    const [ins] = await conn.execute(`INSERT INTO floors (building_id, floor_code, floor_name, floor_number, status, created_by) VALUES (?, ?, ?, ?, 'Active', ?)`, [buildingId, autoCode, floorName.trim(), floorNumber !== undefined && floorNumber !== '' ? Number(floorNumber) : null, req.user.id]);
     const floorId = ins.insertId;
-    const locationId = await insertLocation(conn, { companyId: building.company_id, locationType: "Floor", referenceId: floorId, parentLocationId: building.locationId, locationCode: floorCode, locationName: floorName.trim(), createdBy: req.user.id });
+    const locationId = await insertLocation(conn, { companyId: building.company_id, locationType: "Floor", referenceId: floorId, parentLocationId: building.locationId, locationCode: autoCode, locationName: floorName.trim(), createdBy: req.user.id });
     await conn.commit();
     res.status(201).json({ id: floorId, locationId, floorName: floorName.trim() });
   } catch (err) { await conn.rollback(); if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ message: "Floor already exists." }); next(err); } finally { conn.release(); }
@@ -158,15 +378,17 @@ router.post("/rooms", async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { floorId, roomCode, roomName, roomType, capacity } = req.body;
+    const { floorId, roomName, roomType, capacity } = req.body;
     if (!floorId || !roomName?.trim()) return res.status(400).json({ message: "floorId and roomName are required" });
     const [[dup]] = await conn.execute(`SELECT id FROM rooms WHERE floor_id = ? AND LOWER(room_name) = LOWER(?) AND status != 'Deleted'`, [floorId, roomName.trim()]);
     if (dup) return res.status(409).json({ message: "Room already exists on this floor." });
     const [[floor]] = await conn.execute(`SELECT b.company_id, l.id AS locationId FROM floors f JOIN buildings b ON b.id = f.building_id LEFT JOIN locations l ON l.location_type = 'Floor' AND l.reference_id = f.id WHERE f.id = ?`, [floorId]);
     if (!floor) return res.status(404).json({ message: "Floor not found" });
-    const [ins] = await conn.execute(`INSERT INTO rooms (floor_id, room_code, room_name, room_type, capacity, status, created_by) VALUES (?, ?, ?, ?, ?, 'Active', ?)`, [floorId, roomCode || null, roomName.trim(), roomType || null, capacity !== undefined && capacity !== '' ? Number(capacity) : null, req.user.id]);
+    const [[{ cnt: rCount }]] = await conn.query("SELECT COUNT(*) as cnt FROM rooms WHERE floor_id = ?", [floorId]);
+    const autoCode = `RM-${String(rCount + 1).padStart(3, '0')}`;
+    const [ins] = await conn.execute(`INSERT INTO rooms (floor_id, room_code, room_name, room_type, capacity, status, created_by) VALUES (?, ?, ?, ?, ?, 'Active', ?)`, [floorId, autoCode, roomName.trim(), roomType || null, capacity !== undefined && capacity !== '' ? Number(capacity) : null, req.user.id]);
     const roomId = ins.insertId;
-    const locationId = await insertLocation(conn, { companyId: floor.company_id, locationType: "Room", referenceId: roomId, parentLocationId: floor.locationId, locationCode: roomCode, locationName: roomName.trim(), createdBy: req.user.id });
+    const locationId = await insertLocation(conn, { companyId: floor.company_id, locationType: "Room", referenceId: roomId, parentLocationId: floor.locationId, locationCode: autoCode, locationName: roomName.trim(), createdBy: req.user.id });
     await conn.commit();
     res.status(201).json({ id: roomId, locationId, roomName: roomName.trim() });
   } catch (err) { await conn.rollback(); if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ message: "Room already exists." }); next(err); } finally { conn.release(); }

@@ -8,6 +8,9 @@ const router = Router();
 
 // Auto-create table on first load (idempotent)
 (async () => {
+  const safeAlter = async (sql) => {
+    try { await pool.query(sql); } catch (e) { if (!isMigrationSafeError(e)) console.error("[company-users] migration:", e.message); }
+  };
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS company_users (
@@ -24,19 +27,19 @@ const router = Router();
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    // Patch existing tables that were created before the role column was added
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS role VARCHAR(60) NOT NULL DEFAULT 'employee'`);
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS username VARCHAR(100) NULL`);
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS permissions JSON NULL`);
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS module_access JSON NULL`);
-    await pool.query(`ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(20) NOT NULL DEFAULT 'technical'`);
-    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_company_users_email ON company_users(email)`);
-    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_company_users_username ON company_users(LOWER(username)) WHERE username IS NOT NULL`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_company_users_company ON company_users(company_id)`);
   } catch (err) {
-    // eslint-disable-next-line no-console
     if (!isMigrationSafeError(err)) console.error("[company-users] migration error:", err.message);
   }
+  // Patch existing tables — each ALTER is wrapped individually (MySQL 8.0 does not support ADD COLUMN IF NOT EXISTS)
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN role VARCHAR(60) NOT NULL DEFAULT 'employee'`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN username VARCHAR(100) NULL`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN department_id INT UNSIGNED NULL`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN permissions JSON NULL`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN module_access JSON NULL`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN service_domain VARCHAR(20) NOT NULL DEFAULT 'technical'`);
+  await safeAlter(`CREATE UNIQUE INDEX uq_company_users_email ON company_users(email)`);
+  await safeAlter(`CREATE UNIQUE INDEX uq_company_users_username ON company_users(username)`);
+  await safeAlter(`CREATE INDEX idx_company_users_company ON company_users(company_id)`);
 })();
 
 router.use(requireAuth);

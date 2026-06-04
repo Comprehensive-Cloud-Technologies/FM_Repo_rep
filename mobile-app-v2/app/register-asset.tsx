@@ -2,7 +2,7 @@
  * register-asset.tsx – Healthcare Equipment Registration Form
  * Shown when a user scans an unlinked pre-generated QR code.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   StyleSheet, Alert, TextInput, KeyboardAvoidingView, Platform, Image, Modal,
@@ -13,7 +13,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme, Spacing, Radius } from '../utils/theme';
-import { registerAssetOnQr, getToken, uploadQueryImage } from '../utils/api';
+import {
+  registerAssetOnQr,
+  getToken,
+  uploadQueryImage,
+  fetchPreQrByUid,
+  fetchLocationBuildingsByCompany,
+  fetchLocationFloorsByBuilding,
+  fetchLocationRoomsByFloor,
+} from '../utils/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DateRange = { enabled: boolean; startDate: string; endDate: string };
@@ -292,6 +300,43 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
+function PickerModal({
+  visible,
+  title,
+  items,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  items: Array<{ id: number; label: string }>;
+  onSelect: (id: number) => void;
+  onClose: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', padding: 22 }}>
+        <View style={{ backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.border, maxHeight: '72%' }}>
+          <View style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.textPrimary }}>{title}</Text>
+            <TouchableOpacity onPress={onClose}><MaterialCommunityIcons name="close" size={20} color={theme.textMuted} /></TouchableOpacity>
+          </View>
+          <ScrollView>
+            {items.length === 0 ? (
+              <Text style={{ padding: 14, color: theme.textMuted }}>No options available</Text>
+            ) : items.map((it) => (
+              <TouchableOpacity key={it.id} onPress={() => { onSelect(it.id); onClose(); }} style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{it.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function RegisterAssetScreen() {
   const { theme } = useTheme();
@@ -326,9 +371,62 @@ export default function RegisterAssetScreen() {
   const [building, setBuilding] = useState('');
   const [floor,    setFloor]    = useState('');
   const [room,     setRoom]     = useState('');
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [locationBuildings, setLocationBuildings] = useState<Array<{ id: number; buildingName: string }>>([]);
+  const [locationFloors, setLocationFloors] = useState<Array<{ id: number; floorName: string }>>([]);
+  const [locationRooms, setLocationRooms] = useState<Array<{ id: number; roomName: string }>>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
+  const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null);
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [showFloorPicker, setShowFloorPicker] = useState(false);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [hcImages,   setHcImages]   = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!qrUid) return;
+    fetchPreQrByUid(String(qrUid))
+      .then((data) => {
+        if (data?.companyId) setCompanyId(Number(data.companyId));
+      })
+      .catch(() => {});
+  }, [qrUid]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setLocationBuildings([]);
+      return;
+    }
+    fetchLocationBuildingsByCompany(companyId)
+      .then((rows) => setLocationBuildings(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationBuildings([]));
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!selectedBuildingId) {
+      setLocationFloors([]);
+      setLocationRooms([]);
+      setSelectedFloorId(null);
+      setFloor('');
+      setRoom('');
+      return;
+    }
+    fetchLocationFloorsByBuilding(selectedBuildingId)
+      .then((rows) => setLocationFloors(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationFloors([]));
+  }, [selectedBuildingId]);
+
+  useEffect(() => {
+    if (!selectedFloorId) {
+      setLocationRooms([]);
+      setRoom('');
+      return;
+    }
+    fetchLocationRoomsByFloor(selectedFloorId)
+      .then((rows) => setLocationRooms(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationRooms([]));
+  }, [selectedFloorId]);
 
   const inp = (extra?: object) => ([sStyles.input, {
     backgroundColor: theme.surface,
@@ -595,20 +693,40 @@ export default function RegisterAssetScreen() {
           <SectionHeader title="Location" />
 
           <Field label="Building / Block">
-            <TextInput style={inp()} placeholder="e.g. OPD Block, Block B…" placeholderTextColor={theme.textMuted}
-              value={building} onChangeText={setBuilding} />
+            <TouchableOpacity
+              style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowBuildingPicker(true)}>
+              <Text style={{ color: building ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                {building || '— Select Building —'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
           </Field>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Field label="Floor">
-                <TextInput style={inp()} placeholder="e.g. Ground, 1st…" placeholderTextColor={theme.textMuted}
-                  value={floor} onChangeText={setFloor} />
+                <TouchableOpacity
+                  style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: selectedBuildingId ? 1 : 0.5 }]}
+                  disabled={!selectedBuildingId}
+                  onPress={() => setShowFloorPicker(true)}>
+                  <Text style={{ color: floor ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {floor || '— Select Floor —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
               </Field>
             </View>
             <View style={{ flex: 1 }}>
               <Field label="Room / Area">
-                <TextInput style={inp()} placeholder="e.g. ICU, Ward 3…" placeholderTextColor={theme.textMuted}
-                  value={room} onChangeText={setRoom} />
+                <TouchableOpacity
+                  style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: selectedFloorId ? 1 : 0.5 }]}
+                  disabled={!selectedFloorId}
+                  onPress={() => setShowRoomPicker(true)}>
+                  <Text style={{ color: room ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {room || '— Select Room —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
               </Field>
             </View>
           </View>
@@ -651,6 +769,43 @@ export default function RegisterAssetScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <PickerModal
+        visible={showBuildingPicker}
+        title="Select Building"
+        items={locationBuildings.map((b) => ({ id: b.id, label: b.buildingName }))}
+        onSelect={(id) => {
+          const selected = locationBuildings.find((b) => b.id === id);
+          setSelectedBuildingId(id);
+          setSelectedFloorId(null);
+          setBuilding(selected?.buildingName || '');
+          setFloor('');
+          setRoom('');
+        }}
+        onClose={() => setShowBuildingPicker(false)}
+      />
+      <PickerModal
+        visible={showFloorPicker}
+        title="Select Floor"
+        items={locationFloors.map((f) => ({ id: f.id, label: f.floorName }))}
+        onSelect={(id) => {
+          const selected = locationFloors.find((f) => f.id === id);
+          setSelectedFloorId(id);
+          setFloor(selected?.floorName || '');
+          setRoom('');
+        }}
+        onClose={() => setShowFloorPicker(false)}
+      />
+      <PickerModal
+        visible={showRoomPicker}
+        title="Select Room"
+        items={locationRooms.map((r) => ({ id: r.id, label: r.roomName }))}
+        onSelect={(id) => {
+          const selected = locationRooms.find((r) => r.id === id);
+          setRoom(selected?.roomName || '');
+        }}
+        onClose={() => setShowRoomPicker(false)}
+      />
     </SafeAreaView>
   );
 }

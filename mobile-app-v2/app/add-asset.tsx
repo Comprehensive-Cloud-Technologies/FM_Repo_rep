@@ -16,6 +16,9 @@ import { useTheme, Spacing, Radius } from '../utils/theme';
 import {
   fetchAllCompaniesForEngineer,
   fetchDepartmentsByCompany,
+  fetchLocationBuildingsByCompany,
+  fetchLocationFloorsByBuilding,
+  fetchLocationRoomsByFloor,
   addAssetManually,
   uploadQueryImage,
   getToken,
@@ -351,6 +354,9 @@ export default function AddAssetScreen() {
   const [companySearch, setCompanySearch]         = useState('');
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
   const [showDeptPicker, setShowDeptPicker]       = useState(false);
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [showFloorPicker, setShowFloorPicker] = useState(false);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [loadingCompanies, setLoadingCompanies]   = useState(true);
   const [loadingDepts, setLoadingDepts]           = useState(false);
 
@@ -383,6 +389,11 @@ export default function AddAssetScreen() {
   const [building, setBuilding] = useState('');
   const [floor,    setFloor]    = useState('');
   const [room,     setRoom]     = useState('');
+  const [locationBuildings, setLocationBuildings] = useState<Array<{ id: number; buildingName: string }>>([]);
+  const [locationFloors, setLocationFloors] = useState<Array<{ id: number; floorName: string }>>([]);
+  const [locationRooms, setLocationRooms] = useState<Array<{ id: number; roomName: string }>>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
+  const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null);
 
   const [images,     setImages]     = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -406,6 +417,48 @@ export default function AddAssetScreen() {
       .catch(() => {})
       .finally(() => setLoadingDepts(false));
   }, [selectedCompanyId]);
+
+  useEffect(() => {
+    if (!selectedCompanyId) {
+      setLocationBuildings([]);
+      setLocationFloors([]);
+      setLocationRooms([]);
+      setSelectedBuildingId(null);
+      setSelectedFloorId(null);
+      setBuilding('');
+      setFloor('');
+      setRoom('');
+      return;
+    }
+    fetchLocationBuildingsByCompany(selectedCompanyId)
+      .then((rows) => setLocationBuildings(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationBuildings([]));
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    if (!selectedBuildingId) {
+      setLocationFloors([]);
+      setLocationRooms([]);
+      setSelectedFloorId(null);
+      setFloor('');
+      setRoom('');
+      return;
+    }
+    fetchLocationFloorsByBuilding(selectedBuildingId)
+      .then((rows) => setLocationFloors(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationFloors([]));
+  }, [selectedBuildingId]);
+
+  useEffect(() => {
+    if (!selectedFloorId) {
+      setLocationRooms([]);
+      setRoom('');
+      return;
+    }
+    fetchLocationRoomsByFloor(selectedFloorId)
+      .then((rows) => setLocationRooms(Array.isArray(rows) ? rows : []))
+      .catch(() => setLocationRooms([]));
+  }, [selectedFloorId]);
 
   const selectedCompany    = companies.find(c => c.id === selectedCompanyId);
   const selectedDept       = departments.find(d => d.id === selectedDeptId);
@@ -700,20 +753,41 @@ export default function AddAssetScreen() {
             </TouchableOpacity>
           </Field>
           <Field label="Building">
-            <TextInput style={inp()} placeholder="e.g. Block A" placeholderTextColor={theme.textMuted}
-              value={building} onChangeText={setBuilding} />
+            <TouchableOpacity
+              style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: selectedCompanyId ? 1 : 0.5 }]}
+              disabled={!selectedCompanyId}
+              onPress={() => setShowBuildingPicker(true)}>
+              <Text style={{ color: building ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                {building || '— Select Building —'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
           </Field>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Field label="Floor">
-                <TextInput style={inp()} placeholder="e.g. 2nd Floor" placeholderTextColor={theme.textMuted}
-                  value={floor} onChangeText={setFloor} />
+                <TouchableOpacity
+                  style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: selectedBuildingId ? 1 : 0.5 }]}
+                  disabled={!selectedBuildingId}
+                  onPress={() => setShowFloorPicker(true)}>
+                  <Text style={{ color: floor ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {floor || '— Select Floor —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
               </Field>
             </View>
             <View style={{ flex: 1 }}>
               <Field label="Room / Area">
-                <TextInput style={inp()} placeholder="e.g. Radiology" placeholderTextColor={theme.textMuted}
-                  value={room} onChangeText={setRoom} />
+                <TouchableOpacity
+                  style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: selectedFloorId ? 1 : 0.5 }]}
+                  disabled={!selectedFloorId}
+                  onPress={() => setShowRoomPicker(true)}>
+                  <Text style={{ color: room ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {room || '— Select Room —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
               </Field>
             </View>
           </View>
@@ -772,6 +846,42 @@ export default function AddAssetScreen() {
         items={departments.map(d => ({ id: d.id, label: d.name }))}
         onSelect={(id) => setSelectedDeptId(id)}
         onClose={() => setShowDeptPicker(false)}
+      />
+      <PickerModal
+        visible={showBuildingPicker}
+        title="Select Building"
+        items={locationBuildings.map((b) => ({ id: b.id, label: b.buildingName }))}
+        onSelect={(id) => {
+          const selected = locationBuildings.find((b) => b.id === id);
+          setSelectedBuildingId(id);
+          setSelectedFloorId(null);
+          setBuilding(selected?.buildingName || '');
+          setFloor('');
+          setRoom('');
+        }}
+        onClose={() => setShowBuildingPicker(false)}
+      />
+      <PickerModal
+        visible={showFloorPicker}
+        title="Select Floor"
+        items={locationFloors.map((f) => ({ id: f.id, label: f.floorName }))}
+        onSelect={(id) => {
+          const selected = locationFloors.find((f) => f.id === id);
+          setSelectedFloorId(id);
+          setFloor(selected?.floorName || '');
+          setRoom('');
+        }}
+        onClose={() => setShowFloorPicker(false)}
+      />
+      <PickerModal
+        visible={showRoomPicker}
+        title="Select Room"
+        items={locationRooms.map((r) => ({ id: r.id, label: r.roomName }))}
+        onSelect={(id) => {
+          const selected = locationRooms.find((r) => r.id === id);
+          setRoom(selected?.roomName || '');
+        }}
+        onClose={() => setShowRoomPicker(false)}
       />
     </SafeAreaView>
   );

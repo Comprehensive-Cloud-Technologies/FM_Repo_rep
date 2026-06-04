@@ -607,6 +607,53 @@ export default function AssetDashboard({ token, companyId, assetList = [], onVie
             ].map((s) => <SummaryCard key={s.label} {...s} />)}
           </div>
 
+          {/* Asset Status Breakdown (computed from assetList) */}
+          {assetList.length > 0 && (() => {
+            const STATUS_MAP = {
+              Active:      { label: "Active",      bg: "#f0fdf4", color: "#16a34a" },
+              Verified:    { label: "Verified",    bg: "#dbeafe", color: "#1d4ed8" },
+              Inactive:    { label: "Inactive",    bg: "#f8fafc", color: "#94a3b8" },
+              WIP:         { label: "WIP",         bg: "#fef9c3", color: "#92400e" },
+              Not_Working: { label: "Not Working", bg: "#fef2f2", color: "#dc2626" },
+              Critical:    { label: "Critical",    bg: "#fce7f3", color: "#9d174d" },
+              RBER:        { label: "RBER",        bg: "#fff7ed", color: "#ea580c" },
+              Condemned:   { label: "Condemned",   bg: "#f5f3ff", color: "#7c3aed" },
+            };
+            const counts = {};
+            assetList.forEach(a => {
+              const meta = a.metadata || {};
+              const ws   = a.workingStatus || a.working_status || meta.workingStatus || "Working";
+              const crit = a.criticality   || meta.criticality || "Non_Critical";
+              const st   = a.status || "Active";
+              const key  = st === "Inactive"         ? "Inactive"
+                         : st === "Verified"         ? "Verified"
+                         : ws  === "Condemned"       ? "Condemned"
+                         : meta.rber                 ? "RBER"
+                         : ws  === "Not_Working"     ? "Not_Working"
+                         : ws  === "WIP"             ? "WIP"
+                         : crit === "Critical"       ? "Critical"
+                         : "Active";
+              counts[key] = (counts[key] || 0) + 1;
+            });
+            const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            return (
+              <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a", marginBottom: "14px" }}>Asset Status Breakdown</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                  {entries.map(([key, count]) => {
+                    const s = STATUS_MAP[key] || { label: key, bg: "#f1f5f9", color: "#475569" };
+                    return (
+                      <div key={key} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 14px", background: s.bg, borderRadius: "10px", border: `1px solid ${s.color}30` }}>
+                        <span style={{ fontWeight: 800, fontSize: "18px", color: s.color }}>{count}</span>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: s.color }}>{s.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Distribution charts row */}
           <div className="ad-grid-3">
             {/* By type */}
