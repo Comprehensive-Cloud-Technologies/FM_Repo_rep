@@ -50,6 +50,7 @@ const router = Router();
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN assigned_note TEXT NULL`);
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN expected_completion_at DATETIME NULL`);
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN escalation_level INT NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE work_orders MODIFY COLUMN status ENUM('open','assigned','in_progress','on_hold','completed','closed','escalated') NOT NULL DEFAULT 'open'`);
 })();
 
 router.use(requireAuth);
