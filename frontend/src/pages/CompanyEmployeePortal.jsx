@@ -4516,9 +4516,9 @@ export default function CompanyEmployeePortal() {
     if (isEdit) setAssets(p => p.map(a => a.id === norm.id ? norm : a));
     else setAssets(p => [norm, ...p]);
     setShowAssetModal(false); setEditAsset(null);
-    // Auto-generate and show barcode for new healthcare asset registrations
+    // Auto-open QR card (not barcode image) for new healthcare asset registrations
     if (!isEdit && (norm.assetType === "healthcare" || companySectors.includes("healthcare"))) {
-      handleShowAssetQR(norm);
+      setAssetViewQrModal(norm);
     }
   };
   const handleDeleteAsset = async (id) => {
