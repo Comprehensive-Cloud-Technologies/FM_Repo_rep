@@ -56,14 +56,14 @@ jobs:
       # ── 7. Write .env pointing to EC2 backend ────────────────────────────────
       - name: Set EC2 API URL
         working-directory: mobile-app-v2
-        run: echo "EXPO_PUBLIC_API_URL=http://13.206.99.117" > .env
+        run: echo "EXPO_PUBLIC_API_URL=https://htm.catalystservices.eco" > .env
 
       # ── 8. Generate native Android project via Expo Prebuild ─────────────────
       - name: Expo Prebuild (generate Android project)
         working-directory: mobile-app-v2
         run: npx expo prebuild --platform android --clean --no-install
         env:
-          EXPO_PUBLIC_API_URL: http://13.206.99.117
+          EXPO_PUBLIC_API_URL: https://htm.catalystservices.eco
 
       # ── 9. Build Debug APK (no signing needed) ────────────────────────────────
       - name: Build APK
