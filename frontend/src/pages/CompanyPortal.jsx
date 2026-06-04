@@ -67,6 +67,7 @@ import {
   deleteAsset,
   bulkDeleteAssets,
   bulkVerifyAssets,
+  verifyAsset,
 
 
 
@@ -3167,7 +3168,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
   const [loading, setLoading] = useState(false);
   const [qrFilter, setQrFilter] = useState("all");
   const [qrSearch, setQrSearch] = useState("");
-  const [generateCount, setGenerateCount] = useState(10);
+  const [generateCount, setGenerateCount] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [msg, setMsg] = useState("");
@@ -3203,6 +3204,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
 
   const handleGenerate = async () => {
     if (!selectedCompanyId) return setMsg("Select a company first");
+    if (!generateCount || generateCount < 1) return setMsg("Enter a QR count greater than 0");
     setGenerating(true);
     try {
       const newCodes = await generateAdminQrCodes(token, selectedCompanyId, generateCount);
@@ -3252,7 +3254,10 @@ function AdminQrCodesSection({ token, companies = [] }) {
           <option value="">-- Select Company --</option>
           {companies.map(co => <option key={co.id} value={co.id}>{co.companyName || co.name}</option>)}
         </select>
-        <input type="number" min={1} max={200} value={generateCount} onChange={e => setGenerateCount(Number(e.target.value) || 1)} style={{ width: 80, padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        <input type="number" min={0} value={generateCount} onChange={e => {
+          const raw = Number(e.target.value);
+          setGenerateCount(Number.isFinite(raw) && raw >= 0 ? raw : 0);
+        }} style={{ width: 80, padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
         <button onClick={handleGenerate} disabled={generating || !selectedCompanyId} style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
           {generating ? "Generating..." : "Generate QR Codes"}
         </button>
@@ -11196,7 +11201,7 @@ const CompanyPortal = () => {
 
   const handleInlineAssetStatus = async (assetId, changes) => {
     try {
-      const { status, workingStatus, criticality, rber } = changes;
+      const { status, workingStatus, criticality, rber, verified } = changes;
       const existing = assets.find(a => a.id === assetId);
       const payload = {};
       if (status) payload.status = status;
@@ -11206,10 +11211,14 @@ const CompanyPortal = () => {
         ...(criticality  !== undefined ? { criticality  } : {}),
         ...(rber         !== undefined ? { rber         } : {}),
       };
+      if (verified !== undefined) {
+        await verifyAsset(token, assetId, verified ? 1 : 0);
+      }
       await updateAsset(token, assetId, payload);
       setAssets(p => p.map(a => a.id !== assetId ? a : {
         ...a,
         ...(status ? { status } : {}),
+        ...(verified !== undefined ? { verified: verified ? 1 : 0 } : {}),
         metadata: {
           ...(a.metadata || {}),
           ...(workingStatus !== undefined ? { workingStatus } : {}),
@@ -11217,7 +11226,9 @@ const CompanyPortal = () => {
           ...(rber         !== undefined ? { rber         } : {}),
         },
       }));
-    } catch (_err) { /* non-critical */ }
+    } catch (err) {
+      alert(err.message || "Failed to update asset status");
+    }
   };
   const handleDeleteAllAssets = async () => {
 
@@ -19997,7 +20008,7 @@ const CompanyPortal = () => {
                           const crit = a.criticality || m.criticality || "Non_Critical";
                           const st   = a.status || "Active";
                           const combined = st === "Inactive" ? "Inactive"
-                            : st === "Verified" ? "Verified"
+                            : ((Number(a.verified) === 1) || st === "Verified") ? "Verified"
                             : ws === "Condemned" ? "Condemned"
                             : m.rber ? "RBER"
                             : ws === "Not_Working" ? "Not_Working"
@@ -20044,14 +20055,14 @@ const CompanyPortal = () => {
                                   value={combined}
                                   onChange={e => {
                                     const v = e.target.value;
-                                    if (v === "Inactive")         handleInlineAssetStatus(a.id, { status: "Inactive" });
-                                    else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Verified", workingStatus: "Working" });
-                                    else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active" });
-                                    else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active" });
-                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
-                                    else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", rber: true });
-                                    else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active" });
-                                    else                          handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
+                                    if (v === "Inactive")         handleInlineAssetStatus(a.id, { status: "Inactive", verified: 0, rber: false });
+                                    else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", verified: 1, rber: false });
+                                    else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active", verified: 0, rber: false });
+                                    else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", verified: 0, rber: false });
+                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active", verified: 0, rber: false });
+                                    else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", verified: 0, rber: true });
+                                    else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active", verified: 0, rber: false });
+                                    else                           handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", verified: 0, rber: false });
                                   }}
                                   style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
                                   <option value="Active">Active</option>
@@ -27914,16 +27925,9 @@ const CompanyPortal = () => {
           const handleTileClick = (tileId) => {
             setActiveTile(prev => prev === tileId ? null : tileId);
           };
-          // Navigate from tile to page with smooth animation
+          // Keep tile drill-down on the dashboard instead of navigating away.
           const handleViewAll = (tileId) => {
-            const assetTiles = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
-            if (assetTiles.includes(tileId)) {
-              setNav("assets");
-              setActiveTile(null);
-            } else {
-              setNav("workorders");
-              setActiveTile(null);
-            }
+            setActiveTile(tileId);
           };
 
           // Drill-down data based on active tile

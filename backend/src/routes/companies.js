@@ -100,32 +100,49 @@ router.get("/stats", async (req, res, next) => {
 
     // Asset profile stats
     const assetJoin = companyIdFilter
-      ? "FROM assets a JOIN companies c ON c.id = a.company_id WHERE c.user_id = ? AND c.id = ?"
-      : "FROM assets a JOIN companies c ON c.id = a.company_id WHERE c.user_id = ?";
+      ? "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ? AND c.id = ?"
+      : "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ?";
     const [[{ totalAssets }]] = await pool.query(
       `SELECT COUNT(*) AS totalAssets ${assetJoin}`, compArgs
     );
     const [[{ criticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS criticalAssets ${assetJoin} AND LOWER(a.criticality) = 'critical'`, compArgs
+      `SELECT COUNT(*) AS criticalAssets ${assetJoin}
+       AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) = 'critical'`,
+      compArgs
     );
     const [[{ nonCriticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS nonCriticalAssets ${assetJoin} AND LOWER(a.criticality) IN ('non_critical','non-critical','noncritical')`, compArgs
+      `SELECT COUNT(*) AS nonCriticalAssets ${assetJoin}
+       AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) IN ('non_critical','non-critical','noncritical')`,
+      compArgs
     );
     const [[{ condemnedAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.condemned) = '1'`, compArgs
+      `SELECT COUNT(*) AS condemnedAssets ${assetJoin}
+       AND (
+         LOWER(COALESCE(NULLIF(a.working_status, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.workingStatus')), '')) = 'condemned'
+         OR LOWER(a.status) = 'condemned'
+         OR LOWER(COALESCE(a.condemned, '0')) = '1'
+       )`,
+      compArgs
     ).catch(async () => {
       const [[r]] = await pool.query(`SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.status) = 'condemned'`, compArgs).catch(() => [[{ condemnedAssets: 0 }]]);
       return [[r]];
     });
     const [[{ rberAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.rber) = '1'`, compArgs
+      `SELECT COUNT(*) AS rberAssets ${assetJoin}
+       AND (
+         LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.rber')), 'false')) IN ('1','true','yes')
+         OR LOWER(a.status) = 'rber'
+         OR LOWER(COALESCE(a.rber, '0')) = '1'
+       )`,
+      compArgs
     ).catch(async () => {
       const [[r]] = await pool.query(`SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.status) = 'rber'`, compArgs).catch(() => [[{ rberAssets: 0 }]]);
       return [[r]];
     });
     // Verified assets
     const [[{ verifiedAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS verifiedAssets ${assetJoin} AND a.is_verified = 1`, compArgs
+      `SELECT COUNT(*) AS verifiedAssets ${assetJoin} AND COALESCE(a.is_verified, a.verified, 0) = 1`,
+      compArgs
     ).catch(() => [[{ verifiedAssets: 0 }]]);
 
     // Complaint profile (work orders)
@@ -185,11 +202,17 @@ router.get("/assets", async (req, res, next) => {
     const params = [userId];
     if (companyId) { where += " AND c.id = ?"; params.push(Number(companyId)); }
     if (status) {
-      if (status === "critical")     { where += " AND LOWER(a.criticality) = 'critical'"; }
-      else if (status === "non_critical") { where += " AND LOWER(a.criticality) IN ('non_critical','non-critical','noncritical')"; }
-      else if (status === "condemned") { where += " AND (LOWER(a.condemned) = '1' OR LOWER(a.status) = 'condemned')"; }
-      else if (status === "rber")    { where += " AND (LOWER(a.rber) = '1' OR LOWER(a.status) = 'rber')"; }
-      else if (status === "verified") { where += " AND a.is_verified = 1"; }
+      if (status === "critical") {
+        where += " AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) = 'critical'";
+      } else if (status === "non_critical") {
+        where += " AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) IN ('non_critical','non-critical','noncritical')";
+      } else if (status === "condemned") {
+        where += " AND (LOWER(COALESCE(NULLIF(a.working_status, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.workingStatus')), '')) = 'condemned' OR LOWER(a.status) = 'condemned' OR LOWER(COALESCE(a.condemned, '0')) = '1')";
+      } else if (status === "rber") {
+        where += " AND (LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.rber')), 'false')) IN ('1','true','yes') OR LOWER(a.status) = 'rber' OR LOWER(COALESCE(a.rber, '0')) = '1')";
+      } else if (status === "verified") {
+        where += " AND COALESCE(a.is_verified, a.verified, 0) = 1";
+      }
     }
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",

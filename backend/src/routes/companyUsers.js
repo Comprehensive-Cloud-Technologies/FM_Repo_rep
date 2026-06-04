@@ -544,7 +544,7 @@ router.post("/qr-codes/generate", requireAuth, async (req, res, next) => {
   try {
     const { companyId, count = 1 } = req.body;
     if (!companyId) return res.status(400).json({ message: "companyId required" });
-    const n = Math.min(Math.max(Number(count) || 1, 1), 200);
+    const n = Math.max(Number(count) || 1, 1);
     const created = [];
     for (let i = 0; i < n; i++) {
       const uid = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;

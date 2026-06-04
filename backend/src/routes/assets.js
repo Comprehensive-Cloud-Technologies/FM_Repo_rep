@@ -318,7 +318,7 @@ router.get(
                 a.asset_type      AS assetType,
                 a.building, a.floor, a.room,
                 a.status,
-                a.is_verified     AS verified,
+                COALESCE(a.is_verified, a.verified, 0) AS verified,
                 a.qr_code         AS qrCode,
                 a.department_id   AS departmentId,
                 d.name            AS departmentName,

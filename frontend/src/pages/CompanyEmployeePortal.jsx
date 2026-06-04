@@ -4084,7 +4084,7 @@ export default function CompanyEmployeePortal() {
   const [preQrCodes, setPreQrCodes] = useState([]);
   const [preQrLoading, setPreQrLoading] = useState(false);
   const [preQrGenerating, setPreQrGenerating] = useState(false);
-  const [preQrCount, setPreQrCount] = useState(10);
+  const [preQrCount, setPreQrCount] = useState(0);
   const [preQrLinkModal, setPreQrLinkModal] = useState(null);
   const [viewQrCardHtml, setViewQrCardHtml] = useState(null);
   const [preQrRegisterModal, setPreQrRegisterModal] = useState(null);
@@ -4562,14 +4562,19 @@ export default function CompanyEmployeePortal() {
   const handleHCStatusUpdate = async (assetId, payload) => {
     try {
       const BASE = getApiBaseUrl();
-      await fetch(`${BASE}/api/company-portal/healthcare/assets/${assetId}`, {
+      const res = await fetch(`${BASE}/api/company-portal/healthcare/assets/${assetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update asset status");
+      }
       // Merge all payload fields into local asset state
       setAssets(p => p.map(a => a.id === assetId ? {
         ...a, ...payload,
+        isVerified: payload.isVerified ?? a.isVerified,
         working_status: payload.workingStatus ?? a.working_status,
         workingStatus: payload.workingStatus ?? a.workingStatus,
         metadata: {
@@ -4579,7 +4584,7 @@ export default function CompanyEmployeePortal() {
           ...(payload.rber         !== undefined ? { rber:         payload.rber         } : {}),
         },
       } : a));
-    } catch (err) { /* silently ignore — non-critical */ }
+    } catch (err) { alert(err.message || "Failed to update asset status"); }
   };
 
   const handleResolveQuery = async (queryId) => {
@@ -6104,7 +6109,7 @@ export default function CompanyEmployeePortal() {
                                 const st = a.status || "Active";
                                 // Derive combined display value
                                 const combined = st === "Inactive" ? "Inactive"
-                                  : st === "Verified" ? "Verified"
+                                  : (a.isVerified || st === "Verified") ? "Verified"
                                   : ws === "Condemned" ? "Condemned"
                                   : meta.rber ? "RBER"
                                   : ws === "Not_Working" ? "Not_Working"
@@ -6128,14 +6133,14 @@ export default function CompanyEmployeePortal() {
                                     value={combined}
                                     onChange={e => {
                                       const v = e.target.value;
-                                      if (v === "Inactive")     handleHCStatusUpdate(a.id, { status: "Inactive" });
-                                      else if (v === "Verified")     handleHCStatusUpdate(a.id, { status: "Verified", workingStatus: "Working" });
-                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active" });
-                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active" });
-                                      else if (v === "Critical")    handleHCStatusUpdate(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active" });
-                                      else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", rber: true });
-                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active" });
-                                      else                          handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical" });
+                                      if (v === "Inactive")         handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false, rber: false });
+                                      else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working", criticality: "Non_Critical", rber: false });
+                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false, rber: false });
+                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: false });
+                                      else if (v === "Critical")    handleHCStatusUpdate(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active", isVerified: false, rber: false });
+                                      else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: true });
+                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active", isVerified: false, rber: false });
+                                      else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
                                     <option value="Active">Active</option>
@@ -6747,7 +6752,10 @@ export default function CompanyEmployeePortal() {
                 </div>
                 <div style={{ width: "1px", height: "32px", background: "#e2e8f0" }} />
                 <label style={{ fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>Generate</label>
-                <input type="number" min="1" value={preQrCount} onChange={(e) => setPreQrCount(Math.max(1, Number(e.target.value)))}
+                <input type="number" min="0" value={preQrCount} onChange={(e) => {
+                  const raw = Number(e.target.value);
+                  setPreQrCount(Number.isFinite(raw) && raw >= 0 ? raw : 0);
+                }}
                   style={{ width: "80px", padding: "8px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px" }} />
                 <label style={{ fontSize: "14px", color: "#64748b" }}>QR codes</label>
                 <button onClick={handleGenerate} disabled={preQrGenerating} style={{ padding: "8px 20px", borderRadius: "8px", border: "none", background: "#0ea5e9", color: "#fff", fontWeight: 600, cursor: preQrGenerating ? "not-allowed" : "pointer", opacity: preQrGenerating ? 0.7 : 1 }}>
