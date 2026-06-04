@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { fetchAssetByQR, getStoredUser, getSoftRequestsForAsset } from '../utils/api';
+import { API_BASE, fetchAssetByQR, getStoredUser, getSoftRequestsForAsset } from '../utils/api';
 import type { SoftRequest } from '../utils/api';
 import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
 import Header from '../components/Header';
@@ -542,7 +542,6 @@ export default function AssetDetailsScreen() {
 
         {/* Equipment images (from registration) */}
         {Array.isArray(asset.metadata?.hcImages) && asset.metadata.hcImages.length > 0 && (() => {
-          const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://10.222.32.15:4000');
           return (
             <>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>EQUIPMENT PHOTOS</Text>

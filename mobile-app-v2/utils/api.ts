@@ -16,7 +16,7 @@ import type { RoleCapabilities } from './permissions';
 // ─── Config ───────────────────────────────────────────────────────────────────
 export const API_BASE: string =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
-  'http://13.206.99.117:4000';  // EC2 backend IP
+  'https://htm.catalystservices.eco';
 
 // ─── Error class ──────────────────────────────────────────────────────────────
 export class ApiError extends Error {

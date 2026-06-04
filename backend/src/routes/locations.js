@@ -303,12 +303,28 @@ router.delete("/buildings/:id", async (req, res, next) => {
 // FLOORS
 router.get("/floors", async (req, res, next) => {
   try {
-    const { buildingId } = req.query;
-    if (!buildingId) return res.status(400).json({ message: "buildingId required" });
-    const [rows] = await pool.query(
-      `SELECT f.id, f.building_id AS buildingId, f.floor_code AS floorCode, f.floor_name AS floorName, f.floor_number AS floorNumber, f.status, f.created_at AS createdAt, l.id AS locationId, b.building_name AS buildingName FROM floors f LEFT JOIN buildings b ON b.id = f.building_id LEFT JOIN locations l ON l.location_type = 'Floor' AND l.reference_id = f.id WHERE f.building_id = ? AND f.status != 'Deleted' ORDER BY f.floor_number, f.floor_name`,
-      [buildingId],
-    );
+    const { buildingId, companyId } = req.query;
+    if (!buildingId && !companyId) return res.status(400).json({ message: "buildingId or companyId required" });
+    let q;
+    let p;
+    if (buildingId) {
+      q = `SELECT f.id, f.building_id AS buildingId, f.floor_code AS floorCode, f.floor_name AS floorName, f.floor_number AS floorNumber, f.status, f.created_at AS createdAt, l.id AS locationId, b.building_name AS buildingName
+           FROM floors f
+           LEFT JOIN buildings b ON b.id = f.building_id
+           LEFT JOIN locations l ON l.location_type = 'Floor' AND l.reference_id = f.id
+           WHERE f.building_id = ? AND f.status != 'Deleted'
+           ORDER BY f.floor_number, f.floor_name`;
+      p = [buildingId];
+    } else {
+      q = `SELECT f.id, f.building_id AS buildingId, f.floor_code AS floorCode, f.floor_name AS floorName, f.floor_number AS floorNumber, f.status, f.created_at AS createdAt, l.id AS locationId, b.building_name AS buildingName
+           FROM floors f
+           JOIN buildings b ON b.id = f.building_id
+           LEFT JOIN locations l ON l.location_type = 'Floor' AND l.reference_id = f.id
+           WHERE b.company_id = ? AND f.status != 'Deleted' AND b.status != 'Deleted'
+           ORDER BY b.building_name, f.floor_number, f.floor_name`;
+      p = [companyId];
+    }
+    const [rows] = await pool.query(q, p);
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -359,15 +375,24 @@ router.delete("/floors/:id", async (req, res, next) => {
 // ROOMS (now directly under Floors: Building -> Floor -> Room)
 router.get("/rooms", async (req, res, next) => {
   try {
-    const { floorId, buildingId } = req.query;
-    if (!floorId && !buildingId) return res.status(400).json({ message: "floorId or buildingId required" });
+    const { floorId, buildingId, companyId } = req.query;
+    if (!floorId && !buildingId && !companyId) return res.status(400).json({ message: "floorId, buildingId, or companyId required" });
     let q, p;
     if (floorId) {
       q = `SELECT r.id, r.floor_id AS floorId, r.room_code AS roomCode, r.room_name AS roomName, r.room_type AS roomType, r.capacity, r.status, r.created_at AS createdAt, l.id AS locationId, f.floor_name AS floorName, b.building_name AS buildingName FROM rooms r LEFT JOIN floors f ON f.id = r.floor_id LEFT JOIN buildings b ON b.id = f.building_id LEFT JOIN locations l ON l.location_type = 'Room' AND l.reference_id = r.id WHERE r.floor_id = ? AND r.status != 'Deleted' ORDER BY r.room_name`;
       p = [floorId];
-    } else {
+    } else if (buildingId) {
       q = `SELECT r.id, r.floor_id AS floorId, r.room_code AS roomCode, r.room_name AS roomName, r.room_type AS roomType, r.capacity, r.status, r.created_at AS createdAt, l.id AS locationId, f.floor_name AS floorName, b.building_name AS buildingName FROM rooms r LEFT JOIN floors f ON f.id = r.floor_id LEFT JOIN buildings b ON b.id = f.building_id LEFT JOIN locations l ON l.location_type = 'Room' AND l.reference_id = r.id WHERE f.building_id = ? AND r.status != 'Deleted' ORDER BY f.floor_name, r.room_name`;
       p = [buildingId];
+    } else {
+      q = `SELECT r.id, r.floor_id AS floorId, r.room_code AS roomCode, r.room_name AS roomName, r.room_type AS roomType, r.capacity, r.status, r.created_at AS createdAt, l.id AS locationId, f.floor_name AS floorName, b.building_name AS buildingName
+           FROM rooms r
+           JOIN floors f ON f.id = r.floor_id
+           JOIN buildings b ON b.id = f.building_id
+           LEFT JOIN locations l ON l.location_type = 'Room' AND l.reference_id = r.id
+           WHERE b.company_id = ? AND r.status != 'Deleted' AND f.status != 'Deleted' AND b.status != 'Deleted'
+           ORDER BY b.building_name, f.floor_name, r.room_name`;
+      p = [companyId];
     }
     const [rows] = await pool.query(q, p);
     res.json(rows);

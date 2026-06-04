@@ -35,6 +35,9 @@ router.use(requireAuth);
     await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS sectors TEXT DEFAULT NULL`);
   } catch (err) { /* ignore */ }
   try {
+    await pool.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS state_id INT UNSIGNED NULL`);
+  } catch (err) { /* ignore */ }
+  try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role_permissions (
         id            SERIAL PRIMARY KEY,
@@ -52,6 +55,28 @@ const toNullableInt = (value) => {
   if (value === undefined || value === null || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+};
+
+const resolveStateRef = async (stateId, stateText) => {
+  if (stateId !== undefined && stateId !== null && stateId !== "") {
+    const [[byId]] = await pool.query(
+      `SELECT id, state_name AS stateName, state_code AS stateCode
+       FROM states WHERE id = ? LIMIT 1`,
+      [Number(stateId)]
+    );
+    return byId || null;
+  }
+
+  const value = String(stateText || "").trim();
+  if (!value) return null;
+  const [[byText]] = await pool.query(
+    `SELECT id, state_name AS stateName, state_code AS stateCode
+     FROM states
+     WHERE LOWER(state_name) = LOWER(?) OR UPPER(state_code) = UPPER(?)
+     LIMIT 1`,
+    [value, value]
+  );
+  return byText || null;
 };
 
 // Aggregate stats for client portal dashboard
@@ -208,6 +233,8 @@ router.get("/", async (req, res, next) => {
               c.address_line2       AS "addressLine2",
               c.city,
               c.state_name          AS "state",
+              c.state_id            AS "stateId",
+              st.state_code         AS "stateCode",
               c.country,
               c.pincode,
               c.gst_number          AS "gstNumber",
@@ -239,6 +266,7 @@ router.get("/", async (req, res, next) => {
          FROM company_users
          GROUP BY company_id
        ) cu ON cu.company_id = c.id
+       LEFT JOIN states st ON st.id = c.state_id
        WHERE c.user_id = ?
        ORDER BY c.created_at DESC`,
       [req.user.id]
@@ -267,6 +295,7 @@ router.post(
         addressLine2,
         city,
         state,
+        stateId,
         country,
         pincode,
         gstNumber,
@@ -293,7 +322,12 @@ router.post(
       } = req.body;
 
       const safeCompanyName = companyName?.trim() || "Untitled Company";
-      const safeCompanyCode = (companyCode?.trim() || `CO-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`).toUpperCase();
+      const safeCompanyCode = (companyCode?.trim() || "").toUpperCase();
+      if (!safeCompanyCode) return res.status(400).json({ message: "Company code is required" });
+
+      const stateRef = await resolveStateRef(stateId, state);
+      const safeStateId = stateRef?.id ?? null;
+      const safeStateName = stateRef?.stateName ?? (state || null);
       const safePaymentTerms = toNullableInt(paymentTermsDays);
       const safeMaxEmployees = toNullableInt(maxEmployees);
       const safeBillingCycle = billingCycle?.trim() || null;
@@ -305,7 +339,7 @@ router.post(
       const [result] = await pool.execute(
         `INSERT INTO companies (
             company_name, company_code, description,
-            address_line1, address_line2, city, state_name, country, pincode,
+            address_line1, address_line2, city, state_name, state_id, country, pincode,
             gst_number, pan_number, cin_number,
             contract_start_date, contract_end_date, billing_cycle,
             payment_terms_days, max_employees,
@@ -313,11 +347,11 @@ router.post(
             enabled_modules, sector, entity_type, facility_type,
             contact_person_name, contact_person_phone, contact_email,
             sectors, status, user_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id` ,
         [
           safeCompanyName, safeCompanyCode, description,
-          addressLine1, addressLine2, city, state, country, pincode,
+          addressLine1, addressLine2, city, safeStateName, safeStateId, country, pincode,
           gstNumber, panNumber, cinNumber,
           safeContractStart, safeContractEnd, safeBillingCycle,
           safePaymentTerms, safeMaxEmployees,
@@ -333,7 +367,7 @@ router.post(
         companyName: safeCompanyName,
         companyCode: safeCompanyCode,
         description,
-        addressLine1, addressLine2, city, state, country, pincode,
+        addressLine1, addressLine2, city, state: safeStateName, stateId: safeStateId, stateCode: stateRef?.stateCode || null, country, pincode,
         gstNumber, panNumber, cinNumber,
         contractStartDate, contractEndDate, billingCycle, paymentTermsDays, maxEmployees,
         qsrModule: !!qsrModule, premealModule: !!premealModule,
@@ -365,7 +399,7 @@ router.put(
       const { id } = req.params;
       const {
         companyName, companyCode, description,
-        addressLine1, addressLine2, city, state, country, pincode,
+        addressLine1, addressLine2, city, state, stateId, country, pincode,
         gstNumber, panNumber, cinNumber,
         contractStartDate, contractEndDate, billingCycle,
         paymentTermsDays, maxEmployees,
@@ -378,13 +412,18 @@ router.put(
 
       const safeCompanyName = companyName?.trim() || "Untitled Company";
       const safeCompanyCode = (companyCode?.trim() || "").toUpperCase();
+  if (!safeCompanyCode) return res.status(400).json({ message: "Company code is required" });
+
+  const stateRef = await resolveStateRef(stateId, state);
+  const safeStateId = stateRef?.id ?? null;
+  const safeStateName = stateRef?.stateName ?? (state || null);
       const safeEnabledModules = enabledModules !== undefined ? JSON.stringify(enabledModules) : undefined;
       const safeSectors = Array.isArray(sectors) && sectors.length > 0 ? JSON.stringify(sectors) : null;
 
       const [result] = await pool.execute(
         `UPDATE companies SET
             company_name = ?, company_code = ?, description = ?,
-            address_line1 = ?, address_line2 = ?, city = ?, state_name = ?, country = ?, pincode = ?,
+          address_line1 = ?, address_line2 = ?, city = ?, state_name = ?, state_id = ?, country = ?, pincode = ?,
             gst_number = ?, pan_number = ?, cin_number = ?,
             contract_start_date = ?, contract_end_date = ?, billing_cycle = ?,
             payment_terms_days = ?, max_employees = ?,
@@ -397,7 +436,7 @@ router.put(
          WHERE id = ? AND user_id = ?`,
         [
           safeCompanyName, safeCompanyCode, description,
-          addressLine1, addressLine2, city, state, country, pincode,
+          addressLine1, addressLine2, city, safeStateName, safeStateId, country, pincode,
           gstNumber, panNumber, cinNumber,
           contractStartDate || null, contractEndDate || null, billingCycle || null,
           toNullableInt(paymentTermsDays), toNullableInt(maxEmployees),
@@ -417,7 +456,7 @@ router.put(
 
       return res.json({
         id: Number(id), companyName: safeCompanyName, companyCode: safeCompanyCode,
-        description, addressLine1, addressLine2, city, state, country, pincode,
+        description, addressLine1, addressLine2, city, state: safeStateName, stateId: safeStateId, stateCode: stateRef?.stateCode || null, country, pincode,
         gstNumber, panNumber, cinNumber, contractStartDate, contractEndDate, billingCycle,
         paymentTermsDays, maxEmployees,
         qsrModule: !!qsrModule, premealModule: !!premealModule,

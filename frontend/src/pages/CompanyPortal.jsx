@@ -2671,14 +2671,38 @@ function LocInp({ label, name, value, onChange, placeholder, required, type = "t
   );
 }
 function LocSel({ label, name, value, onChange, options, required, placeholder }) {
+  const listId = `loc-sel-${name}`;
+  const selected = (options || []).find((o) => String(o.value) === String(value ?? ""));
+  const [search, setSearch] = useState(selected?.label || "");
+
+  useEffect(() => {
+    const next = (options || []).find((o) => String(o.value) === String(value ?? ""));
+    setSearch(next?.label || "");
+  }, [value, options]);
+
+  const handleSearch = (e) => {
+    const typed = e.target.value;
+    setSearch(typed);
+    const match = (options || []).find((o) => o.label === typed);
+    const nextValue = match ? String(match.value) : "";
+    onChange?.({ target: { name, value: nextValue } });
+  };
+
   return (
     <div style={{ marginBottom: "14px" }}>
       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
-      <select name={name} value={value ?? ""} onChange={onChange} required={required}
-        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}>
-        <option value="">{placeholder || `Select ${label}`}</option>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <input
+        list={listId}
+        name={`${name}Label`}
+        value={search}
+        onChange={handleSearch}
+        required={required}
+        placeholder={placeholder || `Search ${label}`}
+        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}
+      />
+      <datalist id={listId}>
+        {(options || []).map((o) => <option key={o.value} value={o.label} />)}
+      </datalist>
     </div>
   );
 }
@@ -2711,7 +2735,7 @@ function LocTreeNode({ node, depth = 0 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
-  const [tab, setTab] = useState("tree"); // tree | buildings | floors | rooms
+  const [tab, setTab] = useState("buildings"); // buildings | floors | rooms
   const [msg, setMsg] = useState({ text: "", type: "" });
 
   // master data
@@ -2762,13 +2786,14 @@ function AdminLocationsSection({ token, companies = [] }) {
   };
 
   const loadFloors = async (bId) => {
-    if (!bId) { setFloors([]); return; }
-    try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); }
+    if (!bId && !companyId) { setFloors([]); return; }
+    const q = bId ? `buildingId=${bId}` : `companyId=${companyId}`;
+    try { const r = await fetch(`${API}/floors?${q}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); }
   };
 
   const loadRooms = async ({ floorId, buildingId } = {}) => {
-    if (!floorId && !buildingId) { setRooms([]); return; }
-    const q = floorId ? `floorId=${floorId}` : `buildingId=${buildingId}`;
+    if (!floorId && !buildingId && !companyId) { setRooms([]); return; }
+    const q = floorId ? `floorId=${floorId}` : (buildingId ? `buildingId=${buildingId}` : `companyId=${companyId}`);
     try { const r = await fetch(`${API}/rooms?${q}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
   };
 
@@ -2782,7 +2807,6 @@ function AdminLocationsSection({ token, companies = [] }) {
   // When company changes
   useEffect(() => {
     if (!companyId) { setBuildings([]); setFloors([]); setRooms([]); setTree([]); return; }
-    loadTree(companyId);
     loadBuildings(companyId);
     setFilterBld(""); setFilterFlr("");
     setFloors([]); setRooms([]);
@@ -2837,9 +2861,9 @@ function AdminLocationsSection({ token, companies = [] }) {
 
       flash(`${type.charAt(0).toUpperCase() + type.slice(1)} ${mode === "edit" ? "updated" : "created"} successfully!`);
       closeModal();
-      if (type === "building") { loadBuildings(companyId); loadTree(companyId); }
-      if (type === "floor")    { loadFloors(form.buildingId || filterBld); loadTree(companyId); }
-      if (type === "room")     { loadRooms({ floorId: form.floorId || filterFlr, buildingId: form.buildingId || filterBld }); loadTree(companyId); }
+      if (type === "building") { loadBuildings(companyId); }
+      if (type === "floor")    { loadFloors(form.buildingId || filterBld); }
+      if (type === "room")     { loadRooms({ floorId: form.floorId || filterFlr, buildingId: form.buildingId || filterBld }); }
     } finally { setSaving(false); }
   };
 
@@ -2851,7 +2875,6 @@ function AdminLocationsSection({ token, companies = [] }) {
       if (type === "building") loadBuildings(companyId);
       if (type === "floor")    loadFloors(filterBld);
       if (type === "room")     loadRooms({ floorId: filterFlr, buildingId: filterBld });
-      loadTree(companyId);
     } else {
       const d = await r.json();
       flash(d.message || "Delete failed", "error");
@@ -2892,7 +2915,6 @@ function AdminLocationsSection({ token, companies = [] }) {
       if (!r.ok) throw new Error(d?.message || "Import failed");
       flash(`Imported locations: Buildings ${d.createdBuildings || 0}, Floors ${d.createdFloors || 0}, Rooms ${d.createdRooms || 0}${d.skipped ? `, Skipped ${d.skipped}` : ""}`);
       loadBuildings(companyId);
-      loadTree(companyId);
       if (filterBld) loadFloors(filterBld);
       if (filterFlr || filterBld) loadRooms({ floorId: filterFlr, buildingId: filterBld });
     } catch (err) {
@@ -2979,7 +3001,6 @@ function AdminLocationsSection({ token, companies = [] }) {
           {/* Tab bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
               <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
               <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
               <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
@@ -2999,29 +3020,6 @@ function AdminLocationsSection({ token, companies = [] }) {
               />
             </div>
           </div>
-
-          {/* ── Tree View ─────────────────────────────── */}
-          {tab === "tree" && (
-            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Location Hierarchy</h2>
-                <button onClick={() => loadTree(companyId)} style={{ padding: "6px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>⟳ Refresh</button>
-              </div>
-              {loading ? <p style={{ color: "#94a3b8", textAlign: "center" }}>Loading…</p>
-                : tree.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "28px", marginBottom: "8px" }}>🏗️</div>
-                    <div style={{ fontWeight: 600, marginBottom: "4px" }}>No locations yet</div>
-                    <div style={{ fontSize: "13px" }}>Start by adding a Building, then Floors, Departments, and Rooms.</div>
-                  </div>
-                ) : (
-                  <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-                    {tree.map((b, i) => <LocTreeNode key={i} node={b} />)}
-                  </div>
-                )
-              }
-            </div>
-          )}
 
           {/* ── Buildings ─────────────────────────────── */}
           {tab === "buildings" && (
@@ -3046,14 +3044,13 @@ function AdminLocationsSection({ token, companies = [] }) {
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                   <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
                     style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Building</option>
+                    <option value="">All Buildings</option>
                     {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                   </select>
                   <LocBtn onClick={() => openModal("floor")}>+ Add Floor</LocBtn>
                 </div>
               </div>
-              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view its floors.</p>
-                : renderTable(floors, "floor", [
+              {renderTable(floors, "floor", [
                   { key: "floorName", label: "Floor Name" },
                   { key: "floorNumber", label: "Floor No." },
                   { key: "buildingName", label: "Building" },
@@ -3072,14 +3069,13 @@ function AdminLocationsSection({ token, companies = [] }) {
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                   <select value={filterBld} onChange={e => setFilterBld(e.target.value)}
                     style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151" }}>
-                    <option value="">Select Building</option>
+                    <option value="">All Buildings</option>
                     {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                   </select>
                   <LocBtn onClick={() => openModal("room")}>+ Add Room</LocBtn>
                 </div>
               </div>
-              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view rooms.</p>
-                : renderTable(rooms, "room", [
+              {renderTable(rooms, "room", [
                   { key: "roomName", label: "Room Name" },
                   { key: "roomType", label: "Type" },
                   { key: "capacity", label: "Capacity" },
@@ -4252,7 +4248,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 function AdminEmployeesSection({ token, companies = [], initialCompanyId = null, onCompanySelected }) {
   const allCos = Array.isArray(companies) ? companies : [];
-  const [selCo, setSelCo]     = useState(initialCompanyId || allCos[0]?.id || null);
+  const [selCo, setSelCo]     = useState(initialCompanyId || null);
   const [employees, setEmp]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch]   = useState("");
@@ -4268,10 +4264,6 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   useEffect(() => {
     if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
   }, [initialCompanyId]);
-
-  useEffect(() => {
-    if (!selCo && allCos.length > 0) setSelCo(allCos[0].id);
-  }, [allCos, selCo]);
 
   const load = useCallback(async (cid) => {
     setLoading(true);
@@ -8612,6 +8604,11 @@ const CompanyPortal = () => {
 
 
     try {
+
+      if (!String(companyForm.companyCode || "").trim()) {
+        setCompanyError("Company code is required");
+        return;
+      }
 
 
 
@@ -26811,7 +26808,7 @@ const CompanyPortal = () => {
 
 
 
-                    <input name="companyCode" value={companyForm.companyCode} onChange={handleCompanyChange} className="form-input" placeholder="e.g. ACME-001" style={{ width: "100%", boxSizing: "border-box" }} />
+                    <input name="companyCode" value={companyForm.companyCode} onChange={handleCompanyChange} className="form-input" placeholder="e.g. ACME-001" required style={{ width: "100%", boxSizing: "border-box" }} />
 
 
 

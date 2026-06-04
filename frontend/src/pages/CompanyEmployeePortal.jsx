@@ -3551,17 +3551,40 @@ function EmpLocInp({ label, name, value, onChange, placeholder = "", required = 
   );
 }
 function EmpLocSel({ label, name, value, onChange, options = [], required = false, placeholder = "Select…" }) {
+  const listId = `emp-loc-sel-${name}`;
+  const selected = options.find((o) => String(o.value) === String(value ?? ""));
+  const [search, setSearch] = useState(selected?.label || "");
+
+  useEffect(() => {
+    const next = options.find((o) => String(o.value) === String(value ?? ""));
+    setSearch(next?.label || "");
+  }, [value, options]);
+
+  const handleSearch = (e) => {
+    const typed = e.target.value;
+    setSearch(typed);
+    const match = options.find((o) => o.label === typed);
+    const nextValue = match ? String(match.value) : "";
+    onChange?.({ target: { name, value: nextValue } });
+  };
+
   return (
     <div style={{ marginBottom: "12px" }}>
       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
         {label}{required && <span style={{ color: "#ef4444" }}> *</span>}
       </label>
-      <select name={name} value={value} onChange={onChange}
-        style={{ width: "100%", padding: "8px 12px", borderRadius: "7px", border: "1px solid #e2e8f0",
-          fontSize: "13px", outline: "none", boxSizing: "border-box", background: "#fff" }}>
-        <option value="">{placeholder}</option>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <input
+        list={listId}
+        name={`${name}Label`}
+        value={search}
+        onChange={handleSearch}
+        required={required}
+        placeholder={placeholder}
+        style={{ width: "100%", padding: "8px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box", background: "#fff" }}
+      />
+      <datalist id={listId}>
+        {options.map((o) => <option key={o.value} value={o.label} />)}
+      </datalist>
     </div>
   );
 }
@@ -3600,7 +3623,7 @@ function EmpLocTreeNode({ node }) {
 /* ─── AdminLocationsSection ──────────────────────────────────────── */
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
-  const [tab, setTab] = useState("tree");
+  const [tab, setTab] = useState("buildings");
   const [msg, setMsg] = useState({ text: "", type: "" });
   const [buildings, setBuildings] = useState([]);
   const [floors, setFloors] = useState([]);
@@ -3623,16 +3646,16 @@ function AdminLocationsSection({ token, companies = [] }) {
 
   const loadTree = async (cId) => { if (!cId) return; setLoading(true); try { const r = await fetch(`${API}/hierarchy?companyId=${cId}`, { headers: H }); const d = await r.json(); setTree(Array.isArray(d) ? d : []); } catch { setTree([]); } finally { setLoading(false); } };
   const loadBuildings = async (cId) => { if (!cId) return; try { const r = await fetch(`${API}/buildings?companyId=${cId}`, { headers: H }); const d = await r.json(); setBuildings(Array.isArray(d) ? d : []); } catch { setBuildings([]); } };
-  const loadFloors = async (bId) => { if (!bId) { setFloors([]); return; } try { const r = await fetch(`${API}/floors?buildingId=${bId}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); } };
+  const loadFloors = async (bId) => { if (!bId && !companyId) { setFloors([]); return; } const q = bId ? `buildingId=${bId}` : `companyId=${companyId}`; try { const r = await fetch(`${API}/floors?${q}`, { headers: H }); const d = await r.json(); setFloors(Array.isArray(d) ? d : []); } catch { setFloors([]); } };
   const loadRooms = async ({ floorId, buildingId } = {}) => {
-    if (!floorId && !buildingId) { setRooms([]); return; }
-    const q = floorId ? `floorId=${floorId}` : `buildingId=${buildingId}`;
+    if (!floorId && !buildingId && !companyId) { setRooms([]); return; }
+    const q = floorId ? `floorId=${floorId}` : (buildingId ? `buildingId=${buildingId}` : `companyId=${companyId}`);
     try { const r = await fetch(`${API}/rooms?${q}`, { headers: H }); const d = await r.json(); setRooms(Array.isArray(d) ? d : []); } catch { setRooms([]); }
   };
 
   useEffect(() => {
     if (!companyId) { setBuildings([]); setFloors([]); setRooms([]); setTree([]); return; }
-    loadTree(companyId); loadBuildings(companyId);
+    loadBuildings(companyId);
     setFilterBld(""); setFilterFlr("");
     setFloors([]); setRooms([]);
   }, [companyId]);
@@ -3684,16 +3707,16 @@ function AdminLocationsSection({ token, companies = [] }) {
       if (!r.ok) { flash(d.message || "Error saving", "error"); return; }
       flash(`${type.charAt(0).toUpperCase() + type.slice(1)} ${mode === "edit" ? "updated" : "created"}!`);
       closeModal();
-      if (type === "building") { loadBuildings(companyId); loadTree(companyId); }
-      if (type === "floor") { loadFloors(form.buildingId || filterBld); loadTree(companyId); }
-      if (type === "room") { loadRooms({ floorId: form.floorId || filterFlr, buildingId: form.buildingId || filterBld }); loadTree(companyId); }
+      if (type === "building") { loadBuildings(companyId); }
+      if (type === "floor") { loadFloors(form.buildingId || filterBld); }
+      if (type === "room") { loadRooms({ floorId: form.floorId || filterFlr, buildingId: form.buildingId || filterBld }); }
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (type, id) => {
     if (!window.confirm(`Delete this ${type}?`)) return;
     const r = await fetch(`${API}/${type}s/${id}`, { method: "DELETE", headers: H });
-    if (r.ok) { flash(`${type} deleted`); if (type === "building") loadBuildings(companyId); if (type === "floor") loadFloors(filterBld); if (type === "room") loadRooms({ floorId: filterFlr, buildingId: filterBld }); loadTree(companyId); }
+    if (r.ok) { flash(`${type} deleted`); if (type === "building") loadBuildings(companyId); if (type === "floor") loadFloors(filterBld); if (type === "room") loadRooms({ floorId: filterFlr, buildingId: filterBld }); }
     else { const d = await r.json(); flash(d.message || "Delete failed", "error"); }
   };
 
@@ -3731,7 +3754,6 @@ function AdminLocationsSection({ token, companies = [] }) {
       if (!r.ok) throw new Error(d?.message || "Import failed");
       flash(`Imported locations: Buildings ${d.createdBuildings || 0}, Floors ${d.createdFloors || 0}, Rooms ${d.createdRooms || 0}${d.skipped ? `, Skipped ${d.skipped}` : ""}`);
       loadBuildings(companyId);
-      loadTree(companyId);
       if (filterBld) loadFloors(filterBld);
       if (filterFlr || filterBld) loadRooms({ floorId: filterFlr, buildingId: filterBld });
     } catch (err) {
@@ -3775,7 +3797,6 @@ function AdminLocationsSection({ token, companies = [] }) {
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button style={tabBtn("tree")} onClick={() => setTab("tree")}>🌳 Hierarchy Tree</button>
               <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
               <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
               <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
@@ -3795,17 +3816,6 @@ function AdminLocationsSection({ token, companies = [] }) {
               />
             </div>
           </div>
-          {tab === "tree" && (
-            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Location Hierarchy</h2>
-                <button onClick={() => loadTree(companyId)} style={{ padding: "6px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>⟳ Refresh</button>
-              </div>
-              {loading ? <p style={{ color: "#94a3b8", textAlign: "center" }}>Loading…</p>
-                : tree.length === 0 ? <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}><div style={{ fontSize: "28px", marginBottom: "8px" }}>🏗️</div><div style={{ fontWeight: 600 }}>No locations yet</div></div>
-                : <div style={{ maxHeight: "60vh", overflowY: "auto" }}>{tree.map((b, i) => <EmpLocTreeNode key={i} node={b} />)}</div>}
-            </div>
-          )}
           {tab === "buildings" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -3821,13 +3831,13 @@ function AdminLocationsSection({ token, companies = [] }) {
                 <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Floors</h2>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <select value={filterBld} onChange={e => setFilterBld(e.target.value)} style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff" }}>
-                    <option value="">Select Building</option>
+                    <option value="">All Buildings</option>
                     {buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                   </select>
                   <EmpLocBtn onClick={() => openModal("floor")}>+ Add Floor</EmpLocBtn>
                 </div>
               </div>
-              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view its floors.</p> : renderTable(floors, "floor", [{ key: "floorName", label: "Floor Name" }, { key: "floorNumber", label: "Floor No." }, { key: "buildingName", label: "Building" }, { key: "status", label: "Status" }])}
+              {renderTable(floors, "floor", [{ key: "floorName", label: "Floor Name" }, { key: "floorNumber", label: "Floor No." }, { key: "buildingName", label: "Building" }, { key: "status", label: "Status" }])}
             </div>
           )}
           {tab === "rooms" && (
@@ -3835,11 +3845,11 @@ function AdminLocationsSection({ token, companies = [] }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
                 <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0f172a" }}>Rooms</h2>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)} style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff" }}><option value="">Select Building</option>{buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}</select>
+                  <select value={filterBld} onChange={e => setFilterBld(e.target.value)} style={{ padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff" }}><option value="">All Buildings</option>{buildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}</select>
                   <EmpLocBtn onClick={() => openModal("room")}>+ Add Room</EmpLocBtn>
                 </div>
               </div>
-              {!filterBld ? <p style={{ color: "#94a3b8", textAlign: "center", padding: "32px" }}>Select a building to view rooms.</p> : renderTable(rooms, "room", [{ key: "roomName", label: "Room Name" }, { key: "roomType", label: "Type" }, { key: "capacity", label: "Capacity" }, { key: "floorName", label: "Floor" }, { key: "status", label: "Status" }])}
+              {renderTable(rooms, "room", [{ key: "roomName", label: "Room Name" }, { key: "roomType", label: "Type" }, { key: "capacity", label: "Capacity" }, { key: "floorName", label: "Floor" }, { key: "status", label: "Status" }])}
             </div>
           )}
         </>
