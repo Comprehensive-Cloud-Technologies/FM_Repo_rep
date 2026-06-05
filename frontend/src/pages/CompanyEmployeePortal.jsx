@@ -122,6 +122,61 @@ const Btn = ({ children, onClick, outline, color = "#2563eb", bg, disabled, styl
     {children}
   </button>
 );
+
+/* ─── Role Definitions & Hierarchy ─────────────────────────────── */
+const ROLES = [
+  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
+  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
+  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
+];
+const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
+
+// Default hierarchy for healthcare org
+const DEFAULT_HIERARCHY_CHAIN = [
+  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
+  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
+  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
+];
+
+// Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
+let HIERARCHY_CHAIN  = [...DEFAULT_HIERARCHY_CHAIN];
+let PARENT_ROLE      = Object.fromEntries(HIERARCHY_CHAIN.map((h) => [h.role, h.parentRole]));
+let HIERARCHY_ROLES  = new Set(HIERARCHY_CHAIN.map((h) => h.role));
+
+const lightenHex = (hex) => {
+  // Produce a pale background from any hex color; fallback if parsing fails.
+  try {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    const mix = (c) => Math.round(c + (255 - c) * 0.85);
+    return `#${mix(r).toString(16).padStart(2, "0")}${mix(g).toString(16).padStart(2, "0")}${mix(b).toString(16).padStart(2, "0")}`;
+  } catch {
+    return "#dbeafe";
+  }
+};
+
+const applyCustomRoles = (rolesFromServer) => {
+  const mapped = Array.isArray(rolesFromServer)
+    ? rolesFromServer.map((r) => ({
+        role:       r.roleKey,
+        label:      r.label,
+        parentRole: r.parentRoleKey || null,
+        color:      r.color    || "#2563eb",
+        bg:         r.bgColor  || lightenHex(r.color || "#2563eb"),
+        border:     r.color    || "#bfdbfe",
+      }))
+    : [];
+  HIERARCHY_CHAIN.splice(0, HIERARCHY_CHAIN.length, ...mapped);
+  PARENT_ROLE = Object.fromEntries(HIERARCHY_CHAIN.map((h) => [h.role, h.parentRole]));
+  HIERARCHY_ROLES = new Set(HIERARCHY_CHAIN.map((h) => h.role));
+};
+
 const Badge = ({ val }) => { const r = roleInfo(val); return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: r.bg, color: r.color }}>{r.label}</span>; };
 const Alert = ({ children, type = "error" }) => {
   const s = type === "error" ? { bg: "#fef2f2", col: "#dc2626", border: "#fecaca" } : { bg: "#f0fdf4", col: "#16a34a", border: "#bbf7d0" };
