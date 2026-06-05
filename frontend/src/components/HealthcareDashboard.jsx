@@ -980,9 +980,9 @@ export default function HealthcareDashboard({ token }) {
     { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} },
     { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
-    { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
     { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
     { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
+    { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
   ];
 
   return (

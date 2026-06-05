@@ -619,11 +619,19 @@ router.put(
       // req.body: { admin: { assets: {c,r,u,d}, ... }, supervisor: {...}, ... }
       for (const [role, perms] of Object.entries(req.body)) {
         const permJson = JSON.stringify(perms);
-        await pool.query(
-          `INSERT INTO role_permissions (company_id, role, permissions) VALUES (?, ?, ?)
-           ON CONFLICT (company_id, role) DO UPDATE SET permissions = EXCLUDED.permissions`,
-          [companyId, role, permJson]
+        const [updateResult] = await pool.query(
+          `UPDATE role_permissions
+           SET permissions = ?
+           WHERE company_id = ? AND role = ?`,
+          [permJson, companyId, role]
         );
+        if (!updateResult?.affectedRows) {
+          await pool.query(
+            `INSERT INTO role_permissions (company_id, role, permissions)
+             VALUES (?, ?, ?)`,
+            [companyId, role, permJson]
+          );
+        }
       }
       res.json({ ok: true });
     } catch (err) { next(err); }
