@@ -3910,31 +3910,15 @@ export default function CompanyEmployeePortal() {
       : null;
     const ALWAYS_VISIBLE = new Set(["dashboard"]);
 
-    // Everyone: filter by company enabled modules first.
+    // Filter by company enabled modules. Role-based tab visibility is already
+    // handled by getNav(role) above — role_permissions keys are for CRUD ops,
+    // not for portal tab visibility, so we do NOT apply a second permissions filter here.
     const byCompany = !enabledSet
       ? base
       : base.filter((n) => ALWAYS_VISIBLE.has(n.key) || enabledSet.has(n.key));
-    const rolePerms = currentUser?.permissions && typeof currentUser.permissions === "object"
-      ? currentUser.permissions
-      : null;
-    const rolePermKeys = rolePerms
-      ? Object.entries(rolePerms)
-          .filter(([, perms]) => perms && (perms.r === true || perms.read === true || perms.view === true))
-          .map(([key]) => normalizeModuleKey(key))
-          .filter(Boolean)
-      : [];
-    const rolePermSet = rolePermKeys.length ? new Set(rolePermKeys) : null;
 
-    const byRolePerm = rolePermSet
-      ? byCompany.filter((n) => ALWAYS_VISIBLE.has(n.key) || rolePermSet.has(n.key))
-      : byCompany;
-
-    const userModules = currentUser?.moduleAccess;
-    // Module access priority: Company enabledModules > Role > User moduleAccess
-    // But if user has moduleAccess defined, they're already filtered at role level
-    // Just return byRolePerm which already has company enabledModules filtering applied
-    return byRolePerm;
-  }, [enabledModules, currentUser?.role, currentUser?.moduleAccess, currentUser?.permissions]);
+    return byCompany;
+  }, [enabledModules, currentUser?.role]);
   const [dashboard, setDashboard] = useState(null);
 
   // ── Alert sound / toast / bell notification state ───────────────
