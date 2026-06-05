@@ -904,31 +904,31 @@ const SECTORS = [
 
 
 
-  { value: "healthcare", label: "Healthcare / Medical", icon: "=���", description: "Hospitals, clinics, medical colleges" },
+  { value: "healthcare", label: "Healthcare / Medical", icon: "HC", description: "Hospitals, clinics, medical colleges" },
 
 
 
 
 
-  { value: "soft_services", label: "Soft Services", icon: "=���n+�", description: "Housekeeping, catering, security" },
+  { value: "soft_services", label: "Soft Services", icon: "SS", description: "Housekeeping, catering, security" },
 
 
 
 
 
-  { value: "technical", label: "Technical Assets", icon: "G��n+�", description: "Engineering, maintenance, HVAC" },
+  { value: "technical", label: "Technical Assets", icon: "TA", description: "Engineering, maintenance, HVAC" },
 
 
 
 
 
-  { value: "fleet", label: "Fleet Management", icon: "=���", description: "Vehicles, logistics, transport" },
+  { value: "fleet", label: "Fleet Management", icon: "FM", description: "Vehicles, logistics, transport" },
 
 
 
 
 
-  { value: "general", label: "General / Other", icon: "=�š", description: "Other industries" },
+  { value: "general", label: "General / Other", icon: "GO", description: "Other industries" },
 
 
 
@@ -12391,9 +12391,17 @@ const CompanyPortal = () => {
 
 
 
+      const savedRoles = Object.keys(permsData || {}).filter(Boolean);
 
 
-      setRolePermsActiveRoles(usedRoles.length ? usedRoles : ALL_ROLES);
+
+      const activeRoles = [...new Set([...usedRoles, ...savedRoles])];
+
+
+
+
+
+      setRolePermsActiveRoles(activeRoles.length ? activeRoles : ["admin"]);
 
 
 
@@ -12411,7 +12419,7 @@ const CompanyPortal = () => {
 
 
 
-      setRolePermsActiveRoles(ALL_ROLES);
+      setRolePermsActiveRoles(["admin"]);
 
 
 
@@ -12505,9 +12513,29 @@ const CompanyPortal = () => {
 
 
 
+      const active = new Set((rolePermsActiveRoles || []).filter(Boolean));
 
 
-      await saveRolePermissions(token, rolePermsModalId, rolePermsData);
+
+      const payload = Object.entries(rolePermsData || {}).reduce((acc, [role, perms]) => {
+
+
+
+        if (active.has(role)) acc[role] = perms;
+
+
+
+        return acc;
+
+
+
+      }, {});
+
+
+
+
+
+      await saveRolePermissions(token, rolePermsModalId, payload);
 
 
 
@@ -25546,7 +25574,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* +�+�+�+�+�+� Sector Selection Modal +�+�+�+�+�+� */}
+        {/* Sector Selection Modal */}
 
 
 
@@ -25558,13 +25586,13 @@ const CompanyPortal = () => {
 
 
 
-          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
 
 
 
 
 
-            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px 28px", width: "min(560px, 94vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "28px", width: "min(760px, 98vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", border: "1px solid #e2e8f0" }}>
 
 
 
@@ -25594,7 +25622,7 @@ const CompanyPortal = () => {
 
 
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "24px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "12px", marginBottom: "18px" }}>
 
 
 
@@ -25630,7 +25658,7 @@ const CompanyPortal = () => {
 
 
 
-                      style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", border: `2px solid ${checked ? "#2563eb" : "#e2e8f0"}`, borderRadius: "10px", background: checked ? "#eff6ff" : "#f8fafc", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}>
+                      style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", border: `2px solid ${checked ? "#2563eb" : "#dbe2ea"}`, borderRadius: "12px", background: checked ? "#eff6ff" : "#f8fafc", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}>
 
 
 
@@ -25654,7 +25682,22 @@ const CompanyPortal = () => {
 
 
 
-                      <span style={{ fontSize: "22px", lineHeight: 1, flexShrink: 0 }}>{s.icon}</span>
+                      <span style={{
+                        width: "34px",
+                        height: "34px",
+                        borderRadius: "9px",
+                        border: `1px solid ${checked ? "#93c5fd" : "#d1d5db"}`,
+                        background: checked ? "#dbeafe" : "#fff",
+                        color: checked ? "#1d4ed8" : "#475569",
+                        fontWeight: 800,
+                        fontSize: "11px",
+                        lineHeight: 1,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        letterSpacing: "0.02em"
+                      }}>{s.icon}</span>
 
 
 
@@ -25720,7 +25763,7 @@ const CompanyPortal = () => {
 
 
 
-                  +�-�+� Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
+                  Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
 
 
 
@@ -25816,7 +25859,7 @@ const CompanyPortal = () => {
 
 
 
-                  Continue G��
+                  Continue
 
 
 
