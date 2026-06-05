@@ -2,7 +2,6 @@ import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
-import JsBarcode from "jsbarcode";
 import logo from "../images/image.png";
 import LogsheetModule from "../components/LogsheetModule.jsx";
 import ChecklistQuestionRow from "../components/ChecklistQuestionRow.jsx";
@@ -32,7 +31,6 @@ import {
   bulkDeleteCompanyPortalAssets,
   bulkDeleteCompanyPortalPreQr,
   assignCompanyPortalAsset,
-  getAssetByBarcode,
   getAssetQueries,
   createAssetQuery,
   resolveAssetQuery,
@@ -94,77 +92,6 @@ import {
   getCompanyPortalImportTemplateUrl,
 } from "../api.js";
 
-/* ─── Role definitions ────────────────────────────────────────────── */
-const ROLES = [
-  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
-  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
-  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
-  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
-  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
-];
-const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
-
-// Default hierarchy for healthcare org
-const DEFAULT_HIERARCHY_CHAIN = [
-  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
-  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
-  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
-  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
-];
-
-// Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
-// Mutating in place preserves references held by closures; callers that need
-// a render should bump their own re-render counter after invoking applyRoles.
-let HIERARCHY_CHAIN  = [...DEFAULT_HIERARCHY_CHAIN];
-let PARENT_ROLE      = Object.fromEntries(HIERARCHY_CHAIN.map((h) => [h.role, h.parentRole]));
-let HIERARCHY_ROLES  = new Set(HIERARCHY_CHAIN.map((h) => h.role));
-
-const lightenHex = (hex) => {
-  // Produce a pale background from any hex color; fallback if parsing fails.
-  try {
-    const h = hex.replace("#", "");
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    const mix = (c) => Math.round(c + (255 - c) * 0.85);
-    return `#${mix(r).toString(16).padStart(2, "0")}${mix(g).toString(16).padStart(2, "0")}${mix(b).toString(16).padStart(2, "0")}`;
-  } catch {
-    return "#dbeafe";
-  }
-};
-
-const applyCustomRoles = (rolesFromServer) => {
-  const mapped = Array.isArray(rolesFromServer)
-    ? rolesFromServer.map((r) => ({
-        role:       r.roleKey,
-        label:      r.label,
-        parentRole: r.parentRoleKey || null,
-        color:      r.color    || "#2563eb",
-        bg:         r.bgColor  || lightenHex(r.color || "#2563eb"),
-        border:     r.color    || "#bfdbfe",
-      }))
-    : [];
-  HIERARCHY_CHAIN.splice(0, HIERARCHY_CHAIN.length, ...mapped);
-  PARENT_ROLE     = Object.fromEntries(HIERARCHY_CHAIN.map((h) => [h.role, h.parentRole]));
-  HIERARCHY_ROLES = new Set(HIERARCHY_CHAIN.map((h) => h.role));
-};
-const SHIFTS = ["Morning", "Afternoon", "Evening", "Night"];
-
-const NAV_ALL = [
-  { key: "dashboard",   label: "Dashboard",   roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
-  { key: "locations",   label: "Locations",   roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
-  { key: "departments", label: "Departments",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-  { key: "assets",      label: "Assets",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
-  { key: "requests",    label: "Requests",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-  { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
-  { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-];
-// Returns nav items visible for a given role
-const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
-
-/* ─── Shared atoms ────────────────────────────────────────────────── */
 const Card = ({ children, style = {} }) => (
   <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", ...style }}>{children}</div>
 );
@@ -1155,7 +1082,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                 <span style={{ fontSize: "18px" }}>🏥</span>
                 <div>
                   <div style={{ fontWeight: 700, color: "#9a3412", fontSize: "13px" }}>Healthcare Equipment Registration</div>
-                  <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment — barcode auto-generated on save</div>
+                  <div style={{ color: "#c2410c", fontSize: "12px" }}>All required fields for medical equipment — QR-ready ID generated on save</div>
                 </div>
               </div>
             ) : (
@@ -1176,7 +1103,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
           {/* ── Healthcare workflow: full medical equipment form ── */}
           {form.assetType && isHealthcareLegacy && !hasCustomLayout && <>
             <div style={{ gridColumn: "span 2", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "8px 14px", display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "#9a3412" }}>
-              <span>🏥</span> Healthcare equipment — barcode auto-generated on save.
+              <span>🏥</span> Healthcare equipment — QR-ready ID generated on save.
             </div>
 
             {/* Equipment Photos */}
@@ -3875,6 +3802,20 @@ function AdminLocationsSection({ token, companies = [] }) {
   );
 }
 
+/* ─── Sidebar Navigation Definition ─────────────────────────────── */
+const NAV_ALL = [
+  { key: "dashboard",   label: "Dashboard",   roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
+  { key: "locations",   label: "Locations",   roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+  { key: "departments", label: "Departments", roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+  { key: "assets",      label: "Assets",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
+  { key: "requests",    label: "Requests",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
+  { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
+];
+
+const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
+
 /* ─── Main Portal ────────────────────────────────────────────────── */
 export default function CompanyEmployeePortal() {
   const navigate = useNavigate();
@@ -4076,11 +4017,9 @@ export default function CompanyEmployeePortal() {
   const [ojtPreviewTraining, setOjtPreviewTraining] = useState(null);
   const [ojtQrTraining, setOjtQrTraining] = useState(null);
   const [ojtQrDataUrl, setOjtQrDataUrl] = useState("");
-  const [assetQrModal, setAssetQrModal] = useState(null);
   const [assetViewQrModal, setAssetViewQrModal] = useState(null);   // asset for QR card view
   const [assetViewQrCardHtml, setAssetViewQrCardHtml] = useState(null);
   const [viewRawQrDataUrl, setViewRawQrDataUrl] = useState(null);  // raw QR PNG for download
-  const [assetQrDataUrl, setAssetQrDataUrl] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [companySectors, setCompanySectors] = useState([]);
   const [selectedQrIds, setSelectedQrIds] = useState(new Set());
@@ -4092,11 +4031,6 @@ export default function CompanyEmployeePortal() {
   const [requestSearch, setRequestSearch] = useState("");
   // Asset detail view
   const [assetDetailModal, setAssetDetailModal] = useState(null); // asset object or null
-  // Barcode report page
-  const [reportBarcode, setReportBarcode] = useState("");
-  const [reportAsset, setReportAsset] = useState(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState(null);
   // Pre-generated QR codes
   const [preQrCodes, setPreQrCodes] = useState([]);
   const [preQrLoading, setPreQrLoading] = useState(false);
@@ -4431,9 +4365,6 @@ export default function CompanyEmployeePortal() {
       setAssetQueriesLoading(true);
       getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
     }
-    if (nav === "report") {
-      // Barcode report is search-driven — nothing to pre-load
-    }
     if (nav === "qrcodes") {
       setPreQrLoading(true);
       getPreQrCodes(token).then((d) => { setPreQrCodes(d || []); setPreQrLoading(false); }).catch(() => setPreQrLoading(false));
@@ -4628,16 +4559,6 @@ export default function CompanyEmployeePortal() {
     } catch (err) { alert(err.message || "Failed to resolve"); }
   };
 
-  const handleLookupBarcode = async () => {
-    if (!reportBarcode.trim()) return;
-    setReportLoading(true); setReportError(null); setReportAsset(null);
-    try {
-      const data = await getAssetByBarcode(token, reportBarcode.trim());
-      setReportAsset(data);
-    } catch (err) { setReportError(err.message || "Asset not found"); }
-    finally { setReportLoading(false); }
-  };
-
   const handleDownloadAssetQR = async (assetId, assetName) => {
     try {
       const url = `${window.location.origin}/asset-scan/${assetId}`;
@@ -4689,29 +4610,6 @@ export default function CompanyEmployeePortal() {
     })();
   }, [assetViewQrModal?.id]);
 
-  // Generate a barcode data URL from a barcode string (Code128)
-  const generateBarcodeDataUrl = (barcodeStr) => {
-    return new Promise((resolve, reject) => {
-      try {
-        const canvas = document.createElement("canvas");
-        JsBarcode(canvas, barcodeStr, {
-          format: "CODE128",
-          width: 2.5,
-          height: 80,
-          displayValue: true,
-          fontSize: 16,
-          fontOptions: "bold",
-          margin: 8,
-          background: "#ffffff",
-          lineColor: "#0f172a",
-        });
-        resolve(canvas.toDataURL("image/png"));
-      } catch (err) {
-        reject(err);
-      }
-    });
-  };
-
   // Convert a URL to a base64 data URL for embedding in print windows
   const urlToDataUrl = async (url) => {
     if (!url) return null;
@@ -4760,88 +4658,8 @@ export default function CompanyEmployeePortal() {
       </div>`; 
   };
 
-// Build compact horizontal barcode sticker: logos header + asset name + barcode + UID
-  const buildBarcodeCardHtml = (barcodeDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl) => {
-    const assetName = asset.assetName || asset.asset_name || "";
-    const uid = asset.assetUniqueId || asset.asset_unique_id || "";
-    const safeName = assetName ? assetName.substring(0, 40) : "";
-    const clientLogoHtml = clientLogoDataUrl
-      ? `<img src="${clientLogoDataUrl}" style="max-width:18mm;max-height:7mm;object-fit:contain;display:block;" />`
-      : `<span style="font-size:5px;font-weight:800;color:#1e3a5f;">Client</span>`;
-    const catalystLogoHtml = catalystLogoDataUrl
-      ? `<img src="${catalystLogoDataUrl}" style="max-width:18mm;max-height:7mm;object-fit:contain;display:block;" />`
-      : `<span style="font-size:5px;font-weight:800;color:#1e3a5f;text-align:right;line-height:1.2;">CATALYST<br/><span style="font-weight:400;font-size:4px;">FM SERVICES</span></span>`;
-    return `
-      <div style="background:#fff;border:1px solid #cbd5e1;border-radius:3px;width:50mm;height:25mm;box-sizing:border-box;font-family:Arial,sans-serif;overflow:hidden;display:flex;flex-direction:column;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:1mm 2mm;border-bottom:0.5px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
-          <div style="display:flex;align-items:center;">${clientLogoHtml}</div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;">${catalystLogoHtml}</div>
-        </div>
-        <div style="padding:1mm 2mm;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;">
-          ${safeName ? `<div style="font-size:6px;font-weight:800;color:#0f172a;margin-bottom:1mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${safeName}</div>` : ""}
-          <div style="width:100%;background:#fff;">
-            <img src="${barcodeDataUrl}" style="width:100%;display:block;max-height:9mm;object-fit:contain;" />
-          </div>
-          <div style="margin-top:1mm;background:#f1f5f9;border:0.5px solid #e2e8f0;border-radius:2px;padding:0.5mm 1mm;font-size:5.5px;font-family:monospace;color:#334155;text-align:center;letter-spacing:0.4px;">${uid}</div>
-        </div>
-      </div>`;
-  };
-
-  // Open a print window with one or more barcode cards (one per page)
-  const openQrPrintWindow = async (assetsToPrint) => {
-    if (!assetsToPrint.length) return;
-    setBulkQrPrinting(true);
-    try {
-      const catalystLogoDataUrl = cachedLogoDataUrls.catalyst || await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`);
-      const clientLogoDataUrl = cachedLogoDataUrls.client || (companyLogoUrl
-        ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
-        : null);
-
-      const cardHtmls = await Promise.all(assetsToPrint.map(async (asset) => {
-        const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
-        const barcodeDataUrl = await generateBarcodeDataUrl(barcodeStr);
-        return buildBarcodeCardHtml(barcodeDataUrl, asset, clientLogoDataUrl, catalystLogoDataUrl);
-      }));
-
-      const printHtml = `<!DOCTYPE html><html><head><title>Asset Barcodes</title>
-        <style>
-          *{margin:0;padding:0;box-sizing:border-box;}
-          body{background:#fff;font-family:Arial,sans-serif;padding:4mm;}
-          .grid{display:flex;flex-wrap:wrap;gap:3mm;justify-content:flex-start;}
-          .cell{break-inside:avoid;}
-          @media print{
-            body{background:#fff;padding:3mm;}
-            .grid{gap:3mm;}
-            @page{size:auto;margin:3mm;}
-          }
-        </style>
-      </head><body>
-        <div class="grid">
-          ${cardHtmls.map(h => `<div class="cell">${h}</div>`).join("")}
-        </div>
-      </body></html>`;
-
-      const w = window.open("", "_blank");
-      w.document.write(printHtml);
-      w.document.close();
-      w.focus();
-      setTimeout(() => { w.print(); }, 700);
-    } catch (err) {
-      alert("Print failed: " + err.message);
-    } finally {
-      setBulkQrPrinting(false);
-    }
-  };
-
-  const handleShowAssetQR = async (asset) => {
-    try {
-      const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
-      const dataUrl = await generateBarcodeDataUrl(barcodeStr);
-      setAssetQrDataUrl(dataUrl);
-      setAssetQrModal({ assetId: asset.id, assetName: asset.assetName, barcodeStr, asset });
-    } catch (err) {
-      alert("Barcode generation failed: " + err.message);
-    }
+  const handleShowAssetQR = (asset) => {
+    setAssetViewQrModal(asset);
   };
 
   // Print QR code cards (instead of barcodes) for a list of assets — dark card design
@@ -5943,6 +5761,12 @@ export default function CompanyEmployeePortal() {
         {/* ── Assets ────────────────────────────────────────────── */}
         {nav === "assets" && (() => {
           const isAdmin = currentUser.role === "admin";
+          const assetPerms = currentUser?.permissions?.assets || {};
+          const canAssetCreate = isAdmin || assetPerms.c === true || assetPerms.create === true;
+          const canAssetRead = isAdmin || assetPerms.r === true || assetPerms.read === true || assetPerms.view === true;
+          const canAssetUpdate = isAdmin || assetPerms.u === true || assetPerms.update === true || assetPerms.edit === true;
+          const canAssetDelete = isAdmin || assetPerms.d === true || assetPerms.delete === true || assetPerms.remove === true;
+          const canAssetAction = canAssetRead || canAssetUpdate || canAssetDelete;
           return (
           <div style={{ maxWidth: "100%" }}>
             {/* Sub-tab navigation — Analytics tab hidden; only Manage Assets is visible */}
@@ -5954,9 +5778,9 @@ export default function CompanyEmployeePortal() {
                 token={token}
                 companyId={currentUser.companyId}
                 assetList={assets}
-                onAddAsset={isAdmin ? () => { setEditAsset(null); setShowAssetModal(true); setAssetSubNav("manage"); } : undefined}
-                onEditAsset={isAdmin ? (a) => { setEditAsset(a); setShowAssetModal(true); } : undefined}
-                onDeleteAsset={isAdmin ? handleDeleteAsset : undefined}
+                onAddAsset={canAssetCreate ? () => { setEditAsset(null); setShowAssetModal(true); setAssetSubNav("manage"); } : undefined}
+                onEditAsset={canAssetUpdate ? (a) => { setEditAsset(a); setShowAssetModal(true); } : undefined}
+                onDeleteAsset={canAssetDelete ? handleDeleteAsset : undefined}
               />
             )}
 
@@ -6032,10 +5856,12 @@ export default function CompanyEmployeePortal() {
                     {bulkQrPrinting ? "Generating…" : "Print All QR"}
                   </button>
                   {/* Add Asset */}
-                  <Btn onClick={() => { setEditAsset(null); setShowAssetModal(true); }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Asset
-                  </Btn>
+                  {canAssetCreate && (
+                    <Btn onClick={() => { setEditAsset(null); setShowAssetModal(true); }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Add Asset
+                    </Btn>
+                  )}
                   {/* Import Excel */}
                   <button onClick={() => { setBulkAssetFile(null); setBulkAssetDeptId(""); setBulkAssetResult(null); setShowBulkAssetImport(true); }}
                     style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -6076,14 +5902,14 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["SN", "Asset ID", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(isAdmin ? ["Actions"] : [])].map((h) => (
+                        {["SN", "Asset ID", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={isAdmin ? 21 : 19} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? 21 : (canAssetAction ? 20 : 19)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
@@ -6156,7 +5982,7 @@ export default function CompanyEmployeePortal() {
                                   Condemned:   { bg: "#f5f3ff", color: "#7c3aed" },
                                 };
                                 const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
-                                if (!isAdmin) return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: cm.bg, color: cm.color }}>{combined.replace(/_/g, " ")}</span>;
+                                if (!canAssetUpdate) return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: cm.bg, color: cm.color }}>{combined.replace(/_/g, " ")}</span>;
                                 return (
                                   <select
                                     value={combined}
@@ -6184,25 +6010,27 @@ export default function CompanyEmployeePortal() {
                                 );
                               })()}
                             </td>
-                            {isAdmin && (
+                            {canAssetAction && (
                               <td style={{ padding: "10px 14px" }}>
                                 <div style={{ display: "flex", gap: "6px" }}>
-                                  <button title="Print Barcode" onClick={() => handleShowAssetQR(a)}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                                  </button>
-                                  <button title="View QR Code" onClick={() => setAssetViewQrModal(a)}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fdf4ff", color: "#9333ea", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
-                                  </button>
-                                  <button title="Edit" onClick={() => { setEditAsset(a); setShowAssetModal(true); }}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                  </button>
-                                  <button title="Delete" onClick={() => handleDeleteAsset(a.id)}
-                                    style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                  </button>
+                                  {canAssetRead && (
+                                    <button title="View QR Code" onClick={() => setAssetViewQrModal(a)}
+                                      style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fdf4ff", color: "#9333ea", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
+                                    </button>
+                                  )}
+                                  {canAssetUpdate && (
+                                    <button title="Edit" onClick={() => { setEditAsset(a); setShowAssetModal(true); }}
+                                      style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                  )}
+                                  {canAssetDelete && (
+                                    <button title="Delete" onClick={() => handleDeleteAsset(a.id)}
+                                      style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -6321,7 +6149,7 @@ export default function CompanyEmployeePortal() {
           );
         })()}
 
-        {/* ── Asset Queries (barcode scan requests) ─────────────── */}
+        {/* ── Asset Queries (QR scan requests) ─────────────── */}
         {nav === "asset-queries" && (() => {
           const isAdmin = currentUser.role === "admin" || currentUser.role === "supervisor";
           return (
@@ -6329,7 +6157,7 @@ export default function CompanyEmployeePortal() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "22px" }}>
                 <div>
                   <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Asset Requests</h1>
-                  <p style={{ color: "#64748b", fontSize: "13.5px" }}>Queries raised by employees via barcode scan</p>
+                  <p style={{ color: "#64748b", fontSize: "13.5px" }}>Queries raised by employees via QR scan</p>
                 </div>
                 <button onClick={() => { setAssetQueriesLoading(true); getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch(() => setAssetQueriesLoading(false)); }}
                   style={{ padding: "9px 18px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
@@ -6459,90 +6287,6 @@ export default function CompanyEmployeePortal() {
           );
         })()}
 
-        {/* ── Barcode Report ────────────────────────────────────── */}
-        {nav === "report" && (() => {
-          const meta = reportAsset?.metadata || {};
-          const hcImages = meta.hcImages || [];
-          const allImages = [...hcImages, ...(meta.invoiceImages || []), ...(meta.invoiceUrl ? [meta.invoiceUrl] : [])].filter(Boolean);
-          const rows = [
-            ["Equipment Name", meta.equipmentName || reportAsset?.assetName],
-            ["Make / Manufacturer", meta.make || meta.manufacturer],
-            ["Model", meta.model],
-            ["Serial No.", meta.serialNo],
-            ["Accessories Included", meta.accessories],
-            ["Dealer / Distributor", meta.dealer],
-            ["Manufacturing Year", meta.manufacturingYear],
-            ["Installation Date", meta.installationDate],
-            ["Department", reportAsset?.departmentName],
-            ["Location", [reportAsset?.building, reportAsset?.floor, reportAsset?.room].filter(Boolean).join(" / ") || null],
-            ["Purchase Cost", meta.purchaseCost ? `₹ ${meta.purchaseCost}` : null],
-            ["Invoice No.", meta.invoiceNo],
-            ["Purchase Date", meta.purchaseDate],
-            ["Maintenance Type", [meta.maintenanceTypes?.warranty && "Warranty", meta.maintenanceTypes?.amc && "AMC", meta.maintenanceTypes?.cmc && "CMC", meta.maintenanceTypes?.inHouse && "In House", meta.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || meta.maintenanceType],
-            ["Warranty Period", meta.warrantyStart && meta.warrantyEnd ? `${meta.warrantyStart} → ${meta.warrantyEnd}` : null],
-            ["AMC Period", meta.amcStart && meta.amcEnd ? `${meta.amcStart} → ${meta.amcEnd}` : null],
-            ["CMC Period", meta.cmcStart && meta.cmcEnd ? `${meta.cmcStart} → ${meta.cmcEnd}` : null],
-            ["RBER", meta.rber],
-            ["Remarks", meta.remarks],
-            ["Assigned To", reportAsset?.assignedToName],
-            ["Status", reportAsset?.status],
-          ];
-          return (
-            <div>
-              <div style={{ marginBottom: "22px" }}>
-                <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Asset Report</h1>
-                <p style={{ color: "#64748b", fontSize: "13.5px" }}>Enter barcode number to view complete asset details</p>
-              </div>
-              <Card style={{ padding: "20px", marginBottom: "20px" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    value={reportBarcode}
-                    onChange={e => setReportBarcode(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleLookupBarcode()}
-                    placeholder="Enter barcode number e.g. HC-000001"
-                    style={{ flex: 1, minWidth: "220px", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", outline: "none" }}
-                  />
-                  <button onClick={handleLookupBarcode} disabled={reportLoading || !reportBarcode.trim()}
-                    style={{ padding: "10px 22px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
-                    {reportLoading ? "Searching…" : "Search"}
-                  </button>
-                </div>
-                {reportError && <div style={{ marginTop: "10px", color: "#dc2626", fontSize: "13px" }}>{reportError}</div>}
-              </Card>
-              {reportAsset && (
-                <Card>
-                  <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{reportAsset.assetName}</div>
-                      <div style={{ fontSize: "13px", color: "#64748b", marginTop: "2px", fontFamily: "monospace" }}>Barcode: {reportAsset.assetUniqueId}</div>
-                    </div>
-                    <span style={{ padding: "4px 14px", background: "#f0fdf4", color: "#16a34a", borderRadius: "20px", fontSize: "13px", fontWeight: 700 }}>{reportAsset.status}</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0" }}>
-                    {rows.filter(([, v]) => v).map(([label, value], i) => (
-                      <div key={i} style={{ padding: "12px 24px", borderBottom: "1px solid #f1f5f9", borderRight: i % 2 === 0 ? "1px solid #f1f5f9" : "none", display: "flex", gap: "12px" }}>
-                        <div style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", minWidth: "140px", flexShrink: 0 }}>{label}</div>
-                        <div style={{ fontSize: "13.5px", color: "#0f172a" }}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {allImages.length > 0 && (
-                    <div style={{ padding: "20px 24px" }}>
-                      <div style={{ fontWeight: 700, fontSize: "14px", color: "#475569", marginBottom: "12px" }}>Images</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                        {allImages.map((img, i) => (
-                          <a key={i} href={img} target="_blank" rel="noreferrer">
-                            <img src={img} alt={`img-${i + 1}`} style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e2e8f0" }} />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              )}
-            </div>
-          );
-        })()}
 
         {/* ── Locations ─────────────────────────────────────────── */}
         {nav === "locations" && currentUser?.role === "admin" && (
@@ -7698,7 +7442,7 @@ export default function CompanyEmployeePortal() {
           />
         )}
 
-        {/* Asset Barcode Modal */}
+        {/* Asset QR Modal */}
         {/* ── Asset View QR Modal (Manage Assets tab) ─── */}
         {assetViewQrModal && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
@@ -7735,60 +7479,6 @@ export default function CompanyEmployeePortal() {
           </div>
         )}
 
-        {assetQrModal && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-            <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-              <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Asset Barcode</h3>
-              <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b" }}>{assetQrModal.assetName}</p>
-
-              {/* Barcode Card Preview */}
-              {assetQrDataUrl ? (
-                <div style={{ display: "inline-block", background: "#fff", border: "1.5px solid #e2e8f0", padding: "20px 20px 16px", borderRadius: "14px", textAlign: "center", fontFamily: "Arial, sans-serif", width: "320px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                  {/* Logos row */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                    <div style={{ width: "100px", height: "52px", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-                      {companyLogoUrl
-                        ? <img src={companyLogoUrl} alt="Client" style={{ maxWidth: "100px", maxHeight: "52px", objectFit: "contain" }} />
-                        : <div style={{ width: "100px" }} />}
-                    </div>
-                    <div style={{ width: "100px", height: "52px", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                      <img src="/catalyst-logo.png" alt="Catalyst" style={{ maxWidth: "100px", maxHeight: "52px", objectFit: "contain" }}
-                        onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }}
-                      />
-                      <span style={{ display: "none", fontSize: "9px", fontWeight: 800, color: "#1e3a5f", textAlign: "right", lineHeight: 1.2 }}>CATALYST<br/><span style={{ fontWeight: 400 }}>PARTNERING FOR<br/>SUSTAINABILITY</span></span>
-                    </div>
-                  </div>
-                  {/* Barcode */}
-                  <div style={{ background: "#fff", padding: "4px 0", display: "inline-block", width: "100%" }}>
-                    <img src={assetQrDataUrl} alt="Barcode" style={{ width: "100%", maxWidth: "270px", display: "block", margin: "0 auto" }} />
-                  </div>
-                  {assetQrModal.assetName && <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginTop: "10px", marginBottom: "2px" }}>{assetQrModal.assetName}</div>}
-                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "8px" }}>www.catalystsolutions.eco</div>
-                </div>
-              ) : (
-                <p style={{ color: "#94a3b8" }}>Generating barcode...</p>
-              )}
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "center", flexWrap: "wrap" }}>
-                {assetQrDataUrl && (
-                  <button onClick={() => openQrPrintWindow([assetQrModal.asset])} disabled={bulkQrPrinting}
-                    style={{ padding: "8px 18px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    {bulkQrPrinting ? "Preparing…" : "Print Barcode"}
-                  </button>
-                )}
-                {assetQrDataUrl && (
-                  <a href={assetQrDataUrl} download={`Barcode-${(assetQrModal.barcodeStr || assetQrModal.assetId).replace(/[^a-zA-Z0-9-]/g, "_")}.png`}
-                    style={{ padding: "8px 18px", borderRadius: "8px", background: "#2563eb", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download Barcode
-                  </a>
-                )}
-                <button onClick={() => { setAssetQrModal(null); setAssetQrDataUrl(""); }} style={{ padding: "8px 18px", borderRadius: "8px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Fleet Management ─────────────────────────────── */}
         {nav === "fleet" && (
