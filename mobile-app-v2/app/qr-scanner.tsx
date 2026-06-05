@@ -48,7 +48,7 @@ export default function QRScannerScreen() {
 
     try {
       // 0. Pre-generated QR code format: QR-000001
-      const preQrPattern = /^QR-\d+$/i;
+      const preQrPattern = /^QR-/i;
       if (preQrPattern.test(data.trim())) {
         try {
           const qr = await fetchPreQrByUid(data.trim());
@@ -71,7 +71,7 @@ export default function QRScannerScreen() {
       }
 
       // 1. Try barcode format: HC-000001, ASSET-XX, etc. (our generated barcodes)
-      const barcodePattern = /^[A-Z]{2,}-\d+$/i;
+      const barcodePattern = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/i;
       if (barcodePattern.test(data.trim())) {
         const asset = await fetchAssetByBarcode(data.trim()) as any;
         // Navigate to asset-query screen so user can raise a query

@@ -268,6 +268,10 @@ const updateRules = [
   body("assetName").optional().isString().notEmpty(),
   body("assetType").optional().isString().trim(),
   body("status").optional().isIn(["Active", "Inactive"]),
+  body("workingStatus").optional().isIn(["Working", "WIP", "Not_Working", "Condemned"]),
+  body("criticality").optional().isIn(["Critical", "Non_Critical"]),
+  body("verified").optional().isInt({ min: 0, max: 1 }),
+  body("rber").optional().isBoolean(),
   body("assetUniqueId").optional().isString().isLength({ max: 120 }),
   body("building").optional().isString().isLength({ max: 160 }),
   body("floor").optional().isString().isLength({ max: 80 }),
@@ -627,7 +631,12 @@ router.put(
     const {
       assetName, assetType, departmentId, assetUniqueId,
       building, floor, room, status, qrCode, metadata,
+      workingStatus, criticality, verified, rber,
     } = req.body;
+    const metaObj = metadata && typeof metadata === "object" ? metadata : {};
+    const effectiveWorkingStatus = workingStatus !== undefined ? workingStatus : metaObj.workingStatus;
+    const effectiveCriticality = criticality !== undefined ? criticality : metaObj.criticality;
+    const effectiveRber = rber !== undefined ? rber : metaObj.rber;
 
     const conn = await pool.getConnection();
     try {
@@ -662,20 +671,60 @@ router.put(
              floor           = COALESCE(?, floor),
              room            = COALESCE(?, room),
              status          = COALESCE(?, status),
-             qr_code         = COALESCE(?, qr_code)
+             qr_code         = COALESCE(?, qr_code),
+             working_status  = COALESCE(?, working_status),
+             criticality     = COALESCE(?, criticality),
+             is_verified     = COALESCE(?, is_verified)
          WHERE id = ?`,
-        [assetName || null, assetUniqueId || null, assetType || null,
-         departmentId || null, building || null, floor || null,
-         room || null, status || null, qrCode || null, id]
+        [
+          assetName !== undefined ? assetName : null,
+          assetUniqueId !== undefined ? assetUniqueId : null,
+          assetType !== undefined ? assetType : null,
+          departmentId !== undefined ? departmentId : null,
+          building !== undefined ? building : null,
+          floor !== undefined ? floor : null,
+          room !== undefined ? room : null,
+          status !== undefined ? status : null,
+          qrCode !== undefined ? qrCode : null,
+          effectiveWorkingStatus !== undefined ? effectiveWorkingStatus : null,
+          effectiveCriticality !== undefined ? effectiveCriticality : null,
+          verified !== undefined ? Number(verified ? 1 : 0) : null,
+          id,
+        ]
       );
 
-      if (metadata !== undefined) {
-        const { meta, docs } = splitMeta(metadata);
+      if (
+        metadata !== undefined ||
+        effectiveWorkingStatus !== undefined ||
+        effectiveCriticality !== undefined ||
+        effectiveRber !== undefined
+      ) {
         const [[det]] = await conn.query("SELECT id FROM asset_details WHERE asset_id = ?", [id]);
+        let existingMeta = {};
+        let existingDocs = null;
+        if (det) {
+          const [[prev]] = await conn.query(
+            "SELECT metadata, documents FROM asset_details WHERE asset_id = ?",
+            [id]
+          );
+          existingMeta = safeMeta(prev?.metadata);
+          existingDocs = prev?.documents ?? null;
+        }
+
+        const mergedMeta = {
+          ...existingMeta,
+          ...(metadata && typeof metadata === "object" ? metadata : {}),
+          ...(effectiveWorkingStatus !== undefined ? { workingStatus: effectiveWorkingStatus } : {}),
+          ...(effectiveCriticality !== undefined ? { criticality: effectiveCriticality } : {}),
+          ...(effectiveRber !== undefined ? { rber: !!effectiveRber } : {}),
+        };
+        const { meta, docs } = splitMeta(mergedMeta);
+        const docsValue = docs === undefined ? existingDocs : (docs ? JSON.stringify(docs) : null);
+
         if (det) {
           await conn.execute(
             "UPDATE asset_details SET metadata = ?, documents = ? WHERE asset_id = ?",
-            [JSON.stringify(meta), docs ? JSON.stringify(docs) : null, id]
+            [JSON.stringify(meta), docsValue, id]
           );
         } else {
           await conn.execute(

@@ -3930,11 +3930,10 @@ export default function CompanyEmployeePortal() {
       : byCompany;
 
     const userModules = currentUser?.moduleAccess;
-    if (!Array.isArray(userModules) || userModules.length === 0) {
-      return byRolePerm;
-    }
-    const userSet = new Set(userModules.map(normalizeModuleKey).filter(Boolean));
-    return byRolePerm.filter((n) => ALWAYS_VISIBLE.has(n.key) || userSet.has(n.key));
+    // Module access priority: Company enabledModules > Role > User moduleAccess
+    // But if user has moduleAccess defined, they're already filtered at role level
+    // Just return byRolePerm which already has company enabledModules filtering applied
+    return byRolePerm;
   }, [enabledModules, currentUser?.role, currentUser?.moduleAccess, currentUser?.permissions]);
   const [dashboard, setDashboard] = useState(null);
 

@@ -1,0 +1,176 @@
+# ER Diagram and Relations
+
+Source: backend/sql/schema.sql, backend/sql/supplement-mysql.sql, backend/sql/migrations/*.sql
+
+Total tables: 65
+Total FK relations (deduplicated): 88
+
+## Tables
+- admin_settings
+- asset_checklist_assignments
+- asset_checklist_item_responses
+- asset_checklist_items
+- asset_checklist_submissions
+- asset_checklists
+- asset_correlation_events
+- asset_details
+- asset_history
+- asset_logs
+- asset_risk_scores
+- asset_types
+- assets
+- buildings
+- checklist_assignments
+- checklist_submission_answers
+- checklist_submissions
+- checklist_template_questions
+- checklist_templates
+- clients
+- companies
+- company_roles
+- company_users
+- departments
+- employee_shifts
+- escalation_config
+- escalation_matrix
+- flag_escalation_history
+- flag_escalations
+- flag_history
+- flag_rule_conditions
+- flag_rule_groups
+- flags
+- fleet_fuel_logs
+- fleet_inspections
+- fleet_maintenance
+- floors
+- location_departments
+- locations
+- logsheet_answers
+- logsheet_entries
+- logsheet_questions
+- logsheet_sections
+- logsheet_template_assignments
+- logsheet_templates
+- notifications
+- ojt_module_contents
+- ojt_modules
+- ojt_questions
+- ojt_test_attempts
+- ojt_tests
+- ojt_trainings
+- ojt_user_progress
+- role_permissions
+- rooms
+- shifts
+- sla_tracking
+- soft_escalation_settings
+- soft_service_requests
+- states
+- template_user_assignments
+- trend_analysis_log
+- users
+- work_order_history
+- work_orders
+
+## Tables without explicit FK constraints
+- asset_checklist_item_responses
+- asset_checklist_submissions
+- asset_correlation_events
+- asset_risk_scores
+- escalation_config
+- flag_escalations
+- flag_history
+- notifications
+- sla_tracking
+- states
+- trend_analysis_log
+
+## Foreign key relations
+- admin_settings.company_id -> companies.id
+- asset_checklist_assignments.checklist_id -> asset_checklists.id
+- asset_checklist_assignments.user_id -> users.id
+- asset_checklist_items.checklist_id -> asset_checklists.id
+- asset_checklists.asset_id -> assets.id
+- asset_details.asset_id -> assets.id
+- asset_history.asset_id -> assets.id
+- asset_history.created_by -> users.id
+- asset_logs.asset_id -> assets.id
+- asset_logs.created_by -> users.id
+- asset_types.created_by -> users.id
+- assets.building_id -> buildings.id
+- assets.company_id -> companies.id
+- assets.created_by -> users.id
+- assets.department_id -> departments.id
+- assets.floor_id -> floors.id
+- assets.loc_dept_id -> location_departments.id
+- assets.location_id -> locations.id
+- assets.room_id -> rooms.id
+- buildings.company_id -> companies.id
+- checklist_assignments.attached_by -> users.id
+- checklist_assignments.template_id -> checklist_templates.id
+- checklist_submission_answers.question_id -> checklist_template_questions.id
+- checklist_submission_answers.submission_id -> checklist_submissions.id
+- checklist_submissions.asset_id -> assets.id
+- checklist_submissions.assignment_id -> checklist_assignments.id
+- checklist_submissions.submitted_by -> users.id
+- checklist_submissions.submitted_by_company_user -> company_users.id
+- checklist_submissions.supervisor_by -> users.id
+- checklist_submissions.template_id -> checklist_templates.id
+- checklist_template_questions.template_id -> checklist_templates.id
+- checklist_templates.company_id -> companies.id
+- checklist_templates.created_by -> users.id
+- companies.user_id -> users.id
+- company_roles.company_id -> companies.id
+- company_users.company_id -> companies.id
+- departments.company_id -> companies.id
+- employee_shifts.company_user_id -> company_users.id
+- employee_shifts.shift_id -> shifts.id
+- escalation_matrix.company_id -> companies.id
+- flag_escalation_history.flag_id -> flags.id
+- flag_rule_conditions.group_id -> flag_rule_groups.id
+- flag_rule_groups.company_id -> companies.id
+- flags.asset_id -> assets.id
+- flags.company_id -> companies.id
+- fleet_fuel_logs.asset_id -> assets.id
+- fleet_fuel_logs.company_id -> companies.id
+- fleet_inspections.asset_id -> assets.id
+- fleet_inspections.company_id -> companies.id
+- fleet_maintenance.asset_id -> assets.id
+- fleet_maintenance.company_id -> companies.id
+- floors.building_id -> buildings.id
+- location_departments.floor_id -> floors.id
+- locations.company_id -> companies.id
+- locations.parent_location_id -> locations.id
+- logsheet_answers.entry_id -> logsheet_entries.id
+- logsheet_answers.question_id -> logsheet_questions.id
+- logsheet_entries.asset_id -> assets.id
+- logsheet_entries.submitted_by -> users.id
+- logsheet_entries.template_id -> logsheet_templates.id
+- logsheet_questions.section_id -> logsheet_sections.id
+- logsheet_sections.template_id -> logsheet_templates.id
+- logsheet_template_assignments.asset_id -> assets.id
+- logsheet_template_assignments.attached_by -> users.id
+- logsheet_template_assignments.template_id -> logsheet_templates.id
+- logsheet_templates.asset_id -> assets.id
+- logsheet_templates.company_id -> companies.id
+- logsheet_templates.created_by -> users.id
+- ojt_module_contents.module_id -> ojt_modules.id
+- ojt_modules.training_id -> ojt_trainings.id
+- ojt_questions.test_id -> ojt_tests.id
+- ojt_test_attempts.progress_id -> ojt_user_progress.id
+- ojt_tests.training_id -> ojt_trainings.id
+- ojt_trainings.asset_id -> assets.id
+- ojt_trainings.company_id -> companies.id
+- ojt_user_progress.training_id -> ojt_trainings.id
+- role_permissions.company_id -> companies.id
+- rooms.department_id -> location_departments.id
+- shifts.company_id -> companies.id
+- soft_escalation_settings.company_id -> companies.id
+- soft_service_requests.asset_id -> assets.id
+- soft_service_requests.company_id -> companies.id
+- template_user_assignments.company_id -> companies.id
+- users.client_id -> clients.id
+- work_order_history.work_order_id -> work_orders.id
+- work_orders.asset_id -> assets.id
+- work_orders.flag_id -> flags.id
+- work_orders.logsheet_entry_id -> logsheet_entries.id
