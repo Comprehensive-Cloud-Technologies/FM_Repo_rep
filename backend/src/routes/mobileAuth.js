@@ -14,6 +14,47 @@ import pool from "../db.js";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
+function toObject(value) {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function mergeCrudPermissions(basePerms, userPerms) {
+  const merged = { ...basePerms };
+  Object.entries(userPerms || {}).forEach(([moduleKey, ops]) => {
+    if (!ops || typeof ops !== "object") return;
+    merged[moduleKey] = { ...(merged[moduleKey] || {}), ...ops };
+  });
+  return merged;
+}
+
+function readableModules(permissions) {
+  return Object.entries(permissions || {})
+    .filter(([, ops]) => ops && (ops.r === true || ops.read === true || ops.view === true))
+    .map(([moduleKey]) => moduleKey);
+}
+
 /* ── Verify Company Code ──────────────────────────────────────────────────── */
 router.post("/verify-company", async (req, res, next) => {
   try {
@@ -157,6 +198,23 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
+    const [[rolePermRow]] = await pool.query(
+      `SELECT permissions
+       FROM role_permissions
+       WHERE company_id = ? AND role = ?
+       LIMIT 1`,
+      [user.companyId, user.role]
+    );
+
+    const mergedPermissions = mergeCrudPermissions(
+      toObject(rolePermRow?.permissions),
+      toObject(user.permissions)
+    );
+
+    const userModuleAccess = toArray(user.moduleAccess);
+    const derivedRoleModules = readableModules(mergedPermissions);
+    const effectiveModuleAccess = userModuleAccess.length ? userModuleAccess : derivedRoleModules;
+
     // Generate JWT token (compatible with requireCompanyAuth middleware)
     const token = jwt.sign(
       {
@@ -186,8 +244,8 @@ router.post("/login", async (req, res, next) => {
         companyId: user.companyId,
         companyName: user.companyName,
         supervisorId: user.supervisorId,
-        permissions: user.permissions || {},
-        moduleAccess: user.moduleAccess || [],
+        permissions: mergedPermissions,
+        moduleAccess: effectiveModuleAccess,
         roleCapabilities,
       },
     });

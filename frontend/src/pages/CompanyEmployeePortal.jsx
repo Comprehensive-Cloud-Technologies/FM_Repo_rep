@@ -3880,9 +3880,10 @@ export default function CompanyEmployeePortal() {
   const navigate = useNavigate();
   const params = useParams();
   const token = sessionStorage.getItem("cp_token");
-  const currentUser = useMemo(() => {
+  const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("cp_user") || "null"); } catch { return null; }
-  }, []);
+  });
+  const [companyDisplayName, setCompanyDisplayName] = useState(() => currentUser?.companyName || "");
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -3900,29 +3901,45 @@ export default function CompanyEmployeePortal() {
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   const [enabledModules, setEnabledModules] = useState(null);
   const visibleNav = useMemo(() => {
+    const normalizeModuleKey = (value) => {
+      const key = String(value || "").trim().toLowerCase();
+      if (!key) return "";
+      if (["workorders", "work-order", "work_orders", "work order"].includes(key)) return "requests";
+      if (["qr", "qrcode", "qr-code", "qr_codes", "qr code"].includes(key)) return "qrcodes";
+      return key;
+    };
     const base = getNav(currentUser?.role || "employee");
-    const isAdmin = currentUser?.role === "admin" || currentUser?.role === "catalyst_admin";
-    // Admin-only management tabs that are always visible for admins regardless of module settings
-    const ADMIN_ALWAYS = new Set(["dashboard", "roles", "asset-types", "employees", "departments"]);
-    const ALWAYS_VISIBLE = new Set(["dashboard", "mytasks", "employees"]);
+    const enabledSet = Array.isArray(enabledModules)
+      ? new Set(enabledModules.map(normalizeModuleKey).filter(Boolean))
+      : null;
+    const ALWAYS_VISIBLE = new Set(["dashboard"]);
 
-    if (isAdmin) {
-      // If no modules restriction set by super-admin, show everything
-      if (!enabledModules) return base;
-      // Otherwise apply company-level module filter but keep admin management tabs
-      return base.filter((n) => ADMIN_ALWAYS.has(n.key) || enabledModules.includes(n.key));
-    }
-
-    // Non-admin: filter by company enabledModules first
-    const byCompany = !enabledModules
+    // Everyone: filter by company enabled modules first.
+    const byCompany = !enabledSet
       ? base
-      : base.filter((n) => ALWAYS_VISIBLE.has(n.key) || enabledModules.includes(n.key));
+      : base.filter((n) => ALWAYS_VISIBLE.has(n.key) || enabledSet.has(n.key));
+    const rolePerms = currentUser?.permissions && typeof currentUser.permissions === "object"
+      ? currentUser.permissions
+      : null;
+    const rolePermKeys = rolePerms
+      ? Object.entries(rolePerms)
+          .filter(([, perms]) => perms && (perms.r === true || perms.read === true || perms.view === true))
+          .map(([key]) => normalizeModuleKey(key))
+          .filter(Boolean)
+      : [];
+    const rolePermSet = rolePermKeys.length ? new Set(rolePermKeys) : null;
+
+    const byRolePerm = rolePermSet
+      ? byCompany.filter((n) => ALWAYS_VISIBLE.has(n.key) || rolePermSet.has(n.key))
+      : byCompany;
+
     const userModules = currentUser?.moduleAccess;
     if (!Array.isArray(userModules) || userModules.length === 0) {
-      return byCompany;
+      return byRolePerm;
     }
-    return byCompany.filter((n) => ALWAYS_VISIBLE.has(n.key) || userModules.includes(n.key));
-  }, [enabledModules, currentUser?.role, currentUser?.moduleAccess]);
+    const userSet = new Set(userModules.map(normalizeModuleKey).filter(Boolean));
+    return byRolePerm.filter((n) => ALWAYS_VISIBLE.has(n.key) || userSet.has(n.key));
+  }, [enabledModules, currentUser?.role, currentUser?.moduleAccess, currentUser?.permissions]);
   const [dashboard, setDashboard] = useState(null);
 
   // ── Alert sound / toast / bell notification state ───────────────
@@ -4146,6 +4163,18 @@ export default function CompanyEmployeePortal() {
       if (me?.enabledModules) setEnabledModules(me.enabledModules);
       if (me?.logoUrl) setCompanyLogoUrl(me.logoUrl);
       if (Array.isArray(me?.sectors)) setCompanySectors(me.sectors);
+      if (me?.companyName) setCompanyDisplayName(me.companyName);
+      setCurrentUser((prev) => {
+        if (!prev) return prev;
+        const merged = {
+          ...prev,
+          companyName: me?.companyName || prev.companyName,
+          permissions: me?.permissions && typeof me.permissions === "object" ? me.permissions : prev.permissions,
+          moduleAccess: Array.isArray(me?.moduleAccess) ? me.moduleAccess : prev.moduleAccess,
+        };
+        sessionStorage.setItem("cp_user", JSON.stringify(merged));
+        return merged;
+      });
     }).catch(() => {});
     setRecentEntriesLoading(true);
     getCompanyPortalRecentLogsheetEntries(token)
@@ -4947,10 +4976,10 @@ export default function CompanyEmployeePortal() {
           <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
         </div>
 
-        {/* Company role label */}
+        {/* Company label */}
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-          <p style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-            {currentUser.role === "supervisor" ? "Supervisor Portal" : "Company Portal"}
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0 }}>
+            {companyDisplayName || currentUser.companyName || "Client"}
           </p>
         </div>
 

@@ -143,51 +143,7 @@ import {
 
 
 
-
-
   getUsers,
-
-
-
-
-
-  getCompanyUsers,
-
-
-
-
-
-  createCompanyUser,
-
-
-
-
-
-  updateCompanyUser,
-
-
-
-
-
-  deleteCompanyUser,
-
-
-
-
-
-  getChecklistTemplates,
-
-
-
-
-
-  createChecklistTemplate,
-
-
-
-
-
-  getChecklistTemplate,
 
 
 
@@ -486,7 +442,7 @@ const TOKEN_KEY = "company_portal_token";
 
 
 
-/* ΓöÇΓöÇΓöÇ Photo thumbnail + full-screen lightbox ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* +�+�+�+�+�+�+�+�+� Photo thumbnail + full-screen lightbox +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */
 
 
 
@@ -732,7 +688,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-              ├ù
+              G��+�
 
 
 
@@ -948,31 +904,31 @@ const SECTORS = [
 
 
 
-  { value: "healthcare", label: "Healthcare / Medical", icon: "🏥", description: "Hospitals, clinics, medical colleges" },
+  { value: "healthcare", label: "Healthcare / Medical", icon: "=���", description: "Hospitals, clinics, medical colleges" },
 
 
 
 
 
-  { value: "soft_services", label: "Soft Services", icon: "🛡️", description: "Housekeeping, catering, security" },
+  { value: "soft_services", label: "Soft Services", icon: "=���n+�", description: "Housekeeping, catering, security" },
 
 
 
 
 
-  { value: "technical", label: "Technical Assets", icon: "⚙️", description: "Engineering, maintenance, HVAC" },
+  { value: "technical", label: "Technical Assets", icon: "G��n+�", description: "Engineering, maintenance, HVAC" },
 
 
 
 
 
-  { value: "fleet", label: "Fleet Management", icon: "🚚", description: "Vehicles, logistics, transport" },
+  { value: "fleet", label: "Fleet Management", icon: "=���", description: "Vehicles, logistics, transport" },
 
 
 
 
 
-  { value: "general", label: "General / Other", icon: "🏭", description: "Other industries" },
+  { value: "general", label: "General / Other", icon: "=�š", description: "Other industries" },
 
 
 
@@ -1129,6 +1085,10 @@ const emptyUser = {
 
 
   username: "",
+
+
+
+  moduleAccess: [],
 
 
 
@@ -1431,7 +1391,7 @@ const emptyAsset = {
 
 
 
-  // ΓöÇΓöÇ Healthcare-specific fields (stored in metadata) ΓöÇΓöÇ
+  // +�+�+�+�+�+� Healthcare-specific fields (stored in metadata) +�+�+�+�+�+�
 
 
 
@@ -1671,7 +1631,7 @@ const assetTypeLabels = {
 
 
 
-/* ΓöÇΓöÇΓöÇ Admin OJT Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* +�+�+�+�+�+�+�+�+� Admin OJT Section +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */
 
 
 
@@ -2385,7 +2345,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>✅ Issued</span>
+                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>G�� Issued</span>
 
 
 
@@ -2469,7 +2429,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-/* ΓöÇΓöÇΓöÇ Admin Work Orders Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* +�+�+�+�+�+�+�+�+� Admin Work Orders Section +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */
 
 
 
@@ -2504,9 +2464,9 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AdminStatesSection  –  State Management
-// ─────────────────────────────────────────────────────────────────────────────
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
+// AdminStatesSection  G��  State Management
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 function AdminStatesSection({ token }) {
   const [states, setStates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2577,12 +2537,12 @@ function AdminStatesSection({ token }) {
       </div>
 
       {loading ? (
-        <p style={{ color: "#94a3b8", textAlign: "center", padding: "40px" }}>Loading…</p>
+        <p style={{ color: "#94a3b8", textAlign: "center", padding: "40px" }}>LoadingGǪ</p>
       ) : (
         <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
           {states.length === 0 ? (
             <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
-              <div style={{ fontSize: "28px", marginBottom: "8px" }}>🗺️</div>
+              <div style={{ fontSize: "28px", marginBottom: "8px" }}>=���n+�</div>
               <div style={{ fontWeight: 600 }}>No states yet</div>
               <div style={{ fontSize: "13px" }}>Add states so companies can be linked to a state for asset ID generation.</div>
             </div>
@@ -2623,7 +2583,7 @@ function AdminStatesSection({ token }) {
           <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>{modal.mode === "edit" ? "Edit" : "Add"} State</h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>+�</button>
             </div>
             <div style={{ marginBottom: "14px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>State Name <span style={{ color: "#ef4444" }}>*</span></label>
@@ -2639,7 +2599,7 @@ function AdminStatesSection({ token }) {
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
               <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Saving…" : (modal.mode === "edit" ? "Update" : "Create")}
+                {saving ? "SavingGǪ" : (modal.mode === "edit" ? "Update" : "Create")}
               </button>
             </div>
           </div>
@@ -2649,10 +2609,10 @@ function AdminStatesSection({ token }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 // Shared UI primitives for Location sections (defined at module scope so React
-// doesn't unmount/remount inputs on every re-render → typing works correctly)
-// ─────────────────────────────────────────────────────────────────────────────
+// doesn't unmount/remount inputs on every re-render G�� typing works correctly)
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 function LocBtn({ onClick, children, color = "#2563eb", small }) {
   return <button onClick={onClick} style={{ padding: small ? "5px 10px" : "7px 14px", borderRadius: "7px", border: "none", cursor: "pointer", background: color, color: "#fff", fontSize: small ? "11px" : "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>{children}</button>;
 }
@@ -2709,31 +2669,31 @@ function LocSel({ label, name, value, onChange, options, required, placeholder }
 }
 function LocTreeNode({ node, depth = 0 }) {
   const [open, setOpen] = useState(true);
-  const icons = { Building: "🏢", Floor: "📐", Room: "🚪" };
+  const icons = { Building: "=���", Floor: "=���", Room: "=�ܬ" };
   const colors = { Building: "#2563eb", Floor: "#7c3aed", Room: "#16a34a" };
   const children = node.floors || node.rooms || [];
   return (
     <div style={{ marginLeft: depth * 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default" }}
         onClick={() => children.length && setOpen(!open)}>
-        {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▼" : "▶"}</span>}
+        {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "G�+" : "G��"}</span>}
         {!children.length && <span style={{ width: "10px" }} />}
-        <span style={{ fontSize: "14px" }}>{icons[node.type] || "📍"}</span>
+        <span style={{ fontSize: "14px" }}>{icons[node.type] || "=���"}</span>
         <span style={{ fontSize: "13px", fontWeight: 600, color: colors[node.type] || "#374151" }}>{node.name}</span>
         {node.code && <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>({node.code})</span>}
         <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "9px", background: node.status === "Active" ? "#f0fdf4" : "#fef2f2", color: node.status === "Active" ? "#16a34a" : "#dc2626" }}>{node.type}</span>
-        {node.roomType && <span style={{ fontSize: "11px", color: "#64748b" }}>· {node.roomType}</span>}
-        {node.capacity && <span style={{ fontSize: "11px", color: "#64748b" }}>· cap: {node.capacity}</span>}
+        {node.roomType && <span style={{ fontSize: "11px", color: "#64748b" }}>-+ {node.roomType}</span>}
+        {node.capacity && <span style={{ fontSize: "11px", color: "#64748b" }}>-+ cap: {node.capacity}</span>}
       </div>
       {open && children.map((c, i) => <LocTreeNode key={i} node={c} depth={depth + 1} />)}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AdminLocationsSection  –  Location Management (Building → Floor → Room)
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
+// AdminLocationsSection  G��  Location Management (Building G�� Floor G�� Room)
 // Departments are managed separately via AdminDepartmentsSection
-// ─────────────────────────────────────────────────────────────────────────────
+// G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
   const [tab, setTab] = useState("buildings"); // buildings | floors | rooms
@@ -2926,13 +2886,13 @@ function AdminLocationsSection({ token, companies = [] }) {
     }
   };
 
-  // ── Styles ────────────────────────────────────────────────
+  // G��G�� Styles G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
   const tabBtn = (key) => ({
     padding: "7px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
     background: tab === key ? "#2563eb" : "#f1f5f9", color: tab === key ? "#fff" : "#475569",
   });
 
-  // ── Table for a specific level ────────────────────────────
+  // G��G�� Table for a specific level G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
   const renderTable = (rows, type, cols) => {
     const safeRows = Array.isArray(rows) ? rows : [];
     return (
@@ -2950,7 +2910,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             <tbody>
               {safeRows.map((row, i) => (
                 <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "—"}</td>)}
+                  {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "G��"}</td>)}
                   <td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}>
                     <LocEditBtn onClick={() => openModal(type, "edit", row)} />
                     <LocDelBtn onClick={() => handleDelete(type, row.id)} />
@@ -2979,21 +2939,21 @@ function AdminLocationsSection({ token, companies = [] }) {
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>Location Management</h1>
-        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building → Floor → Room. Departments are managed separately.</p>
+        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building G�� Floor G�� Room. Departments are managed separately.</p>
       </div>
 
       {/* Company picker */}
       <div style={{ marginBottom: "16px" }}>
         <select value={companyId} onChange={e => setCompanyId(e.target.value)}
           style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", minWidth: "260px" }}>
-          <option value="">— Select a Company —</option>
+          <option value="">G�� Select a Company G��</option>
           {companies.map(c => <option key={c.id} value={c.id}>{c.companyName || c.company_name}</option>)}
         </select>
       </div>
 
       {!companyId ? (
         <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "32px", marginBottom: "12px" }}>🏢</div>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>=���</div>
           <div style={{ fontWeight: 700, marginBottom: "4px" }}>Select a Company to Manage Locations</div>
           <div style={{ fontSize: "13px" }}>Choose a company from the dropdown above to view and manage its location hierarchy.</div>
         </div>
@@ -3002,9 +2962,9 @@ function AdminLocationsSection({ token, companies = [] }) {
           {/* Tab bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
-              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>📐 Floors</button>
-              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
+              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>=��� Buildings</button>
+              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>=��� Floors</button>
+              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>=�ܬ Rooms</button>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={downloadTemplate} style={{ padding: "7px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Download Template</button>
@@ -3022,7 +2982,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           </div>
 
-          {/* ── Buildings ─────────────────────────────── */}
+          {/* G��G�� Buildings G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
           {tab === "buildings" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -3037,7 +2997,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           )}
 
-          {/* ── Floors ────────────────────────────────── */}
+          {/* G��G�� Floors G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
           {tab === "floors" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
@@ -3060,9 +3020,9 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           )}
 
-          {/* ── Departments ───────────────────────────── */}
+          {/* G��G�� Departments G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
 
-          {/* ── Rooms ─────────────────────────────────── */}
+          {/* G��G�� Rooms G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
           {tab === "rooms" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
@@ -3088,7 +3048,7 @@ function AdminLocationsSection({ token, companies = [] }) {
         </>
       )}
 
-      {/* ── Modal ──────────────────────────────────────── */}
+      {/* G��G�� Modal G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G�� */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
           onClick={closeModal}>
@@ -3098,7 +3058,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
                 {modal.mode === "edit" ? "Edit" : "Add"} {modal.type.charAt(0).toUpperCase() + modal.type.slice(1)}
               </h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>+�</button>
             </div>
 
             {/* Building form */}
@@ -3152,7 +3112,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving}
                 style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Saving…" : (modal.mode === "edit" ? "Update" : "Create")}
+                {saving ? "SavingGǪ" : (modal.mode === "edit" ? "Update" : "Create")}
               </button>
             </div>
           </div>
@@ -3283,7 +3243,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
       <div style={{ marginBottom: 12 }}>
         <input
           type="text"
-          placeholder="Search by QR ID, asset name or asset ID…"
+          placeholder="Search by QR ID, asset name or asset IDGǪ"
           value={qrSearch}
           onChange={e => setQrSearch(e.target.value)}
           style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
@@ -3500,7 +3460,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
             <h3 style={{ margin:"0 0 20px", fontSize:"17px", fontWeight:800 }}>Create Request</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
               <select value={form.companyId} onChange={e=>setForm({...form,companyId:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">â€” Select Company * --</option>
+                <option value="">+�G�Gǥ Select Company * --</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.companyName||c.name}</option>)}
               </select>
               <textarea value={form.issueDescription} onChange={e=>setForm({...form,issueDescription:e.target.value})} placeholder="Issue description *" rows={3} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", resize:"vertical" }} />
@@ -3509,7 +3469,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                 {["low","medium","high","critical"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
               <select value={form.assignedTo} onChange={e=>setForm({...form,assignedTo:e.target.value})} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px" }}>
-                <option value="">â€” Assign to (optional) --</option>
+                <option value="">+�G�Gǥ Assign to (optional) --</option>
                 {users.filter(u=>u.role==="admin"||u.role==="supervisor").map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
               </select>
             </div>
@@ -3544,12 +3504,12 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                   <tr key={w.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOverdue ? "#fff7f7":"#fff" }}>
                     <td style={{ padding:"11px 14px", fontWeight:700, color:"#2563eb", fontSize:"12.5px" }}>
                       {w.workOrderNumber || `WO-${w.id}`}
-                      {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>â«</span>}
-                      {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>âš ï¸</span>}
+                      {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>+�-�-�</span>}
+                      {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>+�+�-�+�-+-�</span>}
                     </td>
-                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"â€”"}</td>
-                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"â€”"}</td>
-                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"â€”"}</div></td>
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"+�G�Gǥ"}</td>
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"+�G�Gǥ"}</td>
+                    <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"+�G�Gǥ"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
@@ -3579,7 +3539,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
 
 
 
-/* ΓöÇΓöÇΓöÇ Admin Shifts Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* +�+�+�+�+�+�+�+�+� Admin Shifts Section +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */
 
 
 
@@ -4137,7 +4097,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} – {fmt12(s.endTime)}</p>
+                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} G�� {fmt12(s.endTime)}</p>
 
 
 
@@ -4245,7 +4205,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-/* ΓöÇΓöÇΓöÇ Admin Employees Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* +�+�+�+�+�+�+�+�+� Admin Employees Section +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */
 
 
 
@@ -5171,7 +5131,7 @@ const CompanyPortal = () => {
 
 
 
-        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" ┬╖ ") || null,
+        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" G��G�� ") || null,
 
 
 
@@ -7294,7 +7254,7 @@ const CompanyPortal = () => {
 
 
 
-  // ΓöÇΓöÇ Poll for new flags every 30 s - show toast when count increases ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // +�+�+�+�+�+� Poll for new flags every 30 s - show toast when count increases +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�
 
 
 
@@ -7426,7 +7386,7 @@ const CompanyPortal = () => {
 
 
 
-            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} – ${newest.assetName || "unknown asset"}`
+            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} G�� ${newest.assetName || "unknown asset"}`
 
 
 
@@ -7498,7 +7458,7 @@ const CompanyPortal = () => {
 
 
 
-  // ΓöÇΓöÇ Initial data load on login ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // +�+�+�+�+�+� Initial data load on login +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�
 
 
 
@@ -11260,7 +11220,7 @@ const CompanyPortal = () => {
 
 
 
-      `├ó┼í┬á├»┬╕┬Å WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
+      `G��+�G�++�G��+�G��-+G��G��G��+� WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
 
 
 
@@ -11296,7 +11256,7 @@ const CompanyPortal = () => {
 
 
 
-      alert(`Γ£à ${result?.deleted ?? 0} assets deleted successfully.`);
+      alert(`+�-�+� ${result?.deleted ?? 0} assets deleted successfully.`);
 
 
 
@@ -11956,7 +11916,7 @@ const CompanyPortal = () => {
 
 
 
-  // ΓöÇΓöÇ Company Users (Admin) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // +�+�+�+�+�+� Company Users (Admin) +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�
 
 
 
@@ -12198,6 +12158,30 @@ const CompanyPortal = () => {
 
   const ALL_ROLES = ["admin", "technical_lead", "assistant_manager", "technical_executive", "supervisor", "technician", "cleaner", "security", "driver", "fleet_operator", "employee"];
 
+  const portalTabModules = [
+    { key: "locations", label: "Locations" },
+    { key: "departments", label: "Departments" },
+    { key: "assets", label: "Assets" },
+    { key: "requests", label: "Requests" },
+    { key: "employees", label: "Employees" },
+    { key: "qrcodes", label: "QR Codes" },
+    { key: "settings", label: "Settings" },
+  ];
+
+  const normalizePortalModuleKey = (value) => {
+    const key = String(value || "").trim().toLowerCase();
+    if (!key) return "";
+    const map = {
+      workorders: "requests",
+      "work-order": "requests",
+      work_order: "requests",
+      qrcode: "qrcodes",
+      "qr-code": "qrcodes",
+      qr: "qrcodes",
+    };
+    return map[key] || key;
+  };
+
 
 
 
@@ -12220,7 +12204,9 @@ const CompanyPortal = () => {
 
 
 
-    const enabled = Array.isArray(company.enabledModules) ? company.enabledModules : ALL_MODULES.map((m) => m.key);
+    const enabled = Array.isArray(company.enabledModules)
+      ? [...new Set(company.enabledModules.map(normalizePortalModuleKey).filter(Boolean))]
+      : portalTabModules.map((m) => m.key);
 
 
 
@@ -12269,18 +12255,19 @@ const CompanyPortal = () => {
 
 
       const company = companies.find((c) => c.id === modulesModalId);
+      const normalizedModules = [...new Set((modulesForm || []).map(normalizePortalModuleKey).filter(Boolean))];
 
 
 
 
 
-      const updated = await updateCompany(token, modulesModalId, { ...company, enabledModules: modulesForm });
+      const updated = await updateCompany(token, modulesModalId, { ...company, enabledModules: normalizedModules });
 
 
 
 
 
-      setCompanies((prev) => prev.map((c) => (c.id === modulesModalId ? { ...c, enabledModules: modulesForm, ...updated } : c)));
+      setCompanies((prev) => prev.map((c) => (c.id === modulesModalId ? { ...c, enabledModules: normalizedModules, ...updated } : c)));
 
 
 
@@ -12610,6 +12597,52 @@ const CompanyPortal = () => {
 
 
 
+  const handleUserModuleAccessToggle = (moduleKey) => {
+
+
+
+    setUserForm((prev) => {
+
+
+
+      const current = Array.isArray(prev.moduleAccess) ? prev.moduleAccess : [];
+
+
+
+      const normalized = normalizePortalModuleKey(moduleKey);
+
+
+
+      if (!normalized) return prev;
+
+
+
+      const next = current.includes(normalized)
+
+
+
+        ? current.filter((m) => m !== normalized)
+
+
+
+        : [...current, normalized];
+
+
+
+      return { ...prev, moduleAccess: next };
+
+
+
+    });
+
+
+
+  };
+
+
+
+
+
 
 
 
@@ -12670,7 +12703,59 @@ const CompanyPortal = () => {
 
 
 
-    setUserForm({ fullName: u.fullName, email: u.email, phone: u.phone || "", designation: u.designation || "", role: u.role || "employee", status: u.status, password: "", username: u.username || "" });
+    const userModules = Array.isArray(u.moduleAccess)
+
+
+
+      ? u.moduleAccess
+
+
+
+      : (typeof u.moduleAccess === "string"
+
+
+
+        ? (() => {
+
+
+
+            try {
+
+
+
+              const parsed = JSON.parse(u.moduleAccess);
+
+
+
+              return Array.isArray(parsed) ? parsed : [];
+
+
+
+            } catch {
+
+
+
+              return [];
+
+
+
+            }
+
+
+
+          })()
+
+
+
+        : []);
+
+
+
+    const normalizedModules = [...new Set(userModules.map(normalizePortalModuleKey).filter(Boolean))];
+
+
+
+    setUserForm({ fullName: u.fullName, email: u.email, phone: u.phone || "", designation: u.designation || "", role: u.role || "employee", status: u.status, password: "", username: u.username || "", moduleAccess: normalizedModules });
 
 
 
@@ -12736,7 +12821,11 @@ const CompanyPortal = () => {
 
 
 
-      const payload = { ...userForm, companyId: adminCompanyId };
+      const normalizedModules = [...new Set((userForm.moduleAccess || []).map(normalizePortalModuleKey).filter(Boolean))];
+
+
+
+      const payload = { ...userForm, companyId: adminCompanyId, moduleAccess: normalizedModules };
 
 
 
@@ -13360,7 +13449,7 @@ const CompanyPortal = () => {
 
 
 
-      {/* ΓöÇΓöÇ Submission Detail Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* +�+�+�+�+�+� Submission Detail Modal +�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+�+� */}
 
 
 
@@ -13474,7 +13563,7 @@ const CompanyPortal = () => {
 
 
 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>+�</button>
 
 
 
@@ -13510,7 +13599,7 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>⚠️ {detailModal.error}</div>}
+              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>G��n+� {detailModal.error}</div>}
 
 
 
@@ -13570,7 +13659,7 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` ┬╖ Shift ${d.shift}` : ""}` },
+                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` G��G�� Shift ${d.shift}` : ""}` },
 
 
 
@@ -14296,7 +14385,7 @@ const CompanyPortal = () => {
 
 
 
-                                  {isIssue && <span style={{ marginRight: "4px" }}>⚠️</span>}
+                                  {isIssue && <span style={{ marginRight: "4px" }}>G��n+�</span>}
 
 
 
@@ -14476,8 +14565,8 @@ const CompanyPortal = () => {
             {bellOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: "300px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,0.12)", zIndex: 9999, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>⚠️ Active Warnings</span>
-                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all →</button>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>G��n+� Active Warnings</span>
+                  <button onClick={() => { setBellOpen(false); setNav("warnings"); setShowAddForm(false); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>View all G��</button>
                 </div>
                 {recentAlerts.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No open warnings</div>}
                 {recentAlerts.map((a) => {
@@ -14497,8 +14586,8 @@ const CompanyPortal = () => {
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
-                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">⚙️</button>
-                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "🔊 On" : "🔇 Off"}</button>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">G��n+�</button>
+                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "=��� On" : "=��� Off"}</button>
                   </div>
                 </div>
                 {alarmSettingsOpen && (
@@ -14513,7 +14602,7 @@ const CompanyPortal = () => {
                         <div key={key} className="fm-sev-row">
                           <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
                           <div className="fm-sev-actions">
-                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>Γû╢ Test</button>
+                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>+�++G�� Test</button>
                             <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>{isOn ? "ON" : "OFF"}</button>
                           </div>
                         </div>
@@ -14795,7 +14884,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "▲" : "Γû╝") : "⇅"}</span>}
+              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "G��" : "+�++G�") : "G��"}</span>}
 
 
 
@@ -14957,13 +15046,13 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Users", value: userStats.active, sub: "Γ£ô Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Users", value: userStats.active, sub: "+�-�+� Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
 
 
-                  { label: "Inactive Users", value: userStats.inactive, sub: "ΓÅ╕ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+                  { label: "Inactive Users", value: userStats.inactive, sub: "+�+�G�� Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
 
 
 
@@ -15041,7 +15130,7 @@ const CompanyPortal = () => {
 
 
 
-              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>├ó┼í┬á├»┬╕┬Å {companyUsersError}</div>}
+              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>G��+�G�++�G��+�G��-+G��G��G��+� {companyUsersError}</div>}
 
 
 
@@ -15187,23 +15276,9 @@ const CompanyPortal = () => {
 
                     <thead>
 
-
-
-
-
                       <tr>
 
-
-
-
-
                         <UserTH field="sno" sortable={false}>S.No</UserTH>
-
-
-
-
-
-                        <UserTH field="fullName">User</UserTH>
 
 
 
@@ -15671,7 +15746,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -15683,7 +15758,7 @@ const CompanyPortal = () => {
 
 
 
-                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>├ó┼í┬á├»┬╕┬Å {userFormError}</div>}
+                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>G��+�G�++�G��+�G��-+G��G��G��+� {userFormError}</div>}
 
 
 
@@ -16061,7 +16136,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Company Data Overview ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Company Data Overview +�+�+�+�+�+� */}
 
 
 
@@ -16218,6 +16293,66 @@ const CompanyPortal = () => {
 
 
                             <div>
+
+
+
+                            <div style={{ gridColumn: "span 2" }}>
+
+
+
+                              <label style={{ display: "block", fontSize: "12.5px", fontWeight: "600", color: "#475569", marginBottom: "7px" }}>Tab Access (User-wise)</label>
+
+
+
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "10px" }}>
+
+
+
+                                {portalTabModules.map((m) => {
+
+
+
+                                  const checked = Array.isArray(userForm.moduleAccess) && userForm.moduleAccess.includes(m.key);
+
+
+
+                                  return (
+
+
+
+                                    <label key={m.key} style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", color: "#334155", fontSize: "13px", fontWeight: 500 }}>
+
+
+
+                                      <input type="checkbox" checked={checked} onChange={() => handleUserModuleAccessToggle(m.key)} style={{ width: "14px", height: "14px", accentColor: "#2563eb", cursor: "pointer" }} />
+
+
+
+                                      {m.label}
+
+
+
+                                    </label>
+
+
+
+                                  );
+
+
+
+                                })}
+
+
+
+                              </div>
+
+
+
+                              <p style={{ margin: "6px 0 0", fontSize: "11.5px", color: "#64748b" }}>Only selected tabs will be visible in the company portal for this user.</p>
+
+
+
+                            </div>
 
 
 
@@ -17063,7 +17198,7 @@ const CompanyPortal = () => {
 
 
 
-              {sortField === field ? (sortDir === "asc" ? "▲" : "Γû╝") : "⇅"}
+              {sortField === field ? (sortDir === "asc" ? "G��" : "+�++G�") : "G��"}
 
 
 
@@ -17129,7 +17264,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Header +�+�+�+�+�+� */}
 
 
 
@@ -17201,7 +17336,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Stat Cards ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Stat Cards +�+�+�+�+�+� */}
 
 
 
@@ -17225,7 +17360,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Companies", value: companyStats.active, sub: "Γ£ô Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Companies", value: companyStats.active, sub: "+�-�+� Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
@@ -17237,7 +17372,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Companies", value: companyStats.inactive, sub: "ΓÅ╕ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+                  { label: "Inactive Companies", value: companyStats.inactive, sub: "+�+�G�� Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
 
 
 
@@ -17315,7 +17450,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Companies Table Card ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Companies Table Card +�+�+�+�+�+� */}
 
 
 
@@ -18239,7 +18374,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ View Company Modal ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� View Company Modal +�+�+�+�+�+� */}
 
 
 
@@ -18329,7 +18464,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -18467,7 +18602,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Edit Company Modal ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Edit Company Modal +�+�+�+�+�+� */}
 
 
 
@@ -18503,7 +18638,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -18515,7 +18650,7 @@ const CompanyPortal = () => {
 
 
 
-                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>├ó┼í┬á├»┬╕┬Å {editCompanyError}</div>}
+                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>G��+�G�++�G��+�G��-+G��G��G��+� {editCompanyError}</div>}
 
 
 
@@ -18968,7 +19103,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Module Access Modal ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Module Access Modal +�+�+�+�+�+� */}
 
 
 
@@ -19004,7 +19139,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -19028,7 +19163,7 @@ const CompanyPortal = () => {
 
 
 
-                      {ALL_MODULES.map((m) => (
+                      {portalTabModules.map((m) => (
 
 
 
@@ -19118,7 +19253,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ΓöÇΓöÇ Role Permissions Modal ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Role Permissions Modal +�+�+�+�+�+� */}
 
 
 
@@ -19154,7 +19289,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -19166,7 +19301,7 @@ const CompanyPortal = () => {
 
 
 
-                    <p style={{ color: "#64748b", fontSize: "13px", marginBottom: "16px" }}>Configure Create / Read / Update / Delete permissions per role and module.</p>
+                    <p style={{ color: "#64748b", fontSize: "13px", marginBottom: "16px" }}>Configure Create / Read / Update / Delete permissions per role and company-portal tab.</p>
 
 
 
@@ -19202,7 +19337,7 @@ const CompanyPortal = () => {
 
 
 
-                            {ALL_MODULES.map((m) => (
+                            {portalTabModules.map((m) => (
 
 
 
@@ -19298,7 +19433,7 @@ const CompanyPortal = () => {
 
 
 
-                              {ALL_MODULES.map((m) => {
+                              {portalTabModules.map((m) => {
 
 
 
@@ -19484,7 +19619,7 @@ const CompanyPortal = () => {
 
 
 
-            ├ó┼í┬á├»┬╕┬Å {companyError}
+            G��+�G�++�G��+�G��-+G��G��G��+� {companyError}
 
 
 
@@ -19520,7 +19655,7 @@ const CompanyPortal = () => {
 
 
 
-            ├ó┼í┬á├»┬╕┬Å {assetError}
+            G��+�G�++�G��+�G��-+G��G��G��+� {assetError}
 
 
 
@@ -19688,7 +19823,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>}
+              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "G��" : "G�+") : "G��"}</span>}
 
 
 
@@ -20168,7 +20303,7 @@ const CompanyPortal = () => {
 
 
 
-                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -20186,7 +20321,7 @@ const CompanyPortal = () => {
 
 
 
-                  {/* ΓöÇΓöÇ Asset Type - filtered by company sector ΓöÇΓöÇ */}
+                  {/* +�+�+�+�+�+� Asset Type - filtered by company sector +�+�+�+�+�+� */}
 
 
 
@@ -20228,7 +20363,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span style={{ fontSize: "18px" }}>🏥</span>
+                          <span style={{ fontSize: "18px" }}>=���</span>
 
 
 
@@ -20606,7 +20741,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span>🏥</span> Healthcare equipment registration - barcode will be auto-generated.
+                          <span>=���</span> Healthcare equipment registration - barcode will be auto-generated.
 
 
 
@@ -20684,7 +20819,7 @@ const CompanyPortal = () => {
 
 
 
-                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>├ù</button>
+                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>G��+�</button>
 
 
 
@@ -21138,7 +21273,7 @@ const CompanyPortal = () => {
 
 
 
-                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>📄 View Invoice</a>
+                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>=��� View Invoice</a>
 
 
 
@@ -21168,7 +21303,7 @@ const CompanyPortal = () => {
 
 
 
-                                  📂 Upload Invoice
+                                  =��� Upload Invoice
 
 
 
@@ -21664,13 +21799,13 @@ const CompanyPortal = () => {
                           <>
                             <div className="form-group"><label>Building / Ward</label>
                               <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                <option value="">— Select Building —</option>
+                                <option value="">G�� Select Building G��</option>
                                 {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                               </select>
                             </div>
                             <div className="form-group"><label>Floor</label>
                               <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                <option value="">— Select Floor —</option>
+                                <option value="">G�� Select Floor G��</option>
                                 {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                               </select>
                             </div>
@@ -21777,25 +21912,25 @@ const CompanyPortal = () => {
                               <>
                                 <div className="form-group"><label>Building</label>
                                   <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                    <option value="">— Select Building —</option>
+                                    <option value="">G�� Select Building G��</option>
                                     {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Floor</label>
                                   <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                    <option value="">— Select Floor —</option>
+                                    <option value="">G�� Select Floor G��</option>
                                     {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Department</label>
                                   <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                    <option value="">— Select Department —</option>
+                                    <option value="">G�� Select Department G��</option>
                                     {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Room / Area</label>
                                   <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                    <option value="">— Select Room —</option>
+                                    <option value="">G�� Select Room G��</option>
                                     {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                                   </select>
                                 </div>
@@ -22034,25 +22169,25 @@ const CompanyPortal = () => {
                                 <>
                                   <div className="form-group"><label>Building</label>
                                     <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                      <option value="">— Select Building —</option>
+                                      <option value="">G�� Select Building G��</option>
                                       {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Floor</label>
                                     <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                      <option value="">— Select Floor —</option>
+                                      <option value="">G�� Select Floor G��</option>
                                       {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Department</label>
                                     <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                      <option value="">— Select Department —</option>
+                                      <option value="">G�� Select Department G��</option>
                                       {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Room/Area</label>
                                     <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                      <option value="">— Select Room —</option>
+                                      <option value="">G�� Select Room G��</option>
                                       {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                                     </select>
                                   </div>
@@ -22739,7 +22874,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>+�</button>
 
 
 
@@ -23219,7 +23354,7 @@ const CompanyPortal = () => {
 
 
 
-                    /* ΓöÇΓöÇ Barcode label preview (industry standard 3.5" x 2" ratio) ΓöÇΓöÇ */
+                    /* +�+�+�+�+�+� Barcode label preview (industry standard 3.5" x 2" ratio) +�+�+�+�+�+� */
 
 
 
@@ -23327,7 +23462,7 @@ const CompanyPortal = () => {
 
 
 
-                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>📍 {assetQrModal.location}</div>}
+                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>=��� {assetQrModal.location}</div>}
 
 
 
@@ -23357,7 +23492,7 @@ const CompanyPortal = () => {
 
 
 
-                        Scan QR to view details &amp; raise queries ┬╖ {new Date().getFullYear()}
+                        Scan QR to view details &amp; raise queries G��G�� {new Date().getFullYear()}
 
 
 
@@ -23623,9 +23758,9 @@ const CompanyPortal = () => {
                       ['Invoice No',       mf('invoiceNo')],
                       ['Purchase Date',    dateField(mf('purchaseDate'))],
                       ['Purchase Cost',    mf('purchaseCost') ? String(mf('purchaseCost')) : ''],
-                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} → ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
-                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} → ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
-                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} → ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
+                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} G�� ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
+                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} G�� ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
+                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} G�� ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
                       ['In House',         m.inHouse ? 'Yes' : ''],
                       ['Catalyst',         m.catalyst ? 'Yes' : ''],
                       ['RBER',             (mf('rber') || m.rber) ? 'Yes' : ''],
@@ -25279,7 +25414,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ΓöÇΓöÇ Toast notifications (fixed overlay on every page) ΓöÇΓöÇ */}
+        {/* +�+�+�+�+�+� Toast notifications (fixed overlay on every page) +�+�+�+�+�+� */}
 
 
 
@@ -25315,7 +25450,7 @@ const CompanyPortal = () => {
 
 
 
-            const icon  = { critical: "🚨", high: "⚠️", medium: "⚡", low: "📊", info: "ℹ️" }[t.severity] || "⚠️";
+            const icon  = { critical: "=�ܿ", high: "G��n+�", medium: "G��", low: "=���", info: "G�n+�" }[t.severity] || "G��n+�";
 
 
 
@@ -25411,7 +25546,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ΓöÇΓöÇ Sector Selection Modal ΓöÇΓöÇ */}
+        {/* +�+�+�+�+�+� Sector Selection Modal +�+�+�+�+�+� */}
 
 
 
@@ -25585,7 +25720,7 @@ const CompanyPortal = () => {
 
 
 
-                  Γ£ô Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
+                  +�-�+� Selected: <strong>{selectedSectors.map((v) => SECTORS.find((s) => s.value === v)?.label).join(", ")}</strong>
 
 
 
@@ -25681,7 +25816,7 @@ const CompanyPortal = () => {
 
 
 
-                  Continue →
+                  Continue G��
 
 
 
@@ -25843,7 +25978,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>🏥</span>
+                  <span style={{ fontSize: "18px" }}>=���</span>
 
 
 
@@ -26197,7 +26332,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>📍</span>
+                  <span style={{ fontSize: "18px" }}>=���</span>
 
 
 
@@ -26381,7 +26516,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>📞</span>
+                  <span style={{ fontSize: "18px" }}>=��P</span>
 
 
 
@@ -28012,7 +28147,7 @@ const CompanyPortal = () => {
           return (
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
-              {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Header +�+�+�+�+�+� */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
@@ -28066,7 +28201,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ ASSET PROFILE ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� ASSET PROFILE +�+�+�+�+�+� */}
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
@@ -28084,7 +28219,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ COMPLAINT PROFILE ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� COMPLAINT PROFILE +�+�+�+�+�+� */}
               <div style={{ marginBottom: "24px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                   <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
@@ -28101,7 +28236,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ Drill-down panel (when tile clicked) ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Drill-down panel (when tile clicked) +�+�+�+�+�+� */}
               {activeTile && (
                 <div style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -28112,7 +28247,7 @@ const CompanyPortal = () => {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        View All →
+                        View All G��
                       </button>
                       <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -28145,7 +28280,7 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 12px", textAlign: "right" }}>
                                 <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
                                   style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                                  View Assets →
+                                  View Assets G��
                                 </button>
                               </td>
                             </tr>
@@ -28157,7 +28292,7 @@ const CompanyPortal = () => {
                 </div>
               )}
 
-              {/* ΓöÇΓöÇ Charts Row ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Charts Row +�+�+�+�+�+� */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
 
                 {/* Asset Status Pie */}
@@ -28189,7 +28324,7 @@ const CompanyPortal = () => {
 
               </div>
 
-              {/* ΓöÇΓöÇ Summary Stats Row ΓöÇΓöÇ */}
+              {/* +�+�+�+�+�+� Summary Stats Row +�+�+�+�+�+� */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
                 {[
                   { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },

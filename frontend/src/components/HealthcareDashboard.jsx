@@ -874,13 +874,11 @@ export default function HealthcareDashboard({ token }) {
   const [appliedFilters, setApplied]= useState(EMPTY_FILTERS);
   const [snapshot, setSnapshot]     = useState(null);
   const [charts, setCharts]         = useState(null);
-  const [filterOptions, setFOpts]   = useState({ departments: [], categories: [], locations: [] });
   const [snapLoading, setSnapL]     = useState(false);
   const [chartLoading, setChartL]   = useState(false);
   const [snapError, setSnapE]       = useState(null);
   const [activeRecord, setActiveRec]= useState("call-logs");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [tileFilter, setTileFilter] = useState({});          // extra filter from KPI tile click
   const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
   const [chartDrilldown, setChartDrilldown] = useState(null); // { dept, criticality, data, loading }
   const [activeComplaintKey, setActiveComplaintKey] = useState(null); // complaint tile clicked
@@ -888,14 +886,6 @@ export default function HealthcareDashboard({ token }) {
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [exportDDOpen, setExportDDOpen] = useState(false);
   const complaintPanelRef = useRef(null);
-  const tableRef = useRef(null);  // ref to scroll to asset table on tile click
-
-  /* Load filter options once */
-  useEffect(() => {
-    hcFetch("/filter-options", token)
-      .then(setFOpts)
-      .catch(() => {});
-  }, [token]);
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async () => {
@@ -926,16 +916,13 @@ export default function HealthcareDashboard({ token }) {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Click a KPI tile: toggle tile filter and scroll to the asset table
+  // Click a KPI tile: keep only active visual state.
   const handleTileClick = (k) => {
     if (activeKpiKey === k.key) {
-      setTileFilter({});
       setActiveKpiKey(null);
     } else {
-      setTileFilter(k.filterData || {});
       setActiveKpiKey(k.key);
     }
-    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
   const doExport = (extraFilters, type) => {
@@ -994,59 +981,12 @@ export default function HealthcareDashboard({ token }) {
     { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
     { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
-    { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
     { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
+    { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
   ];
 
   return (
     <div style={{ padding: "24px", maxWidth: "1400px", fontFamily: "'Inter', -apple-system, sans-serif" }}>
-      {/* Page Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
-        <div style={{ flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-            <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            </div>
-            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Client Dashboard: Biomedical Equipment Maintenance Services</h1>
-          </div>
-          <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>Complete visibility into your healthcare facility's asset lifecycle</p>
-        </div>
-        <div style={{ position: "relative", flexShrink: 0, marginLeft: "auto" }}>
-          <button onClick={() => setExportDDOpen(o => !o)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-            <Icon.Download /> Export All
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          {exportDDOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: "220px", overflow: "hidden" }}
-              onMouseLeave={() => setExportDDOpen(false)}>
-              {[
-                { label: "All Assets", filterData: {}, type: "assets" },
-                { label: "Critical Assets", filterData: { criticality: "Critical" }, type: "assets" },
-                { label: "Non-Critical Assets", filterData: { criticality: "Non_Critical" }, type: "assets" },
-                { label: "RBER Assets", filterData: { rber: "1" }, type: "assets" },
-                { label: "Condemned Assets", filterData: { condemned: "1" }, type: "assets" },
-                { label: "Verified Assets", filterData: { verified: "1" }, type: "assets" },
-                { label: "─", type: "divider" },
-                { label: "Call Logs", filterData: {}, type: "call-logs" },
-                { label: "PMS Records", filterData: {}, type: "pms" },
-                { label: "Calibration Records", filterData: {}, type: "calibration" },
-              ].map((opt, i) => opt.type === "divider"
-                ? <div key={i} style={{ height: "1px", background: "#f1f5f9", margin: "4px 0" }} />
-                : (
-                  <button key={i} onClick={() => { doExport(opt.filterData, opt.type); setExportDDOpen(false); }}
-                    style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "13px", color: "#374151", textAlign: "left" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <Icon.Download style={{ opacity: 0.5 }} /> {opt.label}
-                  </button>
-                )
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Error state */}
       {snapError && <ErrorState message={snapError} onRetry={loadSnapshot} />}
 
@@ -1154,25 +1094,6 @@ export default function HealthcareDashboard({ token }) {
         {/* ── KPI Asset Panel — removed; replaced by always-visible table below filters ── */}
       </section>
 
-      {/* ── Advanced Filters — always visible below KPI tiles ── */}
-      <FiltersPanel
-        filters={filters}
-        setFilters={setFilters}
-        filterOptions={filterOptions}
-        onApply={handleApply}
-        onReset={handleReset}
-      />
-
-      {/* ── Asset Report Table — always visible, filtered by tile click or panel ── */}
-      <div ref={tableRef}>
-        <DashboardAssetTable
-          token={token}
-          filters={{ ...appliedFilters, ...tileFilter }}
-          tileLabel={activeKpiKey ? (KPI_LIST.find(k => k.key === activeKpiKey)?.label || null) : null}
-          onClearTile={() => { setTileFilter({}); setActiveKpiKey(null); }}
-        />
-      </div>
-
       {/* ── CHARTS ROW ── */}
       <section style={{ marginBottom: "28px" }}>
         <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 14px" }}>Analytics & Charts</h2>
@@ -1190,14 +1111,6 @@ export default function HealthcareDashboard({ token }) {
           <ChartCard title="Criticality by Department" subtitle="Click a bar to view those assets">
             {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
               <BarChart data={charts.criticalityByDept} onBarClick={openChartDrilldown} /> :
-              <EmptyState small />
-            }
-          </ChartCard>
-
-          {/* Line: Monthly Trends */}
-          <ChartCard title="Monthly Maintenance Trends" subtitle="PMS & Call Log activity over 12 months">
-            {chartLoading ? <Spinner /> : charts?.monthlyTrend ?
-              <LineChart data={charts.monthlyTrend} /> :
               <EmptyState small />
             }
           </ChartCard>

@@ -2772,6 +2772,7 @@ router.get("/me", async (req, res, next) => {
     const [[row]] = await pool.query(
       `SELECT cu.id, cu.full_name AS "fullName", cu.email, cu.phone, cu.designation, cu.role,
               cu.status, cu.company_id AS "companyId", c.company_name AS "companyName",
+              cu.permissions, cu.module_access AS "moduleAccess",
               c.enabled_modules AS "enabledModules", c.logo_url AS "logoUrl",
               c.sector, c.sectors, c.public_token AS "publicToken"
        FROM company_users cu
@@ -2780,6 +2781,51 @@ router.get("/me", async (req, res, next) => {
       [req.companyUser.id]
     );
     if (!row) return res.status(404).json({ message: "User not found" });
+
+    const toObject = (value) => {
+      if (!value) return {};
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+          return {};
+        }
+      }
+      return typeof value === "object" && !Array.isArray(value) ? value : {};
+    };
+
+    const toArray = (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const [[rolePermRow]] = await pool.query(
+      `SELECT permissions
+       FROM role_permissions
+       WHERE company_id = ? AND role = ?
+       LIMIT 1`,
+      [row.companyId, row.role]
+    );
+
+    const rolePerms = toObject(rolePermRow?.permissions);
+    const userPerms = toObject(row.permissions);
+    row.permissions = { ...rolePerms, ...userPerms };
+    row.moduleAccess = toArray(row.moduleAccess);
+    if (!row.moduleAccess.length) {
+      row.moduleAccess = Object.entries(row.permissions)
+        .filter(([, ops]) => ops && typeof ops === "object" && (ops.r === true || ops.read === true || ops.view === true))
+        .map(([moduleKey]) => moduleKey);
+    }
+
     row.enabledModules = row.enabledModules
       ? (typeof row.enabledModules === "string" ? JSON.parse(row.enabledModules) : row.enabledModules)
       : null;
