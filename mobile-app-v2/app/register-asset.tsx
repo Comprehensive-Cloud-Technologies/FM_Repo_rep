@@ -583,7 +583,7 @@ export default function RegisterAssetScreen() {
             {companyName ? (
               <Text style={[sStyles.headerSub, { color: theme.primary, fontWeight: '700', fontFamily: undefined }]}>{companyName}</Text>
             ) : null}
-            <Text style={[sStyles.headerSub, { color: theme.textMuted }]}>{qrUid}</Text>
+            <Text style={[sStyles.headerSub, { color: theme.textMuted }]}>Asset ID will be generated automatically after registration</Text>
           </View>
         </View>
 

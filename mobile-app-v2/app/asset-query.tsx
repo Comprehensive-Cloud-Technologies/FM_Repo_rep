@@ -132,7 +132,7 @@ export default function AssetQueryScreen() {
   const location = [asset?.building, asset?.floor, asset?.room].filter(Boolean).join(' / ');
 
   const infoRows: [string, string][] = [
-    ['Asset ID', asset?.assetUniqueId],
+    ['Asset ID', asset?.assetUniqueId ?? asset?.uniqueId],
     ['Location', location || null],
     ['Make / Model', [meta.make, meta.model].filter(Boolean).join(' / ') || null],
     ['Serial No.', meta.serialNo],
@@ -182,9 +182,9 @@ export default function AssetQueryScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.assetName, { color: theme.textPrimary }]}>{asset?.assetName ?? paramName}</Text>
-                {asset?.assetUniqueId ? (
+                {asset?.assetUniqueId || asset?.uniqueId ? (
                   <Text style={[styles.barcodeText, { color: theme.textMuted }]}>
-                    <MaterialCommunityIcons name="qrcode" size={12} /> {asset.assetUniqueId}
+                    <MaterialCommunityIcons name="identifier" size={12} /> Asset ID: {asset?.assetUniqueId ?? asset?.uniqueId}
                   </Text>
                 ) : null}
               </View>
@@ -216,7 +216,7 @@ export default function AssetQueryScreen() {
               <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Report an Issue</Text>
               <Text style={[styles.formSub, { color: theme.textSecondary }]}>
                 Asset: <Text style={{ fontWeight: '700' }}>{asset?.assetName}</Text>
-                {asset?.assetUniqueId ? `  ·  ${asset.assetUniqueId}` : ''}
+                {asset?.assetUniqueId || asset?.uniqueId ? `  ·  ${asset?.assetUniqueId ?? asset?.uniqueId}` : ''}
               </Text>
 
               {/* Quick options */}

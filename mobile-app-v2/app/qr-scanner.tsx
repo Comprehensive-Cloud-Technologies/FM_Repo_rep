@@ -57,7 +57,7 @@ export default function QRScannerScreen() {
             router.replace({ pathname: '/register-asset', params: { qrUid: data.trim(), qrId: String(qr.id), companyName: qr.companyName ?? '' } });
           } else {
             // Linked → show asset details + query form
-            router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? data.trim() } });
+            router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? '' } });
           }
         } catch (err: any) {
           const detail = err?.status === 404
