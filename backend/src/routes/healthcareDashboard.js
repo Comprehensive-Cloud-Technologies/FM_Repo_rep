@@ -70,7 +70,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
     const companyId = req.companyUser.companyId;
     const { where, p } = buildAssetWhere(companyId, req.query);
 
-    const [[assetRow], [[reqStats]]] = await Promise.all([
+    const [[assetRow], [[reqStats]], [[calibrationStats]]] = await Promise.all([
       pool.query(
         `SELECT
            COUNT(*)                                                    AS total,
@@ -103,6 +103,33 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
          WHERE company_id = ?`,
         [companyId]
       ),
+      pool.query(
+        `SELECT
+           SUM(CASE WHEN a.calibration_required = 1
+                     AND a.next_calibration_due_date IS NOT NULL
+                     AND YEAR(a.next_calibration_due_date) = YEAR(CURDATE())
+                     AND MONTH(a.next_calibration_due_date) = MONTH(CURDATE())
+                    THEN 1 ELSE 0 END) AS due_this_month,
+           SUM(CASE WHEN a.calibration_required = 1
+                     AND a.next_calibration_due_date IS NOT NULL
+                     AND a.next_calibration_due_date < CURDATE()
+                    THEN 1 ELSE 0 END) AS overdue,
+           SUM(CASE WHEN a.calibration_required = 1
+                     AND a.next_calibration_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+                    THEN 1 ELSE 0 END) AS upcoming,
+           (
+             SELECT COUNT(*)
+             FROM calibration_records cr
+             JOIN assets ax ON ax.id = cr.asset_id
+             WHERE ax.company_id = ?
+               AND YEAR(cr.calibration_date) = YEAR(CURDATE())
+               AND MONTH(cr.calibration_date) = MONTH(CURDATE())
+               AND LOWER(COALESCE(cr.status, '')) IN ('active', 'pass', 'completed')
+           ) AS completed_this_month
+         FROM assets a
+         WHERE a.company_id = ?`,
+        [companyId, companyId]
+      ),
     ]);
 
     const snap = assetRow[0];
@@ -124,6 +151,10 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       wipGt7:           Number(reqStats.wip_gt7           || 0),
       resolvedComplaints: Number(reqStats.resolved_requests || 0),
       closedComplaints:   Number(reqStats.closed_requests   || 0),
+      calibrationDueThisMonth: Number(calibrationStats.due_this_month || 0),
+      calibrationOverdue: Number(calibrationStats.overdue || 0),
+      calibrationUpcoming: Number(calibrationStats.upcoming || 0),
+      calibrationCompletedThisMonth: Number(calibrationStats.completed_this_month || 0),
     });
   } catch (err) { next(err); }
 });

@@ -1037,6 +1037,28 @@ export default function HealthcareDashboard({ token }) {
           </div>
         </div>
 
+        <div style={{ marginTop: "14px" }}>
+          <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+            {[
+              { key: "calibrationDueThisMonth", label: "Due This Month", icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
+              { key: "calibrationOverdue", label: "Overdue", icon: Icon.Calibration, color: "red", value: snapshot?.calibrationOverdue },
+              { key: "calibrationUpcoming", label: "Upcoming (30D)", icon: Icon.Calibration, color: "blue", value: snapshot?.calibrationUpcoming },
+              { key: "calibrationCompletedThisMonth", label: "Completed This Month", icon: Icon.Calibration, color: "green", value: snapshot?.calibrationCompletedThisMonth },
+            ].map(k => (
+              <KpiCard
+                key={k.key}
+                label={k.label}
+                value={k.value}
+                icon={k.icon}
+                color={k.color}
+                loading={snapLoading}
+                isActive={false}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* Complaint requests panel — shown when a complaint tile is clicked */}
         {activeComplaintKey && (
           <div ref={complaintPanelRef} style={{ marginTop: "14px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>

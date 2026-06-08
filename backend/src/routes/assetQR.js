@@ -64,6 +64,14 @@ router.get("/:assetId", async (req, res, next) => {
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.calibration_required AS "calibrationRequired",
+              a.calibration_frequency AS "calibrationFrequency",
+              a.last_calibration_date AS "lastCalibrationDate",
+              a.next_calibration_due_date AS "nextCalibrationDueDate",
+              a.calibration_status AS "calibrationStatus",
+              a.alert_before_days AS "alertBeforeDays",
+              a.calibration_vendor_id AS "calibrationVendorId",
+              cv.vendor_name AS "calibrationVendorName",
               a.company_id AS "companyId",
               c.company_name AS "companyName",
               d.name AS "departmentName",
@@ -73,6 +81,7 @@ router.get("/:assetId", async (req, res, next) => {
        LEFT JOIN companies c    ON c.id = a.company_id
        LEFT JOIN departments d  ON d.id = a.department_id
        LEFT JOIN asset_types at ON at.code = a.asset_type
+       LEFT JOIN calibration_vendors cv ON cv.id = a.calibration_vendor_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        WHERE a.id = ?`,
       [assetId]
@@ -84,6 +93,22 @@ router.get("/:assetId", async (req, res, next) => {
     if (docs) meta.documents = docs;
     asset.metadata = meta;
     delete asset.documents;
+
+    const [calibrationHistory] = await pool.query(
+      `SELECT cr.id, cr.calibration_date AS calibrationDate,
+              cr.next_due_date AS nextDueDate,
+              cr.certificate_number AS certificateNumber,
+              cr.certificate_url AS certificateUrl,
+              cr.remarks, cr.calibrated_by AS calibratedBy,
+              cr.status,
+              cv.vendor_name AS vendorName,
+              cr.created_at AS createdAt
+       FROM calibration_records cr
+       LEFT JOIN calibration_vendors cv ON cv.id = cr.vendor_id
+       WHERE cr.asset_id = ?
+       ORDER BY cr.calibration_date DESC, cr.created_at DESC`,
+      [assetId]
+    );
 
     // Logsheet templates: if user logged in, only show assigned ones
     let logsheetTemplates;
@@ -186,6 +211,7 @@ router.get("/:assetId", async (req, res, next) => {
       ojtTrainings,
       logsheetTemplates: normalizedLS,
       checklistTemplates: normalizedCL,
+      calibrationHistory,
       userAuthenticated: !!companyUser,
       recentSubmission,
     });

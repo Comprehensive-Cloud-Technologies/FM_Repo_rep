@@ -357,6 +357,9 @@ export default function AddAssetScreen() {
   const [showBuildingPicker, setShowBuildingPicker] = useState(false);
   const [showFloorPicker, setShowFloorPicker] = useState(false);
   const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [showCalibrationFrequencyPicker, setShowCalibrationFrequencyPicker] = useState(false);
+  const [showCalibrationStatusPicker, setShowCalibrationStatusPicker] = useState(false);
+  const [showCalibrationVendorPicker, setShowCalibrationVendorPicker] = useState(false);
   const [loadingCompanies, setLoadingCompanies]   = useState(true);
   const [loadingDepts, setLoadingDepts]           = useState(false);
 
@@ -384,6 +387,14 @@ export default function AddAssetScreen() {
   const [catalyst, setCatalyst] = useState(false);
   const [rber,     setRber]     = useState(false);
   const [remarks,  setRemarks]  = useState('');
+  const [calibrationRequired, setCalibrationRequired] = useState(false);
+  const [calibrationFrequency, setCalibrationFrequency] = useState('');
+  const [lastCalibrationDate, setLastCalibrationDate] = useState('');
+  const [nextCalibrationDueDate, setNextCalibrationDueDate] = useState('');
+  const [calibrationVendorName, setCalibrationVendorName] = useState('');
+  const [calibrationCertificateNumber, setCalibrationCertificateNumber] = useState('');
+  const [calibrationStatus, setCalibrationStatus] = useState('Pending');
+  const [alertBeforeDays, setAlertBeforeDays] = useState('30');
 
   // Location
   const [building, setBuilding] = useState('');
@@ -511,6 +522,24 @@ export default function AddAssetScreen() {
           cmc: cmc.enabled ? cmc : undefined,
           inHouse: inHouse || undefined,
           catalyst: catalyst || undefined,
+          calibration: calibrationRequired ? {
+            required: true,
+            frequency: calibrationFrequency || undefined,
+            lastCalibrationDate: lastCalibrationDate || undefined,
+            nextCalibrationDueDate: nextCalibrationDueDate || undefined,
+            vendorName: calibrationVendorName || undefined,
+            certificateNumber: calibrationCertificateNumber || undefined,
+            status: calibrationStatus || undefined,
+            alertBeforeDays: alertBeforeDays ? Number(alertBeforeDays) : undefined,
+          } : undefined,
+          calibrationRequired,
+          calibrationFrequency: calibrationFrequency || undefined,
+          lastCalibrationDate: lastCalibrationDate || undefined,
+          nextCalibrationDueDate: nextCalibrationDueDate || undefined,
+          calibrationVendorName: calibrationVendorName || undefined,
+          calibrationCertificateNumber: calibrationCertificateNumber || undefined,
+          calibrationStatus: calibrationStatus || undefined,
+          alertBeforeDays: alertBeforeDays ? Number(alertBeforeDays) : undefined,
           rber: rber || undefined,
           remarks: remarks.trim() || undefined,
           hcImages: imageUrls.length ? imageUrls : undefined,
@@ -739,6 +768,70 @@ export default function AddAssetScreen() {
             </Field>
           </View>
 
+          {/* ── CALIBRATION ─────────────────────────────── */}
+          <SectionHeader title="Calibration Information" />
+          <Checkbox checked={calibrationRequired} label="Calibration Required" onToggle={() => setCalibrationRequired(v => !v)} />
+          {calibrationRequired ? (
+            <>
+              <Field label="Calibration Frequency">
+                <TouchableOpacity
+                  style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => setShowCalibrationFrequencyPicker(true)}>
+                  <Text style={{ color: calibrationFrequency ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {calibrationFrequency || '— Select Frequency —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              </Field>
+              <Field label="Calibration Status">
+                <TouchableOpacity
+                  style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => setShowCalibrationStatusPicker(true)}>
+                  <Text style={{ color: calibrationStatus ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {calibrationStatus || '— Select Status —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              </Field>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Last Calibration Date">
+                    <DatePickerField value={lastCalibrationDate} onChange={setLastCalibrationDate} placeholder="DD/MM/YYYY" />
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Next Calibration Due Date">
+                    <DatePickerField value={nextCalibrationDueDate} onChange={setNextCalibrationDueDate} placeholder="DD/MM/YYYY" />
+                  </Field>
+                </View>
+              </View>
+              <Field label="Calibration Vendor">
+                <TouchableOpacity
+                  style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => setShowCalibrationVendorPicker(true)}>
+                  <Text style={{ color: calibrationVendorName ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                    {calibrationVendorName || '— Select Vendor —'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              </Field>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Certificate Number">
+                    <TextInput style={inp()} placeholder="Certificate number" placeholderTextColor={theme.textMuted}
+                      value={calibrationCertificateNumber} onChangeText={setCalibrationCertificateNumber} />
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Alert Before Due (Days)">
+                    <TextInput style={inp()} placeholder="30" keyboardType="numeric" placeholderTextColor={theme.textMuted}
+                      value={alertBeforeDays} onChangeText={setAlertBeforeDays} />
+                  </Field>
+                </View>
+              </View>
+            </>
+          ) : null}
+
           {/* ── LOCATION ─────────────────────────────────── */}
           <SectionHeader title="Location" />
           <Field label="Department">
@@ -882,6 +975,49 @@ export default function AddAssetScreen() {
           setRoom(selected?.roomName || '');
         }}
         onClose={() => setShowRoomPicker(false)}
+      />
+      <PickerModal
+        visible={showCalibrationFrequencyPicker}
+        title="Calibration Frequency"
+        items={[
+          { id: 1, label: 'Monthly' },
+          { id: 2, label: 'Quarterly' },
+          { id: 3, label: 'Half Yearly' },
+          { id: 4, label: 'Yearly' },
+        ]}
+        onSelect={(id) => {
+          const map: Record<number, string> = { 1: 'Monthly', 2: 'Quarterly', 3: 'Half Yearly', 4: 'Yearly' };
+          setCalibrationFrequency(map[id] || '');
+        }}
+        onClose={() => setShowCalibrationFrequencyPicker(false)}
+      />
+      <PickerModal
+        visible={showCalibrationStatusPicker}
+        title="Calibration Status"
+        items={[
+          { id: 1, label: 'Active' },
+          { id: 2, label: 'Expired' },
+          { id: 3, label: 'Pending' },
+        ]}
+        onSelect={(id) => {
+          const map: Record<number, string> = { 1: 'Active', 2: 'Expired', 3: 'Pending' };
+          setCalibrationStatus(map[id] || 'Pending');
+        }}
+        onClose={() => setShowCalibrationStatusPicker(false)}
+      />
+      <PickerModal
+        visible={showCalibrationVendorPicker}
+        title="Calibration Vendor"
+        items={[
+          { id: 1, label: 'Philips Biomedical' },
+          { id: 2, label: 'GE Healthcare' },
+          { id: 3, label: 'Siemens Healthcare' },
+        ]}
+        onSelect={(id) => {
+          const map: Record<number, string> = { 1: 'Philips Biomedical', 2: 'GE Healthcare', 3: 'Siemens Healthcare' };
+          setCalibrationVendorName(map[id] || '');
+        }}
+        onClose={() => setShowCalibrationVendorPicker(false)}
       />
     </SafeAreaView>
   );

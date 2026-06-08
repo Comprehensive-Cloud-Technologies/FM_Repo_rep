@@ -43,6 +43,7 @@ export default function AssetScanPage() {
   const { assetId } = useParams();
 
   const [asset, setAsset] = useState(null);
+  const [calibrationHistory, setCalibrationHistory] = useState([]);
   const [assetLoading, setAssetLoading] = useState(true);
   const [assetError, setAssetError] = useState(null);
   const [defaultQueries, setDefaultQueries] = useState(DEFAULT_QUERIES_FALLBACK);
@@ -57,7 +58,12 @@ export default function AssetScanPage() {
     if (!assetId) return;
     fetch(`${BASE}/api/asset-qr/${assetId}`)
       .then((r) => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then((data) => { if (data?.asset) setAsset(data.asset); else setAssetError("Asset not found."); })
+      .then((data) => {
+        if (data?.asset) {
+          setAsset(data.asset);
+          setCalibrationHistory(Array.isArray(data?.calibrationHistory) ? data.calibrationHistory : []);
+        } else setAssetError("Asset not found.");
+      })
       .catch(() => setAssetError("Failed to load asset details."))
       .finally(() => setAssetLoading(false));
 
@@ -90,6 +96,11 @@ export default function AssetScanPage() {
   };
 
   const meta = asset?.metadata || {};
+  const calibration = meta?.calibration || {};
+  const calibrationStatus = asset?.calibrationStatus || calibration.status;
+  const calibrationDueDate = asset?.nextCalibrationDueDate || calibration.nextCalibrationDueDate;
+  const calibrationVendor = asset?.calibrationVendorName || calibration.vendorName;
+  const calibrationCertificate = calibration.certificateNumber;
 
   const maintenanceLabel = () => {
     const map = { warranty: "Warranty", amc: "AMC", cmc: "CMC", inhouse: "In-House", catalyst: "Catalyst FM" };
@@ -187,6 +198,33 @@ export default function AssetScanPage() {
                         {meta.rber && <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>RBER</span>}
                       </div>
                       {maintenanceDates() && <InfoRow label="Period" value={maintenanceDates()} />}
+                    </Section>
+                  )}
+
+                  {(calibrationStatus || calibrationDueDate || calibrationVendor) && (
+                    <Section title="Calibration Status">
+                      <InfoRow label="Status" value={calibrationStatus} />
+                      <InfoRow label="Due Date" value={calibrationDueDate} />
+                      <InfoRow label="Vendor" value={calibrationVendor} />
+                      <InfoRow label="Certificate" value={calibrationCertificate} />
+                    </Section>
+                  )}
+
+                  {calibrationHistory.length > 0 && (
+                    <Section title="Calibration History">
+                      {calibrationHistory.slice(0, 5).map((row) => (
+                        <div key={row.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                            {row.calibrationDate} → {row.nextDueDate || "-"}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>
+                            {(row.vendorName || "Vendor N/A")} · {(row.status || "Pending")}
+                            {row.certificateUrl ? (
+                              <a href={row.certificateUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "8px", color: "#2563eb", fontWeight: 600 }}>View PDF</a>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
                     </Section>
                   )}
 

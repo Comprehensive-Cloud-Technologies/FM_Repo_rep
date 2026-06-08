@@ -204,6 +204,47 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
     created_at DATETIME DEFAULT NOW(),
     UNIQUE KEY uq_qr_uid (qr_unique_id)
   )`,
+    // Calibration module
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS calibration_required TINYINT(1) NOT NULL DEFAULT 0`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS calibration_frequency VARCHAR(40) DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS last_calibration_date DATE DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS next_calibration_due_date DATE DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS calibration_status VARCHAR(30) DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS calibration_vendor_id INT DEFAULT NULL`,
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS alert_before_days INT DEFAULT NULL`,
+    `CREATE TABLE IF NOT EXISTS calibration_vendors (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      vendor_name VARCHAR(200) NOT NULL,
+      contact_person VARCHAR(160) DEFAULT NULL,
+      phone VARCHAR(32) DEFAULT NULL,
+      email VARCHAR(160) DEFAULT NULL,
+      address VARCHAR(255) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      created_at DATETIME DEFAULT NOW(),
+      updated_at DATETIME DEFAULT NOW(),
+      UNIQUE KEY uq_calibration_vendor_name (vendor_name)
+    )`,
+    `CREATE TABLE IF NOT EXISTS calibration_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      asset_id INT NOT NULL,
+      calibration_date DATE NOT NULL,
+      next_due_date DATE DEFAULT NULL,
+      vendor_id INT DEFAULT NULL,
+      certificate_number VARCHAR(160) DEFAULT NULL,
+      certificate_url VARCHAR(512) DEFAULT NULL,
+      remarks TEXT DEFAULT NULL,
+      calibrated_by VARCHAR(160) DEFAULT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+      created_at DATETIME DEFAULT NOW(),
+      KEY idx_calibration_records_asset (asset_id),
+      KEY idx_calibration_records_due (next_due_date),
+      KEY idx_calibration_records_vendor (vendor_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_calibration_due ON assets(next_calibration_due_date)`,
+    `CREATE INDEX IF NOT EXISTS idx_assets_calibration_vendor ON assets(calibration_vendor_id)`,
+    `INSERT INTO calibration_vendors (vendor_name, status)
+     VALUES ('Philips Biomedical', 'Active'), ('GE Healthcare', 'Active'), ('Siemens Healthcare', 'Active')
+     ON DUPLICATE KEY UPDATE vendor_name = VALUES(vendor_name)`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -231,6 +272,93 @@ const getNextGeneratedAssetId = async (conn, companyId) => {
   const cCode = sanitizeAssetIdPart(co?.companyCode, "CO");
   const sCode = sanitizeAssetIdPart(co?.stateCode, "NA");
   return `${cCode}-${sCode}-${String(Number(cnt || 0) + 1).padStart(6, "0")}`;
+};
+
+const normalizeCalibrationFrequency = (value) => {
+  if (!value) return null;
+  const raw = String(value).trim().toLowerCase();
+  const map = {
+    monthly: "Monthly",
+    quarter: "Quarterly",
+    quarterly: "Quarterly",
+    "half yearly": "Half Yearly",
+    "half-yearly": "Half Yearly",
+    halfyearly: "Half Yearly",
+    yearly: "Yearly",
+    annual: "Yearly",
+    "6 months": "Half Yearly",
+  };
+  return map[raw] || String(value).trim();
+};
+
+const toDateOnly = (value) => {
+  if (!value) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  return str.length >= 10 ? str.slice(0, 10) : str;
+};
+
+const resolveCalibrationVendorId = async (conn, vendorName) => {
+  if (!vendorName) return null;
+  const clean = String(vendorName).trim();
+  if (!clean) return null;
+  const [[existing]] = await conn.query(
+    "SELECT id FROM calibration_vendors WHERE LOWER(vendor_name) = LOWER(?) LIMIT 1",
+    [clean]
+  );
+  if (existing?.id) return existing.id;
+  const [ins] = await conn.query(
+    "INSERT INTO calibration_vendors (vendor_name, status) VALUES (?, 'Active')",
+    [clean]
+  );
+  return ins.insertId || null;
+};
+
+const deriveCalibrationFromInput = async (conn, input = {}, metadata = {}) => {
+  const metaCalibration = metadata?.calibration || {};
+  const required = Boolean(
+    input.calibrationRequired ?? metaCalibration.required ?? metadata?.calibrationRequired ?? false
+  );
+  const frequency = normalizeCalibrationFrequency(
+    input.calibrationFrequency ?? metaCalibration.frequency ?? metadata?.calibrationFrequency
+  );
+  const lastDate = toDateOnly(
+    input.lastCalibrationDate ?? metaCalibration.lastCalibrationDate ?? metadata?.lastCalibrationDate
+  );
+  const nextDue = toDateOnly(
+    input.nextCalibrationDueDate ?? metaCalibration.nextCalibrationDueDate ?? metadata?.nextCalibrationDueDate
+  );
+  const certNo =
+    input.calibrationCertificateNumber ??
+    metaCalibration.certificateNumber ??
+    metadata?.calibrationCertificateNumber ??
+    null;
+  const status =
+    input.calibrationStatus ??
+    metaCalibration.status ??
+    metadata?.calibrationStatus ??
+    (required ? "Pending" : null);
+  const alertBefore =
+    input.alertBeforeDays ?? metaCalibration.alertBeforeDays ?? metadata?.alertBeforeDays ?? null;
+  const vendorName =
+    input.calibrationVendorName ??
+    metaCalibration.vendorName ??
+    metadata?.calibrationVendorName ??
+    metadata?.dealer ??
+    null;
+  const vendorId = await resolveCalibrationVendorId(conn, vendorName);
+
+  return {
+    required,
+    frequency,
+    lastCalibrationDate: lastDate,
+    nextCalibrationDueDate: nextDue,
+    status,
+    vendorId,
+    vendorName: vendorName ? String(vendorName).trim() : null,
+    alertBeforeDays: alertBefore != null && alertBefore !== "" ? Number(alertBefore) : null,
+    certificateNumber: certNo ? String(certNo).trim() : null,
+  };
 };
 
 const upsertLocationHierarchyForCompany = async (conn, {
@@ -384,6 +512,76 @@ const safeParse = (v) => {
   if (v == null) return null;
   if (typeof v === "string") return JSON.parse(v);
   return v;
+};
+
+const getCalibrationStatusFromDates = (nextDueDate) => {
+  if (!nextDueDate) return "Pending";
+  const today = new Date();
+  const due = new Date(nextDueDate);
+  const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return "Expired";
+  if (diffDays <= 30) return "Due Soon";
+  return "Active";
+};
+
+const runCalibrationNotificationEngine = async (companyId) => {
+  const [assets] = await pool.query(
+    `SELECT id, asset_name AS assetName, generated_asset_id AS generatedAssetId,
+            next_calibration_due_date AS nextDueDate
+     FROM assets
+     WHERE company_id = ? AND calibration_required = 1 AND next_calibration_due_date IS NOT NULL`,
+    [companyId]
+  );
+  if (!assets.length) return { created: 0 };
+
+  const [recipients] = await pool.query(
+    `SELECT id
+     FROM company_users
+     WHERE company_id = ?
+       AND (
+         LOWER(COALESCE(role, '')) IN ('biomedical_engineer', 'htm_manager', 'facility_manager')
+         OR LOWER(COALESCE(role, '')) LIKE '%biomedical%'
+         OR LOWER(COALESCE(role, '')) LIKE '%facility%'
+         OR LOWER(COALESCE(role, '')) LIKE '%htm%'
+         OR LOWER(COALESCE(designation, '')) LIKE '%biomedical%'
+         OR LOWER(COALESCE(designation, '')) LIKE '%facility%'
+         OR LOWER(COALESCE(designation, '')) LIKE '%htm%'
+       )`,
+    [companyId]
+  );
+  if (!recipients.length) return { created: 0 };
+
+  let created = 0;
+  const today = new Date();
+  const mkDate = (v) => new Date(String(v).slice(0, 10) + "T00:00:00");
+  for (const a of assets) {
+    const due = mkDate(a.nextDueDate);
+    const diff = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+    let msg = null;
+    if (diff === 30) msg = `${a.assetName} (${a.generatedAssetId || a.id}) calibration due in 30 days`;
+    else if (diff === 15) msg = `${a.assetName} (${a.generatedAssetId || a.id}) calibration due in 15 days`;
+    else if (diff < 0) msg = `${a.assetName} (${a.generatedAssetId || a.id}) calibration overdue by ${Math.abs(diff)} days`;
+    if (!msg) continue;
+
+    for (const r of recipients) {
+      const [[dup]] = await pool.query(
+        `SELECT id FROM notifications
+         WHERE company_id = ? AND recipient_id = ? AND type = 'calibration_due'
+           AND message = ?
+           AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+         LIMIT 1`,
+        [companyId, r.id, msg]
+      );
+      if (dup) continue;
+      await pool.query(
+        `INSERT INTO notifications (company_id, recipient_id, type, title, message, is_read)
+         VALUES (?, ?, 'calibration_due', 'Calibration Alert', ?, 0)`,
+        [companyId, r.id, msg]
+      );
+      created += 1;
+    }
+  }
+  return { created };
 };
 
 // Ensure questions column exists (safe to run on every start)
@@ -994,6 +1192,13 @@ router.get("/assets", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.calibration_required AS "calibrationRequired",
+              a.calibration_frequency AS "calibrationFrequency",
+              a.last_calibration_date AS "lastCalibrationDate",
+              a.next_calibration_due_date AS "nextCalibrationDueDate",
+              a.calibration_status AS "calibrationStatus",
+              a.calibration_vendor_id AS "calibrationVendorId",
+              a.alert_before_days AS "alertBeforeDays",
               a.department_id AS "departmentId",
               a.assigned_to AS "assignedTo",
               a.assigned_at AS "assignedAt",
@@ -1258,6 +1463,13 @@ router.get("/assets/:id", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.calibration_required AS "calibrationRequired",
+              a.calibration_frequency AS "calibrationFrequency",
+              a.last_calibration_date AS "lastCalibrationDate",
+              a.next_calibration_due_date AS "nextCalibrationDueDate",
+              a.calibration_status AS "calibrationStatus",
+              a.calibration_vendor_id AS "calibrationVendorId",
+              a.alert_before_days AS "alertBeforeDays",
               a.created_at AS "createdAt",
               d.name AS "departmentName",
               ad.metadata
@@ -1316,6 +1528,76 @@ router.get("/assets/:id", async (req, res, next) => {
   }
 });
 
+router.get("/assets/:id/calibration-records", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const [[asset]] = await pool.query(
+      "SELECT id FROM assets WHERE id = ? AND company_id = ?",
+      [id, cid(req)]
+    );
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    const [rows] = await pool.query(
+      `SELECT cr.id,
+              cr.calibration_date AS calibrationDate,
+              cr.next_due_date AS nextDueDate,
+              cr.certificate_number AS certificateNumber,
+              cr.certificate_url AS certificateUrl,
+              cr.remarks,
+              cr.calibrated_by AS calibratedBy,
+              cr.status,
+              cv.vendor_name AS vendorName,
+              cr.created_at AS createdAt
+       FROM calibration_records cr
+       LEFT JOIN calibration_vendors cv ON cv.id = cr.vendor_id
+       WHERE cr.asset_id = ?
+       ORDER BY cr.calibration_date DESC, cr.id DESC`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post("/assets/:id/calibration-records", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      calibrationDate,
+      nextDueDate,
+      vendorName,
+      certificateNumber,
+      certificateUrl,
+      remarks,
+      calibratedBy,
+      status = 'Active',
+    } = req.body;
+    if (!calibrationDate) return res.status(400).json({ message: "calibrationDate is required" });
+    const [[asset]] = await pool.query(
+      "SELECT id FROM assets WHERE id = ? AND company_id = ?",
+      [id, cid(req)]
+    );
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    const vendorId = await resolveCalibrationVendorId(pool, vendorName || null);
+    const [ins] = await pool.query(
+      `INSERT INTO calibration_records
+       (asset_id, calibration_date, next_due_date, vendor_id, certificate_number, certificate_url, remarks, calibrated_by, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, toDateOnly(calibrationDate), toDateOnly(nextDueDate), vendorId, certificateNumber || null, certificateUrl || null, remarks || null, calibratedBy || null, status]
+    );
+    await pool.query(
+      `UPDATE assets
+       SET calibration_required = 1,
+           last_calibration_date = ?,
+           next_calibration_due_date = ?,
+           calibration_status = ?,
+           calibration_vendor_id = COALESCE(?, calibration_vendor_id),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [toDateOnly(calibrationDate), toDateOnly(nextDueDate), status, vendorId, id]
+    );
+    res.status(201).json({ id: ins.insertId });
+  } catch (err) { next(err); }
+});
+
 router.post("/assets", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
@@ -1337,11 +1619,17 @@ router.post("/assets", async (req, res, next) => {
     })();
     const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
 
-    const [result] = await pool.query(
+     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
+
+     const [result] = await pool.query(
       `INSERT INTO assets (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
-                          building, floor, room, building_id, floor_id, room_id, location_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
+                    calibration_status, calibration_vendor_id, alert_before_days,
+                    building, floor, room, building_id, floor_id, room_id, location_id, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [cid(req), departmentId || null, assetName.trim(), uniqueIdToUse, generatedAssetId, assetType,
+       calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
+       calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId, status]
     );
     const newId = result.insertId;
@@ -1353,11 +1641,30 @@ router.post("/assets", async (req, res, next) => {
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
+    metaClean.calibration = {
+      required: calibration.required,
+      frequency: calibration.frequency,
+      lastCalibrationDate: calibration.lastCalibrationDate,
+      nextCalibrationDueDate: calibration.nextCalibrationDueDate,
+      status: calibration.status,
+      vendorId: calibration.vendorId,
+      vendorName: calibration.vendorName,
+      alertBeforeDays: calibration.alertBeforeDays,
+      certificateNumber: calibration.certificateNumber,
+    };
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
       [newId, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
+    if (calibration.required && calibration.lastCalibrationDate) {
+      await pool.query(
+        `INSERT INTO calibration_records
+         (asset_id, calibration_date, next_due_date, vendor_id, certificate_number, status, remarks)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate, calibration.vendorId, calibration.certificateNumber, calibration.status || 'Pending', 'Auto-created during asset registration']
+      );
+    }
     res.status(201).json({ ...asset, metadata });
   } catch (err) { next(err); }
 });
@@ -1382,12 +1689,18 @@ router.post("/assets/manual", async (req, res, next) => {
     });
     const generatedAssetId = await getNextGeneratedAssetId(pool, companyId);
 
-    const [result] = await pool.query(
+     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
+
+     const [result] = await pool.query(
       `INSERT INTO assets (company_id, department_id, asset_name, generated_asset_id, asset_type,
+                    calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
+                    calibration_status, calibration_vendor_id, alert_before_days,
                            building, floor, room, building_id, floor_id, room_id, location_id,
                            status, is_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
       [companyId, departmentId || null, assetName.trim(), generatedAssetId, assetType,
+       calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
+       calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
     );
     const newId = result.insertId;
@@ -1400,11 +1713,30 @@ router.post("/assets/manual", async (req, res, next) => {
 
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
+    metaClean.calibration = {
+      required: calibration.required,
+      frequency: calibration.frequency,
+      lastCalibrationDate: calibration.lastCalibrationDate,
+      nextCalibrationDueDate: calibration.nextCalibrationDueDate,
+      status: calibration.status,
+      vendorId: calibration.vendorId,
+      vendorName: calibration.vendorName,
+      alertBeforeDays: calibration.alertBeforeDays,
+      certificateNumber: calibration.certificateNumber,
+    };
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
       [newId, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
+    if (calibration.required && calibration.lastCalibrationDate) {
+      await pool.query(
+        `INSERT INTO calibration_records
+         (asset_id, calibration_date, next_due_date, vendor_id, certificate_number, status, remarks)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate, calibration.vendorId, calibration.certificateNumber, calibration.status || 'Pending', 'Auto-created during asset registration']
+      );
+    }
 
     const [[asset]] = await pool.query(
       `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, generated_asset_id AS generatedAssetId, asset_type AS assetType,
@@ -1439,17 +1771,31 @@ router.patch("/assets/:id", async (req, res, next) => {
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status, metadata = {} } = req.body;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
+    const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
+
     await pool.query(
       `UPDATE assets SET
          asset_name = COALESCE(?, asset_name),
          asset_unique_id = COALESCE(?, asset_unique_id),
          asset_type = COALESCE(?, asset_type),
          department_id = ?,
+         calibration_required = ?,
+         calibration_frequency = ?,
+         last_calibration_date = ?,
+         next_calibration_due_date = ?,
+         calibration_status = ?,
+         calibration_vendor_id = ?,
+         alert_before_days = ?,
          building = ?, floor = ?, room = ?,
          status = COALESCE(?, status),
          updated_at = NOW()
        WHERE id = ?`,
-      [assetName || null, assetUniqueId || null, assetType || null, departmentId || null, building || null, floor || null, room || null, status || null, id]
+      [
+        assetName || null, assetUniqueId || null, assetType || null, departmentId || null,
+        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate,
+        calibration.nextCalibrationDueDate, calibration.status, calibration.vendorId, calibration.alertBeforeDays,
+        building || null, floor || null, room || null, status || null, id,
+      ]
     );
     const [[asset]] = await pool.query(
       `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status, building, floor, room, department_id AS departmentId FROM assets WHERE id = ?`,
@@ -1457,11 +1803,40 @@ router.patch("/assets/:id", async (req, res, next) => {
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
+    metaClean.calibration = {
+      required: calibration.required,
+      frequency: calibration.frequency,
+      lastCalibrationDate: calibration.lastCalibrationDate,
+      nextCalibrationDueDate: calibration.nextCalibrationDueDate,
+      status: calibration.status,
+      vendorId: calibration.vendorId,
+      vendorName: calibration.vendorName,
+      alertBeforeDays: calibration.alertBeforeDays,
+      certificateNumber: calibration.certificateNumber,
+    };
     await pool.query(
       `INSERT INTO asset_details (asset_id, metadata, documents) VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE metadata = VALUES(metadata), documents = VALUES(documents)`,
       [id, JSON.stringify(metaClean), docs ? JSON.stringify(docs) : null]
     );
+    if (calibration.required && calibration.lastCalibrationDate) {
+      const [[latestCalibration]] = await pool.query(
+        `SELECT id
+         FROM calibration_records
+         WHERE asset_id = ? AND calibration_date = ?
+         ORDER BY id DESC
+         LIMIT 1`,
+        [id, calibration.lastCalibrationDate]
+      );
+      if (!latestCalibration) {
+        await pool.query(
+          `INSERT INTO calibration_records
+           (asset_id, calibration_date, next_due_date, vendor_id, certificate_number, status, remarks)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [id, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate, calibration.vendorId, calibration.certificateNumber, calibration.status || 'Pending', 'Auto-created during asset update']
+        );
+      }
+    }
     res.json({ ...asset, metadata });
   } catch (err) { next(err); }
 });
@@ -1557,6 +1932,13 @@ router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.calibration_required AS "calibrationRequired",
+              a.calibration_frequency AS "calibrationFrequency",
+              a.last_calibration_date AS "lastCalibrationDate",
+              a.next_calibration_due_date AS "nextCalibrationDueDate",
+              a.calibration_status AS "calibrationStatus",
+              a.calibration_vendor_id AS "calibrationVendorId",
+              a.alert_before_days AS "alertBeforeDays",
               a.assigned_to AS "assignedTo",
               cu.full_name AS "assignedToName",
               d.name AS "departmentName",
@@ -1572,6 +1954,84 @@ router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
     const meta = asset.metadata == null ? {} : (typeof asset.metadata === "string" ? JSON.parse(asset.metadata) : asset.metadata);
     const docs = asset.documents == null ? undefined : (typeof asset.documents === "string" ? JSON.parse(asset.documents) : asset.documents);
     res.json({ ...asset, metadata: docs ? { ...meta, documents: docs } : meta, documents: undefined });
+  } catch (err) { next(err); }
+});
+
+/* ── Calibration Vendors ─────────────────────────────────────────────────────── */
+router.get("/calibration/vendors", async (_req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, vendor_name AS vendorName, contact_person AS contactPerson,
+              phone, email, address, status
+       FROM calibration_vendors
+       WHERE status != 'Inactive'
+       ORDER BY vendor_name`
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post("/calibration/vendors", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const { vendorName, contactPerson, phone, email, address, status = "Active" } = req.body;
+    if (!vendorName?.trim()) return res.status(400).json({ message: "vendorName is required" });
+    const [ins] = await pool.query(
+      `INSERT INTO calibration_vendors (vendor_name, contact_person, phone, email, address, status)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [vendorName.trim(), contactPerson || null, phone || null, email || null, address || null, status]
+    );
+    res.status(201).json({ id: ins.insertId, vendorName: vendorName.trim(), contactPerson, phone, email, address, status });
+  } catch (err) { next(err); }
+});
+
+/* ── Calibration Dashboard ───────────────────────────────────────────────────── */
+router.get("/calibration/dashboard", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+
+    await runCalibrationNotificationEngine(companyId).catch(() => null);
+
+    const [[dueThisMonth]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM assets
+       WHERE company_id = ? AND calibration_required = 1
+         AND next_calibration_due_date IS NOT NULL
+         AND YEAR(next_calibration_due_date) = YEAR(CURDATE())
+         AND MONTH(next_calibration_due_date) = MONTH(CURDATE())`,
+      [companyId]
+    );
+    const [[overdue]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM assets
+       WHERE company_id = ? AND calibration_required = 1
+         AND next_calibration_due_date IS NOT NULL
+         AND next_calibration_due_date < CURDATE()`,
+      [companyId]
+    );
+    const [[upcoming]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM assets
+       WHERE company_id = ? AND calibration_required = 1
+         AND next_calibration_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`,
+      [companyId]
+    );
+    const [[completed]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM calibration_records cr
+       JOIN assets a ON a.id = cr.asset_id
+       WHERE a.company_id = ?
+         AND YEAR(cr.calibration_date) = YEAR(CURDATE())
+         AND MONTH(cr.calibration_date) = MONTH(CURDATE())
+         AND LOWER(COALESCE(cr.status, '')) IN ('active', 'pass', 'completed')`,
+      [companyId]
+    );
+    res.json({
+      dueThisMonth: Number(dueThisMonth.total || 0),
+      overdue: Number(overdue.total || 0),
+      upcoming: Number(upcoming.total || 0),
+      completedThisMonth: Number(completed.total || 0),
+    });
   } catch (err) { next(err); }
 });
 
@@ -5253,6 +5713,9 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       floor, room,
       // New structured maintenance fields
       warranty, amc, cmc, inHouse, catalyst,
+      // Calibration
+      calibrationRequired, calibrationFrequency, lastCalibrationDate, nextCalibrationDueDate,
+      calibrationVendorName, calibrationCertificateNumber, calibrationStatus, alertBeforeDays,
       // Media
       hcImages, invoiceImages,
     } = req.body;
@@ -5274,13 +5737,28 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     });
     const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
 
-    // Create the new asset
+     const calibration = await deriveCalibrationFromInput(pool, {
+      calibrationRequired,
+      calibrationFrequency,
+      lastCalibrationDate,
+      nextCalibrationDueDate,
+      calibrationVendorName,
+      calibrationCertificateNumber,
+      calibrationStatus,
+      alertBeforeDays,
+     }, req.body || {});
+
+     // Create the new asset
     const [result] = await pool.query(
       `INSERT INTO assets
          (company_id, asset_name, asset_type, generated_asset_id,
+         calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
+         calibration_status, calibration_vendor_id, alert_before_days,
           building, floor, room, building_id, floor_id, room_id, location_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
       [cid(req), assetName.trim(), assetType, generatedAssetId,
+       calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
+       calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
     );
     const newAssetId = result.insertId;
@@ -5305,6 +5783,17 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       cmc:      cmc      && cmc.enabled      ? { enabled: true, startDate: cmc.startDate      || null, endDate: cmc.endDate      || null } : null,
       inHouse: !!inHouse, catalyst: !!catalyst,
       rber: !!rber, remarks: remarks || null, notes: notes || null,
+      calibration: {
+        required: calibration.required,
+        frequency: calibration.frequency,
+        lastCalibrationDate: calibration.lastCalibrationDate,
+        nextCalibrationDueDate: calibration.nextCalibrationDueDate,
+        status: calibration.status,
+        vendorId: calibration.vendorId,
+        vendorName: calibration.vendorName,
+        alertBeforeDays: calibration.alertBeforeDays,
+        certificateNumber: calibration.certificateNumber,
+      },
       // Media uploaded by mobile
       hcImages:      Array.isArray(hcImages)      ? hcImages      : [],
       invoiceImages: Array.isArray(invoiceImages) ? invoiceImages : [],
@@ -5313,6 +5802,15 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       `INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?) ON DUPLICATE KEY UPDATE metadata = VALUES(metadata)`,
       [newAssetId, JSON.stringify(metadata)]
     );
+
+    if (calibration.required && calibration.lastCalibrationDate) {
+      await pool.query(
+        `INSERT INTO calibration_records
+         (asset_id, calibration_date, next_due_date, vendor_id, certificate_number, status, remarks)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newAssetId, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate, calibration.vendorId, calibration.certificateNumber, calibration.status || 'Pending', 'Auto-created during QR asset registration']
+      );
+    }
 
     // Link QR to the new asset
     await pool.query(

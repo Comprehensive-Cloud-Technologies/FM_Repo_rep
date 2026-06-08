@@ -831,6 +831,8 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
     "maintenanceFrequency","lastServiceDate","nextServiceDate","technician",
     "vehicleNumber","vehicleType","fuelType","driver","rcNumber",
     "insuranceExpiry","pucExpiry","serviceDueDate","purchaseDate","vendor","dailyKmTracking",
+    "calibration","calibrationRequired","calibrationFrequency","lastCalibrationDate","nextCalibrationDueDate",
+    "calibrationVendorName","calibrationCertificateNumber","calibrationStatus","alertBeforeDays",
   ]);
 
   const buildForm = (src) => {
@@ -842,6 +844,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
     }
     const hcMt = meta.maintenanceTypes || {};
     const hcLegacyMt = meta.maintenanceType || "";
+    const hcCalibration = meta.calibration || {};
     return {
       assetName:    src?.assetName    || "",
       assetUniqueId: src?.assetUniqueId || "",
@@ -896,6 +899,14 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       hcCmcEnd:            meta.cmcEnd            || meta.cmc?.endDate        || "",
       hcRber:              !!(meta.rber),
       hcRemarks:           meta.remarks           || "",
+      hcCalibrationRequired: !!(hcCalibration.required || meta.calibrationRequired),
+      hcCalibrationFrequency: hcCalibration.frequency || meta.calibrationFrequency || "",
+      hcLastCalibrationDate: hcCalibration.lastCalibrationDate || meta.lastCalibrationDate || "",
+      hcNextCalibrationDueDate: hcCalibration.nextCalibrationDueDate || meta.nextCalibrationDueDate || "",
+      hcCalibrationVendorName: hcCalibration.vendorName || meta.calibrationVendorName || "",
+      hcCalibrationCertificateNumber: hcCalibration.certificateNumber || meta.calibrationCertificateNumber || "",
+      hcCalibrationStatus: hcCalibration.status || meta.calibrationStatus || "Pending",
+      hcCalibrationAlertBeforeDays: hcCalibration.alertBeforeDays || meta.alertBeforeDays || 30,
       hcImages:            Array.isArray(meta.hcImages)
         ? meta.hcImages.map(img => typeof img === 'string' ? { url: img, name: img.split('/').pop() || 'photo' } : img)
         : [],
@@ -929,6 +940,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   const [locRooms, setLocRooms] = useState([]);
   const [locBuildingId, setLocBuildingId] = useState("");
   const [locFloorId, setLocFloorId] = useState("");
+  const [calibrationVendors, setCalibrationVendors] = useState([]);
 
   useEffect(() => {
     if (!companyId || !token) {
@@ -944,6 +956,17 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       .then(d => setLocBuildings(Array.isArray(d) ? d : []))
       .catch(() => setLocBuildings([]));
   }, [companyId, token]);
+
+  useEffect(() => {
+    if (!token) {
+      setCalibrationVendors([]);
+      return;
+    }
+    fetch(`/api/company-portal/calibration/vendors`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setCalibrationVendors(Array.isArray(d) ? d : []))
+      .catch(() => setCalibrationVendors([]));
+  }, [token]);
 
   // Auto-set assetType to "healthcare" for HC companies when adding new asset
   useEffect(() => {
@@ -1019,6 +1042,24 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       amcStart: form.hcAmcStart, amcEnd: form.hcAmcEnd,
       cmcStart: form.hcCmcStart, cmcEnd: form.hcCmcEnd,
       rber: !!form.hcRber, remarks: form.hcRemarks,
+      calibration: {
+        required: !!form.hcCalibrationRequired,
+        frequency: form.hcCalibrationFrequency || null,
+        lastCalibrationDate: form.hcLastCalibrationDate || null,
+        nextCalibrationDueDate: form.hcNextCalibrationDueDate || null,
+        vendorName: form.hcCalibrationVendorName || null,
+        certificateNumber: form.hcCalibrationCertificateNumber || null,
+        status: form.hcCalibrationStatus || null,
+        alertBeforeDays: form.hcCalibrationAlertBeforeDays ? Number(form.hcCalibrationAlertBeforeDays) : null,
+      },
+      calibrationRequired: !!form.hcCalibrationRequired,
+      calibrationFrequency: form.hcCalibrationFrequency || null,
+      lastCalibrationDate: form.hcLastCalibrationDate || null,
+      nextCalibrationDueDate: form.hcNextCalibrationDueDate || null,
+      calibrationVendorName: form.hcCalibrationVendorName || null,
+      calibrationCertificateNumber: form.hcCalibrationCertificateNumber || null,
+      calibrationStatus: form.hcCalibrationStatus || null,
+      alertBeforeDays: form.hcCalibrationAlertBeforeDays ? Number(form.hcCalibrationAlertBeforeDays) : null,
       hcImages: form.hcImages || [], hcInvoiceUrl: form.hcInvoiceUrl || "",
     };
     if (isSoftLegacy) return { ...base, serviceArea: form.serviceArea, frequency: form.frequency, shift: form.shift, supervisor: form.supervisor, staffRequired: form.staffRequired, specialInstructions: form.specialInstructions };
@@ -1051,6 +1092,8 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         dateErrs.hcAmcEnd = "AMC end date must be after start date";
       if (form.hcCmc && form.hcCmcStart && form.hcCmcEnd && form.hcCmcEnd < form.hcCmcStart)
         dateErrs.hcCmcEnd = "CMC end date must be after start date";
+      if (form.hcCalibrationRequired && form.hcLastCalibrationDate && form.hcNextCalibrationDueDate && form.hcNextCalibrationDueDate < form.hcLastCalibrationDate)
+        dateErrs.hcNextCalibrationDueDate = "Next calibration due date must be after last calibration date";
       if (Object.keys(dateErrs).length) { setFieldErrors(dateErrs); return; }
     }
     setSaving(true); setError(null); setFieldErrors({});
@@ -1261,6 +1304,40 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
             {form.hcCmc && <>
               <FInput label="CMC Start" name="hcCmcStart" type="date" value={form.hcCmcStart} onChange={handleChange} error={fieldErrors.hcCmcStart} />
               <FInput label="CMC End" name="hcCmcEnd" type="date" value={form.hcCmcEnd} onChange={handleChange} error={fieldErrors.hcCmcEnd} />
+            </>}
+
+            {/* Calibration */}
+            <FSec title="Calibration Information" />
+            <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: "9px" }}>
+              <input type="checkbox" id="hcCalibrationRequired" checked={!!form.hcCalibrationRequired} onChange={e => setForm(p => ({ ...p, hcCalibrationRequired: e.target.checked }))} style={{ width: "15px", height: "15px", cursor: "pointer" }} />
+              <label htmlFor="hcCalibrationRequired" style={{ fontSize: "13.5px", fontWeight: 600, color: "#475569", cursor: "pointer" }}>Calibration Required</label>
+            </div>
+            {form.hcCalibrationRequired && <>
+              <FSelect label="Calibration Frequency" name="hcCalibrationFrequency" value={form.hcCalibrationFrequency} onChange={handleChange}>
+                <option value="">— Select Frequency —</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Half Yearly">Half Yearly</option>
+                <option value="Yearly">Yearly</option>
+              </FSelect>
+              <FSelect label="Calibration Status" name="hcCalibrationStatus" value={form.hcCalibrationStatus} onChange={handleChange}>
+                <option value="Pending">Pending</option>
+                <option value="Active">Active</option>
+                <option value="Expired">Expired</option>
+              </FSelect>
+              <FInput label="Last Calibration Date" name="hcLastCalibrationDate" type="date" value={form.hcLastCalibrationDate} onChange={handleChange} error={fieldErrors.hcLastCalibrationDate} />
+              <FInput label="Next Calibration Due Date" name="hcNextCalibrationDueDate" type="date" value={form.hcNextCalibrationDueDate} onChange={handleChange} error={fieldErrors.hcNextCalibrationDueDate} />
+              <FSelect label="Calibration Vendor" name="hcCalibrationVendorName" value={form.hcCalibrationVendorName} onChange={handleChange}>
+                <option value="">— Select Vendor —</option>
+                {calibrationVendors.map((v) => (
+                  <option key={v.id} value={v.vendorName}>{v.vendorName}</option>
+                ))}
+              </FSelect>
+              <FInput label="Calibration Certificate Number" name="hcCalibrationCertificateNumber" value={form.hcCalibrationCertificateNumber} onChange={handleChange} placeholder="Certificate number" error={fieldErrors.hcCalibrationCertificateNumber} />
+              <FInput label="Alert Before Due (Days)" name="hcCalibrationAlertBeforeDays" type="number" value={form.hcCalibrationAlertBeforeDays} onChange={handleChange} placeholder="e.g. 30" error={fieldErrors.hcCalibrationAlertBeforeDays} />
+              <div style={{ gridColumn: "span 2", fontSize: "12px", color: "#64748b", marginTop: "-6px" }}>
+                These details are used for due/overdue dashboard counts and automatic alerts.
+              </div>
             </>}
 
             {/* RBER + Remarks */}

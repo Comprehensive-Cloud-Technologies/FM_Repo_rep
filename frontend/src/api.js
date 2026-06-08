@@ -205,6 +205,11 @@ export const linkPreQrCode = (token, id, assetId) => request("PATCH", `/api/comp
 export const getPreQrByUid = (uid) => request("GET", `/api/company-portal/pre-qr/by-uid/${encodeURIComponent(uid)}`, undefined, {});
 export const registerPreQrAsset = (token, qrId, data) => request("POST", `/api/company-portal/pre-qr/${qrId}/register-asset`, data, { authToken: token });
 export const deletePreQrCode = (token, id) => request("DELETE", `/api/company-portal/pre-qr/${id}`, undefined, { authToken: token });
+export const getCalibrationVendors = (token) => request("GET", "/api/company-portal/calibration/vendors", undefined, { authToken: token });
+export const createCalibrationVendor = (token, data) => request("POST", "/api/company-portal/calibration/vendors", data, { authToken: token });
+export const getCalibrationDashboard = (token) => request("GET", "/api/company-portal/calibration/dashboard", undefined, { authToken: token });
+export const getAssetCalibrationRecords = (token, assetId) => request("GET", `/api/company-portal/assets/${assetId}/calibration-records`, undefined, { authToken: token });
+export const createAssetCalibrationRecord = (token, assetId, data) => request("POST", `/api/company-portal/assets/${assetId}/calibration-records`, data, { authToken: token });
 export const getCompanyPortalEmployees = (token) => request("GET", "/api/company-portal/employees", undefined, { authToken: token });
 export const createCompanyPortalEmployee = (token, data) => request("POST", "/api/company-portal/employees", data, { authToken: token });
 export const updateCompanyPortalEmployee = (token, id, data) => request("PUT", `/api/company-portal/employees/${id}`, data, { authToken: token });

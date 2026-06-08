@@ -414,6 +414,14 @@ export async function registerAssetOnQr(
     amc?:      { enabled: boolean; startDate: string; endDate: string };
     cmc?:      { enabled: boolean; startDate: string; endDate: string };
     inHouse?: boolean; catalyst?: boolean;
+    calibrationRequired?: boolean;
+    calibrationFrequency?: string;
+    lastCalibrationDate?: string;
+    nextCalibrationDueDate?: string;
+    calibrationVendorName?: string;
+    calibrationCertificateNumber?: string;
+    calibrationStatus?: string;
+    alertBeforeDays?: number;
     hcImages?: string[];
     invoiceImages?: string[];
   },
@@ -885,6 +893,14 @@ export interface ManualAssetPayload {
   building?: string;
   floor?: string;
   room?: string;
+  calibrationRequired?: boolean;
+  calibrationFrequency?: string;
+  lastCalibrationDate?: string;
+  nextCalibrationDueDate?: string;
+  calibrationVendorName?: string;
+  calibrationCertificateNumber?: string;
+  calibrationStatus?: string;
+  alertBeforeDays?: number;
   metadata?: Record<string, any>;
 }
 

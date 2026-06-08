@@ -125,6 +125,18 @@ export default function AssetDetailsScreen() {
   const logsheets: any[]  = data?.logsheetTemplates  ?? [];
   const assetName: string = asset.assetName ?? asset.name ?? 'Asset';
   const hasTemplates      = checklists.length > 0 || logsheets.length > 0;
+  const calibration = asset.metadata?.calibration ?? {};
+  const calibrationStatus =
+    asset.calibrationStatus ??
+    calibration.status ??
+    (asset.nextCalibrationDueDate ? 'Active' : undefined);
+  const calibrationDueDate =
+    asset.nextCalibrationDueDate ?? calibration.nextCalibrationDueDate ?? undefined;
+  const calibrationVendor =
+    asset.calibrationVendorName ?? calibration.vendorName ?? undefined;
+  const calibrationCertificate =
+    calibration.certificateNumber ?? undefined;
+  const calibrationHistory: any[] = data?.calibrationHistory ?? [];
 
   /** Navigate to the asset chat / query screen */
   const ChatButton = () => (
@@ -296,6 +308,10 @@ export default function AssetDetailsScreen() {
           <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
             <InfoRow label="QR / Barcode"   value={asset.assetUniqueId ?? asset.uniqueId} />
             <InfoRow label="Status"         value={asset.status} />
+            <InfoRow label="Calibration Status" value={calibrationStatus} />
+            <InfoRow label="Calibration Due Date" value={calibrationDueDate} />
+            <InfoRow label="Calibration Vendor" value={calibrationVendor} />
+            <InfoRow label="Certificate" value={calibrationCertificate} />
             <InfoRow label="Department"     value={asset.departmentName ?? asset.department} />
             {asset.metadata?.make        && <InfoRow label="Make"              value={asset.metadata.make} />}
             {asset.metadata?.model       && <InfoRow label="Model"            value={asset.metadata.model} />}
@@ -445,6 +461,9 @@ export default function AssetDetailsScreen() {
           <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
             <InfoRow label="Name"         value={assetName} />
             <InfoRow label="QR / Barcode" value={asset.assetUniqueId ?? asset.uniqueId} />
+            <InfoRow label="Calibration Status" value={calibrationStatus} />
+            <InfoRow label="Calibration Due Date" value={calibrationDueDate} />
+            <InfoRow label="Calibration Vendor" value={calibrationVendor} />
             <InfoRow label="Type"         value={asset.assetType ?? asset.typeName} />
             <InfoRow label="Building"     value={asset.building} />
             <InfoRow label="Floor"        value={asset.floor} />
@@ -520,6 +539,10 @@ export default function AssetDetailsScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
           <InfoRow label="QR / Barcode"  value={asset.assetUniqueId ?? asset.uniqueId} />
           <InfoRow label="Equipment Name" value={assetName} />
+          <InfoRow label="Calibration Status" value={calibrationStatus} />
+          <InfoRow label="Calibration Due Date" value={calibrationDueDate} />
+          <InfoRow label="Calibration Vendor" value={calibrationVendor} />
+          <InfoRow label="Certificate" value={calibrationCertificate} />
           <InfoRow label="Type"           value={asset.assetType ?? asset.typeName} />
           <InfoRow label="Status"         value={asset.status} />
           <InfoRow label="Department"     value={asset.departmentName ?? asset.department} />
@@ -539,6 +562,24 @@ export default function AssetDetailsScreen() {
           {asset.metadata?.purchaseCost && <InfoRow label="Purchase Cost"       value={`\u20B9 ${asset.metadata.purchaseCost}`} />}
           {asset.metadata?.remarks     && <InfoRow label="Remarks"              value={asset.metadata.remarks} />}
         </View>
+
+        {calibrationHistory.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>CALIBRATION HISTORY</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+              {calibrationHistory.slice(0, 5).map((row) => (
+                <View key={String(row.id)} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.borderLight }}>
+                  <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 13 }}>
+                    {row.calibrationDate ?? '-'} → {row.nextDueDate ?? '-'}
+                  </Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                    {(row.vendorName ?? 'Vendor N/A')} · {(row.status ?? 'Pending')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Equipment images (from registration) */}
         {Array.isArray(asset.metadata?.hcImages) && asset.metadata.hcImages.length > 0 && (() => {
