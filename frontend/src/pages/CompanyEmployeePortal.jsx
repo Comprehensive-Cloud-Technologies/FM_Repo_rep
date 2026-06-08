@@ -4741,6 +4741,125 @@ export default function CompanyEmployeePortal() {
     } catch { return null; }
   };
 
+  const loadImage = (src) => new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+
+  const drawContainImage = (ctx, img, x, y, w, h) => {
+    if (!img) return;
+    const scale = Math.min(w / img.width, h / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    const dx = x + (w - dw) / 2;
+    const dy = y + (h - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  };
+
+  const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) => {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line = test;
+      } else {
+        if (line) lines.push(line);
+        line = word;
+      }
+      if (lines.length >= maxLines) break;
+    }
+    if (lines.length < maxLines && line) lines.push(line);
+    lines.slice(0, maxLines).forEach((ln, idx) => ctx.fillText(ln, x, y + idx * lineHeight));
+  };
+
+  const downloadAssetQrCard = async (asset) => {
+    try {
+      const uid = asset?.assetUniqueId || asset?.asset_unique_id || `ASSET-${asset?.id || "X"}`;
+      const assetName = asset?.assetName || asset?.asset_name || "";
+      const qrDataUrl = viewRawQrDataUrl || await generateQRDataUrl(uid);
+      const catalystLogoDataUrl = cachedLogoDataUrls.catalyst || await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`);
+      const clientLogoDataUrl = cachedLogoDataUrls.client || (companyLogoUrl
+        ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
+        : null);
+
+      const [qrImg, clientLogoImg, catalystLogoImg] = await Promise.all([
+        loadImage(qrDataUrl),
+        loadImage(clientLogoDataUrl),
+        loadImage(catalystLogoDataUrl),
+      ]);
+
+      const pxPerMm = 8; // keeps export crisp while preserving 50mm x 25mm card ratio
+      const cardW = 50 * pxPerMm;
+      const cardH = 25 * pxPerMm;
+      const canvas = document.createElement("canvas");
+      canvas.width = cardW;
+      canvas.height = cardH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas not available");
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, cardW, cardH);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, cardW - 1, cardH - 1);
+
+      const pad = 2 * pxPerMm;
+      const headerH = 8.5 * pxPerMm;
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, 0, cardW, headerH);
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.moveTo(0, headerH + 0.5);
+      ctx.lineTo(cardW, headerH + 0.5);
+      ctx.stroke();
+
+      const logoBoxW = 18 * pxPerMm;
+      const logoBoxH = 7 * pxPerMm;
+      drawContainImage(ctx, clientLogoImg, pad, (headerH - logoBoxH) / 2, logoBoxW, logoBoxH);
+      drawContainImage(ctx, catalystLogoImg, cardW - pad - logoBoxW, (headerH - logoBoxH) / 2, logoBoxW, logoBoxH);
+
+      const bodyTop = headerH + 1.5 * pxPerMm;
+      const qrWrapSize = 14 * pxPerMm;
+      const qrSize = 13 * pxPerMm;
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.strokeRect(pad + 0.5, bodyTop + 0.5, qrWrapSize - 1, qrWrapSize - 1);
+      drawContainImage(ctx, qrImg, pad + (qrWrapSize - qrSize) / 2, bodyTop + (qrWrapSize - qrSize) / 2, qrSize, qrSize);
+
+      const detailsX = pad + qrWrapSize + 2 * pxPerMm;
+      const detailsW = cardW - detailsX - pad;
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = `700 ${6 * pxPerMm / 2.8}px Arial`;
+      drawWrappedText(ctx, assetName, detailsX, bodyTop + 2.3 * pxPerMm, detailsW, 1.9 * pxPerMm, 2);
+
+      const uidY = bodyTop + 6.1 * pxPerMm;
+      const uidH = 3.2 * pxPerMm;
+      ctx.fillStyle = "#f1f5f9";
+      ctx.fillRect(detailsX, uidY, detailsW, uidH);
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.strokeRect(detailsX + 0.5, uidY + 0.5, detailsW - 1, uidH - 1);
+      ctx.fillStyle = "#334155";
+      ctx.font = `500 ${5.2 * pxPerMm / 2.8}px monospace`;
+      ctx.fillText(uid, detailsX + 1 * pxPerMm, uidY + 2.2 * pxPerMm);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = `500 ${5 * pxPerMm / 2.9}px Arial`;
+      ctx.fillText("Scan to view details", detailsX, uidY + uidH + 2.2 * pxPerMm);
+
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `qr-card-${uid.replace(/[^a-zA-Z0-9-_]/g, "_")}.png`;
+      a.click();
+    } catch (err) {
+      alert("Card download failed: " + (err?.message || "Unknown error"));
+    }
+  };
+
   // Build a compact horizontal QR sticker: logos header + QR left / details right
   const buildQrCardHtml = (qrDataUrl, uid, assetName, clientLogoDataUrl, catalystLogoDataUrl) => {
     const clientLogoHtml = clientLogoDataUrl
@@ -7574,16 +7693,9 @@ export default function CompanyEmployeePortal() {
                   Print
                 </button>
                 <button
-                  disabled={!viewRawQrDataUrl}
-                  onClick={() => {
-                    if (!viewRawQrDataUrl) return;
-                    const uid = assetViewQrModal?.assetUniqueId || assetViewQrModal?.asset_unique_id || "qr";
-                    const a = document.createElement("a");
-                    a.href = viewRawQrDataUrl;
-                    a.download = `qr-${uid}.png`;
-                    a.click();
-                  }}
-                  style={{ padding: "6px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontWeight: 600, cursor: viewRawQrDataUrl ? "pointer" : "not-allowed", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                  disabled={!assetViewQrCardHtml}
+                  onClick={() => downloadAssetQrCard(assetViewQrModal)}
+                  style={{ padding: "6px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontWeight: 600, cursor: assetViewQrCardHtml ? "pointer" : "not-allowed", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Download
                 </button>
