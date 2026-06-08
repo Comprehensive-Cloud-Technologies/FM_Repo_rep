@@ -240,8 +240,6 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
       KEY idx_calibration_records_due (next_due_date),
       KEY idx_calibration_records_vendor (vendor_id)
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_assets_calibration_due ON assets(next_calibration_due_date)`,
-    `CREATE INDEX IF NOT EXISTS idx_assets_calibration_vendor ON assets(calibration_vendor_id)`,
     `INSERT INTO calibration_vendors (vendor_name, status)
      VALUES ('Philips Biomedical', 'Active'), ('GE Healthcare', 'Active'), ('Siemens Healthcare', 'Active')
      ON DUPLICATE KEY UPDATE vendor_name = VALUES(vendor_name)`,
@@ -251,6 +249,33 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
       if (!isMigrationSafeError(err)) console.warn("[company-portal] migration:", err.message);
     }
   }
+
+  const ensureIndex = async (indexName, tableName, ddl) => {
+    try {
+      const [[row]] = await pool.query(
+        `SELECT COUNT(*) AS cnt
+         FROM information_schema.statistics
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+           AND index_name = ?`,
+        [tableName, indexName]
+      );
+      if (!Number(row?.cnt || 0)) await pool.query(ddl);
+    } catch (err) {
+      if (!isMigrationSafeError(err)) console.warn("[company-portal] migration:", err.message);
+    }
+  };
+
+  await ensureIndex(
+    "idx_assets_calibration_due",
+    "assets",
+    "CREATE INDEX idx_assets_calibration_due ON assets(next_calibration_due_date)"
+  );
+  await ensureIndex(
+    "idx_assets_calibration_vendor",
+    "assets",
+    "CREATE INDEX idx_assets_calibration_vendor ON assets(calibration_vendor_id)"
+  );
 })();
 
 const cid = (req) => req.companyUser.companyId;
