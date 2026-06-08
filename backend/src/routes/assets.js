@@ -392,7 +392,15 @@ router.post(
       // Parse Excel / CSV
       const wb      = XLSX.read(req.file.buffer, { type: "buffer" });
       const ws      = wb.Sheets[wb.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      const likelyAssetKey = (key) => [
+        "assetname", "asset_name", "name", "equipmentname", "equipment_name",
+        "itemname", "item_name", "description", "equipmentdescription", "assetdescription",
+        "machinename", "devicename", "equipment"
+      ].includes(String(key || "").replace(/[*\s]/g, "").toLowerCase());
+      const parseRows = (range = 0) => XLSX.utils.sheet_to_json(ws, { defval: "", range });
+      let rawRows = parseRows(0);
+      const hasLikelyHeader = rawRows.length > 0 && Object.keys(rawRows[0] || {}).some((k) => likelyAssetKey(k));
+      if (!hasLikelyHeader) rawRows = parseRows(1);
 
       if (!rawRows.length) { await conn.rollback(); return res.status(400).json({ message: "The file has no data rows" }); }
       if (rawRows.length > 1000) { await conn.rollback(); return res.status(400).json({ message: "Maximum 1000 assets per import" }); }
@@ -433,18 +441,20 @@ router.post(
         const assetName = pick(row,
           "assetname", "asset_name", "name", "equipmentname", "equipment_name",
           "itemname", "item_name", "description", "equipmentdescription",
-          "assetdescription", "machinename", "devicename"
+          "assetdescription", "machinename", "devicename", "equipment", "equipname",
+          "itemdescription", "equipmentdetails", "assetdetails", "asset"
         );
         if (!assetName) { skipped.push({ row: rowNum, reason: "Asset name column is empty" }); continue; }
 
         const assetType = pick(row,
           "assettype", "asset_type", "type", "category", "equipmenttype",
-          "equipment_type", "itemtype", "assetcategory"
+          "equipment_type", "itemtype", "assetcategory", "subgroup", "sub_group",
+          "group", "equipmentcategory"
         ) || "general";
 
-        const building = pick(row, "building", "block", "location", "site", "campus", "area") || null;
-        const floor    = pick(row, "floor", "level", "storey") || null;
-        const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station") || null;
+        const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
+        const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
+        const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
 
         const rawStatus = pick(row, "status", "condition", "state");
         const status = rawStatus && rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active";
@@ -452,13 +462,13 @@ router.post(
         const providedUniqueId = pick(row,
           "assetuniqueid", "asset_unique_id", "uniqueid", "qrcode", "qr_code",
           "barcode", "assetcode", "asset_code", "assetid", "equipmentid",
-          "equipmentno", "tagno", "tagnumber", "assettag"
+          "equipmentno", "tagno", "tagnumber", "assettag", "id", "code", "tag"
         );
         const uniqueIdToUse = providedUniqueId || generateAssetUniqueId(sectors, co.sector);
 
         const deptNameRaw = pick(row,
           "departmentname", "department_name", "department", "dept",
-          "ward", "unit", "section", "division"
+          "ward", "unit", "section", "division", "departmentcode", "department_code"
         );
         const departmentId = deptNameRaw ? (deptByName.get(deptNameRaw.toLowerCase()) ?? null) : null;
 
