@@ -1304,21 +1304,31 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
     let assetSeq = Number(initialAssetCount || 0);
 
     const { read, utils } = await import("xlsx");
-    const wb      = read(req.file.buffer, { type: "buffer" });
-    const ws      = wb.Sheets[wb.SheetNames[0]];
+    const wb = read(req.file.buffer, { type: "buffer" });
 
-    // Some customer sheets have a title row before actual headers.
-    // Try normal parse first, then retry from row 2 if no recognizable asset columns are found.
+    // Some files have title rows or multiple sheets; auto-select the best candidate.
     const likelyAssetKey = (key) => [
       "assetname", "asset_name", "name", "equipmentname", "equipment_name",
       "itemname", "item_name", "description", "equipmentdescription", "assetdescription",
       "machinename", "devicename", "equipment"
     ].includes(String(key || "").replace(/[*\s]/g, "").toLowerCase());
 
-    const parseRows = (range = 0) => utils.sheet_to_json(ws, { defval: "", range });
-    let rawRows = parseRows(0);
-    const hasLikelyHeader = rawRows.length > 0 && Object.keys(rawRows[0] || {}).some((k) => likelyAssetKey(k));
-    if (!hasLikelyHeader) rawRows = parseRows(1);
+    const parseRows = (ws, range = 0) => utils.sheet_to_json(ws, { defval: "", range });
+    let best = { score: -1, rows: [], range: 0 };
+    for (const sheetName of wb.SheetNames || []) {
+      const ws = wb.Sheets[sheetName];
+      if (!ws) continue;
+      for (const range of [0, 1, 2]) {
+        const rows = parseRows(ws, range);
+        if (!rows.length) continue;
+        const keys = Object.keys(rows[0] || {});
+        const keyHits = keys.filter((k) => likelyAssetKey(k)).length;
+        const score = keyHits * 10 + Math.min(rows.length, 50) / 50;
+        if (score > best.score) best = { score, rows, range };
+      }
+    }
+    const rawRows = best.rows;
+    const dataStartOffset = best.range + 2;
 
     if (!rawRows.length) return res.status(400).json({ message: "The file has no data rows" });
 
@@ -1328,6 +1338,9 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
         n[k.replace(/[*\s]/g, "").toLowerCase()] = String(v ?? "").trim();
       return n;
     };
+
+    const isEffectivelyEmptyRow = (row) =>
+      !row || Object.values(row).every((v) => String(v ?? "").trim() === "");
 
     // Helper: pick first non-empty value from a list of candidate keys
     const pick = (row, ...keys) => {
@@ -1340,7 +1353,14 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
 
     for (let i = 0; i < rawRows.length; i++) {
       const row    = normalise(rawRows[i]);
-      const rowNum = i + 2;
+      const rowNum = i + dataStartOffset;
+
+      // Skip fully empty rows without counting them as errors.
+      const hasAnyData = Object.values(row).some((v) => String(v || "").trim() !== "");
+      if (!hasAnyData) continue;
+
+      // Ignore empty tail rows (common in user-managed Excel files with formatting).
+      if (isEffectivelyEmptyRow(row)) continue;
 
       // Asset name — accept many real-world column names
       const assetName = pick(row,
