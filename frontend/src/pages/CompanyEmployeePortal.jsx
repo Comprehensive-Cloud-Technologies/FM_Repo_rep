@@ -4838,6 +4838,7 @@ export default function CompanyEmployeePortal() {
   const buildQrCardHtml = (qrDataUrl, uid, assetName, clientText) => {
     const companyLabel = (clientText || "CLIENT").toUpperCase().substring(0, 40);
     return `
+    <div class="cotainer">
       <div class="qr-card-sticker">
         <div class="qr-card-header">
           <span class="qr-card-client-fallback">${companyLabel}</span>
@@ -4851,7 +4852,8 @@ export default function CompanyEmployeePortal() {
           </div>
         </div>
         <div class="qr-card-footer">Catalyst Service Solutions</div>
-      </div>`;
+      </div>
+    </div>`;
   };
 
   const handleShowAssetQR = (asset) => {
@@ -4878,15 +4880,15 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); setBulkQrPrinting(false); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:#fff;width:50mm;}
+        html,body{background:#fff;width:100%;}
         .grid{display:block;}
-        .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
+        .cell{display:block;width:100%!important;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
         .cell:last-child{page-break-after:avoid;break-after:avoid;}
         @media print{
           html,body{padding:0;margin:0;}
-          .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
+          .cell{display:block;width:100%!important;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
           .cell:last-child{page-break-after:avoid;break-after:avoid;}
-          @page{size:50mm 25mm;margin:0;}
+          @page{size:100% 25mm;margin:0;}
         }
       </style></head><body>
         <div class="grid">
@@ -4915,15 +4917,15 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:#fff;width:50mm;}
+        html,body{background:#fff;width:100%;}
         .grid{display:block;}
-        .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
+        .cell{display:block;width:100%;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
         .cell:last-child{page-break-after:avoid;break-after:avoid;}
         @media print{
           html,body{padding:0;margin:0;}
-          .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
+          .cell{display:block;width:100%!important;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
           .cell:last-child{page-break-after:avoid;break-after:avoid;}
-          @page{size:50mm 25mm;margin:0;}
+          @page{size:100% 25mm;margin:0;}
         }
       </style></head><body>
         <div class="grid">
