@@ -5717,6 +5717,55 @@ router.get("/ojt/mobile/test-attempts/:trainingId", async (req, res, next) => {
  * Mobile user scans → if unlinked: register/link asset; if linked: view details & log query.
  */
 
+// ── Location helpers for mobile app (company JWT) ────────────────────────────
+// GET /locations/buildings  – buildings for the authenticated user's company
+router.get("/locations/buildings", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const [rows] = await pool.query(
+      `SELECT id, building_code AS buildingCode, building_name AS buildingName, description, status
+       FROM buildings WHERE company_id = ? AND status != 'Deleted' ORDER BY building_name`,
+      [companyId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /locations/floors  – floors for a given building
+router.get("/locations/floors", async (req, res, next) => {
+  try {
+    const { buildingId } = req.query;
+    if (!buildingId) return res.status(400).json({ message: "buildingId required" });
+    const [rows] = await pool.query(
+      `SELECT f.id, f.floor_code AS floorCode, f.floor_name AS floorName, f.floor_number AS floorNumber
+       FROM floors f
+       JOIN buildings b ON b.id = f.building_id
+       WHERE f.building_id = ? AND b.company_id = ? AND f.status != 'Deleted'
+       ORDER BY f.floor_number, f.floor_name`,
+      [buildingId, cid(req)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /locations/rooms  – rooms for a given floor
+router.get("/locations/rooms", async (req, res, next) => {
+  try {
+    const { floorId } = req.query;
+    if (!floorId) return res.status(400).json({ message: "floorId required" });
+    const [rows] = await pool.query(
+      `SELECT r.id, r.room_code AS roomCode, r.room_name AS roomName, r.room_type AS roomType
+       FROM rooms r
+       JOIN floors f ON f.id = r.floor_id
+       JOIN buildings b ON b.id = f.building_id
+       WHERE r.floor_id = ? AND b.company_id = ? AND r.status != 'Deleted'
+       ORDER BY r.room_name`,
+      [floorId, cid(req)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // Helper: next company/state coded UID sequence aligned with generated asset IDs.
 async function nextQrUid(conn, companyId) {
   const prefix = await getAssetIdPrefix(conn, companyId);

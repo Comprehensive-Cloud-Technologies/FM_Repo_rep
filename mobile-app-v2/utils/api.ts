@@ -912,16 +912,17 @@ export async function fetchDepartmentsByCompany(companyId: number): Promise<Arra
   return apiGet<Array<{ id: number; name: string }>>(`/api/company-portal/departments-by-company/${companyId}`);
 }
 
-export async function fetchLocationBuildingsByCompany(companyId: number): Promise<Array<{ id: number; buildingName: string }>> {
-  return apiGet<Array<{ id: number; buildingName: string }>>(`/api/locations/buildings?companyId=${companyId}`);
+export async function fetchLocationBuildingsByCompany(_companyId: number): Promise<Array<{ id: number; buildingName: string }>> {
+  // Uses company-portal prefix so the company JWT is accepted
+  return apiGet<Array<{ id: number; buildingName: string }>>('/api/company-portal/locations/buildings');
 }
 
 export async function fetchLocationFloorsByBuilding(buildingId: number): Promise<Array<{ id: number; floorName: string }>> {
-  return apiGet<Array<{ id: number; floorName: string }>>(`/api/locations/floors?buildingId=${buildingId}`);
+  return apiGet<Array<{ id: number; floorName: string }>>(`/api/company-portal/locations/floors?buildingId=${buildingId}`);
 }
 
 export async function fetchLocationRoomsByFloor(floorId: number): Promise<Array<{ id: number; roomName: string }>> {
-  return apiGet<Array<{ id: number; roomName: string }>>(`/api/locations/rooms?floorId=${floorId}`);
+  return apiGet<Array<{ id: number; roomName: string }>>(`/api/company-portal/locations/rooms?floorId=${floorId}`);
 }
 
 export async function addAssetManually(

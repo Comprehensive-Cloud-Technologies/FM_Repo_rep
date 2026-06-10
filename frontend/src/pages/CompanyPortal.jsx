@@ -4317,7 +4317,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       if (editEmp) {
         await updateAdminEmployee(token, editEmp.id, { ...form });
       } else {
-        await createCompanyUser(token, { ...form, companyId: selCo });
+        await createAdminEmployee(token, { ...form, companyId: selCo });
       }
       await load(selCo);
       setShowCreate(false); setEditEmp(null); setForm(emptyForm);
