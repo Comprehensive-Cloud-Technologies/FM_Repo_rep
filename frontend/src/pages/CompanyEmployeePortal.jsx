@@ -4854,7 +4854,6 @@ export default function CompanyEmployeePortal() {
             <img src="${qrDataUrl}" class="qr-card-qr-img" />
           </div>
           <div class="qr-card-details">
-            ${safeName ? `<div class="qr-card-name">${safeName}</div>` : ""}
             <div class="qr-card-uid">${uid}</div>
           </div>
         </div>

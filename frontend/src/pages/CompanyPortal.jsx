@@ -11871,7 +11871,7 @@ const CompanyPortal = () => {
 
   const handleEditStateChange = (e) => {
     const selectedId = Number(e.target.value);
-    const found = statesList.find(s => s.id === selectedId);
+    const found = statesList.find(s => Number(s.id) === selectedId);
     setEditCompanyForm(prev => ({
       ...prev,
       stateId: selectedId || null,
@@ -18894,9 +18894,9 @@ const CompanyPortal = () => {
 
 
 
-                          <select name="state" value={editCompanyForm.stateId || ""} onChange={handleEditStateChange} className="form-input">
+                          <select name="state" value={String(editCompanyForm.stateId ?? "")} onChange={handleEditStateChange} className="form-input">
                           <option value="">Select State</option>
-                          {statesList.map(s => <option key={s.id} value={s.id}>{s.state_name} ({s.state_code})</option>)}
+                          {statesList.map(s => <option key={s.id} value={String(s.id)}>{s.state_name} ({s.state_code})</option>)}
                           </select>
 
 
