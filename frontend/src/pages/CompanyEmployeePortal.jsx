@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
 import logo from "../images/image.png";
+import "./qr-card.css";
 import LogsheetModule from "../components/LogsheetModule.jsx";
 import ChecklistQuestionRow from "../components/ChecklistQuestionRow.jsx";
 import ChecklistTemplateModule from "../components/ChecklistTemplateModule.jsx";
@@ -3957,6 +3958,8 @@ export default function CompanyEmployeePortal() {
     try { return JSON.parse(sessionStorage.getItem("cp_user") || "null"); } catch { return null; }
   });
   const [companyDisplayName, setCompanyDisplayName] = useState(() => currentUser?.companyName || "");
+  const [qrCardLabel, setQrCardLabel] = useState(() => currentUser?.companyName || "");
+  const [savingQrLabel, setSavingQrLabel] = useState(false);
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -4213,6 +4216,7 @@ export default function CompanyEmployeePortal() {
       if (me?.logoUrl) setCompanyLogoUrl(me.logoUrl);
       if (Array.isArray(me?.sectors)) setCompanySectors(me.sectors);
       if (me?.companyName) setCompanyDisplayName(me.companyName);
+      setQrCardLabel(me?.qrCardLabel || me?.companyName || "");
       setCurrentUser((prev) => {
         if (!prev) return prev;
         const merged = {
@@ -4702,10 +4706,11 @@ export default function CompanyEmployeePortal() {
         const clientLogo = companyLogoUrl
           ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`).catch(() => null)
           : null;
-        setViewQrCardHtml(buildQrCardHtml(qrDataUrl, preQrLinkModal.qrUniqueId, preQrLinkModal.assetName || "", clientLogo, catalystLogo));
+        const displayId = preQrLinkModal.generatedAssetId || preQrLinkModal.generated_asset_id || preQrLinkModal.qrUniqueId;
+        setViewQrCardHtml(buildQrCardHtml(qrDataUrl, displayId, preQrLinkModal.assetName || "", qrCardLabel));
       } catch (e) { console.error(e); }
     })();
-  }, [preQrLinkModal?.id]);
+  }, [preQrLinkModal?.id, qrCardLabel]);
 
   // Generate QR card for asset View QR modal in Manage Assets tab
   useEffect(() => {
@@ -4714,16 +4719,13 @@ export default function CompanyEmployeePortal() {
     (async () => {
       try {
         const uid = assetViewQrModal.assetUniqueId || assetViewQrModal.asset_unique_id || `ASSET-${assetViewQrModal.id}`;
+        const displayId = assetViewQrModal.generatedAssetId || assetViewQrModal.generated_asset_id || uid;
         const qrDataUrl = await generateQRDataUrl(uid);
         setViewRawQrDataUrl(qrDataUrl);
-        const catalystLogo = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`).catch(() => null);
-        const clientLogo = companyLogoUrl
-          ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`).catch(() => null)
-          : null;
-        setAssetViewQrCardHtml(buildQrCardHtml(qrDataUrl, uid, assetViewQrModal.assetName || "", clientLogo, catalystLogo));
+        setAssetViewQrCardHtml(buildQrCardHtml(qrDataUrl, displayId, assetViewQrModal.assetName || "", qrCardLabel));
       } catch (e) { console.error(e); }
     })();
-  }, [assetViewQrModal?.id]);
+  }, [assetViewQrModal?.id, qrCardLabel]);
 
   // Convert a URL to a base64 data URL for embedding in print windows
   const urlToDataUrl = async (url) => {
@@ -4780,20 +4782,13 @@ export default function CompanyEmployeePortal() {
   const downloadAssetQrCard = async (asset) => {
     try {
       const uid = asset?.assetUniqueId || asset?.asset_unique_id || `ASSET-${asset?.id || "X"}`;
+      const displayId = asset?.generatedAssetId || asset?.generated_asset_id || uid;
       const assetName = asset?.assetName || asset?.asset_name || "";
+      const clientLabel = qrCardLabel || companyDisplayName || "CLIENT";
       const qrDataUrl = viewRawQrDataUrl || await generateQRDataUrl(uid);
-      const catalystLogoDataUrl = cachedLogoDataUrls.catalyst || await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`);
-      const clientLogoDataUrl = cachedLogoDataUrls.client || (companyLogoUrl
-        ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
-        : null);
+      const qrImg = await loadImage(qrDataUrl);
 
-      const [qrImg, clientLogoImg, catalystLogoImg] = await Promise.all([
-        loadImage(qrDataUrl),
-        loadImage(clientLogoDataUrl),
-        loadImage(catalystLogoDataUrl),
-      ]);
-
-      const pxPerMm = 8; // keeps export crisp while preserving 50mm x 25mm card ratio
+      const pxPerMm = 8;
       const cardW = 50 * pxPerMm;
       const cardH = 25 * pxPerMm;
       const canvas = document.createElement("canvas");
@@ -4804,92 +4799,67 @@ export default function CompanyEmployeePortal() {
 
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, cardW, cardH);
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, cardW - 1, cardH - 1);
 
       const pad = 2 * pxPerMm;
-      const headerH = 8.5 * pxPerMm;
-      ctx.fillStyle = "#f8fafc";
-      ctx.fillRect(0, 0, cardW, headerH);
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.beginPath();
-      ctx.moveTo(0, headerH + 0.5);
-      ctx.lineTo(cardW, headerH + 0.5);
-      ctx.stroke();
+      const headerH = 7 * pxPerMm;
+      const headerFont = `900 ${4 * pxPerMm / 2.8}px "Calibri Black", Calibri, "Arial Black", Arial, sans-serif`;
+      ctx.font = headerFont;
+      ctx.fillStyle = "#000000";
+      ctx.textBaseline = "middle";
+      ctx.fillText(clientLabel.toUpperCase(), pad, headerH / 2);
+      const catText = "CATALYST";
+      const catW = ctx.measureText(catText).width;
+      ctx.fillText(catText, cardW - pad - catW, headerH / 2);
 
-      const logoBoxW = 18 * pxPerMm;
-      const logoBoxH = 7 * pxPerMm;
-      drawContainImage(ctx, clientLogoImg, pad, (headerH - logoBoxH) / 2, logoBoxW, logoBoxH);
-      drawContainImage(ctx, catalystLogoImg, cardW - pad - logoBoxW, (headerH - logoBoxH) / 2, logoBoxW, logoBoxH);
-
-      const bodyTop = headerH + 1.5 * pxPerMm;
-      const qrWrapSize = 14 * pxPerMm;
-      const qrSize = 13 * pxPerMm;
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.strokeRect(pad + 0.5, bodyTop + 0.5, qrWrapSize - 1, qrWrapSize - 1);
+      const bodyTop = headerH + 0.5 * pxPerMm;
+      const qrWrapSize = 16 * pxPerMm;
+      const qrSize = 15 * pxPerMm;
       drawContainImage(ctx, qrImg, pad + (qrWrapSize - qrSize) / 2, bodyTop + (qrWrapSize - qrSize) / 2, qrSize, qrSize);
 
       const detailsX = pad + qrWrapSize + 2 * pxPerMm;
       const detailsW = cardW - detailsX - pad;
+      ctx.textBaseline = "alphabetic";
 
-      ctx.fillStyle = "#0f172a";
-      ctx.font = `700 ${6 * pxPerMm / 2.8}px Arial`;
-      drawWrappedText(ctx, assetName, detailsX, bodyTop + 2.3 * pxPerMm, detailsW, 1.9 * pxPerMm, 2);
+      if (assetName) {
+        ctx.fillStyle = "#000000";
+        ctx.font = `900 ${4.2 * pxPerMm / 2.8}px "Calibri Black", Calibri, "Arial Black", Arial, sans-serif`;
+        drawWrappedText(ctx, assetName, detailsX, bodyTop + 3.2 * pxPerMm, detailsW, 2.0 * pxPerMm, 2);
+      }
 
-      const uidY = bodyTop + 6.1 * pxPerMm;
-      const uidH = 3.2 * pxPerMm;
-      ctx.fillStyle = "#f1f5f9";
-      ctx.fillRect(detailsX, uidY, detailsW, uidH);
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.strokeRect(detailsX + 0.5, uidY + 0.5, detailsW - 1, uidH - 1);
-      ctx.fillStyle = "#334155";
-      ctx.font = `500 ${5.2 * pxPerMm / 2.8}px monospace`;
-      ctx.fillText(uid, detailsX + 1 * pxPerMm, uidY + 2.2 * pxPerMm);
-
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = `500 ${5 * pxPerMm / 2.9}px Arial`;
-      ctx.fillText("Scan to view details", detailsX, uidY + uidH + 2.2 * pxPerMm);
+      const uidY = bodyTop + (assetName ? 7.2 : 4) * pxPerMm;
+      ctx.fillStyle = "#000000";
+      ctx.font = `900 ${3.8 * pxPerMm / 2.8}px "Calibri Black", Calibri, "Arial Black", Arial, sans-serif`;
+      ctx.fillText(displayId, detailsX, uidY);
 
       const a = document.createElement("a");
       a.href = canvas.toDataURL("image/png");
-      a.download = `qr-card-${uid.replace(/[^a-zA-Z0-9-_]/g, "_")}.png`;
+      a.download = `qr-card-${displayId.replace(/[^a-zA-Z0-9-_]/g, "_")}.png`;
       a.click();
     } catch (err) {
       alert("Card download failed: " + (err?.message || "Unknown error"));
     }
   };
 
-  // Build a compact horizontal QR sticker: logos header + QR left / details right
-  const buildQrCardHtml = (qrDataUrl, uid, assetName, clientLogoDataUrl, catalystLogoDataUrl) => {
-    const clientLogoHtml = clientLogoDataUrl
-      ? `<img src="${clientLogoDataUrl}" style="max-height:7mm;max-width:18mm;object-fit:contain;display:block;" />`
-      : `<span style="font-size:5px;font-weight:800;color:#1e3a5f;">Client</span>`;
-    const catalystLogoHtml = catalystLogoDataUrl
-      ? `<img src="${catalystLogoDataUrl}" style="max-height:7mm;max-width:18mm;object-fit:contain;display:block;" />`
-      : `<span style="font-size:5px;font-weight:800;color:#1e3a5f;text-align:right;line-height:1.2;">CATALYST<br/><span style="font-weight:400;font-size:4px;">FM SERVICES</span></span>`;
+  // Build QR sticker: company name top-center, QR left / ID right, Catalyst footer bottom-center
+  const buildQrCardHtml = (qrDataUrl, uid, assetName, clientText) => {
+    const companyLabel = (clientText || "CLIENT").toUpperCase().substring(0, 40);
     const safeName = assetName ? assetName.substring(0, 35) : "";
     return `
-      <div style="background:#fff;border:1px solid #cbd5e1;border-radius:3px;width:50mm;height:25mm;box-sizing:border-box;font-family:Arial,sans-serif;overflow:hidden;display:flex;flex-direction:column;">
-        <!-- header row: logos -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:1mm 2mm;border-bottom:0.5px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
-          <div style="display:flex;align-items:center;">${clientLogoHtml}</div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;">${catalystLogoHtml}</div>
+      <div class="qr-card-sticker">
+        <div class="qr-card-header">
+          <span class="qr-card-client-fallback">${companyLabel}</span>
         </div>
-        <!-- body row: QR left + details right -->
-        <div style="display:flex;align-items:stretch;padding:1.5mm 2mm;flex:1;min-height:0;">
-          <!-- QR code -->
-          <div style="flex-shrink:0;width:14mm;height:14mm;overflow:hidden;border:0.5px solid #e2e8f0;background:#fff;display:flex;align-items:center;justify-content:center;">
-            <img src="${qrDataUrl}" style="width:13mm;height:13mm;display:block;" />
+        <div class="qr-card-body">
+          <div class="qr-card-qr-box">
+            <img src="${qrDataUrl}" class="qr-card-qr-img" />
           </div>
-          <!-- details -->
-          <div style="flex:1;min-width:0;padding-left:2mm;display:flex;flex-direction:column;justify-content:center;gap:1mm;">
-            ${safeName ? `<div style="font-size:6px;font-weight:800;color:#0f172a;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${safeName}</div>` : ""}
-            <div style="background:#f1f5f9;border:0.5px solid #e2e8f0;border-radius:2px;padding:0.8mm 1mm;font-size:5.5px;font-family:monospace;color:#334155;letter-spacing:0.3px;word-break:break-all;">${uid}</div>
-            <div style="font-size:5px;color:#94a3b8;line-height:1.3;">Scan to view details</div>
+          <div class="qr-card-details">
+            ${safeName ? `<div class="qr-card-name">${safeName}</div>` : ""}
+            <div class="qr-card-uid">${uid}</div>
           </div>
         </div>
-      </div>`; 
+        <div class="qr-card-footer">Catalyst Service Solutions</div>
+      </div>`;
   };
 
   const handleShowAssetQR = (asset) => {
@@ -4907,13 +4877,14 @@ export default function CompanyEmployeePortal() {
         : null);
       const cardHtmls = await Promise.all(assetsToPrint.map(async (asset) => {
         const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
+        const cardId = asset.generatedAssetId || asset.generated_asset_id || barcodeStr;
         const qrUrl = await generateQRDataUrl(barcodeStr);
         const name = asset.assetName || asset.asset_name || "";
-        return buildQrCardHtml(qrUrl, barcodeStr, name, clientLogoDataUrl, catalystLogoDataUrl);
+        return buildQrCardHtml(qrUrl, cardId, name, qrCardLabel);
       }));
       const win = window.open("", "_blank");
       if (!win) { alert("Popup blocked. Allow popups to print."); setBulkQrPrinting(false); return; }
-      win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><style>
+      win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:Arial,sans-serif;background:#fff;padding:4mm;}
         .grid{display:flex;flex-wrap:wrap;gap:3mm;justify-content:flex-start;}
@@ -4943,11 +4914,12 @@ export default function CompanyEmployeePortal() {
         : null);
       const cardHtmls = await Promise.all(qrList.map(async (qr) => {
         const qrUrl = await generateQRDataUrl(qr.qrUniqueId);
-        return buildQrCardHtml(qrUrl, qr.qrUniqueId, qr.assetName || "", clientLogoDataUrl, catalystLogoDataUrl);
+        const cardId = qr.generatedAssetId || qr.generated_asset_id || qr.qrUniqueId;
+        return buildQrCardHtml(qrUrl, cardId, qr.assetName || "", qrCardLabel);
       }));
       const win = window.open("", "_blank");
       if (!win) { alert("Popup blocked. Allow popups to print."); return; }
-      win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><style>
+      win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:Arial,sans-serif;background:#fff;padding:4mm;}
         .grid{display:flex;flex-wrap:wrap;gap:3mm;justify-content:flex-start;}
@@ -5093,7 +5065,7 @@ export default function CompanyEmployeePortal() {
                         onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ background: sevBg, color: sevColor, fontSize: "9px", fontWeight: 800, padding: "2px 6px", borderRadius: "8px", textTransform: "uppercase" }}>{a.severity}</span>
+                          <span style={{ background: sevBg, color: sevColor, fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "8px", textTransform: "uppercase" }}>{a.severity}</span>
                           <span style={{ fontWeight: 600, fontSize: "11px", color: "#0f172a", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.assetName || "Unknown asset"}</span>
                         </div>
                         <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description || "No description"}</div>
@@ -6048,25 +6020,20 @@ export default function CompanyEmployeePortal() {
                   style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "200px" }} />
                 <div style={{ flex: 1, minWidth: "8px" }} />
                 {isAdmin && (<>
-                  {/* Company logo upload */}
-                  <label title="Upload client logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    {companyLogoUrl ? "Logo ✓" : "Logo"}
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const fd = new FormData();
-                      fd.append("logo", file);
-                      try {
-                        const r = await fetch("/api/company-portal/upload-logo", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
-                        const data = await r.json();
-                        if (!r.ok) throw new Error(data.message || "Upload failed");
-                        setCompanyLogoUrl(data.url);
-                        alert("Logo uploaded successfully!");
-                      } catch (err) { alert(err.message); }
-                      e.target.value = "";
-                    }} />
-                  </label>
+                  {/* QR card client label text input */}
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSavingQrLabel(true);
+                    try {
+                      const r = await fetch("/api/company-portal/me/qr-label", { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ label: qrCardLabel }) });
+                      if (!r.ok) throw new Error((await r.json()).message || "Save failed");
+                    } catch (err) { alert(err.message); }
+                    setSavingQrLabel(false);
+                  }} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <input value={qrCardLabel} onChange={(e) => setQrCardLabel(e.target.value)} placeholder="Client label on QR card" maxLength={20}
+                      style={{ padding: "6px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "150px" }} />
+                    <button type="submit" disabled={savingQrLabel} style={{ padding: "6px 10px", borderRadius: "7px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, fontSize: "12px", cursor: "pointer", opacity: savingQrLabel ? 0.7 : 1 }}>{savingQrLabel ? "…" : "Save"}</button>
+                  </form>
                   {/* Print selected */}
                   {selectedQrIds.size > 0 && (
                     <button disabled={bulkQrPrinting} onClick={() => { const toPrint = filteredAssets.filter(a => selectedQrIds.has(a.id)); openQrCodePrintWindow(toPrint); }}
@@ -6733,30 +6700,21 @@ export default function CompanyEmployeePortal() {
 
               {/* Generate row */}
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 20px", flexWrap: "wrap" }}>
-                {/* Client logo upload for QR cards */}
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <label title="Upload client logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    {companyLogoUrl ? "Client Logo ✓" : "Upload Client Logo"}
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const fd = new FormData();
-                      fd.append("logo", file);
-                      try {
-                        const r = await fetch("/api/company-portal/upload-logo", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
-                        const data = await r.json();
-                        if (!r.ok) throw new Error(data.message || "Upload failed");
-                        setCompanyLogoUrl(data.url);
-                        alert("Client logo uploaded! QR cards will now include your logo.");
-                      } catch (err) { alert(err.message); }
-                      e.target.value = "";
-                    }} />
-                  </label>
-                  {companyLogoUrl && (
-                    <button title="Remove client logo" onClick={() => setCompanyLogoUrl("")} style={{ padding: "6px 9px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontSize: "13px", fontWeight: 700, lineHeight: 1 }}>×</button>
-                  )}
-                </div>
+                {/* QR card client label */}
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  setSavingQrLabel(true);
+                  try {
+                    const r = await fetch("/api/company-portal/me/qr-label", { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ label: qrCardLabel }) });
+                    if (!r.ok) throw new Error((await r.json()).message || "Save failed");
+                  } catch (err) { alert(err.message); }
+                  setSavingQrLabel(false);
+                }} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <label style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap" }}>Client Label</label>
+                  <input value={qrCardLabel} onChange={(e) => setQrCardLabel(e.target.value)} placeholder="Text shown on QR card header" maxLength={20}
+                    style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", width: "200px" }} />
+                  <button type="submit" disabled={savingQrLabel} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: "pointer", opacity: savingQrLabel ? 0.7 : 1 }}>{savingQrLabel ? "Saving…" : "Save"}</button>
+                </form>
                 <div style={{ width: "1px", height: "32px", background: "#e2e8f0" }} />
                 <label style={{ fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>Generate</label>
                 <input type="number" min="0" value={preQrCount} onChange={(e) => {

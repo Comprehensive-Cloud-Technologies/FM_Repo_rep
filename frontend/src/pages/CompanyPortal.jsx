@@ -353,6 +353,8 @@ import {
 
   deleteAdminEmployee,
   getClientAssets,
+  createCompanyUser,
+  getCompanyUsers,
 
 
 
@@ -3137,6 +3139,7 @@ function AdminLocationsSection({ token, companies = [] }) {
 function AdminQrCodesSection({ token, companies = [] }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [qrCodes, setQrCodes] = useState([]);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [qrFilter, setQrFilter] = useState("all");
   const [qrSearch, setQrSearch] = useState("");
@@ -3157,8 +3160,22 @@ function AdminQrCodesSection({ token, companies = [] }) {
   };
 
   useEffect(() => {
-    if (selectedCompanyId) loadQrCodes(selectedCompanyId);
-    else setQrCodes([]);
+    if (selectedCompanyId) {
+      loadQrCodes(selectedCompanyId);
+      (async () => {
+        try {
+          const r = await fetch(`/api/company-users/companies/${selectedCompanyId}/logo`, { headers: { Authorization: `Bearer ${token}` } });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.message || "Failed to load logo");
+          setCompanyLogoUrl(data.logoUrl || "");
+        } catch {
+          setCompanyLogoUrl("");
+        }
+      })();
+    } else {
+      setQrCodes([]);
+      setCompanyLogoUrl("");
+    }
     setSelectedIds([]);
     setQrFilter("all");
     setQrSearch("");
@@ -3169,7 +3186,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
     if (qrFilter === "unlinked" && q.assetId) return false;
     if (qrSearch) {
       const s = qrSearch.toLowerCase();
-      if (!(q.qrUniqueId?.toLowerCase().includes(s) || (q.assetName || "").toLowerCase().includes(s) || (q.assetUniqueId || "").toLowerCase().includes(s))) return false;
+      if (!(q.qrUniqueId?.toLowerCase().includes(s) || (q.assetName || "").toLowerCase().includes(s) || (q.assetUniqueId || "").toLowerCase().includes(s) || (q.generatedAssetId || "").toLowerCase().includes(s))) return false;
     }
     return true;
   });
@@ -3226,10 +3243,42 @@ function AdminQrCodesSection({ token, companies = [] }) {
           <option value="">-- Select Company --</option>
           {companies.map(co => <option key={co.id} value={co.id}>{co.companyName || co.name}</option>)}
         </select>
+        <label title="Upload company logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: selectedCompanyId ? "pointer" : "not-allowed", fontSize: "12px", fontWeight: 600, opacity: selectedCompanyId ? 1 : 0.6 }}>
+          {companyLogoUrl ? "Company Logo ✓" : "Upload Logo"}
+          <input type="file" accept="image/*" disabled={!selectedCompanyId} style={{ display: "none" }} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file || !selectedCompanyId) return;
+            const fd = new FormData();
+            fd.append("logo", file);
+            try {
+              const r = await fetch(`/api/company-users/companies/${selectedCompanyId}/logo`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+              const data = await r.json().catch(() => ({}));
+              if (!r.ok) throw new Error(data.message || "Upload failed");
+              setCompanyLogoUrl(data.url || "");
+              setMsg("Company logo updated");
+            } catch (err) {
+              setMsg(err.message || "Failed to upload logo");
+            }
+            e.target.value = "";
+          }} />
+        </label>
+        {selectedCompanyId && companyLogoUrl && (
+          <button onClick={async () => {
+            try {
+              const r = await fetch(`/api/company-users/companies/${selectedCompanyId}/logo`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+              const data = await r.json().catch(() => ({}));
+              if (!r.ok) throw new Error(data.message || "Remove failed");
+              setCompanyLogoUrl("");
+              setMsg("Company logo removed");
+            } catch (err) {
+              setMsg(err.message || "Failed to remove logo");
+            }
+          }} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>×</button>
+        )}
         <input type="number" min={0} value={generateCount} onChange={e => {
           const raw = Number(e.target.value);
           setGenerateCount(Number.isFinite(raw) && raw >= 0 ? raw : 0);
-        }} style={{ width: 80, padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        }} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
         <button onClick={handleGenerate} disabled={generating || !selectedCompanyId} style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
           {generating ? "Generating..." : "Generate QR Codes"}
         </button>
@@ -3284,7 +3333,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
                 <th style={{ padding: "10px 8px", textAlign: "center", width: 40 }}>
                   <input type="checkbox" checked={filtered.length > 0 && selectedIds.length === filtered.length} onChange={toggleAll} />
                 </th>
-                <th style={{ padding: "10px 8px", textAlign: "left" }}>QR ID</th>
+                <th style={{ padding: "10px 8px", textAlign: "left" }}>Asset / QR ID</th>
                 <th style={{ padding: "10px 8px", textAlign: "left" }}>Status</th>
                 <th style={{ padding: "10px 8px", textAlign: "left" }}>Linked Asset</th>
                 <th style={{ padding: "10px 8px", textAlign: "left" }}>Linked At</th>
@@ -3300,7 +3349,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
                   <td style={{ textAlign: "center", padding: "8px" }}>
                     <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelect(q.id)} />
                   </td>
-                  <td style={{ padding: "8px", fontFamily: "monospace", fontSize: 12 }}>{q.qrUniqueId}</td>
+                  <td style={{ padding: "8px", fontFamily: "monospace", fontSize: 12 }}>{q.generatedAssetId || q.assetUniqueId || q.qrUniqueId}</td>
                   <td style={{ padding: "8px" }}>
                     {q.assetId ? (
                       <span style={{ background: "#dcfce7", color: "#16a34a", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Linked</span>

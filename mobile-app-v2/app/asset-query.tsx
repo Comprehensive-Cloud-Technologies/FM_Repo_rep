@@ -132,7 +132,7 @@ export default function AssetQueryScreen() {
   const location = [asset?.building, asset?.floor, asset?.room].filter(Boolean).join(' / ');
 
   const infoRows: [string, string][] = [
-    ['Asset ID', asset?.assetUniqueId ?? asset?.uniqueId],
+    ['Asset ID', asset?.generatedAssetId ?? asset?.assetUniqueId ?? asset?.uniqueId],
     ['Location', location || null],
     ['Make / Model', [meta.make, meta.model].filter(Boolean).join(' / ') || null],
     ['Serial No.', meta.serialNo],
@@ -182,9 +182,9 @@ export default function AssetQueryScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.assetName, { color: theme.textPrimary }]}>{asset?.assetName ?? paramName}</Text>
-                {asset?.assetUniqueId || asset?.uniqueId ? (
+                {(asset?.generatedAssetId ?? asset?.assetUniqueId ?? asset?.uniqueId) ? (
                   <Text style={[styles.barcodeText, { color: theme.textMuted }]}>
-                    <MaterialCommunityIcons name="identifier" size={12} /> Asset ID: {asset?.assetUniqueId ?? asset?.uniqueId}
+                    <MaterialCommunityIcons name="identifier" size={12} /> Asset ID: {asset?.generatedAssetId ?? asset?.assetUniqueId ?? asset?.uniqueId}
                   </Text>
                 ) : null}
               </View>

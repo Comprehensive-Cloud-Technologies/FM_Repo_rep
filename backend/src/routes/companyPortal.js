@@ -285,7 +285,7 @@ const sanitizeAssetIdPart = (value, fallback) => {
   return cleaned || fallback;
 };
 
-const getNextGeneratedAssetId = async (conn, companyId) => {
+const getAssetIdPrefix = async (conn, companyId) => {
   const [[co]] = await conn.query(
     `SELECT c.company_code AS companyCode, s.state_code AS stateCode
      FROM companies c
@@ -293,10 +293,32 @@ const getNextGeneratedAssetId = async (conn, companyId) => {
      WHERE c.id = ?`,
     [companyId]
   );
-  const [[{ cnt }]] = await conn.query("SELECT COUNT(*) AS cnt FROM assets WHERE company_id = ?", [companyId]);
   const cCode = sanitizeAssetIdPart(co?.companyCode, "CO");
   const sCode = sanitizeAssetIdPart(co?.stateCode, "NA");
-  return `${cCode}-${sCode}-${String(Number(cnt || 0) + 1).padStart(6, "0")}`;
+  return `${cCode}-${sCode}`;
+};
+
+const getNextSerialForPrefix = async (conn, prefix) => {
+  const [[row]] = await conn.query(
+    `SELECT MAX(serialNum) AS maxNum
+     FROM (
+       SELECT CAST(SUBSTRING_INDEX(generated_asset_id, '-', -1) AS UNSIGNED) AS serialNum
+       FROM assets
+       WHERE generated_asset_id REGEXP CONCAT('^', ?, '-[0-9]+$')
+       UNION ALL
+       SELECT CAST(SUBSTRING_INDEX(qr_unique_id, '-', -1) AS UNSIGNED) AS serialNum
+       FROM asset_pre_qr
+       WHERE qr_unique_id REGEXP CONCAT('^', ?, '-[0-9]+$')
+     ) seqs`,
+    [prefix, prefix]
+  );
+  return Number(row?.maxNum || 0) + 1;
+};
+
+const getNextGeneratedAssetId = async (conn, companyId) => {
+  const prefix = await getAssetIdPrefix(conn, companyId);
+  const serial = await getNextSerialForPrefix(conn, prefix);
+  return `${prefix}-${String(serial).padStart(6, "0")}`;
 };
 
 const normalizeCalibrationFrequency = (value) => {
@@ -615,6 +637,12 @@ pool.query("ALTER TABLE checklist_templates ADD COLUMN IF NOT EXISTS questions J
 pool.query("ALTER TABLE checklist_template_questions ADD COLUMN IF NOT EXISTS reference_image_url TEXT NULL").catch(() => {});
 // Ensure question_image_url column exists (photo-as-question feature)
 pool.query("ALTER TABLE checklist_template_questions ADD COLUMN IF NOT EXISTS question_image_url TEXT NULL").catch(() => {});
+
+// Ensure qr_card_label column exists (admin-typed client label for QR card header)
+// Use a safe migration that works on MySQL < 8.0 which lacks IF NOT EXISTS for ADD COLUMN
+pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'companies' AND COLUMN_NAME = 'qr_card_label'")
+  .then(([rows]) => { if (!rows.length) return pool.query("ALTER TABLE companies ADD COLUMN qr_card_label VARCHAR(120) DEFAULT NULL"); })
+  .catch(() => {});
 
 // Ensure tabular-logsheet columns exist (migration 2026-03-02-tabular-logsheet)
 pool.query("ALTER TABLE logsheet_templates ADD COLUMN IF NOT EXISTS layout_type VARCHAR(20) NOT NULL DEFAULT 'standard'").catch(() => {});
@@ -1990,6 +2018,7 @@ router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
     const { barcode } = req.params;
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
@@ -3293,7 +3322,8 @@ router.get("/me", async (req, res, next) => {
               cu.status, cu.company_id AS "companyId", c.company_name AS "companyName",
               cu.permissions, cu.module_access AS "moduleAccess",
               c.enabled_modules AS "enabledModules", c.logo_url AS "logoUrl",
-              c.sector, c.sectors, c.public_token AS "publicToken"
+              c.sector, c.sectors, c.public_token AS "publicToken",
+              c.qr_card_label AS "qrCardLabel"
        FROM company_users cu
        JOIN companies c ON c.id = cu.company_id
        WHERE cu.id = ?`,
@@ -5325,6 +5355,34 @@ router.post("/upload-logo", (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* DELETE /logo – remove company client logo (admin only) */
+router.delete("/logo", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const [[row]] = await pool.query("SELECT logo_url AS logoUrl FROM companies WHERE id = ?", [req.companyUser.companyId]);
+    const logoUrl = row?.logoUrl || null;
+    await pool.query("UPDATE companies SET logo_url = NULL WHERE id = ?", [req.companyUser.companyId]);
+
+    if (logoUrl && String(logoUrl).startsWith("/uploads/logos/")) {
+      const filename = path.basename(String(logoUrl));
+      const absPath = path.join(logosDir, filename);
+      try { if (fs.existsSync(absPath)) fs.unlinkSync(absPath); } catch {}
+    }
+
+    res.json({ message: "Logo removed" });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /me/qr-label – save admin-typed client label shown on QR cards */
+router.patch("/me/qr-label", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const label = String(req.body.label || "").trim().substring(0, 120);
+    await pool.query("UPDATE companies SET qr_card_label = ? WHERE id = ?", [label || null, req.companyUser.companyId]);
+    res.json({ qrCardLabel: label });
+  } catch (err) { next(err); }
+});
+
 /* POST /ojt/upload – upload a video or document file (admin only) */
 router.post("/ojt/upload", (req, res, next) => {
   uploadOjt.single("file")(req, res, (err) => {
@@ -5659,16 +5717,11 @@ router.get("/ojt/mobile/test-attempts/:trainingId", async (req, res, next) => {
  * Mobile user scans → if unlinked: register/link asset; if linked: view details & log query.
  */
 
-// Helper: next sequential QR UID globally.
-// `qr_unique_id` is globally unique, so IDs must not reset per company.
-async function nextQrUid() {
-  const [[row]] = await pool.query(
-    `SELECT MAX(CAST(SUBSTRING(qr_unique_id, 4) AS UNSIGNED)) AS maxNum
-     FROM asset_pre_qr
-     WHERE qr_unique_id REGEXP '^QR-[0-9]+$'`
-  );
-  const last = row?.maxNum || 0;
-  return `QR-${String(last + 1).padStart(6, "0")}`;
+// Helper: next company/state coded UID sequence aligned with generated asset IDs.
+async function nextQrUid(conn, companyId) {
+  const prefix = await getAssetIdPrefix(conn, companyId);
+  const serial = await getNextSerialForPrefix(conn, prefix);
+  return `${prefix}-${String(serial).padStart(6, "0")}`;
 }
 
 // POST /pre-qr/generate  – generate N pre-QR codes
@@ -5679,7 +5732,7 @@ router.post("/pre-qr/generate", async (req, res, next) => {
     const count = Math.max(Number(req.body.count) || 1, 1);
     const created = [];
     for (let i = 0; i < count; i++) {
-      const uid = await nextQrUid();
+      const uid = await nextQrUid(pool, cid(req));
       await pool.query(
         "INSERT INTO asset_pre_qr (company_id, qr_unique_id) VALUES (?, ?)",
         [cid(req), uid]
@@ -5701,6 +5754,7 @@ router.get("/pre-qr", async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
               a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              a.generated_asset_id AS generatedAssetId,
               q.linked_at AS linkedAt, q.created_at AS createdAt
        FROM asset_pre_qr q
        LEFT JOIN assets a ON a.id = q.asset_id
@@ -5719,6 +5773,7 @@ router.get("/pre-qr/by-uid/:uid", async (req, res, next) => {
       `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
               q.company_id AS companyId,
               a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              a.generated_asset_id AS generatedAssetId,
               a.status, a.department_id AS departmentId,
               d.name AS departmentName, a.metadata,
               q.linked_at AS linkedAt
@@ -5752,7 +5807,9 @@ router.patch("/pre-qr/:id/link", async (req, res, next) => {
     );
     const [[updated]] = await pool.query(
       `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
-              a.asset_name AS assetName, q.linked_at AS linkedAt
+              a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,
+              a.generated_asset_id AS generatedAssetId,
+              q.linked_at AS linkedAt
        FROM asset_pre_qr q LEFT JOIN assets a ON a.id = q.asset_id WHERE q.id = ?`,
       [req.params.id]
     );
@@ -5781,7 +5838,7 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
 
     const [[qr]] = await pool.query(
-      "SELECT id, asset_id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
+      "SELECT id, asset_id, qr_unique_id AS qrUniqueId FROM asset_pre_qr WHERE id = ? AND company_id = ?",
       [req.params.id, cid(req)]
     );
     if (!qr) return res.status(404).json({ message: "QR not found" });
@@ -5794,7 +5851,9 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       roomName: room,
       createdBy: req.companyUser?.id || null,
     });
-    const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
+    const generatedAssetId = /^([A-Z0-9]+)-([A-Z0-9]+)-([0-9]+)$/.test(qr.qrUniqueId || "")
+      ? qr.qrUniqueId
+      : await getNextGeneratedAssetId(pool, cid(req));
 
      const calibration = await deriveCalibrationFromInput(pool, {
       calibrationRequired,
@@ -5822,9 +5881,8 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     );
     const newAssetId = result.insertId;
 
-    // Auto-generate unique ID using the QR uid
-    const [[qrRow]] = await pool.query("SELECT qr_unique_id FROM asset_pre_qr WHERE id = ?", [req.params.id]);
-    const uniqueId = qrRow?.qr_unique_id ?? `ASSET-${String(newAssetId).padStart(6, "0")}`;
+    // Keep assetUniqueId linked to the scanned QR UID when available
+    const uniqueId = qr?.qrUniqueId ?? `ASSET-${String(newAssetId).padStart(6, "0")}`;
     await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [uniqueId, newAssetId]);
 
     // Store all detailed metadata in asset_details

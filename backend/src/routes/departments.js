@@ -9,10 +9,20 @@ const router = Router();
 router.use(requireAuth);
 
 (async () => {
+  const addColIfMissing = async (column, def) => {
+    const [rows] = await pool.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'departments' AND COLUMN_NAME = ?`,
+      [column]
+    );
+    if (rows.length === 0) {
+      await pool.query(`ALTER TABLE departments ADD COLUMN \`${column}\` ${def}`);
+    }
+  };
   try {
-    await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS building_id INT UNSIGNED NULL`);
-    await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS floor_id INT UNSIGNED NULL`);
-    await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS room_id INT UNSIGNED NULL`);
+    await addColIfMissing("building_id", "INT UNSIGNED NULL");
+    await addColIfMissing("floor_id",    "INT UNSIGNED NULL");
+    await addColIfMissing("room_id",     "INT UNSIGNED NULL");
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("[departments] migration error:", err.message);
