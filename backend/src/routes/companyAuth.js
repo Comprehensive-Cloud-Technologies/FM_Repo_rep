@@ -85,7 +85,7 @@ router.post(
       if (!rows.length) return res.status(401).json({ message: "Invalid credentials" });
       const user = rows[0];
 
-      if (user.status !== "Active") return res.status(403).json({ message: "Account is inactive" });
+      if (user.status?.toLowerCase() !== "active") return res.status(403).json({ message: "Account is inactive" });
       if (!user.passwordHash) return res.status(401).json({ message: "No password set for this account — contact your admin" });
 
       const isMatch = await bcrypt.compare(password, user.passwordHash);
