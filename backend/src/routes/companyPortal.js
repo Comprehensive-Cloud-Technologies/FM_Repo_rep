@@ -243,6 +243,8 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
     `INSERT INTO calibration_vendors (vendor_name, status)
      VALUES ('Philips Biomedical', 'Active'), ('GE Healthcare', 'Active'), ('Siemens Healthcare', 'Active')
      ON DUPLICATE KEY UPDATE vendor_name = VALUES(vendor_name)`,
+    // Allow 'Unverified' status for mobile-registered assets (MODIFY COLUMN is idempotent)
+    `ALTER TABLE assets MODIFY COLUMN status ENUM('Active','Inactive','Unverified') NOT NULL DEFAULT 'Active'`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -5922,7 +5924,7 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
          calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
          calibration_status, calibration_vendor_id, alert_before_days,
           building, floor, room, building_id, floor_id, room_id, location_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
       [cid(req), assetName.trim(), assetType, generatedAssetId,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,

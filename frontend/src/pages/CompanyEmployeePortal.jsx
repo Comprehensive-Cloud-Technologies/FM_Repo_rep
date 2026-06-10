@@ -4566,7 +4566,7 @@ export default function CompanyEmployeePortal() {
       const matchVerified =
         !assetVerifiedFilter ||
         (assetVerifiedFilter === "verified" && a.isVerified) ||
-        (assetVerifiedFilter === "unverified" && !a.isVerified);
+        (assetVerifiedFilter === "unverified" && a.status === "Unverified");
       return matchSearch && matchType && matchVerified;
     }),
     [assets, assetSearch, assetTypeFilter, assetVerifiedFilter]
@@ -6165,6 +6165,7 @@ export default function CompanyEmployeePortal() {
                                 const st = a.status || "Active";
                                 // Derive combined display value
                                 const combined = st === "Inactive" ? "Inactive"
+                                  : st === "Unverified" ? "Unverified"
                                   : (a.isVerified || st === "Verified") ? "Verified"
                                   : ws === "Condemned" ? "Condemned"
                                   : meta.rber ? "RBER"
@@ -6173,14 +6174,15 @@ export default function CompanyEmployeePortal() {
                                   : crit === "Critical" ? "Critical"
                                   : "Active";
                                 const COLOR_MAP = {
-                                  Active:      { bg: "#f0fdf4", color: "#16a34a" },
-                                  Inactive:    { bg: "#f8fafc", color: "#94a3b8" },
-                                  Verified:    { bg: "#dbeafe", color: "#1d4ed8" },
-                                  WIP:         { bg: "#fef9c3", color: "#92400e" },
-                                  Not_Working: { bg: "#fef2f2", color: "#dc2626" },
-                                  Critical:    { bg: "#fce7f3", color: "#9d174d" },
-                                  RBER:        { bg: "#fff7ed", color: "#ea580c" },
-                                  Condemned:   { bg: "#f5f3ff", color: "#7c3aed" },
+                                  Active:       { bg: "#f0fdf4", color: "#16a34a" },
+                                  Unverified:   { bg: "#fff7ed", color: "#ea580c" },
+                                  Inactive:     { bg: "#f8fafc", color: "#94a3b8" },
+                                  Verified:     { bg: "#dbeafe", color: "#1d4ed8" },
+                                  WIP:          { bg: "#fef9c3", color: "#92400e" },
+                                  Not_Working:  { bg: "#fef2f2", color: "#dc2626" },
+                                  Critical:     { bg: "#fce7f3", color: "#9d174d" },
+                                  RBER:         { bg: "#fff7ed", color: "#ea580c" },
+                                  Condemned:    { bg: "#f5f3ff", color: "#7c3aed" },
                                 };
                                 const cm = COLOR_MAP[combined] || COLOR_MAP.Active;
                                 if (!canAssetUpdate) return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: cm.bg, color: cm.color }}>{combined.replace(/_/g, " ")}</span>;
@@ -6189,6 +6191,7 @@ export default function CompanyEmployeePortal() {
                                     value={combined}
                                     onChange={e => {
                                       const v = e.target.value;
+                                      if (v === "Unverified")       return; // read-only state set by mobile registration
                                       if (v === "Inactive")         handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false, rber: false });
                                       else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working", criticality: "Non_Critical", rber: false });
                                       else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false, rber: false });
@@ -6199,6 +6202,7 @@ export default function CompanyEmployeePortal() {
                                       else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
+                                    <option value="Unverified">⚠ Unverified</option>
                                     <option value="Active">Active</option>
                                     <option value="Verified">Verified</option>
                                     <option value="Inactive">Inactive</option>
