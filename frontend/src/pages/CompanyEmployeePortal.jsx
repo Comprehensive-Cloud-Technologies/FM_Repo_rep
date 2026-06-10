@@ -4820,13 +4820,7 @@ export default function CompanyEmployeePortal() {
       const detailsW = cardW - detailsX - pad;
       ctx.textBaseline = "alphabetic";
 
-      if (assetName) {
-        ctx.fillStyle = "#000000";
-        ctx.font = `900 ${4.2 * pxPerMm / 2.8}px "Calibri Black", Calibri, "Arial Black", Arial, sans-serif`;
-        drawWrappedText(ctx, assetName, detailsX, bodyTop + 3.2 * pxPerMm, detailsW, 2.0 * pxPerMm, 2);
-      }
-
-      const uidY = bodyTop + (assetName ? 7.2 : 4) * pxPerMm;
+      const uidY = bodyTop + 4 * pxPerMm;
       ctx.fillStyle = "#000000";
       ctx.font = `900 ${3.8 * pxPerMm / 2.8}px "Calibri Black", Calibri, "Arial Black", Arial, sans-serif`;
       ctx.fillText(displayId, detailsX, uidY);
@@ -4843,7 +4837,6 @@ export default function CompanyEmployeePortal() {
   // Build QR sticker: company name top-center, QR left / ID right, Catalyst footer bottom-center
   const buildQrCardHtml = (qrDataUrl, uid, assetName, clientText) => {
     const companyLabel = (clientText || "CLIENT").toUpperCase().substring(0, 40);
-    const safeName = assetName ? assetName.substring(0, 35) : "";
     return `
       <div class="qr-card-sticker">
         <div class="qr-card-header">
