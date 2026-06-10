@@ -4878,13 +4878,13 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); setBulkQrPrinting(false); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:#fff;width:50mm;height:25mm;}
+        html,body{background:#fff;width:50mm;}
         .grid{display:block;}
-        .cell{display:flex;align-items:center;justify-content:center;width:50mm;height:25mm;page-break-after:always;break-after:page;}
+        .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
         .cell:last-child{page-break-after:avoid;break-after:avoid;}
         @media print{
           html,body{padding:0;margin:0;}
-          .cell{width:50mm;height:25mm;page-break-after:always;break-after:page;}
+          .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
           .cell:last-child{page-break-after:avoid;break-after:avoid;}
           @page{size:50mm 25mm;margin:0;}
         }
@@ -4915,13 +4915,13 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:#fff;width:50mm;height:25mm;}
+        html,body{background:#fff;width:50mm;}
         .grid{display:block;}
-        .cell{display:flex;align-items:center;justify-content:center;width:50mm;height:25mm;page-break-after:always;break-after:page;}
+        .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
         .cell:last-child{page-break-after:avoid;break-after:avoid;}
         @media print{
           html,body{padding:0;margin:0;}
-          .cell{width:50mm;height:25mm;page-break-after:always;break-after:page;}
+          .cell{display:block;width:50mm;height:25mm;overflow:hidden;page-break-after:always;break-after:page;}
           .cell:last-child{page-break-after:avoid;break-after:avoid;}
           @page{size:50mm 25mm;margin:0;}
         }
