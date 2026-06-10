@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "FM App",
-    "slug": "fmapp-mahesh9911",
-    "version": "2.0.0",
+    "name": "HTM",
+    "slug": "htmapp-mahesh9911",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fmapp",
+    "scheme": "htmapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -18,7 +18,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.cct123.fmmobilev2",
+      "package": "com.cct123.htmappv2",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
