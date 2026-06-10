@@ -4878,13 +4878,15 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); setBulkQrPrinting(false); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>Asset QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:Arial,sans-serif;background:#fff;padding:4mm;}
-        .grid{display:flex;flex-wrap:wrap;gap:3mm;justify-content:flex-start;}
-        .cell{break-inside:avoid;}
+        html,body{background:#fff;}
+        body{padding:4mm;}
+        .grid{display:flex;flex-wrap:wrap;gap:4mm;align-content:flex-start;}
+        .cell{break-inside:avoid;page-break-inside:avoid;}
         @media print{
-          body{background:#fff;padding:3mm;}
-          .grid{gap:3mm;}
-          @page{size:auto;margin:3mm;}
+          html,body{padding:0;margin:0;}
+          .grid{gap:4mm;padding:0;}
+          .cell{break-inside:avoid;page-break-inside:avoid;}
+          @page{size:A4 portrait;margin:10mm;}
         }
       </style></head><body>
         <div class="grid">
@@ -4913,13 +4915,15 @@ export default function CompanyEmployeePortal() {
       if (!win) { alert("Popup blocked. Allow popups to print."); return; }
       win.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title><link rel="stylesheet" href="${window.location.origin}/qr-card-print.css" /><style>
         *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:Arial,sans-serif;background:#fff;padding:4mm;}
-        .grid{display:flex;flex-wrap:wrap;gap:3mm;justify-content:flex-start;}
-        .cell{break-inside:avoid;}
+        html,body{background:#fff;}
+        body{padding:4mm;}
+        .grid{display:flex;flex-wrap:wrap;gap:4mm;align-content:flex-start;}
+        .cell{break-inside:avoid;page-break-inside:avoid;}
         @media print{
-          body{background:#fff;padding:3mm;}
-          .grid{gap:3mm;}
-          @page{size:auto;margin:3mm;}
+          html,body{padding:0;margin:0;}
+          .grid{gap:4mm;padding:0;}
+          .cell{break-inside:avoid;page-break-inside:avoid;}
+          @page{size:A4 portrait;margin:10mm;}
         }
       </style></head><body>
         <div class="grid">

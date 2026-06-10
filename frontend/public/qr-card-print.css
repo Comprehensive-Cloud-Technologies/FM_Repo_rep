@@ -1,9 +1,8 @@
 .qr-card-sticker {
   background: #fff;
-  margin-left: 5px;
-  border: 1px solid #000; 
+  border: 1px solid #000;
   border-radius: 2mm;
-  max-width: 100%;
+  width: 85mm;
   height: 40mm;
   font-family: "Calibri Black", Calibri, "Arial Black", Arial, sans-serif;
   overflow: hidden;
@@ -11,7 +10,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 50px;}
+  padding: 2mm 3mm;
+  box-sizing: border-box;
+}
 
 /* Top: company name centered */
 .qr-card-header {
