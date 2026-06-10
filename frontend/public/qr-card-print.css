@@ -9,7 +9,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 1.5mm 2mm;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0px;
 }
 
 /* Top: company name centered */
@@ -19,7 +21,7 @@
   align-items: center;
   flex-shrink: 0;
   padding-bottom: 1mm;
-  border-bottom: 0.3mm solid #ccc;
+  border-bottom: 0.3mm solid #000000;
 }
 
 .qr-card-logo-left,
@@ -107,7 +109,7 @@
 /* Bottom: Catalyst Service Solutions centered */
 .qr-card-footer {
   text-align: center;
-  font-size: 3mm;
+  font-size: 4.4mm;
   font-weight: 900;
   color: #000;
   letter-spacing: 0.15mm;

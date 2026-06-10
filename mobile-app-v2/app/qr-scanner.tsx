@@ -47,58 +47,61 @@ export default function QRScannerScreen() {
     setLoading(true);
 
     try {
-      // 0. Pre-generated QR code format: QR-000001
-      const preQrPattern = /^QR-/i;
-      if (preQrPattern.test(data.trim())) {
+      const raw = data.trim();
+
+      // 1. Pre-generated QR code (old "QR-" prefix OR new asset-ID format like CCT-MH-000001)
+      //    Try the pre-QR lookup first for any barcode-shaped string, so both linked and
+      //    unlinked QR codes are handled correctly before falling through to asset lookup.
+      const barcodePattern = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/i;
+      if (barcodePattern.test(raw)) {
         try {
-          const qr = await fetchPreQrByUid(data.trim());
+          const qr = await fetchPreQrByUid(raw);
           if (!qr.assetId) {
-            // Not yet linked → let user register a new asset
-            router.replace({ pathname: '/register-asset', params: { qrUid: data.trim(), qrId: String(qr.id), companyName: qr.companyName ?? '' } });
+            // Unlinked → let user register a new asset
+            router.replace({ pathname: '/register-asset', params: { qrUid: raw, qrId: String(qr.id), companyName: qr.companyName ?? '' } });
           } else {
             // Linked → show asset details + query form
-            router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? '' } });
+            router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? raw } });
           }
-        } catch (err: any) {
-          const detail = err?.status === 404
-            ? 'This QR code has not been set up in the system yet.'
-            : err?.message || 'Could not reach the server. Check your connection.';
-          Alert.alert('QR Lookup Failed', detail, [
+          return;
+        } catch (preQrErr: any) {
+          // Not a pre-generated QR code (404) → try as a direct asset barcode below
+          if (preQrErr?.status !== 404) {
+            const detail = preQrErr?.message || 'Could not reach the server. Check your connection.';
+            Alert.alert('QR Lookup Failed', detail, [
+              { text: 'Scan Again', onPress: () => setScanned(false) },
+            ]);
+            return;
+          }
+        }
+
+        // Not in pre-QR table → try direct asset lookup by barcode (asset_unique_id)
+        try {
+          const asset = await fetchAssetByBarcode(raw) as any;
+          router.replace({ pathname: '/asset-query', params: { assetId: String(asset.id), assetName: asset.assetName, barcodeStr: raw } });
+          return;
+        } catch {
+          Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
             { text: 'Scan Again', onPress: () => setScanned(false) },
           ]);
+          return;
         }
-        return;
       }
 
-      // 1. Try barcode format: HC-000001, ASSET-XX, etc. (our generated barcodes)
-      const barcodePattern = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/i;
-      if (barcodePattern.test(data.trim())) {
-        const asset = await fetchAssetByBarcode(data.trim()) as any;
-        // Navigate to asset-query screen so user can raise a query
-        router.replace({ pathname: '/asset-query', params: { assetId: asset.id, assetName: asset.assetName, barcodeStr: data.trim() } });
-        return;
-      }
-
-      // 2. Try numeric asset ID (legacy QR codes)
-      const numericId = data.match(/\/asset-scan\/(\d+)/i)?.[1]
-        ?? data.match(/\/assets?\/(\d+)/i)?.[1]
-        ?? data.match(/[?&]assetId=(\d+)/i)?.[1]
-        ?? (data.match(/^(\d+)$/) ? data.trim() : null);
+      // 2. Try numeric asset ID (legacy QR codes with URL)
+      const numericId = raw.match(/\/asset-scan\/(\d+)/i)?.[1]
+        ?? raw.match(/\/assets?\/(\d+)/i)?.[1]
+        ?? raw.match(/[?&]assetId=(\d+)/i)?.[1]
+        ?? (raw.match(/^(\d+)$/) ? raw : null);
 
       if (numericId) {
         router.replace({ pathname: '/asset-details', params: { assetId: numericId, fromQR: '1' } });
         return;
       }
 
-      // 3. Unknown barcode — try as a barcode string lookup
-      try {
-        const asset = await fetchAssetByBarcode(data.trim()) as any;
-        router.replace({ pathname: '/asset-query', params: { assetId: asset.id, assetName: asset.assetName, barcodeStr: data.trim() } });
-      } catch {
-        Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
-          { text: 'Scan Again', onPress: () => setScanned(false) },
-        ]);
-      }
+      Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
+        { text: 'Scan Again', onPress: () => setScanned(false) },
+      ]);
     } catch {
       Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
         { text: 'Scan Again', onPress: () => setScanned(false) },
