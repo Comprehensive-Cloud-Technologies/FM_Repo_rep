@@ -344,6 +344,12 @@ const toDateOnly = (value) => {
   if (!value) return null;
   const str = String(value).trim();
   if (!str) return null;
+  // Handle DD/MM/YYYY (sent by mobile datepicker) → convert to YYYY-MM-DD
+  const ddmmyyyy = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  // Handle DD-MM-YYYY
+  const ddmmyyyy2 = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (ddmmyyyy2) return `${ddmmyyyy2[3]}-${ddmmyyyy2[2]}-${ddmmyyyy2[1]}`;
   return str.length >= 10 ? str.slice(0, 10) : str;
 };
 

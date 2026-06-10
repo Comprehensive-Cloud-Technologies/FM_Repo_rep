@@ -11869,7 +11869,18 @@ const CompanyPortal = () => {
 
 
 
-  const handleUpdateCompany = async (e) => {
+  const handleEditStateChange = (e) => {
+    const selectedId = Number(e.target.value);
+    const found = statesList.find(s => s.id === selectedId);
+    setEditCompanyForm(prev => ({
+      ...prev,
+      stateId: selectedId || null,
+      state: found?.state_name || "",
+      stateCode: found?.state_code || "",
+    }));
+  };
+
+    const handleUpdateCompany = async (e) => {
 
 
 
@@ -18883,9 +18894,9 @@ const CompanyPortal = () => {
 
 
 
-                          <select name="state" value={editCompanyForm.state} onChange={handleEditCompanyChange} className="form-input">
+                          <select name="state" value={editCompanyForm.stateId || ""} onChange={handleEditStateChange} className="form-input">
                           <option value="">Select State</option>
-                          {statesList.map(s => <option key={s.id} value={s.state_name}>{s.state_name} ({s.state_code})</option>)}
+                          {statesList.map(s => <option key={s.id} value={s.id}>{s.state_name} ({s.state_code})</option>)}
                           </select>
 
 
