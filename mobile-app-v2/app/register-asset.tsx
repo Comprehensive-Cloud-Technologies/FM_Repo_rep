@@ -18,6 +18,7 @@ import {
   getToken,
   uploadQueryImage,
   fetchPreQrByUid,
+  fetchDepartmentsByCompany,
   fetchLocationBuildingsByCompany,
   fetchLocationFloorsByBuilding,
   fetchLocationRoomsByFloor,
@@ -392,6 +393,17 @@ export default function RegisterAssetScreen() {
   const [showCalibrationStatusPicker, setShowCalibrationStatusPicker] = useState(false);
   const [showCalibrationVendorPicker, setShowCalibrationVendorPicker] = useState(false);
 
+  // Department
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
+  const [selectedDeptName, setSelectedDeptName] = useState('');
+  const [showDeptPicker, setShowDeptPicker] = useState(false);
+  const [loadingDepts, setLoadingDepts] = useState(false);
+
+  // Working Status
+  const [workingStatus, setWorkingStatus] = useState('Working');
+  const [showWorkingStatusPicker, setShowWorkingStatusPicker] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [hcImages,   setHcImages]   = useState<string[]>([]);
 
@@ -403,6 +415,15 @@ export default function RegisterAssetScreen() {
       })
       .catch(() => {});
   }, [qrUid]);
+
+  useEffect(() => {
+    if (!companyId) { setDepartments([]); return; }
+    setLoadingDepts(true);
+    fetchDepartmentsByCompany(companyId)
+      .then(setDepartments)
+      .catch(() => {})
+      .finally(() => setLoadingDepts(false));
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) {
@@ -472,6 +493,8 @@ export default function RegisterAssetScreen() {
       const result = await registerAssetOnQr(token, Number(qrId), {
         assetName: assetName.trim(),
         assetType: 'healthcare',
+        departmentId: selectedDeptId ?? undefined,
+        workingStatus: workingStatus || undefined,
         location: building.trim() || undefined,
         floor: floor.trim() || undefined,
         room: room.trim() || undefined,
@@ -619,6 +642,29 @@ export default function RegisterAssetScreen() {
 
           {/* ── EQUIPMENT DETAILS ─────────────────── */}
           <SectionHeader title="Equipment Details" />
+
+          <Field label="Department">
+            <TouchableOpacity
+              style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: loadingDepts ? 0.6 : 1 }]}
+              onPress={() => setShowDeptPicker(true)}
+              disabled={loadingDepts}
+            >
+              <Text style={{ color: selectedDeptName ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                {loadingDepts ? 'Loading departments…' : selectedDeptName || '— Select Department —'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
+
+          <Field label="Working Status">
+            <TouchableOpacity
+              style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowWorkingStatusPicker(true)}
+            >
+              <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{workingStatus}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
 
           <Field label="Equipment Name" required>
             <TextInput style={inp()} placeholder="e.g. ECG Machine, Ventilator…" placeholderTextColor={theme.textMuted}
@@ -852,6 +898,32 @@ export default function RegisterAssetScreen() {
         </View>
       </KeyboardAvoidingView>
 
+      <PickerModal
+        visible={showDeptPicker}
+        title="Select Department"
+        items={departments.map((d) => ({ id: d.id, label: d.name }))}
+        onSelect={(id) => {
+          const dept = departments.find((d) => d.id === id);
+          setSelectedDeptId(id);
+          setSelectedDeptName(dept?.name || '');
+        }}
+        onClose={() => setShowDeptPicker(false)}
+      />
+      <PickerModal
+        visible={showWorkingStatusPicker}
+        title="Working Status"
+        items={[
+          { id: 1, label: 'Working' },
+          { id: 2, label: 'Not_Working' },
+          { id: 3, label: 'WIP' },
+          { id: 4, label: 'Condemned' },
+        ]}
+        onSelect={(id) => {
+          const map: Record<number, string> = { 1: 'Working', 2: 'Not_Working', 3: 'WIP', 4: 'Condemned' };
+          setWorkingStatus(map[id] || 'Working');
+        }}
+        onClose={() => setShowWorkingStatusPicker(false)}
+      />
       <PickerModal
         visible={showBuildingPicker}
         title="Select Building"

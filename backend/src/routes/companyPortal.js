@@ -245,6 +245,8 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
      ON DUPLICATE KEY UPDATE vendor_name = VALUES(vendor_name)`,
     // Allow 'Unverified' status for mobile-registered assets (MODIFY COLUMN is idempotent)
     `ALTER TABLE assets MODIFY COLUMN status ENUM('Active','Inactive','Unverified') NOT NULL DEFAULT 'Active'`,
+    // Working/operational status of the asset (Working, WIP, Not_Working, Condemned)
+    `ALTER TABLE assets ADD COLUMN IF NOT EXISTS working_status VARCHAR(30) DEFAULT NULL`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -1768,7 +1770,7 @@ router.post("/assets", async (req, res, next) => {
 router.post("/assets/manual", async (req, res, next) => {
   try {
     const { companyId, departmentId, assetName, assetType = "healthcare",
-            building, floor, room, metadata = {} } = req.body;
+            building, floor, room, workingStatus, metadata = {} } = req.body;
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
     if (!companyId)         return res.status(400).json({ message: "companyId is required" });
 
@@ -1791,12 +1793,13 @@ router.post("/assets/manual", async (req, res, next) => {
                     calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
                     calibration_status, calibration_vendor_id, alert_before_days,
                            building, floor, room, building_id, floor_id, room_id, location_id,
-                           status, is_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
+                           working_status, status, is_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
       [companyId, departmentId || null, assetName.trim(), generatedAssetId, assetType,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
-       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
+       workingStatus || null]
     );
     const newId = result.insertId;
 
@@ -1808,6 +1811,7 @@ router.post("/assets/manual", async (req, res, next) => {
 
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
+    if (workingStatus) metaClean.workingStatus = workingStatus;
     metaClean.calibration = {
       required: calibration.required,
       frequency: calibration.frequency,
@@ -5879,6 +5883,10 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
   try {
     const {
       assetName, assetType = "healthcare", location, notes,
+      // Department
+      departmentId,
+      // Working status
+      workingStatus,
       // Healthcare / detailed fields
       make, manufacturerCompany, model, serialNo, accessories, dealer,
       mfgYear, installationDate, invoiceNo, purchaseDate, purchaseCost,
@@ -5926,15 +5934,16 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
      // Create the new asset
     const [result] = await pool.query(
       `INSERT INTO assets
-         (company_id, asset_name, asset_type, generated_asset_id,
+         (company_id, department_id, asset_name, asset_type, generated_asset_id,
          calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
          calibration_status, calibration_vendor_id, alert_before_days,
-          building, floor, room, building_id, floor_id, room_id, location_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
-      [cid(req), assetName.trim(), assetType, generatedAssetId,
+          building, floor, room, building_id, floor_id, room_id, location_id, working_status, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
+      [cid(req), departmentId || null, assetName.trim(), assetType, generatedAssetId,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
-       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId]
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
+       workingStatus || null]
     );
     const newAssetId = result.insertId;
 
@@ -5957,6 +5966,7 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       cmc:      cmc      && cmc.enabled      ? { enabled: true, startDate: cmc.startDate      || null, endDate: cmc.endDate      || null } : null,
       inHouse: !!inHouse, catalyst: !!catalyst,
       rber: !!rber, remarks: remarks || null, notes: notes || null,
+      workingStatus: workingStatus || "Working",
       calibration: {
         required: calibration.required,
         frequency: calibration.frequency,

@@ -90,6 +90,28 @@ router.post("/verify-company", async (req, res, next) => {
   }
 });
 
+/* ── Search Companies by Name (public) ────────────────────────────────────── */
+router.get("/search-company", async (req, res, next) => {
+  try {
+    const { name } = req.query;
+    if (!name || String(name).trim().length < 2) {
+      return res.status(400).json({ message: "Provide at least 2 characters to search" });
+    }
+    const q = `%${String(name).trim()}%`;
+    const [rows] = await pool.query(
+      `SELECT id AS companyId, company_name AS companyName, company_code AS companyCode
+       FROM companies
+       WHERE company_name LIKE ? AND status = 'Active'
+       ORDER BY company_name
+       LIMIT 10`,
+      [q]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* ── Helper: fetch role capabilities from company_roles table ─────────────── */
 async function getRoleCapabilities(companyId, roleKey) {
   const empty = {

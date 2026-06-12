@@ -360,8 +360,12 @@ export default function AddAssetScreen() {
   const [showCalibrationFrequencyPicker, setShowCalibrationFrequencyPicker] = useState(false);
   const [showCalibrationStatusPicker, setShowCalibrationStatusPicker] = useState(false);
   const [showCalibrationVendorPicker, setShowCalibrationVendorPicker] = useState(false);
+  const [showWorkingStatusPicker, setShowWorkingStatusPicker] = useState(false);
   const [loadingCompanies, setLoadingCompanies]   = useState(true);
   const [loadingDepts, setLoadingDepts]           = useState(false);
+
+  // Working Status
+  const [workingStatus, setWorkingStatus] = useState('Working');
 
   // Equipment Details
   const [assetName,        setAssetName]        = useState('');
@@ -506,6 +510,7 @@ export default function AddAssetScreen() {
         building: building.trim() || undefined,
         floor: floor.trim() || undefined,
         room: room.trim() || undefined,
+        workingStatus: workingStatus || undefined,
         metadata: {
           make: make.trim() || undefined,
           model: model.trim() || undefined,
@@ -671,6 +676,14 @@ export default function AddAssetScreen() {
 
           {/* ── EQUIPMENT DETAILS ────────────────────────── */}
           <SectionHeader title="Equipment Details" />
+          <Field label="Working Status">
+            <TouchableOpacity
+              style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowWorkingStatusPicker(true)}>
+              <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{workingStatus}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
           <Field label="Equipment Name" required>
             <TextInput style={inp()} placeholder="e.g. Ultrasound Machine" placeholderTextColor={theme.textMuted}
               value={assetName} onChangeText={setAssetName} />
@@ -939,6 +952,18 @@ export default function AddAssetScreen() {
         items={departments.map(d => ({ id: d.id, label: d.name }))}
         onSelect={(id) => setSelectedDeptId(id)}
         onClose={() => setShowDeptPicker(false)}
+      />
+      <PickerModal
+        visible={showWorkingStatusPicker}
+        title="Working Status"
+        items={[
+          { id: 1, label: 'Working' },
+          { id: 2, label: 'Not_Working' },
+          { id: 3, label: 'WIP' },
+          { id: 4, label: 'Condemned' },
+        ]}
+        onSelect={(id, label) => setWorkingStatus(label)}
+        onClose={() => setShowWorkingStatusPicker(false)}
       />
       <PickerModal
         visible={showBuildingPicker}

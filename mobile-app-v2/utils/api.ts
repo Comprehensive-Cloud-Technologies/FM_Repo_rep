@@ -405,6 +405,8 @@ export async function registerAssetOnQr(
   qrId: number,
   payload: {
     assetName: string; assetType?: string;
+    departmentId?: number;
+    workingStatus?: string;
     location?: string; floor?: string; room?: string; notes?: string;
     make?: string; manufacturerCompany?: string; model?: string; serialNo?: string;
     accessories?: string; dealer?: string; mfgYear?: string;
@@ -893,6 +895,7 @@ export interface ManualAssetPayload {
   building?: string;
   floor?: string;
   room?: string;
+  workingStatus?: string;
   calibrationRequired?: boolean;
   calibrationFrequency?: string;
   lastCalibrationDate?: string;

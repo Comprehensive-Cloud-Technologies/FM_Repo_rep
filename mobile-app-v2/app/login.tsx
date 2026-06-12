@@ -214,10 +214,10 @@ export default function LoginScreen() {
           <View style={[styles.footerWrap, { width: CARD_MAX }]}>
             <Text style={[styles.footerHelp, { color: theme.textSecondary }]}>
               Need help?{' '}
-              <Text style={{ color: theme.primary, fontWeight: '700' }}>Contact Facility IT Support</Text>
+             
             </Text>
             <Text style={[styles.footerCopy, { color: theme.textMuted }]}>
-              © {new Date().getFullYear()} FM Central Enterprise. All rights reserved.
+              © {new Date().getFullYear()} Catalyst Service Solutions Partners Pvt. Ltd. All rights reserved.
             </Text>
           </View>
         </ScrollView>
