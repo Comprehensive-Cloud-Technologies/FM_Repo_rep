@@ -83,13 +83,27 @@ const resolveStateRef = async (stateId, stateText) => {
 router.get("/stats", async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const companyIdFilter = req.query.companyId ? Number(req.query.companyId) : null;
+    // Support single companyId OR multiple companyIds (comma-separated)
+    const rawIds = req.query.companyIds || req.query.companyId || "";
+    const companyIds = rawIds
+      ? String(rawIds).split(",").map(Number).filter(n => n > 0)
+      : [];
+    const companyIdFilter = companyIds.length === 1 ? companyIds[0] : null;
+    const multiFilter = companyIds.length > 1;
 
     // Helper: base company WHERE clause
-    const compBase = companyIdFilter
-      ? "FROM companies c WHERE c.user_id = ? AND c.id = ?"
-      : "FROM companies c WHERE c.user_id = ?";
-    const compArgs = companyIdFilter ? [userId, companyIdFilter] : [userId];
+    let compBase, compArgs;
+    if (companyIds.length === 0) {
+      compBase = "FROM companies c WHERE c.user_id = ?";
+      compArgs = [userId];
+    } else if (companyIds.length === 1) {
+      compBase = "FROM companies c WHERE c.user_id = ? AND c.id = ?";
+      compArgs = [userId, companyIds[0]];
+    } else {
+      const placeholders = companyIds.map(() => "?").join(",");
+      compBase = `FROM companies c WHERE c.user_id = ? AND c.id IN (${placeholders})`;
+      compArgs = [userId, ...companyIds];
+    }
 
     const [[{ totalCompanies }]] = await pool.query(
       `SELECT COUNT(*) AS totalCompanies ${compBase}`, compArgs
@@ -98,13 +112,20 @@ router.get("/stats", async (req, res, next) => {
       `SELECT COUNT(*) AS activeCompanies ${compBase} AND c.status = 'Active'`, compArgs
     );
 
-    // Asset profile stats
-    const assetJoin = companyIdFilter
-      ? "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ? AND c.id = ?"
-      : "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ?";
-    const [[{ totalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS totalAssets ${assetJoin}`, compArgs
-    );
+    // Build asset + work-order JOIN clauses
+    let assetJoin, woJoin;
+    if (companyIds.length === 0) {
+      assetJoin = "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ?";
+      woJoin    = "FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ?";
+    } else if (companyIds.length === 1) {
+      assetJoin = "FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ? AND c.id = ?";
+      woJoin    = "FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ? AND c.id = ?";
+    } else {
+      const ph = companyIds.map(() => "?").join(",");
+      assetJoin = `FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ? AND c.id IN (${ph})`;
+      woJoin    = `FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ? AND c.id IN (${ph})`;
+    }
+    const [[{ totalAssets }]] = await pool.query(`SELECT COUNT(*) AS totalAssets ${assetJoin}`, compArgs);
     const [[{ criticalAssets }]] = await pool.query(
       `SELECT COUNT(*) AS criticalAssets ${assetJoin}
        AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) = 'critical'`,
@@ -145,10 +166,7 @@ router.get("/stats", async (req, res, next) => {
       compArgs
     ).catch(() => [[{ verifiedAssets: 0 }]]);
 
-    // Complaint profile (work orders)
-    const woJoin = companyIdFilter
-      ? "FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ? AND c.id = ?"
-      : "FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ?";
+    // Complaint profile (work orders) — woJoin already built above
     const [[{ totalComplaints }]] = await pool.query(
       `SELECT COUNT(*) AS totalComplaints ${woJoin}`, compArgs
     ).catch(() => [[{ totalComplaints: 0 }]]);
@@ -171,7 +189,7 @@ router.get("/stats", async (req, res, next) => {
     ).catch(() => [[{ gt7dComplaints: 0 }]]);
 
     const [[{ totalEmployees }]] = await pool.query(
-      `SELECT COUNT(*) AS totalEmployees FROM company_users u JOIN companies c ON c.id = u.company_id WHERE c.user_id = ?${companyIdFilter ? " AND c.id = ?" : ""}`,
+      `SELECT COUNT(*) AS totalEmployees ${compBase.replace("FROM companies c", "FROM company_users u JOIN companies c ON c.id = u.company_id")}`,
       compArgs
     );
     const [byCompany] = await pool.query(
@@ -186,6 +204,15 @@ router.get("/stats", async (req, res, next) => {
     );
 
     // User-wise breakdown (employees + their created asset/complaint count)
+    let byUserWhere = "WHERE c.user_id = ?";
+    const byUserArgs = [userId, ...companyIds];
+    if (companyIds.length === 1) byUserWhere += " AND c.id = ?";
+    else if (companyIds.length > 1) {
+      const ph = companyIds.map(() => "?").join(",");
+      byUserWhere += ` AND c.id IN (${ph})`;
+    } else {
+      byUserArgs.length = 1; // just userId
+    }
     const [byUser] = await pool.query(
       `SELECT u.id, u.full_name AS userName, u.email, u.role,
               c.id AS companyId, c.company_name AS companyName,
@@ -195,16 +222,39 @@ router.get("/stats", async (req, res, next) => {
        JOIN companies c ON c.id = u.company_id
        LEFT JOIN assets a ON a.created_by = u.id
        LEFT JOIN work_orders wo ON wo.created_by = u.id
-       WHERE c.user_id = ?${companyIdFilter ? " AND c.id = ?" : ""}
+       ${byUserWhere}
        GROUP BY u.id, u.full_name, u.email, u.role, c.id, c.company_name
        ORDER BY c.company_name, u.full_name`,
-      compArgs
+      byUserArgs
     ).catch(() => [[]]);
+
+    // Calibration profile
+    const calJoinBase = assetJoinStr; // reuse asset join (calibration_required assets only)
+    const [[{ calTotal }]] = await pool.query(
+      `SELECT COUNT(*) AS calTotal ${calJoinBase} AND a.calibration_required = 1`, compArgs
+    ).catch(() => [[{ calTotal: 0 }]]);
+    const [[{ calDueThisMonth }]] = await pool.query(
+      `SELECT COUNT(*) AS calDueThisMonth ${calJoinBase} AND a.calibration_required = 1
+       AND a.next_calibration_due_date BETWEEN CURDATE() AND LAST_DAY(CURDATE())`, compArgs
+    ).catch(() => [[{ calDueThisMonth: 0 }]]);
+    const [[{ calOverdue }]] = await pool.query(
+      `SELECT COUNT(*) AS calOverdue ${calJoinBase} AND a.calibration_required = 1
+       AND a.next_calibration_due_date < CURDATE()`, compArgs
+    ).catch(() => [[{ calOverdue: 0 }]]);
+    const [[{ calUpcoming30d }]] = await pool.query(
+      `SELECT COUNT(*) AS calUpcoming30d ${calJoinBase} AND a.calibration_required = 1
+       AND a.next_calibration_due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`, compArgs
+    ).catch(() => [[{ calUpcoming30d: 0 }]]);
+    const [[{ calCompletedThisMonth }]] = await pool.query(
+      `SELECT COUNT(*) AS calCompletedThisMonth ${calJoinBase} AND a.calibration_required = 1
+       AND a.last_calibration_date BETWEEN DATE_FORMAT(CURDATE(), '%Y-%m-01') AND CURDATE()`, compArgs
+    ).catch(() => [[{ calCompletedThisMonth: 0 }]]);
 
     res.json({
       totalCompanies, activeCompanies, totalAssets, totalEmployees,
       assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, verifiedAssets },
       complaintProfile: { total: totalComplaints, wip: wipComplaints, lt7d: lt7dComplaints, gt7d: gt7dComplaints, resolved: resolvedComplaints, closed: closedComplaints },
+      calibrationProfile: { total: calTotal, dueThisMonth: calDueThisMonth, overdue: calOverdue, upcoming30d: calUpcoming30d, completedThisMonth: calCompletedThisMonth },
       byCompany, byUser,
     });
   } catch (err) { next(err); }

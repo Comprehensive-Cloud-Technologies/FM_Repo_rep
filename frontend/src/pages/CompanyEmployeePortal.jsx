@@ -5156,6 +5156,9 @@ export default function CompanyEmployeePortal() {
               onChange={async (e) => {
                 const newId = Number(e.target.value);
                 if (newId === currentUser?.companyId) return;
+                // Immediately update sidebar label
+                const selected = accessibleCompanies.find(c => c.companyId === newId);
+                if (selected) setCompanyDisplayName(selected.companyName);
                 setSwitchingCompany(true);
                 try {
                   const r = await fetch(`/api/company-auth/switch-company`, {

@@ -4403,7 +4403,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       {/* Add/Edit modal */}
       {(showCreate || editEmp) && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }} onClick={e => { if(e.target===e.currentTarget){setShowCreate(false);setEditEmp(null);} }}>
-          <div style={{ background:"#fff", borderRadius:"16px", padding:"28px", width:"500px", maxWidth:"95vw", boxShadow:"0 20px 60px rgba(0,0,0,0.18)" }}>
+          <div style={{ background:"#fff", borderRadius:"16px", padding:"clamp(16px,3vw,28px)", width:"min(560px,95vw)", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.18)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"20px" }}>
               <h3 style={{ margin:0, fontSize:"18px", fontWeight:800, color:"#0f172a" }}>{editEmp ? "Edit User" : "Add User"}</h3>
               <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"22px", lineHeight:1 }}>&#10005;</button>
@@ -4453,37 +4453,37 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" type="password" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
                 </div>
               </div>
-              {/* Primary company picker — shown when no company pre-selected */}
-              {!selCo && !editEmp && (
-                <div>
-                  <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"5px" }}>Primary Company <span style={{ color:"#dc2626" }}>*</span></label>
-                  <select value={formCompanyId || ""} onChange={e => setFormCompanyId(e.target.value ? Number(e.target.value) : null)}
-                    style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", background:"#fff" }}>
-                    <option value="">Select primary company...</option>
-                    {allCos.map(c => <option key={c.id} value={c.id}>{c.companyName || c.name}</option>)}
-                  </select>
-                </div>
-              )}
-              {/* Additional Company Access */}
+              {/* Company Access — unified primary + additional */}
               <div>
-                <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"6px" }}>
-                  Additional Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(user can switch between these)</span>
+                <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"4px" }}>
+                  Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(check all companies this user should access)</span>
                 </label>
-                <div style={{ border:"1px solid #e2e8f0", borderRadius:"8px", maxHeight:"140px", overflowY:"auto", background:"#f8fafc", padding:"8px 10px" }}>
+                <div style={{ border:"1px solid #e2e8f0", borderRadius:"8px", background:"#f8fafc", padding:"6px 10px", maxHeight:"160px", overflowY:"auto" }}>
                   {allCos.length === 0
                     ? <p style={{ color:"#94a3b8", fontSize:"12px", margin:0 }}>No companies available</p>
-                    : allCos.filter(c => c.id !== (selCo || formCompanyId)).map(c => (
-                      <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"4px 0", cursor:"pointer", fontSize:"13px", color:"#374151" }}>
-                        <input type="checkbox"
-                          checked={extraCompanyIds.includes(c.id)}
-                          onChange={e => setExtraCompanyIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))}
-                        />
-                        {c.companyName || c.name}
-                      </label>
-                    ))
+                    : allCos.map(c => {
+                        const isPrimary = c.id === (selCo || formCompanyId);
+                        const isChecked = isPrimary || extraCompanyIds.includes(c.id);
+                        return (
+                          <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"5px 2px", cursor:"pointer", fontSize:"13px", color:"#374151", borderBottom:"1px solid #f1f5f9" }}>
+                            <input type="checkbox"
+                              checked={isChecked}
+                              onChange={ev => {
+                                if (isPrimary) return;
+                                if (!selCo && !editEmp && !formCompanyId && ev.target.checked) { setFormCompanyId(c.id); return; }
+                                setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
+                              }}
+                              style={{ accentColor:"#2563eb" }}
+                            />
+                            <span style={{ flex:1 }}>{c.companyName || c.name}</span>
+                            {isPrimary && <span style={{ fontSize:"10px", fontWeight:700, color:"#2563eb", background:"#dbeafe", padding:"1px 6px", borderRadius:"8px" }}>Primary</span>}
+                          </label>
+                        );
+                      })
                   }
                 </div>
-                {(selCo || formCompanyId) && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>Primary company: <strong>{allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || (selCo||formCompanyId)}</strong></p>}
+                {!selCo && !editEmp && !formCompanyId && <p style={{ fontSize:"11px", color:"#f59e0b", margin:"4px 0 0" }}>Check the primary company first</p>}
+                {(selCo || formCompanyId) && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>Primary: <strong style={{ color:"#2563eb" }}>{allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName||"—"}</strong></p>}
               </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
@@ -4933,7 +4933,9 @@ const CompanyPortal = () => {
 
 
   const [tableSearch, setTableSearch] = useState("");
-  const [dashCompanyFilter, setDashCompanyFilter] = useState("");
+  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings)
+  const [dashCompanyFilter, setDashCompanyFilter] = useState(""); // legacy single (for export)
+  const [dashFilterOpen, setDashFilterOpen] = useState(false);
   const [dashView, setDashView] = useState("company"); // "company" | "user"
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -6976,7 +6978,9 @@ const CompanyPortal = () => {
 
 
 
-    const statsUrl = `/api/companies/stats${dashCompanyFilter ? `?companyId=${dashCompanyFilter}` : ""}`;
+    const statsUrl = dashCompanyFilters.length > 0
+      ? `/api/companies/stats?companyIds=${dashCompanyFilters.join(",")}`
+      : "/api/companies/stats";
     fetch(statsUrl, { headers: { Authorization: `Bearer ${token}` } })
 
 
@@ -7002,7 +7006,7 @@ const CompanyPortal = () => {
 
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, nav, dashCompanyFilter]);
+  }, [token, nav, dashCompanyFilters]);
 
 
 
@@ -10235,13 +10239,15 @@ const CompanyPortal = () => {
 
 
 
-    const meta = asset.metadata || {};
+    // Safely parse metadata whether it comes as string or object
+    let meta = asset.metadata || {};
+    if (typeof meta === "string") { try { meta = JSON.parse(meta); } catch { meta = {}; } }
 
 
 
 
 
-    if (asset.assetType === "healthcare" || (asset.metadata && asset.metadata.maintenanceType !== undefined && asset.assetType !== "soft" && asset.assetType !== "technical" && asset.assetType !== "fleet")) {
+    if (asset.assetType === "healthcare" || (meta.maintenanceType !== undefined && asset.assetType !== "soft" && asset.assetType !== "technical" && asset.assetType !== "fleet")) {
 
 
 
@@ -28209,8 +28215,7 @@ const CompanyPortal = () => {
           });
 
           const handleExport = async (type) => {
-            const co = dashCompanyFilter || "";
-            const coParam = co ? ("&companyId=" + co) : "";
+            const coParam = dashCompanyFilters.length > 0 ? ("&companyIds=" + dashCompanyFilters.join(",")) : "";
             if (type === "asset_profile" || type === "critical" || type === "non_critical" || type === "rber" || type === "condemned" || type === "new_addition" || type === "total_assets") {
               const statusMap = { asset_profile: "", total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", condemned: "condemned", new_addition: "new_addition" };
               const statusParam = statusMap[type] ? ("status=" + statusMap[type]) : "";
@@ -28342,7 +28347,7 @@ const CompanyPortal = () => {
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     </div>
                     <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
-                      Client Dashboard{dashCompanyFilter ? `: ${companies.find(c => String(c.id) === String(dashCompanyFilter))?.companyName || ""}` : ""}
+                      Client Dashboard{dashCompanyFilters.length === 1 ? `: ${companies.find(c => String(c.id) === dashCompanyFilters[0])?.companyName || ""}` : dashCompanyFilters.length > 1 ? ` (${dashCompanyFilters.length} companies)` : ""}
                     </h1>
                   </div>
                   <p style={{ color: "#64748b", fontSize: "12.5px", margin: 0 }}>
@@ -28362,11 +28367,39 @@ const CompanyPortal = () => {
                       </button>
                     ))}
                   </div>
-                  <select value={dashCompanyFilter} onChange={e => { setDashCompanyFilter(e.target.value); setActiveTile(null); }}
-                    style={{ padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", outline: "none", color: "#374151", cursor: "pointer", minWidth: "150px" }}>
-                    <option value="">All Companies</option>
-                    {companies.map(co => <option key={co.id} value={co.id}>{co.companyName}</option>)}
-                  </select>
+                  {/* Multi-company filter */}
+                  <div style={{ position: "relative" }} ref={r => { if (r) r._closeOnBlur = () => setDashFilterOpen(false); }}>
+                    <button onClick={() => setDashFilterOpen(o => !o)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", color: "#374151", cursor: "pointer", minWidth: "160px", justifyContent: "space-between" }}>
+                      <span>{dashCompanyFilters.length === 0 ? "All Companies" : dashCompanyFilters.length === 1 ? (companies.find(c => String(c.id) === dashCompanyFilters[0])?.companyName || "1 company") : `${dashCompanyFilters.length} companies`}</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    {dashFilterOpen && (
+                      <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 300, minWidth: "220px", overflow: "hidden" }}>
+                        <div style={{ padding: "8px 6px 6px" }}>
+                          <button onClick={() => { setDashCompanyFilters([]); setActiveTile(null); setDashFilterOpen(false); }}
+                            style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", borderRadius: "6px", background: dashCompanyFilters.length === 0 ? "#eff6ff" : "transparent", color: dashCompanyFilters.length === 0 ? "#2563eb" : "#374151", cursor: "pointer", fontWeight: dashCompanyFilters.length === 0 ? 700 : 400, fontSize: "13px" }}>
+                            All Companies
+                          </button>
+                          {companies.map(co => {
+                            const sid = String(co.id);
+                            const checked = dashCompanyFilters.includes(sid);
+                            return (
+                              <label key={co.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "7px 10px", cursor: "pointer", borderRadius: "6px", fontSize: "13px", color: "#374151" }}
+                                onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                                <input type="checkbox" checked={checked} onChange={() => {
+                                  setDashCompanyFilters(prev => checked ? prev.filter(x => x !== sid) : [...prev, sid]);
+                                  setActiveTile(null);
+                                }} style={{ accentColor: "#2563eb" }} />
+                                {co.companyName}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {/* Export All button with dropdown */}
                   <div style={{ position: "relative" }}>
                         <button onClick={() => setDashExportOpen(o => !o)}
@@ -28486,6 +28519,36 @@ const CompanyPortal = () => {
                   })}
                 </div>
               </div>
+
+              {/* ×××××× CALIBRATION PROFILE ×××××× */}
+              {dashboardStats?.calibrationProfile && (() => {
+                const cp = dashboardStats.calibrationProfile;
+                const calTiles = [
+                  { label: "Due This Month", value: cp.dueThisMonth ?? 0, col: "#f59e0b" },
+                  { label: "Overdue", value: cp.overdue ?? 0, col: "#ef4444" },
+                  { label: "Upcoming (30 Days)", value: cp.upcoming30d ?? 0, col: "#3b82f6" },
+                  { label: "Completed This Month", value: cp.completedThisMonth ?? 0, col: "#10b981" },
+                ];
+                return (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#8b5cf6" }} />
+                      <div>
+                        <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Calibration Profile</h2>
+                        <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>{cp.total ?? 0} assets require calibration</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+                      {calTiles.map(t => (
+                        <div key={t.label} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>{t.label}</div>
+                          <div style={{ fontSize: "28px", fontWeight: 800, color: t.col }}>{t.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ×××××× Drill-down panel (when tile clicked) ×××××× */}
               {activeTile && (

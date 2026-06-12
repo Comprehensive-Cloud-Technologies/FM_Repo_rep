@@ -281,16 +281,41 @@ const updateRules = [
 ];
 
 // ── Startup migrations for columns added after initial schema ─────────────────
+// Uses information_schema to safely add columns without IF NOT EXISTS (which
+// is not supported in all MySQL versions).
 (async () => {
-  const safeAlter = async (sql) => {
-    try { await pool.query(sql); } catch (e) { /* column already exists */ }
+  const addColumnIfMissing = async (table, column, definition) => {
+    try {
+      const [[{ cnt }]] = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [table, column]
+      );
+      if (cnt === 0) await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+    } catch (e) { /* ignore */ }
   };
-  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) NOT NULL DEFAULT 0`);
-  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS verified TINYINT(1) NOT NULL DEFAULT 0`);
-  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS generated_asset_id VARCHAR(80) NULL`);
-  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS working_status VARCHAR(30) NULL`);
-  await safeAlter(`ALTER TABLE assets MODIFY COLUMN status ENUM('Active','Inactive','Unverified') NOT NULL DEFAULT 'Active'`);
+  await addColumnIfMissing("assets", "is_verified", "TINYINT(1) NOT NULL DEFAULT 0");
+  await addColumnIfMissing("assets", "verified", "TINYINT(1) NOT NULL DEFAULT 0");
+  await addColumnIfMissing("assets", "generated_asset_id", "VARCHAR(80) NULL");
+  await addColumnIfMissing("assets", "working_status", "VARCHAR(30) NULL");
+  await addColumnIfMissing("assets", "criticality", "VARCHAR(30) NULL");
+  await addColumnIfMissing("assets", "condemned", "TINYINT(1) NOT NULL DEFAULT 0");
+  await addColumnIfMissing("assets", "rber", "TINYINT(1) NOT NULL DEFAULT 0");
 })();
+
+// Track which optional columns exist (populated after startup migration runs)
+let _assetCols = null;
+const getAssetCols = async () => {
+  if (_assetCols) return _assetCols;
+  try {
+    const [rows] = await pool.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets'`
+    );
+    _assetCols = new Set(rows.map(r => r.COLUMN_NAME));
+  } catch { _assetCols = new Set(); }
+  return _assetCols;
+};
 
 // ── GET /api/assets ────────────────────────────────────────────────────────────
 router.get(
@@ -306,6 +331,7 @@ router.get(
   ]),
   async (req, res, next) => {
     try {
+      const cols = await getAssetCols();
       const { companyId, departmentId, type, status, search } = req.query;
       const page   = Math.max(1, parseInt(req.query.page  || "1", 10));
       const limit  = Math.min(500, Math.max(1, parseInt(req.query.limit || "200", 10)));
@@ -320,9 +346,18 @@ router.get(
       if (status)       { where += " AND a.status = ?";        params.push(status); }
       if (search) {
         const like = `%${search}%`;
-        where += " AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ? OR a.qr_code LIKE ? OR CAST(a.id AS CHAR) LIKE ? OR a.generated_asset_id LIKE ? OR a.building LIKE ? OR a.room LIKE ?)";
-        params.push(like, like, like, like, like, like, like);
+        const searchParts = ["a.asset_name LIKE ?", "a.asset_unique_id LIKE ?", "a.qr_code LIKE ?", "CAST(a.id AS CHAR) LIKE ?", "a.building LIKE ?", "a.room LIKE ?"];
+        const searchParams = [like, like, like, like, like, like];
+        if (cols.has("generated_asset_id")) { searchParts.push("a.generated_asset_id LIKE ?"); searchParams.push(like); }
+        where += ` AND (${searchParts.join(" OR ")})`;
+        params.push(...searchParams);
       }
+
+      const generatedCol = cols.has("generated_asset_id") ? "a.generated_asset_id AS generatedAssetId," : "NULL AS generatedAssetId,";
+      const verifiedCol  = cols.has("is_verified") && cols.has("verified") ? "COALESCE(a.is_verified, a.verified, 0) AS verified,"
+                         : cols.has("is_verified") ? "a.is_verified AS verified,"
+                         : cols.has("verified") ? "a.verified AS verified,"
+                         : "0 AS verified,";
 
       const [rows] = await pool.query(
         `SELECT a.id,
@@ -330,11 +365,11 @@ router.get(
                 c.company_name    AS companyName,
                 a.asset_name      AS assetName,
                 a.asset_unique_id AS assetUniqueId,
-                a.generated_asset_id AS generatedAssetId,
+                ${generatedCol}
                 a.asset_type      AS assetType,
                 a.building, a.floor, a.room,
                 a.status,
-                COALESCE(a.is_verified, a.verified, 0) AS verified,
+                ${verifiedCol}
                 a.qr_code         AS qrCode,
                 a.department_id   AS departmentId,
                 d.name            AS departmentName,
