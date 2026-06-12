@@ -3960,6 +3960,8 @@ export default function CompanyEmployeePortal() {
   const [companyDisplayName, setCompanyDisplayName] = useState(() => currentUser?.companyName || "");
   const [qrCardLabel, setQrCardLabel] = useState(() => currentUser?.companyName || "");
   const [savingQrLabel, setSavingQrLabel] = useState(false);
+  const [accessibleCompanies, setAccessibleCompanies] = useState([]); // multi-company list
+  const [switchingCompany, setSwitchingCompany] = useState(false);
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -4229,6 +4231,11 @@ export default function CompanyEmployeePortal() {
         return merged;
       });
     }).catch(() => {});
+    // Load all companies this user has access to (for company switcher)
+    fetch(`/api/company-auth/my-companies`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.companies?.length > 1) setAccessibleCompanies(d.companies); })
+      .catch(() => {});
     setRecentEntriesLoading(true);
     getCompanyPortalRecentLogsheetEntries(token)
       .then((d) => d && setRecentEntries(d))
@@ -4998,11 +5005,43 @@ export default function CompanyEmployeePortal() {
           <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
         </div>
 
-        {/* Company label */}
+        {/* Company label + switcher */}
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0 }}>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0, marginBottom: accessibleCompanies.length > 1 ? "6px" : 0 }}>
             {companyDisplayName || currentUser.companyName || "Client"}
           </p>
+          {accessibleCompanies.length > 1 && (
+            <select
+              disabled={switchingCompany}
+              value={currentUser?.companyId || ""}
+              onChange={async (e) => {
+                const newId = Number(e.target.value);
+                if (newId === currentUser?.companyId) return;
+                setSwitchingCompany(true);
+                try {
+                  const r = await fetch(`/api/company-auth/switch-company`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ companyId: newId }),
+                  });
+                  if (!r.ok) throw new Error("Switch failed");
+                  const data = await r.json();
+                  sessionStorage.setItem("cp_token", data.token);
+                  sessionStorage.setItem("cp_user", JSON.stringify(data.user));
+                  window.location.reload();
+                } catch {
+                  alert("Could not switch company. Please try again.");
+                } finally {
+                  setSwitchingCompany(false);
+                }
+              }}
+              style={{ width: "100%", fontSize: "12px", padding: "4px 6px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", color: "#374151", cursor: "pointer" }}
+            >
+              {accessibleCompanies.map(c => (
+                <option key={c.companyId} value={c.companyId}>{c.companyName}{c.primary ? " (primary)" : ""}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Nav items */}

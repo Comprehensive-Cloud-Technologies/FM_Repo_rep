@@ -4286,6 +4286,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   const [form, setForm]       = useState(emptyForm);
   const [saving, setSaving]   = useState(false);
   const [formErr, setFormErr] = useState(null);
+  const [extraCompanyIds, setExtraCompanyIds] = useState([]); // additional company access
 
   useEffect(() => {
     if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
@@ -4316,11 +4317,25 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
     try {
       if (editEmp) {
         await updateAdminEmployee(token, editEmp.id, { ...form });
+        // Update additional company access
+        await fetch(`/api/company-users/${editEmp.id}/companies`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ additionalCompanyIds: extraCompanyIds }),
+        }).catch(() => {});
       } else {
-        await createAdminEmployee(token, { ...form, companyId: selCo });
+        const created = await createAdminEmployee(token, { ...form, companyId: selCo });
+        // Set additional company access for newly created user
+        if (created?.id && extraCompanyIds.length > 0) {
+          await fetch(`/api/company-users/${created.id}/companies`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ additionalCompanyIds: extraCompanyIds }),
+          }).catch(() => {});
+        }
       }
       await load(selCo);
-      setShowCreate(false); setEditEmp(null); setForm(emptyForm);
+      setShowCreate(false); setEditEmp(null); setForm(emptyForm); setExtraCompanyIds([]);
     } catch(e) { setFormErr(e.message || "Save failed"); }
     setSaving(false);
   };
@@ -4435,6 +4450,27 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" type="password" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
                 </div>
               </div>
+              {/* Additional Company Access */}
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"6px" }}>
+                  Additional Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(user can switch between these)</span>
+                </label>
+                <div style={{ border:"1px solid #e2e8f0", borderRadius:"8px", maxHeight:"140px", overflowY:"auto", background:"#f8fafc", padding:"8px 10px" }}>
+                  {allCos.filter(c => c.id !== selCo).length === 0
+                    ? <p style={{ color:"#94a3b8", fontSize:"12px", margin:0 }}>No other companies available</p>
+                    : allCos.filter(c => c.id !== selCo).map(c => (
+                      <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"4px 0", cursor:"pointer", fontSize:"13px", color:"#374151" }}>
+                        <input type="checkbox"
+                          checked={extraCompanyIds.includes(c.id)}
+                          onChange={e => setExtraCompanyIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))}
+                        />
+                        {c.companyName || c.name}
+                      </label>
+                    ))
+                  }
+                </div>
+                {selCo && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>Primary company: <strong>{allCos.find(c=>c.id===selCo)?.companyName || selCo}</strong></p>}
+              </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
               <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
@@ -4475,7 +4511,20 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <td style={{ padding:"10px 14px" }}><span style={{ background: e.status==="Active"||e.status==="active" ? "#dcfce7":"#fee2e2", color: e.status==="Active"||e.status==="active" ? "#166534":"#dc2626", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700 }}>{e.status||"Active"}</span></td>
                   <td style={{ padding:"10px 14px" }}>
                     <div style={{ display:"flex", gap:"6px" }}>
-                      <button type="button" onClick={() => { setEditEmp(e); setForm({ fullName:e.fullName||"", email:e.email||"", phone:e.phone||"", designation:e.designation||"", role:e.role||"employee", status:e.status||"Active", username:e.username||"", password:"" }); setFormErr(null); setShowCreate(false); }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Edit</button>
+                      <button type="button" onClick={async () => {
+                        setEditEmp(e);
+                        setForm({ fullName:e.fullName||"", email:e.email||"", phone:e.phone||"", designation:e.designation||"", role:e.role||"employee", status:e.status||"Active", username:e.username||"", password:"" });
+                        setFormErr(null); setShowCreate(false);
+                        // Load existing additional company access
+                        try {
+                          const r = await fetch(`/api/company-users/${e.id}/companies`, { headers: { Authorization: `Bearer ${token}` } });
+                          if (r.ok) {
+                            const d = await r.json();
+                            const primId = e.companyId || selCo;
+                            setExtraCompanyIds((d.companyIds || []).filter(id => id !== primId));
+                          }
+                        } catch { setExtraCompanyIds([]); }
+                      }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Edit</button>
                       <button type="button" onClick={() => handleDelete(e.id)} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #fecaca", background:"#fff", color:"#dc2626", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Delete</button>
                     </div>
                   </td>
@@ -4736,6 +4785,7 @@ const CompanyPortal = () => {
   const [assetSearch, setAssetSearch] = useState("");
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [assetStatusFilter, setAssetStatusFilter] = useState("all");
+  const [assetCompanyFilter, setAssetCompanyFilter] = useState(""); // "" = all companies
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
 
 
@@ -5933,7 +5983,7 @@ const CompanyPortal = () => {
 
 
 
-      return matchesType && matchesTerm && (assetStatusFilter === "all" || (assetStatusFilter === "unverified" ? !a.verified : a.status === assetStatusFilter));
+      return matchesType && matchesTerm && (assetStatusFilter === "all" || (assetStatusFilter === "unverified" ? !a.verified : a.status === assetStatusFilter)) && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
 
 
 
@@ -5945,7 +5995,7 @@ const CompanyPortal = () => {
 
 
 
-  }, [assets, assetTypeFilter, assetSearch, assetStatusFilter]);
+  }, [assets, assetTypeFilter, assetSearch, assetStatusFilter, assetCompanyFilter]);
 
 
 
@@ -20176,6 +20226,12 @@ const CompanyPortal = () => {
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
                       <option value="Verified">Verified</option>
+                    </select>
+                    <select value={assetCompanyFilter} onChange={(e) => { setAssetCompanyFilter(e.target.value); }} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none", maxWidth: "180px" }}>
+                      <option value="">All Companies</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={String(c.id)}>{c.companyName || c.name}</option>
+                      ))}
                     </select>
                     <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search..." style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "140px" }} />
                     {selectedAssetIds.length > 0 && (

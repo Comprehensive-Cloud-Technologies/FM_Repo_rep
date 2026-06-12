@@ -51,6 +51,17 @@ const router = Router();
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN expected_completion_at DATETIME NULL`);
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN escalation_level INT NOT NULL DEFAULT 0`);
   await safeAlter(`ALTER TABLE work_orders MODIFY COLUMN status ENUM('open','assigned','in_progress','on_hold','completed','closed','escalated') NOT NULL DEFAULT 'open'`);
+
+  // ── Multi-company access table ───────────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_company_access (
+      id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id    BIGINT UNSIGNED NOT NULL,
+      company_id INT UNSIGNED    NOT NULL,
+      created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_uca (user_id, company_id)
+    )
+  `).catch(() => {});
 })();
 
 router.use(requireAuth);
@@ -574,6 +585,53 @@ router.delete("/qr-codes/:id", requireAuth, async (req, res, next) => {
   try {
     await pool.query("DELETE FROM asset_pre_qr WHERE id = ?", [req.params.id]);
     res.json({ message: "Deleted" });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/company-users/:userId/companies ─────────────────────────────────
+// Admin: get all companies a user has access to (primary + additional)
+router.get("/:userId/companies", async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const [[cu]] = await pool.query(
+      `SELECT company_id AS companyId FROM company_users WHERE id = ?`, [userId]
+    );
+    if (!cu) return res.status(404).json({ message: "User not found" });
+
+    const [extra] = await pool.query(
+      `SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?`, [userId]
+    ).catch(() => [[]]);
+
+    const all = [cu.companyId, ...extra.map(e => e.companyId).filter(id => id !== cu.companyId)];
+    res.json({ companyIds: all });
+  } catch (err) { next(err); }
+});
+
+// ── PUT /api/company-users/:userId/companies ─────────────────────────────────
+// Admin: set additional companies for a user (replaces existing extra assignments).
+// The primary company_id stays unchanged; this manages the user_company_access rows.
+router.put("/:userId/companies", async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { additionalCompanyIds = [] } = req.body; // array of company IDs (excluding primary)
+
+    const [[cu]] = await pool.query(
+      `SELECT company_id AS companyId FROM company_users WHERE id = ?`, [userId]
+    );
+    if (!cu) return res.status(404).json({ message: "User not found" });
+
+    // Replace all additional access rows
+    await pool.query(`DELETE FROM user_company_access WHERE user_id = ?`, [userId]);
+
+    const toInsert = additionalCompanyIds.filter(id => Number(id) !== Number(cu.companyId));
+    for (const cid of toInsert) {
+      await pool.query(
+        `INSERT IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)`,
+        [userId, cid]
+      );
+    }
+
+    res.json({ success: true, additionalCompanyIds: toInsert });
   } catch (err) { next(err); }
 });
 
