@@ -961,6 +961,9 @@ export default function AddAssetScreen() {
           { id: 2, label: 'Not_Working' },
           { id: 3, label: 'WIP' },
           { id: 4, label: 'Condemned' },
+          { id: 5, label: 'Critical' },
+          { id: 6, label: 'Unverified' },
+          { id: 7, label: 'Verified' },
         ]}
         onSelect={(id, label) => setWorkingStatus(label)}
         onClose={() => setShowWorkingStatusPicker(false)}

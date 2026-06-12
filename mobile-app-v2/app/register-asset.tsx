@@ -917,9 +917,12 @@ export default function RegisterAssetScreen() {
           { id: 2, label: 'Not_Working' },
           { id: 3, label: 'WIP' },
           { id: 4, label: 'Condemned' },
+          { id: 5, label: 'Critical' },
+          { id: 6, label: 'Unverified' },
+          { id: 7, label: 'Verified' },
         ]}
         onSelect={(id) => {
-          const map: Record<number, string> = { 1: 'Working', 2: 'Not_Working', 3: 'WIP', 4: 'Condemned' };
+          const map: Record<number, string> = { 1: 'Working', 2: 'Not_Working', 3: 'WIP', 4: 'Condemned', 5: 'Critical', 6: 'Unverified', 7: 'Verified' };
           setWorkingStatus(map[id] || 'Working');
         }}
         onClose={() => setShowWorkingStatusPicker(false)}
