@@ -19,6 +19,7 @@ import {
   uploadQueryImage,
   fetchPreQrByUid,
   fetchDepartmentsByCompany,
+  fetchWorkingStatuses,
   fetchLocationBuildingsByCompany,
   fetchLocationFloorsByBuilding,
   fetchLocationRoomsByFloor,
@@ -403,9 +404,14 @@ export default function RegisterAssetScreen() {
   // Working Status
   const [workingStatus, setWorkingStatus] = useState('Working');
   const [showWorkingStatusPicker, setShowWorkingStatusPicker] = useState(false);
+  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified']);
 
   const [submitting, setSubmitting] = useState(false);
   const [hcImages,   setHcImages]   = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchWorkingStatuses().then(setWorkingStatuses).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!qrUid) return;
@@ -912,18 +918,9 @@ export default function RegisterAssetScreen() {
       <PickerModal
         visible={showWorkingStatusPicker}
         title="Working Status"
-        items={[
-          { id: 1, label: 'Working' },
-          { id: 2, label: 'Not_Working' },
-          { id: 3, label: 'WIP' },
-          { id: 4, label: 'Condemned' },
-          { id: 5, label: 'Critical' },
-          { id: 6, label: 'Unverified' },
-          { id: 7, label: 'Verified' },
-        ]}
+        items={workingStatuses.map((s, i) => ({ id: i + 1, label: s }))}
         onSelect={(id) => {
-          const map: Record<number, string> = { 1: 'Working', 2: 'Not_Working', 3: 'WIP', 4: 'Condemned', 5: 'Critical', 6: 'Unverified', 7: 'Verified' };
-          setWorkingStatus(map[id] || 'Working');
+          setWorkingStatus(workingStatuses[id - 1] || 'Working');
         }}
         onClose={() => setShowWorkingStatusPicker(false)}
       />

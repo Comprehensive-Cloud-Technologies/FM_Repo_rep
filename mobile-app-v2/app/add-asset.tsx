@@ -16,6 +16,7 @@ import { useTheme, Spacing, Radius } from '../utils/theme';
 import {
   fetchAllCompaniesForEngineer,
   fetchDepartmentsByCompany,
+  fetchWorkingStatuses,
   fetchLocationBuildingsByCompany,
   fetchLocationFloorsByBuilding,
   fetchLocationRoomsByFloor,
@@ -366,6 +367,7 @@ export default function AddAssetScreen() {
 
   // Working Status
   const [workingStatus, setWorkingStatus] = useState('Working');
+  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified']);
 
   // Equipment Details
   const [assetName,        setAssetName]        = useState('');
@@ -416,6 +418,10 @@ export default function AddAssetScreen() {
   const inp = (extra?: object) => [ss.input, {
     backgroundColor: theme.surface, borderColor: theme.border, color: theme.textPrimary, ...(extra || {}),
   }];
+
+  useEffect(() => {
+    fetchWorkingStatuses().then(setWorkingStatuses).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchAllCompaniesForEngineer()
@@ -956,15 +962,7 @@ export default function AddAssetScreen() {
       <PickerModal
         visible={showWorkingStatusPicker}
         title="Working Status"
-        items={[
-          { id: 1, label: 'Working' },
-          { id: 2, label: 'Not_Working' },
-          { id: 3, label: 'WIP' },
-          { id: 4, label: 'Condemned' },
-          { id: 5, label: 'Critical' },
-          { id: 6, label: 'Unverified' },
-          { id: 7, label: 'Verified' },
-        ]}
+        items={workingStatuses.map((s, i) => ({ id: i + 1, label: s }))}
         onSelect={(id, label) => setWorkingStatus(label)}
         onClose={() => setShowWorkingStatusPicker(false)}
       />

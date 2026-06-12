@@ -915,6 +915,17 @@ export async function fetchDepartmentsByCompany(companyId: number): Promise<Arra
   return apiGet<Array<{ id: number; name: string }>>(`/api/company-portal/departments-by-company/${companyId}`);
 }
 
+const FALLBACK_WORKING_STATUSES = ['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified'];
+
+export async function fetchWorkingStatuses(): Promise<string[]> {
+  try {
+    const data = await apiGet<{ statuses: string[] }>('/api/company-portal/working-statuses');
+    return data.statuses ?? FALLBACK_WORKING_STATUSES;
+  } catch {
+    return FALLBACK_WORKING_STATUSES;
+  }
+}
+
 export async function fetchLocationBuildingsByCompany(_companyId: number): Promise<Array<{ id: number; buildingName: string }>> {
   // Uses company-portal prefix so the company JWT is accepted
   return apiGet<Array<{ id: number; buildingName: string }>>('/api/company-portal/locations/buildings');

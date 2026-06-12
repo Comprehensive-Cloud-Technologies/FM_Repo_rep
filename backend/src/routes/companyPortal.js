@@ -282,6 +282,22 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
   );
 })();
 
+// ─── Public config endpoints (no auth required) ───────────────────────────────
+// Working status list — update here and restart PM2; no APK rebuild needed.
+const WORKING_STATUSES = [
+  'Working',
+  'Not_Working',
+  'WIP',
+  'Condemned',
+  'Critical',
+  'Unverified',
+  'Verified',
+];
+
+router.get('/working-statuses', (_req, res) => {
+  res.json({ statuses: WORKING_STATUSES });
+});
+
 const cid = (req) => req.companyUser.companyId;
 
 const sanitizeAssetIdPart = (value, fallback) => {
