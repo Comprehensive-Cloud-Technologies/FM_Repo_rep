@@ -184,11 +184,28 @@ router.get("/stats", async (req, res, next) => {
        WHERE c.user_id = ?
        GROUP BY c.id`, [userId]
     );
+
+    // User-wise breakdown (employees + their created asset/complaint count)
+    const [byUser] = await pool.query(
+      `SELECT u.id, u.full_name AS userName, u.email, u.role,
+              c.id AS companyId, c.company_name AS companyName,
+              COUNT(DISTINCT a.id) AS createdAssets,
+              COUNT(DISTINCT wo.id) AS createdComplaints
+       FROM company_users u
+       JOIN companies c ON c.id = u.company_id
+       LEFT JOIN assets a ON a.created_by = u.id
+       LEFT JOIN work_orders wo ON wo.created_by = u.id
+       WHERE c.user_id = ?${companyIdFilter ? " AND c.id = ?" : ""}
+       GROUP BY u.id, u.full_name, u.email, u.role, c.id, c.company_name
+       ORDER BY c.company_name, u.full_name`,
+      compArgs
+    ).catch(() => [[]]);
+
     res.json({
       totalCompanies, activeCompanies, totalAssets, totalEmployees,
       assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, verifiedAssets },
       complaintProfile: { total: totalComplaints, wip: wipComplaints, lt7d: lt7dComplaints, gt7d: gt7dComplaints, resolved: resolvedComplaints, closed: closedComplaints },
-      byCompany,
+      byCompany, byUser,
     });
   } catch (err) { next(err); }
 });

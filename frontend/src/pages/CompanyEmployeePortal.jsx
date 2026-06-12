@@ -5005,43 +5005,11 @@ export default function CompanyEmployeePortal() {
           <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
         </div>
 
-        {/* Company label + switcher */}
+        {/* Company name label only (no switcher here) */}
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0, marginBottom: accessibleCompanies.length > 1 ? "6px" : 0 }}>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0 }}>
             {companyDisplayName || currentUser.companyName || "Client"}
           </p>
-          {accessibleCompanies.length > 1 && (
-            <select
-              disabled={switchingCompany}
-              value={currentUser?.companyId || ""}
-              onChange={async (e) => {
-                const newId = Number(e.target.value);
-                if (newId === currentUser?.companyId) return;
-                setSwitchingCompany(true);
-                try {
-                  const r = await fetch(`/api/company-auth/switch-company`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ companyId: newId }),
-                  });
-                  if (!r.ok) throw new Error("Switch failed");
-                  const data = await r.json();
-                  sessionStorage.setItem("cp_token", data.token);
-                  sessionStorage.setItem("cp_user", JSON.stringify(data.user));
-                  window.location.reload();
-                } catch {
-                  alert("Could not switch company. Please try again.");
-                } finally {
-                  setSwitchingCompany(false);
-                }
-              }}
-              style={{ width: "100%", fontSize: "12px", padding: "4px 6px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", color: "#374151", cursor: "pointer" }}
-            >
-              {accessibleCompanies.map(c => (
-                <option key={c.companyId} value={c.companyId}>{c.companyName}{c.primary ? " (primary)" : ""}</option>
-              ))}
-            </select>
-          )}
         </div>
 
         {/* Nav items */}
@@ -5177,6 +5145,44 @@ export default function CompanyEmployeePortal() {
 
       {/* Main content */}
       <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
+
+        {/* Top-right company switcher bar */}
+        {accessibleCompanies.length > 1 && (
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Company:</span>
+            <select
+              disabled={switchingCompany}
+              value={currentUser?.companyId || ""}
+              onChange={async (e) => {
+                const newId = Number(e.target.value);
+                if (newId === currentUser?.companyId) return;
+                setSwitchingCompany(true);
+                try {
+                  const r = await fetch(`/api/company-auth/switch-company`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ companyId: newId }),
+                  });
+                  if (!r.ok) throw new Error("Switch failed");
+                  const data = await r.json();
+                  sessionStorage.setItem("cp_token", data.token);
+                  sessionStorage.setItem("cp_user", JSON.stringify(data.user));
+                  window.location.reload();
+                } catch {
+                  alert("Could not switch company. Please try again.");
+                } finally {
+                  setSwitchingCompany(false);
+                }
+              }}
+              style={{ fontSize: "13px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#374151", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 600, minWidth: "180px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+            >
+              {accessibleCompanies.map(c => (
+                <option key={c.companyId} value={c.companyId}>{c.companyName}{c.primary ? " ★" : ""}</option>
+              ))}
+            </select>
+            {switchingCompany && <span style={{ fontSize: "12px", color: "#7c3aed" }}>Switching...</span>}
+          </div>
+        )}
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {

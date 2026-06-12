@@ -280,6 +280,18 @@ const updateRules = [
   body("metadata").optional().isObject(),
 ];
 
+// ── Startup migrations for columns added after initial schema ─────────────────
+(async () => {
+  const safeAlter = async (sql) => {
+    try { await pool.query(sql); } catch (e) { /* column already exists */ }
+  };
+  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS verified TINYINT(1) NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS generated_asset_id VARCHAR(80) NULL`);
+  await safeAlter(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS working_status VARCHAR(30) NULL`);
+  await safeAlter(`ALTER TABLE assets MODIFY COLUMN status ENUM('Active','Inactive','Unverified') NOT NULL DEFAULT 'Active'`);
+})();
+
 // ── GET /api/assets ────────────────────────────────────────────────────────────
 router.get(
   "/",
