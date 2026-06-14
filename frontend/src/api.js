@@ -153,7 +153,7 @@ export const getCompanyPortalAssets = (token, params = {}) => {
   return request("GET", `/api/company-portal/assets${qs ? "?" + qs : ""}`, undefined, { authToken: token });
 };
 export const createCompanyPortalAsset = (token, data) => request("POST", "/api/company-portal/assets", data, { authToken: token });
-export const updateCompanyPortalAsset = (token, id, data) => request("PUT", `/api/company-portal/assets/${id}`, data, { authToken: token });
+export const updateCompanyPortalAsset = (token, id, data) => request("PATCH", `/api/company-portal/assets/${id}`, data, { authToken: token });
 export const deleteCompanyPortalAsset = (token, id) => request("DELETE", `/api/company-portal/assets/${id}`, undefined, { authToken: token });
 export const bulkDeleteCompanyPortalAssets = (token, ids) => request("DELETE", "/api/company-portal/assets/bulk", { ids }, { authToken: token });
 export const deleteAllCompanyPortalAssets = (token) => request("DELETE", "/api/company-portal/assets/delete-all", undefined, { authToken: token });
@@ -235,6 +235,7 @@ export const getAdminOjtProgress  = (token, companyId) => request("GET", `/api/c
 export const getAdminWorkOrders    = (token, companyId, status) => { const p = []; if (companyId) p.push(`companyId=${companyId}`); if (status) p.push(`status=${status}`); const qs = p.length ? `?${p.join("&")}` : ""; return request("GET", `/api/company-users/work-orders${qs}`, undefined, { authToken: token }); };
 export const createAdminWorkOrder  = (token, data) => request("POST", "/api/company-users/work-orders", data, { authToken: token });
 export const updateAdminWOStatus   = (token, id, status) => request("PUT", `/api/company-users/work-orders/${id}/status`, { status }, { authToken: token });
+export const deleteAdminWorkOrder  = (token, id) => request("DELETE", `/api/company-users/work-orders/${id}`, undefined, { authToken: token });
 export const assignAdminWO         = (token, id, data) => request("PUT", `/api/company-users/work-orders/${id}/assign`, data, { authToken: token });
 
 // -- Admin-level QR Code management (client portal) --

@@ -698,7 +698,7 @@ function RecordsTable({ type, token, globalFilters }) {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
 /* ─── Dashboard Asset Table (table format with View button) ─────────────── */
-function DashboardAssetTable({ token, filters, tileLabel, onClearTile }) {
+function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAsset }) {
   const [assets, setAssets]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [page, setPage]           = useState(1);
@@ -706,11 +706,26 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile }) {
   const [viewAsset, setViewAsset] = useState(null); // asset whose images are shown
   const PER_PAGE = 20;
 
+  // Map kpiKey → backend filter params understood by /assets endpoint
+  const kpiKeyToFilters = (key) => {
+    const map = {
+      totalAssets:      {},
+      criticalAssets:   { criticality: "Critical" },
+      nonCriticalAssets:{ criticality: "Non_Critical" },
+      rberAssets:       { rber: "true" },
+      condemnedAssets:  { workingStatus: "Condemned" },
+      verifiedAssets:   { verified: "true" },
+    };
+    return map[key] || {};
+  };
+
   useEffect(() => { setPage(1); }, [JSON.stringify(filters)]);
 
   useEffect(() => {
     setLoading(true);
-    const qs = buildQS({ ...filters, limit: PER_PAGE, page });
+    const { kpiKey, ...restFilters } = filters;
+    const extraParams = kpiKey ? kpiKeyToFilters(kpiKey) : {};
+    const qs = buildQS({ ...restFilters, ...extraParams, limit: PER_PAGE, page });
     hcFetch(`/assets${qs}`, token)
       .then(d => { setAssets(d.data || []); setTotal(d.pagination?.total || 0); })
       .catch(() => {})
@@ -774,7 +789,11 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile }) {
                       onMouseLeave={e => e.currentTarget.style.background = ""}>
                       <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px" }}>{(page - 1) * PER_PAGE + i + 1}</td>
                       <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis" }}>{a.asset_name || "—"}</td>
-                      <td style={{ padding: "9px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", whiteSpace: "nowrap" }}>{a.asset_unique_id || "—"}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {onOpenAsset
+                          ? <button onClick={() => onOpenAsset(a)} style={{ background: "none", border: "none", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap", fontWeight: 600 }}>{a.asset_unique_id || "—"}</button>
+                          : <span style={{ color: "#1e40af", fontFamily: "monospace", fontSize: "12px" }}>{a.asset_unique_id || "—"}</span>}
+                      </td>
                       <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.asset_category || "—"}</td>
                       <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.department_name || "—"}</td>
                       <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
@@ -867,7 +886,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile }) {
   );
 }
 
-export default function HealthcareDashboard({ token }) {
+export default function HealthcareDashboard({ token, onOpenAsset }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
   const [filters, setFilters]       = useState(EMPTY_FILTERS);
@@ -986,13 +1005,13 @@ export default function HealthcareDashboard({ token }) {
   ];
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1400px", fontFamily: "'Inter', -apple-system, sans-serif" }}>
+    <div style={{ padding: "6px 0 24px", maxWidth: "1400px", fontFamily: "'Inter', -apple-system, sans-serif" }}>
       {/* Error state */}
       {snapError && <ErrorState message={snapError} onRetry={loadSnapshot} />}
 
       {/* ── ASSET SNAPSHOT KPI CARDS ── */}
-      <section style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>
+      <section style={{ marginBottom: "16px" }}>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>
           Asset Profile
           <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
@@ -1058,6 +1077,19 @@ export default function HealthcareDashboard({ token }) {
             ))}
           </div>
         </div>
+
+        {/* Asset tile drill-down — shown when an asset KPI tile is clicked */}
+        {activeKpiKey && (
+          <div style={{ marginTop: "14px" }}>
+            <DashboardAssetTable
+              token={token}
+              filters={{ ...filters, kpiKey: activeKpiKey }}
+              tileLabel={KPI_LIST.find(k => k.key === activeKpiKey)?.label || activeKpiKey}
+              onClearTile={() => setActiveKpiKey(null)}
+              onOpenAsset={onOpenAsset}
+            />
+          </div>
+        )}
 
         {/* Complaint requests panel — shown when a complaint tile is clicked */}
         {activeComplaintKey && (

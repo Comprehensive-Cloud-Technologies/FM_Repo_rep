@@ -294,6 +294,7 @@ import {
 
 
   updateAdminWOStatus,
+  deleteAdminWorkOrder,
 
 
 
@@ -3138,6 +3139,7 @@ function AdminLocationsSection({ token, companies = [] }) {
 
 function AdminQrCodesSection({ token, companies = [] }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedCompanyName, setSelectedCompanyName] = useState(""); // for client label on QR cards
   const [qrCodes, setQrCodes] = useState([]);
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3239,7 +3241,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
       <h2 style={{ marginBottom: 16, fontSize: 20, fontWeight: 700 }}>QR Codes</h2>
       {msg && <div style={{ padding: "8px 12px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{msg}<button onClick={() => setMsg("")} style={{ marginLeft: 8, background: "none", border: "none", cursor: "pointer", color: "#64748b" }}>x</button></div>}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-        <select value={selectedCompanyId} onChange={e => setSelectedCompanyId(e.target.value)} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 200, background: "#fff", color: "#374151" }}>
+        <select value={selectedCompanyId} onChange={e => { setSelectedCompanyId(e.target.value); const co = companies.find(c => String(c.id) === e.target.value); setSelectedCompanyName(co?.companyName || co?.name || ""); }} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 200, background: "#fff", color: "#374151" }}>
           <option value="">-- Select Company --</option>
           {companies.map(co => <option key={co.id} value={co.id}>{co.companyName || co.name}</option>)}
         </select>
@@ -3278,7 +3280,8 @@ function AdminQrCodesSection({ token, companies = [] }) {
         <input type="number" min={0} value={generateCount} onChange={e => {
           const raw = Number(e.target.value);
           setGenerateCount(Number.isFinite(raw) && raw >= 0 ? raw : 0);
-        }} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        }} placeholder="QR count" style={{ width: "90px", padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        <input type="text" value={selectedCompanyName} onChange={e => setSelectedCompanyName(e.target.value)} placeholder="Client label on QR cards" title="This name appears on printed QR cards" style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, minWidth: 180 }} />
         <button onClick={handleGenerate} disabled={generating || !selectedCompanyId} style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
           {generating ? "Generating..." : "Generate QR Codes"}
         </button>
@@ -3444,6 +3447,14 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
     } catch(e) { alert(e.message); }
   };
 
+  const handleDelete = async (wo) => {
+    if (!window.confirm(`Delete request "${wo.workOrderNumber || `WO-${wo.id}`}"? This cannot be undone.`)) return;
+    try {
+      await deleteAdminWorkOrder(token, wo.id);
+      setWos(prev => prev.filter(w => w.id !== wo.id));
+    } catch(e) { alert(e.message || "Delete failed"); }
+  };
+
   const now = Date.now();
   const counts = { all:0, open:0, assigned:0, in_progress:0, on_hold:0, completed:0, closed:0, escalated:0, overdue:0 };
   for (const w of wos) {
@@ -3575,9 +3586,14 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
                     <td style={{ padding:"11px 14px" }}>
-                      <select value={w.status} onChange={e=>updateStatus(w,e.target.value)} style={{ padding:"5px 8px", borderRadius:"6px", border:"1px solid #e2e8f0", fontSize:"12px", cursor:"pointer" }}>
-                        {["open","assigned","in_progress","on_hold","completed","closed","escalated"].map(s=><option key={s} value={s}>{s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>)}
-                      </select>
+                      <div style={{ display:"flex", gap:"6px", alignItems:"center" }}>
+                        <select value={w.status} onChange={e=>updateStatus(w,e.target.value)} style={{ padding:"5px 8px", borderRadius:"6px", border:"1px solid #e2e8f0", fontSize:"12px", cursor:"pointer" }}>
+                          {["open","assigned","in_progress","on_hold","completed","closed","escalated"].map(s=><option key={s} value={s}>{s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>)}
+                        </select>
+                        <button onClick={() => handleDelete(w)} title="Delete request" style={{ padding:"5px 8px", borderRadius:"6px", border:"1px solid #fecaca", background:"#fef2f2", color:"#dc2626", cursor:"pointer", fontSize:"12px", fontWeight:700, flexShrink:0 }}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -4288,6 +4304,8 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   const [formErr, setFormErr] = useState(null);
   const [extraCompanyIds, setExtraCompanyIds] = useState([]); // additional company access
   const [formCompanyId, setFormCompanyId] = useState(null); // primary company selected inside modal
+  const [companyAccessOpen, setCompanyAccessOpen] = useState(false);
+  const [companyAccessSearch, setCompanyAccessSearch] = useState("");
 
   useEffect(() => {
     if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
@@ -4338,7 +4356,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
         }
       }
       await load(selCo);
-      setShowCreate(false); setEditEmp(null); setForm(emptyForm); setExtraCompanyIds([]); setFormCompanyId(null);
+      setShowCreate(false); setEditEmp(null); setForm(emptyForm); setExtraCompanyIds([]); setFormCompanyId(null); setCompanyAccessOpen(false); setCompanyAccessSearch("");
     } catch(e) { setFormErr(e.message || "Save failed"); }
     setSaving(false);
   };
@@ -4406,7 +4424,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
           <div style={{ background:"#fff", borderRadius:"16px", padding:"clamp(16px,3vw,28px)", width:"min(560px,95vw)", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.18)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"20px" }}>
               <h3 style={{ margin:0, fontSize:"18px", fontWeight:800, color:"#0f172a" }}>{editEmp ? "Edit User" : "Add User"}</h3>
-              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"22px", lineHeight:1 }}>&#10005;</button>
+              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); setCompanyAccessOpen(false); setCompanyAccessSearch(""); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"22px", lineHeight:1 }}>&#10005;</button>
             </div>
             {formErr && <div style={{ background:"#fee2e2", color:"#dc2626", borderRadius:"8px", padding:"8px 12px", fontSize:"12.5px", marginBottom:"12px", fontWeight:600 }}>{formErr}</div>}
             <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
@@ -4456,38 +4474,84 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
               {/* Company Access — unified primary + additional */}
               <div>
                 <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"4px" }}>
-                  Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(check all companies this user should access)</span>
+                  Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(search and select companies this user should access)</span>
                 </label>
-                <div style={{ border:"1px solid #e2e8f0", borderRadius:"8px", background:"#f8fafc", padding:"6px 10px", maxHeight:"160px", overflowY:"auto" }}>
-                  {allCos.length === 0
-                    ? <p style={{ color:"#94a3b8", fontSize:"12px", margin:0 }}>No companies available</p>
-                    : allCos.map(c => {
-                        const isPrimary = c.id === (selCo || formCompanyId);
-                        const isChecked = isPrimary || extraCompanyIds.includes(c.id);
-                        return (
-                          <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"5px 2px", cursor:"pointer", fontSize:"13px", color:"#374151", borderBottom:"1px solid #f1f5f9" }}>
-                            <input type="checkbox"
-                              checked={isChecked}
-                              onChange={ev => {
-                                if (isPrimary) return;
-                                if (!selCo && !editEmp && !formCompanyId && ev.target.checked) { setFormCompanyId(c.id); return; }
-                                setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
-                              }}
-                              style={{ accentColor:"#2563eb" }}
-                            />
-                            <span style={{ flex:1 }}>{c.companyName || c.name}</span>
-                            {isPrimary && <span style={{ fontSize:"10px", fontWeight:700, color:"#2563eb", background:"#dbeafe", padding:"1px 6px", borderRadius:"8px" }}>Primary</span>}
-                          </label>
-                        );
-                      })
-                  }
+                <button type="button" onClick={() => setCompanyAccessOpen(v => !v)}
+                  style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:"13px", color:"#374151" }}>
+                  <span style={{ textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {(() => {
+                      const primaryId = selCo || formCompanyId;
+                      const totalSelected = (primaryId ? 1 : 0) + extraCompanyIds.length;
+                      if (totalSelected === 0) return "Select company access";
+                      if (totalSelected === 1 && primaryId) return (allCos.find(c => c.id === primaryId)?.companyName || allCos.find(c => c.id === primaryId)?.name || "1 company");
+                      return `${totalSelected} companies selected`;
+                    })()}
+                  </span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {companyAccessOpen && (
+                  <div style={{ marginTop:"6px", border:"1px solid #e2e8f0", borderRadius:"8px", background:"#fff", overflow:"hidden" }}>
+                    <div style={{ padding:"8px", borderBottom:"1px solid #f1f5f9" }}>
+                      <input
+                        value={companyAccessSearch}
+                        onChange={e => setCompanyAccessSearch(e.target.value)}
+                        placeholder="Search companies..."
+                        style={{ width:"100%", padding:"8px 10px", borderRadius:"7px", border:"1px solid #e2e8f0", fontSize:"12.5px", boxSizing:"border-box" }}
+                      />
+                    </div>
+                    <div style={{ maxHeight:"170px", overflowY:"auto", padding:"6px 8px" }}>
+                      {allCos.filter(c => {
+                        const name = (c.companyName || c.name || "").toLowerCase();
+                        return !companyAccessSearch || name.includes(companyAccessSearch.toLowerCase());
+                      }).length === 0 ? (
+                        <p style={{ color:"#94a3b8", fontSize:"12px", margin:"6px 4px" }}>No matching companies</p>
+                      ) : allCos
+                        .filter(c => {
+                          const name = (c.companyName || c.name || "").toLowerCase();
+                          return !companyAccessSearch || name.includes(companyAccessSearch.toLowerCase());
+                        })
+                        .map(c => {
+                          const isPrimary = c.id === (selCo || formCompanyId);
+                          const isChecked = isPrimary || extraCompanyIds.includes(c.id);
+                          return (
+                            <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"6px 4px", cursor:"pointer", fontSize:"13px", color:"#374151", borderBottom:"1px solid #f8fafc" }}>
+                              <input type="checkbox"
+                                checked={isChecked}
+                                onChange={ev => {
+                                  if (isPrimary) return;
+                                  if (!selCo && !editEmp && !formCompanyId && ev.target.checked) { setFormCompanyId(c.id); return; }
+                                  setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
+                                }}
+                                style={{ accentColor:"#2563eb" }}
+                              />
+                              <span style={{ flex:1 }}>{c.companyName || c.name}</span>
+                              {isPrimary && <span style={{ fontSize:"10px", fontWeight:700, color:"#2563eb", background:"#dbeafe", padding:"1px 6px", borderRadius:"8px" }}>Primary</span>}
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"6px" }}>
+                  {(selCo || formCompanyId) && (
+                    <span style={{ fontSize:"11px", color:"#2563eb", background:"#eff6ff", border:"1px solid #bfdbfe", padding:"2px 7px", borderRadius:"999px", fontWeight:700 }}>
+                      Primary: {allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || allCos.find(c=>c.id===(selCo||formCompanyId))?.name || "—"}
+                    </span>
+                  )}
+                  {extraCompanyIds.map(id => {
+                    const co = allCos.find(c => c.id === id);
+                    return (
+                      <span key={`extra-${id}`} style={{ fontSize:"11px", color:"#334155", background:"#f8fafc", border:"1px solid #e2e8f0", padding:"2px 7px", borderRadius:"999px" }}>
+                        {co?.companyName || co?.name || id}
+                      </span>
+                    );
+                  })}
                 </div>
                 {!selCo && !editEmp && !formCompanyId && <p style={{ fontSize:"11px", color:"#f59e0b", margin:"4px 0 0" }}>Check the primary company first</p>}
-                {(selCo || formCompanyId) && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>Primary: <strong style={{ color:"#2563eb" }}>{allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName||"—"}</strong></p>}
               </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
-              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
+              <button type="button" onClick={() => { setShowCreate(false); setEditEmp(null); setCompanyAccessOpen(false); setCompanyAccessSearch(""); }} style={{ padding:"9px 20px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", fontWeight:600, cursor:"pointer", fontSize:"13.5px" }}>Cancel</button>
               <button type="button" onClick={handleSave} disabled={saving} style={{ padding:"9px 20px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:"13.5px", opacity: saving ? 0.7 : 1 }}>{saving ? "Saving..." : editEmp ? "Save Changes" : "Add User"}</button>
             </div>
           </div>
@@ -4769,6 +4833,9 @@ const CompanyPortal = () => {
 
   const [assetLoading, setAssetLoading] = useState(false);
   const [viewingAsset, setViewingAsset] = useState(null);
+  const [viewingAssetTab, setViewingAssetTab] = useState("overview");
+  const [viewingAssetCallLogs, setViewingAssetCallLogs] = useState(null);
+  const [viewingAssetCalibration, setViewingAssetCalibration] = useState(null);
 
 
 
@@ -4933,15 +5000,22 @@ const CompanyPortal = () => {
 
 
   const [tableSearch, setTableSearch] = useState("");
-  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings)
+  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings) – applied
+  const [dashCompanyPending, setDashCompanyPending] = useState([]); // pending selection before Apply
   const [dashCompanyFilter, setDashCompanyFilter] = useState(""); // legacy single (for export)
   const [dashFilterOpen, setDashFilterOpen] = useState(false);
   const [dashView, setDashView] = useState("company"); // "company" | "user"
+  const [dashUserFilters, setDashUserFilters] = useState([]); // array of composite user-company keys (strings) – applied in User View
+  const [dashUserFilterOpen, setDashUserFilterOpen] = useState(false);
+  const [dashCompanySearch, setDashCompanySearch] = useState("");
+  const [dashUserSearch, setDashUserSearch] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [activeTile, setActiveTile] = useState(null);
   const [dashExportOpen, setDashExportOpen] = useState(false);
   const [empInitCompanyId, setEmpInitCompanyId] = useState(null);
+  const [tileAssets, setTileAssets] = useState(null); // loaded assets for the active tile drill-down
+  const [tileAssetsLoading, setTileAssetsLoading] = useState(false);
 
 
 
@@ -14797,9 +14871,9 @@ const CompanyPortal = () => {
 
           {/* Management */}
           <div className="nav-group-label">Management</div>
-          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }} title="Companies">
+          <button className={nav === "companies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("companies"); setShowAddForm(false); }} title="Customers">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>
-            <span className="nav-label">Companies</span>
+            <span className="nav-label">Customers</span>
           </button>
           <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }} title="Employees">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -17483,7 +17557,7 @@ const CompanyPortal = () => {
 
 
 
-                  + Add Company
+                  + Add Customer
 
 
 
@@ -23898,102 +23972,267 @@ const CompanyPortal = () => {
 
 
 
-            {/* Asset Detail Modal */}
-            {viewingAsset && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setViewingAsset(null)}>
-                <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: 'min(580px,94vw)', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                    <div>
-                      <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{viewingAsset.assetName}</h2>
-                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0', fontFamily: 'monospace' }}>{viewingAsset.assetUniqueId || '-'}</p>
+
+            {/* Asset Detail — Full-width page with tabs */}
+            {viewingAsset && (() => {
+              const a = viewingAsset;
+              const m = typeof a.metadata === "string"
+                ? (() => { try { return JSON.parse(a.metadata || "{}"); } catch { return {}; } })()
+                : (a.metadata || {});
+              const closeDetail = () => { setViewingAsset(null); setViewingAssetTab("overview"); setViewingAssetCallLogs(null); setViewingAssetCalibration(null); };
+              const mf = (field) => a[field] || m[field];
+              const dateField = (v) => v ? String(v).replace("T00:00:00.000Z","").replace("T"," ").slice(0,10) : "";
+              const maint = [m.warranty?.enabled && "Warranty", m.amc?.enabled && "AMC", m.cmc?.enabled && "CMC", m.inHouse && "In House", m.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+              const normalizeImg = (img) => {
+                const raw = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
+                if (!raw || typeof raw !== "string") return "";
+                if (raw.startsWith("http") || raw.startsWith("/")) return raw;
+                return `/${raw}`;
+              };
+              const hcImages = [
+                ...(Array.isArray(m.hcImages) ? m.hcImages : []),
+                ...(Array.isArray(m.images) ? m.images : []),
+                ...(Array.isArray(m.invoiceImages) ? m.invoiceImages : []),
+                ...(m.invoiceUrl ? [m.invoiceUrl] : []),
+                ...(m.hcInvoiceUrl ? [m.hcInvoiceUrl] : []),
+              ].map(normalizeImg).filter(Boolean);
+
+              const loadCallLogs = async () => {
+                if (viewingAssetCallLogs !== null) return;
+                try {
+                  const r = await fetch(`${getApiBaseUrl()}/api/companies/work-orders?assetId=${a.id}&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+                  const d = await r.json();
+                  setViewingAssetCallLogs(Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []));
+                } catch { setViewingAssetCallLogs([]); }
+              };
+              const loadCalibration = async () => {
+                if (viewingAssetCalibration !== null) return;
+                try {
+                  const companyId = a.companyId || (companies.find(c => c.companyName === a.companyName)?.id) || "";
+                  const r = await fetch(`${getApiBaseUrl()}/api/companies/${companyId}/assets/${a.id}/calibration-records`, { headers: { Authorization: `Bearer ${token}` } });
+                  const d = await r.json();
+                  setViewingAssetCalibration(Array.isArray(d) ? d : []);
+                } catch { setViewingAssetCalibration([]); }
+              };
+              const handleTab = (tab) => {
+                setViewingAssetTab(tab);
+                if (tab === "calllogs" || tab === "downtime") loadCallLogs();
+                if (tab === "calibration") loadCalibration();
+              };
+              const TABS = [
+                { key: "overview",    label: "Overview" },
+                { key: "calllogs",    label: "Call Log History" },
+                { key: "calibration", label: "Calibration History" },
+                { key: "purchase",    label: "Purchase History" },
+                { key: "downtime",    label: "Total Down Time" },
+              ];
+              const tabStyle = (key) => ({
+                padding: "12px 18px", background: "none", border: "none",
+                borderBottom: viewingAssetTab === key ? "3px solid #2563eb" : "3px solid transparent",
+                color: viewingAssetTab === key ? "#2563eb" : "#64748b",
+                fontSize: "13.5px", fontWeight: viewingAssetTab === key ? 700 : 500,
+                cursor: "pointer", whiteSpace: "nowrap", transition: "color 0.15s",
+              });
+              const EmptyMsg = ({ msg }) => (
+                <div style={{ textAlign: "center", padding: "48px 24px", color: "#94a3b8" }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: "12px", opacity: 0.5 }}><path d="M9 12h6m-6 4h6M9 8h.01M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3z"/></svg>
+                  <p style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>{msg || "No records found"}</p>
+                </div>
+              );
+              const fields = [
+                ["Asset ID",           a.generatedAssetId || a.assetUniqueId],
+                ["Equipment Name",     m.equipmentName || a.assetName],
+                ["Company",            a.companyName],
+                ["Make / Manufacturer",m.make || m.manufacturer],
+                ["Model",              m.model],
+                ["Serial No.",         m.serialNo],
+                ["Accessories",        m.accessories],
+                ["Dealer / Distributor",m.dealer],
+                ["Manufacturing Year", m.mfgYear || m.manufacturingYear],
+                ["Installation Date",  dateField(m.installationDate)],
+                ["Invoice No.",        m.invoiceNo],
+                ["Purchase Date",      dateField(m.purchaseDate)],
+                ["Purchase Cost",      m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+                ["Maintenance",        maint],
+                ["RBER",               m.rber ? "Yes" : null],
+                ["Remarks",            m.remarks],
+                ["Department",         a.departmentName],
+                ["Building",           a.building],
+                ["Floor",              a.floor],
+                ["Room / Area",        a.room],
+                ["Status",             a.status],
+                ["Asset Type",         a.assetType],
+                ["Criticality",        a.criticality || m.criticality],
+                ["Registered On",      a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : null],
+              ].filter(([, v]) => v);
+
+              return (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex" }}
+                  onClick={e => e.target === e.currentTarget && closeDetail()}>
+                  <div style={{ background: "#fff", width: "100vw", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                    {/* Header */}
+                    <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", flexShrink: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
+                          <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
+                        </div>
+                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "—"}</span>
+                        {a.companyName && <span style={{ fontSize: "12px", color: "#64748b", background: "#f1f5f9", padding: "4px 10px", borderRadius: "8px" }}>{a.companyName}</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                        <button onClick={() => { closeDetail(); setEditingAssetId(a.id); setAssetForm({ ...emptyAsset, ...a, metadata: m, companyId: a.companyId || "" }); setShowAssetModal(true); }}
+                          style={{ padding: "8px 16px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
+                        <button onClick={closeDetail}
+                          style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                      </div>
                     </div>
-                    <button onClick={() => setViewingAsset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                  </div>
-                  {(() => {
-                    const m = viewingAsset.metadata || {};
-                    const mf = (field) => viewingAsset[field] || m[field];
-                    const dateField = (v) => v ? String(v).replace('T00:00:00.000Z','').replace('T',' ').slice(0,10) : '';
-                    const mainItems = [
-                      ['Company',          mf('companyName')],
-                      ['Department',       mf('departmentName')],
-                      ['Asset Type',       mf('assetType')],
-                      ['Status',           mf('status')],
-                      ['Verified',         viewingAsset.isVerified ? 'Yes' : 'No'],
-                      ['Criticality',      mf('criticality')],
-                      ['Building',         mf('building')],
-                      ['Floor',            mf('floor')],
-                      ['Room',             mf('room')],
-                      ['Make / Manufacturer', mf('make')],
-                      ['Model',            mf('model')],
-                      ['Serial No',        mf('serialNo')],
-                      ['Accessories',      mf('accessories')],
-                      ['Dealer',           mf('dealer')],
-                      ['Mfg Year',         mf('mfgYear')],
-                      ['Installation Date',dateField(mf('installationDate'))],
-                      ['Invoice No',       mf('invoiceNo')],
-                      ['Purchase Date',    dateField(mf('purchaseDate'))],
-                      ['Purchase Cost',    mf('purchaseCost') ? String(mf('purchaseCost')) : ''],
-                      ['Warranty',         m.warranty?.enabled ? `${m.warranty.startDate || ''} → ${m.warranty.endDate || ''}` : (m.warranty ? 'Yes' : '')],
-                      ['AMC',              m.amc?.enabled ? `${m.amc.startDate || ''} → ${m.amc.endDate || ''}` : (m.amc ? 'Yes' : '')],
-                      ['CMC',              m.cmc?.enabled ? `${m.cmc.startDate || ''} → ${m.cmc.endDate || ''}` : (m.cmc ? 'Yes' : '')],
-                      ['In House',         m.inHouse ? 'Yes' : ''],
-                      ['Catalyst',         m.catalyst ? 'Yes' : ''],
-                      ['RBER',             (mf('rber') || m.rber) ? 'Yes' : ''],
-                      ['Remarks',          mf('remarks')],
-                      ['Created At',       viewingAsset.createdAt ? new Date(viewingAsset.createdAt).toLocaleDateString() : ''],
-                    ];
-                    return (
-                      <>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          {mainItems.filter(([, v]) => v).map(([label, val]) => (
-                            <div key={label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px' }}>
-                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
-                              <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', margin: 0 }}>{String(val)}</p>
+                    {/* Tabs */}
+                    <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff", padding: "0 24px", overflowX: "auto", flexShrink: 0 }}>
+                      {TABS.map(t => <button key={t.key} style={tabStyle(t.key)} onClick={() => handleTab(t.key)}>{t.label}</button>)}
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, overflowY: "auto", background: "#f8fafc", padding: "24px" }}>
+
+                      {/* ── Overview ── */}
+                      {viewingAssetTab === "overview" && (
+                        <>
+                          {hcImages.length > 0 && (
+                            <div style={{ marginBottom: "20px" }}>
+                              <p style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 10px" }}>IMAGES</p>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                                {hcImages.map((src, i) => (
+                                  <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", width: "140px", height: "140px" }}>
+                                    <img src={src} alt={`img-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.target.parentElement.style.display = "none"; }} />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+                            {fields.map(([label, val]) => (
+                              <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
+                                <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{label}</p>
+                                <p style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", margin: 0 }}>{String(val)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── Call Log History ── */}
+                      {viewingAssetTab === "calllogs" && (
+                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs…" /> :
+                        viewingAssetCallLogs.length === 0 ? <EmptyMsg msg="No call log history" /> :
+                        <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                            <thead><tr style={{ background: "#f8fafc" }}>
+                              {["#","Title","Priority","Status","Assigned To","Created"].map(h => (
+                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>{viewingAssetCallLogs.map((w, i) => (
+                              <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "—"}</td>
+                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "—"}</span></td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "—"}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* ── Calibration History ── */}
+                      {viewingAssetTab === "calibration" && (
+                        viewingAssetCalibration === null ? <EmptyMsg msg="Loading calibration records…" /> :
+                        viewingAssetCalibration.length === 0 ? <EmptyMsg msg="No calibration records" /> :
+                        <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                            <thead><tr style={{ background: "#f8fafc" }}>
+                              {["#","Date","Done By","Next Due","Certificate","Notes"].map(h => (
+                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>{viewingAssetCalibration.map((c, i) => (
+                              <tr key={c.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                                <td style={{ padding: "10px 14px", color: "#0f172a" }}>{c.calibrationDate || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.doneBy || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.nextDueDate || "—"}</td>
+                                <td style={{ padding: "10px 14px" }}>{c.certificateUrl ? <a href={c.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>View</a> : "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.notes || "—"}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* ── Purchase History ── */}
+                      {viewingAssetTab === "purchase" && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+                          {[
+                            ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
+                            ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+                            ["Dealer / Distributor", m.dealer],
+                            ["Warranty", m.warranty?.enabled ? `${m.warranty.startDate || ""} → ${m.warranty.endDate || ""}` : null],
+                            ["AMC", m.amc?.enabled ? `${m.amc.startDate || ""} → ${m.amc.endDate || ""}` : null],
+                            ["CMC", m.cmc?.enabled ? `${m.cmc.startDate || ""} → ${m.cmc.endDate || ""}` : null],
+                            ["Remarks", m.remarks],
+                          ].filter(([, v]) => v).map(([label, val]) => (
+                            <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
+                              <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{label}</p>
+                              <p style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", margin: 0 }}>{String(val)}</p>
                             </div>
                           ))}
+                          {[
+                            ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
+                            ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+                            ["Dealer / Distributor", m.dealer],
+                          ].every(([, v]) => !v) && <EmptyMsg msg="No purchase information recorded" />}
                         </div>
-                        {(() => {
-                          const imgs = mf('hcImages') || mf('images') || m.hcImages || m.images || [];
-                          const list = Array.isArray(imgs) ? imgs : [];
-                          if (!list.length) return null;
-                          const base = window.location.origin;
+                      )}
+
+                      {/* ── Total Down Time ── */}
+                      {viewingAssetTab === "downtime" && (
+                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading…" /> : (() => {
+                          const notWorking = (viewingAssetCallLogs || []).filter(w => w.workingStatus === "Not_Working" || w.status === "open");
+                          if (!notWorking.length) return <EmptyMsg msg="No downtime records found" />;
+                          const totalHrs = notWorking.reduce((acc, w) => acc + (Number(w.downtimeHours) || 0), 0);
                           return (
-                            <div style={{ marginTop: '16px' }}>
-                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Equipment Images</p>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {list.map((url, i) => {
-                                  const src = url.startsWith('http') ? url : `${base}${url}`;
-                                  return <img key={i} src={src} alt={`asset-img-${i}`} style={{ width: 90, height: 90, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />;
-                                })}
+                            <div>
+                              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "16px", display: "flex", gap: "24px" }}>
+                                <div><p style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", margin: "0 0 4px" }}>Total Events</p><p style={{ fontSize: "26px", fontWeight: 800, color: "#dc2626", margin: 0 }}>{notWorking.length}</p></div>
+                                <div><p style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", margin: "0 0 4px" }}>Total Hours</p><p style={{ fontSize: "26px", fontWeight: 800, color: "#ea580c", margin: 0 }}>{totalHrs.toFixed(1)}</p></div>
+                              </div>
+                              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                                  <thead><tr style={{ background: "#f8fafc" }}>
+                                    {["#","Title","Status","Downtime (hrs)","Created"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>)}
+                                  </tr></thead>
+                                  <tbody>{notWorking.map((w, i) => (
+                                    <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                      <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "—"}</td>
+                                      <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#fee2e2", color: "#dc2626" }}>{w.status || "open"}</span></td>
+                                      <td style={{ padding: "10px 14px", color: "#ea580c", fontWeight: 700 }}>{w.downtimeHours || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "—"}</td>
+                                    </tr>
+                                  ))}</tbody>
+                                </table>
                               </div>
                             </div>
                           );
-                        })()}
-                        {(() => {
-                          const invImgs = m.invoiceImages || [];
-                          const list = Array.isArray(invImgs) ? invImgs : [];
-                          if (!list.length) return null;
-                          const base = window.location.origin;
-                          return (
-                            <div style={{ marginTop: '16px' }}>
-                              <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 8px' }}>Invoice / Purchase Receipts</p>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {list.map((url, i) => {
-                                  const src = url.startsWith('http') ? url : `${base}${url}`;
-                                  return <img key={i} src={src} alt={`invoice-${i}`} style={{ width: 110, height: 110, borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />;
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </>
-                    );
-                  })()}
+                        })()
+                      )}
+
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
             </>
 
 
@@ -28249,8 +28488,26 @@ const CompanyPortal = () => {
           };
 
           // Tile click handler - show drill-down on same dashboard
-          const handleTileClick = (tileId) => {
-            setActiveTile(prev => prev === tileId ? null : tileId);
+          const ASSET_TILES = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
+          const COMPLAINT_TILES = ["total_complaint","wip","lt7d","gt7d","resolved","closed"];
+          const tileStatusMap = { total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", condemned: "condemned", new_addition: "new_addition" };
+
+          const getDashUserSelectionKey = (u) => `${u.id}-${u.companyId}`;
+
+          const handleTileClick = async (tileId) => {
+            if (activeTile === tileId) { setActiveTile(null); setTileAssets(null); return; }
+            setActiveTile(tileId);
+            setTileAssets(null);
+            if (ASSET_TILES.includes(tileId)) {
+              setTileAssetsLoading(true);
+              try {
+                const coParam = dashCompanyFilters.length > 0 ? ("&companyIds=" + dashCompanyFilters.join(",")) : "";
+                const statusParam = tileStatusMap[tileId] ? ("status=" + tileStatusMap[tileId]) : "";
+                const qs = [statusParam, coParam.slice(1)].filter(Boolean).join("&");
+                const rows = await getClientAssets(token, qs);
+                setTileAssets(Array.isArray(rows) ? rows : []);
+              } catch { setTileAssets([]); } finally { setTileAssetsLoading(false); }
+            }
           };
           // Keep tile drill-down on the dashboard instead of navigating away.
           const handleViewAll = (tileId) => {
@@ -28303,17 +28560,43 @@ const CompanyPortal = () => {
 
           const KpiTile = ({ id, label, value, col, icon }) => {
             const isActive = activeTile === id;
+            const bgLight = col + "12";
+            const borderLight = col + "40";
             return (
               <div
                 onClick={() => handleTileClick(id)}
-                style={{ borderRadius: "10px", border: `1px solid ${isActive ? col : "#e2e8f0"}`, borderLeft: `3px solid ${col}`, padding: "14px 16px", boxShadow: isActive ? `0 0 0 2px ${col}22, 0 4px 12px rgba(0,0,0,0.08)` : "0 1px 3px rgba(0,0,0,0.05)", cursor: "pointer", transition: "all 0.15s", userSelect: "none", background: isActive ? `${col}08` : "#fff" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
-                  <span style={{ color: col, display: "flex", opacity: 0.85 }}>{icon}</span>
-                  <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>{label}</span>
-                  {isActive && <svg style={{ marginLeft: "auto" }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>}
+                style={{
+                  background: isActive ? bgLight : "#fff",
+                  borderRadius: "10px",
+                  border: isActive ? `2px solid ${col}` : `1px solid ${borderLight}`,
+                  padding: "10px 10px 8px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "5px",
+                  minHeight: "82px",
+                  boxShadow: isActive ? `0 2px 10px ${col}33` : "0 1px 3px rgba(0,0,0,0.04)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  position: "relative",
+                  textAlign: "center",
+                  userSelect: "none",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 14px ${col}33`; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = isActive ? `0 2px 10px ${col}33` : "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
+              >
+                {isActive && <div style={{ position: "absolute", top: "6px", left: "6px", width: "6px", height: "6px", borderRadius: "50%", background: col }} />}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+                  <div style={{ width: "22px", height: "22px", background: bgLight, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: col, flexShrink: 0 }}>
+                    {icon}
+                  </div>
+                  <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
                 </div>
-                <div style={{ fontSize: "32px", fontWeight: 800, color: col, letterSpacing: "-1px", lineHeight: 1 }}>
-                  {value !== null && value !== undefined ? value : <span style={{ fontSize: "18px", color: "#cbd5e1" }}>...</span>}
+                <div>
+                  {value !== null && value !== undefined
+                    ? <p style={{ fontSize: "26px", fontWeight: 900, color: isActive ? col : col, margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{value}</p>
+                    : <div style={{ width: "40px", height: "22px", background: "#f1f5f9", borderRadius: "4px", margin: "0 auto" }} />}
                 </div>
               </div>
             );
@@ -28340,7 +28623,7 @@ const CompanyPortal = () => {
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
               {/* ×××××× Header ×××××× */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
                     <div style={{ width: "34px", height: "34px", background: "#eff6ff", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", flexShrink: 0 }}>
@@ -28355,50 +28638,175 @@ const CompanyPortal = () => {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                  {/* View toggle: Company-wise / User-wise */}
-                  <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "8px", padding: "3px", gap: "2px" }}>
-                    {[{ id: "company", label: "Company View" }, { id: "user", label: "User View" }].map(v => (
-                      <button key={v.id} onClick={() => setDashView(v.id)}
-                        style={{ padding: "5px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                          background: dashView === v.id ? "#fff" : "transparent",
-                          color: dashView === v.id ? "#2563eb" : "#64748b",
-                          boxShadow: dashView === v.id ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
                   {/* Multi-company filter */}
                   <div style={{ position: "relative" }} ref={r => { if (r) r._closeOnBlur = () => setDashFilterOpen(false); }}>
-                    <button onClick={() => setDashFilterOpen(o => !o)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", background: "#fff", color: "#374151", cursor: "pointer", minWidth: "160px", justifyContent: "space-between" }}>
-                      <span>{dashCompanyFilters.length === 0 ? "All Companies" : dashCompanyFilters.length === 1 ? (companies.find(c => String(c.id) === dashCompanyFilters[0])?.companyName || "1 company") : `${dashCompanyFilters.length} companies`}</span>
+                    <button onClick={() => { setDashCompanyPending(dashCompanyFilters); setDashCompanySearch(""); setDashFilterOpen(o => !o); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", border: `1px solid ${dashUserFilters.length > 0 && dashCompanyFilters.length > 0 ? "#7c3aed" : dashCompanyFilters.length > 0 ? "#2563eb" : "#e2e8f0"}`, borderRadius: "8px", fontSize: "13px", background: dashUserFilters.length > 0 && dashCompanyFilters.length > 0 ? "#faf5ff" : "#fff", color: dashUserFilters.length > 0 && dashCompanyFilters.length > 0 ? "#7c3aed" : "#374151", cursor: "pointer", minWidth: "160px", justifyContent: "space-between" }}>
+                      <span>
+                        {dashUserFilters.length > 0 && dashCompanyFilters.length > 0
+                          ? `${dashCompanyFilters.length} co. (from user filter)`
+                          : dashCompanyFilters.length === 0 ? "All Companies"
+                          : dashCompanyFilters.length === 1 ? (companies.find(c => String(c.id) === dashCompanyFilters[0])?.companyName || "1 company")
+                          : `${dashCompanyFilters.length} companies`}
+                      </span>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
                     {dashFilterOpen && (
                       <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 300, minWidth: "220px", overflow: "hidden" }}>
                         <div style={{ padding: "8px 6px 6px" }}>
-                          <button onClick={() => { setDashCompanyFilters([]); setActiveTile(null); setDashFilterOpen(false); }}
-                            style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", borderRadius: "6px", background: dashCompanyFilters.length === 0 ? "#eff6ff" : "transparent", color: dashCompanyFilters.length === 0 ? "#2563eb" : "#374151", cursor: "pointer", fontWeight: dashCompanyFilters.length === 0 ? 700 : 400, fontSize: "13px" }}>
+                          <div style={{ padding: "2px 4px 8px" }}>
+                            <input
+                              autoFocus
+                              value={dashCompanySearch}
+                              onChange={(e) => setDashCompanySearch(e.target.value)}
+                              placeholder="Search companies..."
+                              style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", boxSizing: "border-box" }}
+                            />
+                          </div>
+                          {dashUserFilters.length > 0 && (
+                            <div style={{ padding: "4px 10px 8px", fontSize: "11px", color: "#7c3aed", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                              Auto-filtered by selected users
+                            </div>
+                          )}
+                          <button onClick={() => { setDashCompanyPending([]); }}
+                            style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", borderRadius: "6px", background: dashCompanyPending.length === 0 ? "#eff6ff" : "transparent", color: dashCompanyPending.length === 0 ? "#2563eb" : "#374151", cursor: "pointer", fontWeight: dashCompanyPending.length === 0 ? 700 : 400, fontSize: "13px" }}>
                             All Companies
                           </button>
-                          {companies.map(co => {
+                          {companies
+                            .filter((co) => {
+                              // When user filter is active, only list companies assigned to selected users
+                              if (dashUserFilters.length > 0) {
+                                const userCompanyIds = new Set(
+                                  byUser.filter(u2 => dashUserFilters.includes(getDashUserSelectionKey(u2))).map(u2 => String(u2.companyId))
+                                );
+                                if (!userCompanyIds.has(String(co.id))) return false;
+                              }
+                              const q = (dashCompanySearch || "").toLowerCase().trim();
+                              if (!q) return true;
+                              return (co.companyName || "").toLowerCase().includes(q);
+                            })
+                            .map(co => {
                             const sid = String(co.id);
-                            const checked = dashCompanyFilters.includes(sid);
+                            const checked = dashCompanyPending.includes(sid);
                             return (
                               <label key={co.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "7px 10px", cursor: "pointer", borderRadius: "6px", fontSize: "13px", color: "#374151" }}
                                 onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
                                 onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                                 <input type="checkbox" checked={checked} onChange={() => {
-                                  setDashCompanyFilters(prev => checked ? prev.filter(x => x !== sid) : [...prev, sid]);
-                                  setActiveTile(null);
+                                  setDashCompanyPending(prev => checked ? prev.filter(x => x !== sid) : [...prev, sid]);
                                 }} style={{ accentColor: "#2563eb" }} />
                                 {co.companyName}
                               </label>
                             );
                           })}
+                          <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 6px 4px", display: "flex", gap: "6px" }}>
+                            <button onClick={() => { setDashCompanyPending([]); setDashCompanyFilters([]); setActiveTile(null); setDashFilterOpen(false); }}
+                              style={{ flex: 1, padding: "7px 0", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#64748b", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
+                              Clear
+                            </button>
+                            <button onClick={() => { setDashCompanyFilters(dashCompanyPending); setActiveTile(null); setDashFilterOpen(false); }}
+                              style={{ flex: 2, padding: "7px 0", border: "none", borderRadius: "6px", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+                              Apply
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
+                  </div>
+                  {/* Multi-user filter — show each user once; selecting picks ALL their company composite keys */}
+                  <div style={{ position: "relative" }}>
+                    {(() => {
+                      // Deduplicated user list (one entry per unique user ID)
+                      const uniqueUserIds = [...new Set(byUser.map(u => u.id))];
+                      const selectedUserIds = [...new Set(
+                        byUser.filter(u2 => dashUserFilters.includes(getDashUserSelectionKey(u2))).map(u2 => u2.id)
+                      )];
+                      return (<>
+                        <button onClick={() => { setDashUserSearch(""); setDashUserFilterOpen(o => !o); }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", border: `1px solid ${selectedUserIds.length > 0 ? "#2563eb" : "#e2e8f0"}`, borderRadius: "8px", fontSize: "13px", background: selectedUserIds.length > 0 ? "#eff6ff" : "#fff", color: selectedUserIds.length > 0 ? "#2563eb" : "#374151", cursor: "pointer", minWidth: "170px", justifyContent: "space-between" }}>
+                          <span>{selectedUserIds.length === 0 ? "All Users" : selectedUserIds.length === 1 ? "1 user" : `${selectedUserIds.length} users`}</span>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        {dashUserFilterOpen && (
+                          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 300, minWidth: "260px", maxHeight: "360px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                            <div style={{ padding: "8px", borderBottom: "1px solid #f1f5f9" }}>
+                              <input
+                                autoFocus
+                                value={dashUserSearch}
+                                onChange={(e) => setDashUserSearch(e.target.value)}
+                                placeholder="Search users..."
+                                style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", boxSizing: "border-box" }}
+                              />
+                            </div>
+                            <div style={{ padding: "6px", overflowY: "auto", flex: 1 }}>
+                              <button onClick={() => {
+                                setDashUserFilters([]);
+                                setDashCompanyFilters([]);
+                                setActiveTile(null);
+                                setDashUserFilterOpen(false);
+                              }}
+                                style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", borderRadius: "6px", background: selectedUserIds.length === 0 ? "#eff6ff" : "transparent", color: selectedUserIds.length === 0 ? "#2563eb" : "#374151", cursor: "pointer", fontWeight: selectedUserIds.length === 0 ? 700 : 400, fontSize: "12px" }}>
+                                All Users
+                              </button>
+                              {uniqueUserIds
+                                .map(uid => byUser.find(u => u.id === uid))
+                                .filter(u => {
+                                  if (!u) return false;
+                                  const q = (dashUserSearch || "").toLowerCase();
+                                  if (!q) return true;
+                                  return (
+                                    (u.userName || "").toLowerCase().includes(q) ||
+                                    (u.email || "").toLowerCase().includes(q)
+                                  );
+                                })
+                                .map(u => {
+                                  // All composite keys for this user across all their companies
+                                  const allKeysForUser = byUser.filter(u2 => u2.id === u.id).map(u2 => getDashUserSelectionKey(u2));
+                                  const userCompanyNames = byUser.filter(u2 => u2.id === u.id).map(u2 => u2.companyName).filter(Boolean);
+                                  const checked = selectedUserIds.includes(u.id);
+                                  return (
+                                    <label key={u.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 10px", cursor: "pointer", borderRadius: "6px", fontSize: "12px", color: "#374151", background: checked ? "#eff6ff" : "transparent" }}
+                                      onMouseEnter={e => { if (!checked) e.currentTarget.style.background="#f8fafc"; }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = checked ? "#eff6ff" : "transparent"; }}>
+                                      <input type="checkbox" checked={checked} onChange={() => {
+                                        // Toggle all composite keys for this user
+                                        const next = checked
+                                          ? dashUserFilters.filter(x => !allKeysForUser.includes(x))
+                                          : [...new Set([...dashUserFilters, ...allKeysForUser])];
+                                        setDashUserFilters(next);
+                                        if (next.length > 0) {
+                                          const autoCompanyIds = [...new Set(
+                                            byUser.filter(u2 => next.includes(getDashUserSelectionKey(u2))).map(u2 => String(u2.companyId))
+                                          )];
+                                          setDashCompanyFilters(autoCompanyIds);
+                                        } else {
+                                          setDashCompanyFilters([]);
+                                        }
+                                        setActiveTile(null);
+                                      }} style={{ accentColor: "#2563eb" }} />
+                                      <div>
+                                        <div style={{ fontWeight: checked ? 700 : 600, color: checked ? "#2563eb" : "#0f172a" }}>{u.userName || u.email}</div>
+                                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{userCompanyNames.length > 1 ? `${userCompanyNames.length} companies` : userCompanyNames[0] || ""}</div>
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                            <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 6px 4px", display: "flex", gap: "6px" }}>
+                              <button onClick={() => { setDashUserFilters([]); setDashCompanyFilters([]); setActiveTile(null); }}
+                                style={{ flex: 1, padding: "7px 0", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#64748b", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
+                                Clear
+                              </button>
+                              <button onClick={() => { setDashUserFilterOpen(false); }}
+                                style={{ flex: 2, padding: "7px 0", border: "none", borderRadius: "6px", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+                                Apply{selectedUserIds.length > 0 ? ` (${selectedUserIds.length} user${selectedUserIds.length !== 1 ? "s" : ""})` : ""}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>);
+                    })()}
                   </div>
                   {/* Export All button with dropdown */}
                   <div style={{ position: "relative" }}>
@@ -28436,10 +28844,16 @@ const CompanyPortal = () => {
               {/* ═══ USER-WISE VIEW ═══ */}
               {dashView === "user" && (
                 <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                     <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>User-Wise Overview</span>
-                    <span style={{ fontSize: "12px", color: "#94a3b8" }}>({byUser.length} users)</span>
+                    <span style={{ fontSize: "12px", color: "#94a3b8" }}>({dashUserFilters.length > 0 ? `${byUser.filter(u => dashUserFilters.includes(getDashUserSelectionKey(u))).length} of ` : ""}{byUser.length} users)</span>
+                    {dashUserFilters.length > 0 && (
+                      <button onClick={() => { setDashUserFilters([]); setDashCompanyFilters([]); setActiveTile(null); }}
+                        style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#dc2626", cursor: "pointer", fontSize: "11.5px", fontWeight: 600 }}>
+                        Clear user filter
+                      </button>
+                    )}
                   </div>
                   {byUser.length === 0 ? (
                     <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
@@ -28456,8 +28870,8 @@ const CompanyPortal = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {byUser.map((u, i) => (
-                            <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                          {(dashUserFilters.length > 0 ? byUser.filter(u => dashUserFilters.includes(getDashUserSelectionKey(u))) : byUser).map((u, i) => (
+                            <tr key={`${u.id}-${u.companyId}`} style={{ borderBottom: "1px solid #f1f5f9" }}
                               onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                               onMouseLeave={e => e.currentTarget.style.background = ""}>
                               <td style={{ padding: "10px 14px", color: "#94a3b8", fontWeight: 600, fontSize: "12px" }}>{i + 1}</td>
@@ -28487,13 +28901,9 @@ const CompanyPortal = () => {
 
               {/* ×××××× ASSET PROFILE ×××××× */}
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#2563eb" }} />
-                  <div>
-                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Asset Profile</h2>
-                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
-                  </div>
-                  
+                <div style={{ marginBottom: "10px" }}>
+                  <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Asset Profile</h2>
+                  <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
@@ -28505,12 +28915,9 @@ const CompanyPortal = () => {
 
               {/* ×××××× COMPLAINT PROFILE ×××××× */}
               <div style={{ marginBottom: "24px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                  <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#ea580c" }} />
-                  <div>
-                    <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Complaint Profile</h2>
-                    <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
-                  </div>
+                <div style={{ marginBottom: "10px" }}>
+                  <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Complaint Profile</h2>
+                  <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
                   {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
@@ -28531,18 +28938,20 @@ const CompanyPortal = () => {
                 ];
                 return (
                   <div style={{ marginBottom: "24px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                      <div style={{ width: "4px", height: "20px", borderRadius: "2px", background: "#8b5cf6" }} />
-                      <div>
-                        <h2 style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Calibration Profile</h2>
-                        <p style={{ fontSize: "10.5px", color: "#94a3b8", margin: 0 }}>{cp.total ?? 0} assets require calibration</p>
-                      </div>
+                    <div style={{ marginBottom: "10px" }}>
+                      <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Calibration Profile</h2>
+                      <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>{cp.total ?? 0} assets require calibration</p>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
                       {calTiles.map(t => (
-                        <div key={t.label} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>{t.label}</div>
-                          <div style={{ fontSize: "28px", fontWeight: 800, color: t.col }}>{t.value}</div>
+                        <div key={t.label} style={{
+                          background: "#fff", borderRadius: "10px", border: `1px solid ${t.col}40`,
+                          padding: "10px 10px 8px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          gap: "5px", minHeight: "82px", textAlign: "center"
+                        }}>
+                          <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>{t.label}</p>
+                          <p style={{ fontSize: "26px", fontWeight: 900, color: t.col, margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{t.value}</p>
                         </div>
                       ))}
                     </div>
@@ -28556,51 +28965,86 @@ const CompanyPortal = () => {
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
-                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{tileConfig[activeTile]?.label} - Company Breakdown</span>
+                      <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
+                        {tileConfig[activeTile]?.label}
+                        {ASSET_TILES.includes(activeTile) ? " — Asset List" : " — Company Breakdown"}
+                      </span>
                       <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "..."}</strong></span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <button onClick={() => handleViewAll(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "none", background: tileConfig[activeTile]?.col, color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        View All &rarr;
-                      </button>
-                      <button onClick={() => setActiveTile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
+                      {ASSET_TILES.includes(activeTile) && (
+                        <button onClick={() => handleExport(activeTile)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                          Export CSV
+                        </button>
+                      )}
+                      <button onClick={() => { setActiveTile(null); setTileAssets(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </button>
                     </div>
                   </div>
-                  <div style={{ padding: "16px 20px" }}>
-                    {byCompany.length === 0 ? (
-                      <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
-                        {dashboardStats ? "No company data available" : "Loading data..."}
-                      </div>
-                    ) : (
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                        <thead>
-                          <tr style={{ background: "#f8fafc" }}>
-                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em" }}>#</th>
-                            <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Company</th>
-                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Total Assets</th>
-                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Staff</th>
-                            <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {byCompany.map((c, i) => (
-                            <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e=>e.currentTarget.style.background="#fafafa"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                              <td style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 600 }}>{i+1}</td>
-                              <td style={{ padding: "10px 12px", fontWeight: 600, color: "#0f172a" }}>{c.companyName}</td>
-                              <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: tileConfig[activeTile]?.col }}>{c.assetCount ?? 0}</td>
-                              <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{c.employeeCount ?? 0}</td>
-                              <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                                <button onClick={() => { setNav("assets"); setSelectedCompanyId && setSelectedCompanyId(c.id); }}
-                                  style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid #e2e8f0", borderRadius: "6px", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                                  View Assets &rarr;
-                                </button>
-                              </td>
+                  <div style={{ padding: "0", maxHeight: "420px", overflowY: "auto" }}>
+                    {ASSET_TILES.includes(activeTile) ? (
+                      tileAssetsLoading ? (
+                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>Loading assets…</div>
+                      ) : !tileAssets || tileAssets.length === 0 ? (
+                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>No assets found for this filter.</div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                          <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                            <tr style={{ background: "#f8fafc" }}>
+                              {["#","Company","Asset Name","Asset ID","Type","Status","Department","Building"].map(h => (
+                                <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {tileAssets.map((a, i) => (
+                              <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
+                                <td style={{ padding: "9px 12px", color: "#94a3b8", fontSize: "11px" }}>{i + 1}</td>
+                                <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "—"}</td>
+                                <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "—"}</td>
+                                <td style={{ padding: "9px 12px" }}>
+                                  <button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "—"}</button>
+                                </td>
+                                <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "—"}</td>
+                                <td style={{ padding: "9px 12px" }}>
+                                  <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: tileConfig[activeTile]?.col + "22", color: tileConfig[activeTile]?.col }}>{a.status || "—"}</span>
+                                </td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.departmentName || "—"}</td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.building || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
+                    ) : (
+                      /* Complaint / other tiles: company breakdown */
+                      byCompany.length === 0 ? (
+                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "24px", fontSize: "13px" }}>
+                          {dashboardStats ? "No company data available" : "Loading data..."}
+                        </div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                          <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                            <tr style={{ background: "#f8fafc" }}>
+                              <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em" }}>#</th>
+                              <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Company</th>
+                              <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Total Assets</th>
+                              <th style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase" }}>Staff</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {byCompany.map((c, i) => (
+                              <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e=>e.currentTarget.style.background="#fafafa"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                                <td style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 600 }}>{i+1}</td>
+                                <td style={{ padding: "10px 12px", fontWeight: 600, color: "#0f172a" }}>{c.companyName}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: tileConfig[activeTile]?.col }}>{c.assetCount ?? 0}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{c.employeeCount ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
                     )}
                   </div>
                 </div>

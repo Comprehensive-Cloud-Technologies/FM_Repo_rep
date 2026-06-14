@@ -219,7 +219,12 @@ router.get("/stats", async (req, res, next) => {
               COUNT(DISTINCT a.id) AS createdAssets,
               COUNT(DISTINCT wo.id) AS createdComplaints
        FROM company_users u
-       JOIN companies c ON c.id = u.company_id
+       JOIN (
+         SELECT id AS user_id, company_id FROM company_users
+         UNION
+         SELECT user_id, company_id FROM user_company_access
+       ) AS uca ON uca.user_id = u.id
+       JOIN companies c ON c.id = uca.company_id
        LEFT JOIN assets a ON a.created_by = u.id
        LEFT JOIN work_orders wo ON wo.created_by = u.id
        ${byUserWhere}
@@ -229,7 +234,7 @@ router.get("/stats", async (req, res, next) => {
     ).catch(() => [[]]);
 
     // Calibration profile
-    const calJoinBase = assetJoinStr; // reuse asset join (calibration_required assets only)
+    const calJoinBase = assetJoin; // reuse asset join (calibration_required assets only)
     const [[{ calTotal }]] = await pool.query(
       `SELECT COUNT(*) AS calTotal ${calJoinBase} AND a.calibration_required = 1`, compArgs
     ).catch(() => [[{ calTotal: 0 }]]);

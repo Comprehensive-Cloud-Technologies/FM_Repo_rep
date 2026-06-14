@@ -397,6 +397,14 @@ router.put("/work-orders/:id/status", requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/company-users/work-orders/:id  – delete WO (admin)
+router.delete("/work-orders/:id", requireAuth, async (req, res, next) => {
+  try {
+    await pool.query("DELETE FROM work_orders WHERE id = ?", [req.params.id]);
+    res.json({ message: "Deleted" });
+  } catch (err) { next(err); }
+});
+
 // PUT /api/company-users/work-orders/:id/assign  – assign WO (admin)
 router.put("/work-orders/:id/assign", requireAuth, async (req, res, next) => {
   try {

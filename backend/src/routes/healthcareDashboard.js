@@ -31,6 +31,11 @@ const filterParams = [
   query("status").optional().isString().trim(),
   query("criticality").optional().isString().trim(),
   query("search").optional().isString().trim(),
+  query("rber").optional(),
+  query("condemned").optional(),
+  query("isVerified").optional(),
+  query("workingStatus").optional().isString().trim(),
+  query("verified").optional(),
 ];
 
 function buildAssetWhere(companyId, q) {
@@ -42,6 +47,7 @@ function buildAssetWhere(companyId, q) {
     const loc = `%${q.location}%`; p.push(loc, loc, loc, loc); }
   if (q.assetCategory){ where += " AND a.asset_category = ?"; p.push(q.assetCategory); }
   if (q.criticality)  { where += " AND a.criticality = ?";    p.push(q.criticality); }
+  if (q.workingStatus){ where += " AND a.working_status = ?"; p.push(q.workingStatus); }
   if (q.status) {
     if (q.status === 'verified') {
       where += " AND a.is_verified = 1";
@@ -49,6 +55,7 @@ function buildAssetWhere(companyId, q) {
       where += " AND a.working_status = ?"; p.push(q.status);
     }
   }
+  if (q.verified === "true" || q.verified === "1") { where += " AND a.is_verified = 1"; }
   if (q.isVerified !== undefined && q.isVerified !== "") {
     where += " AND a.is_verified = ?";
     p.push(q.isVerified === "true" || q.isVerified === "1" ? 1 : 0);
@@ -248,7 +255,8 @@ router.get("/assets", validate(filterParams), async (req, res, next) => {
     const { where, p } = buildAssetWhere(companyId, req.query);
 
     const [rows] = await pool.query(
-      `SELECT a.id, a.asset_name, a.asset_unique_id, a.asset_type, a.asset_category,
+      `SELECT a.id, a.asset_name, a.asset_unique_id, a.generated_asset_id,
+              a.asset_type, a.asset_category,
               a.building, a.floor, a.room, a.location_detail, a.status,
               a.is_verified, a.criticality, a.working_status, a.health_status, a.risk_level,
               a.created_at, d.name AS department_name,

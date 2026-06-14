@@ -247,6 +247,16 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
     `ALTER TABLE assets MODIFY COLUMN status ENUM('Active','Inactive','Unverified') NOT NULL DEFAULT 'Active'`,
     // Working/operational status of the asset (Working, WIP, Not_Working, Condemned)
     `ALTER TABLE assets ADD COLUMN IF NOT EXISTS working_status VARCHAR(30) DEFAULT NULL`,
+    // Company-specific custom asset statuses (Status Master)
+    `CREATE TABLE IF NOT EXISTS asset_statuses (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      company_id INT NOT NULL,
+      name VARCHAR(60) NOT NULL,
+      color VARCHAR(20) DEFAULT '#64748b',
+      sort_order INT DEFAULT 0,
+      created_at DATETIME DEFAULT NOW(),
+      UNIQUE KEY uq_asset_statuses (company_id, name)
+    )`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -296,6 +306,65 @@ const WORKING_STATUSES = [
 
 router.get('/working-statuses', (_req, res) => {
   res.json({ statuses: WORKING_STATUSES });
+});
+
+// ── Asset Status Master (per-company custom statuses) ─────────────────────────
+// GET  /api/company-portal/asset-statuses        — list statuses for this company
+// POST /api/company-portal/asset-statuses        — create new status
+// PUT  /api/company-portal/asset-statuses/:id    — update
+// DELETE /api/company-portal/asset-statuses/:id  — delete
+
+router.get('/asset-statuses', async (req, res, next) => {
+  try {
+    const companyId = req.companyUser?.companyId;
+    if (!companyId) return res.status(401).json({ message: 'Not authenticated' });
+    const [rows] = await pool.query(
+      'SELECT id, name, color, sort_order AS sortOrder FROM asset_statuses WHERE company_id = ? ORDER BY sort_order, name',
+      [companyId]
+    );
+    // Merge with defaults so the list always has something
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/asset-statuses', async (req, res, next) => {
+  try {
+    const companyId = req.companyUser?.companyId;
+    if (!companyId) return res.status(401).json({ message: 'Not authenticated' });
+    const { name, color = '#64748b' } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+    const [result] = await pool.query(
+      'INSERT INTO asset_statuses (company_id, name, color) VALUES (?, ?, ?)',
+      [companyId, name.trim(), color]
+    );
+    res.status(201).json({ id: result.insertId, name: name.trim(), color });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Status already exists' });
+    next(err);
+  }
+});
+
+router.put('/asset-statuses/:id', async (req, res, next) => {
+  try {
+    const companyId = req.companyUser?.companyId;
+    if (!companyId) return res.status(401).json({ message: 'Not authenticated' });
+    const { name, color } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+    await pool.query(
+      'UPDATE asset_statuses SET name = ?, color = ? WHERE id = ? AND company_id = ?',
+      [name.trim(), color || '#64748b', req.params.id, companyId]
+    );
+    res.json({ message: 'Updated' });
+  } catch (err) { next(err); }
+});
+
+router.delete('/asset-statuses/:id', async (req, res, next) => {
+  try {
+    const companyId = req.companyUser?.companyId;
+    if (!companyId) return res.status(401).json({ message: 'Not authenticated' });
+    await pool.query('DELETE FROM asset_statuses WHERE id = ? AND company_id = ?', [req.params.id, companyId]);
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
 });
 
 const cid = (req) => req.companyUser.companyId;
@@ -3345,17 +3414,19 @@ router.post("/employees/bulk", async (req, res, next) => {
 /* ── Current user profile ───────────────────────────────────────────────────── */
 router.get("/me", async (req, res, next) => {
   try {
+    // Use companyId from JWT (supports company switching — active company may differ from primary)
+    const activeCompanyId = req.companyUser.companyId;
     const [[row]] = await pool.query(
       `SELECT cu.id, cu.full_name AS "fullName", cu.email, cu.phone, cu.designation, cu.role,
-              cu.status, cu.company_id AS "companyId", c.company_name AS "companyName",
+              cu.status, ? AS "companyId", c.company_name AS "companyName",
               cu.permissions, cu.module_access AS "moduleAccess",
               c.enabled_modules AS "enabledModules", c.logo_url AS "logoUrl",
               c.sector, c.sectors, c.public_token AS "publicToken",
               c.qr_card_label AS "qrCardLabel"
        FROM company_users cu
-       JOIN companies c ON c.id = cu.company_id
+       JOIN companies c ON c.id = ?
        WHERE cu.id = ?`,
-      [req.companyUser.id]
+      [activeCompanyId, activeCompanyId, req.companyUser.id]
     );
     if (!row) return res.status(404).json({ message: "User not found" });
 
@@ -3395,7 +3466,13 @@ router.get("/me", async (req, res, next) => {
 
     const rolePerms = toObject(rolePermRow?.permissions);
     const userPerms = toObject(row.permissions);
-    row.permissions = { ...rolePerms, ...userPerms };
+    // Deep merge: user-level CRUD overrides role-level at the operation level, not the module level
+    const merged = { ...rolePerms };
+    Object.entries(userPerms).forEach(([moduleKey, ops]) => {
+      if (!ops || typeof ops !== "object") return;
+      merged[moduleKey] = { ...(merged[moduleKey] || {}), ...ops };
+    });
+    row.permissions = merged;
     row.moduleAccess = toArray(row.moduleAccess);
     if (!row.moduleAccess.length) {
       row.moduleAccess = Object.entries(row.permissions)
@@ -3783,7 +3860,7 @@ router.get("/work-orders/:id", async (req, res, next) => {
 router.get("/work-orders", async (req, res, next) => {
   try {
     const companyId = cid(req);
-    const { status, priority, assignedTo, limit = 200, offset = 0 } = req.query;
+    const { status, priority, assignedTo, assetId, limit = 200, offset = 0 } = req.query;
 
     let where = "WHERE wo.company_id = ?";
     const params = [companyId];
@@ -3791,6 +3868,7 @@ router.get("/work-orders", async (req, res, next) => {
     if (status)     { where += " AND wo.status = ?";      params.push(status); }
     if (priority)   { where += " AND wo.priority = ?";    params.push(priority); }
     if (assignedTo) { where += " AND wo.cp_assigned_to = ?"; params.push(Number(assignedTo)); }
+    if (assetId)    { where += " AND wo.asset_id = ?";    params.push(Number(assetId)); }
 
     const [rows] = await pool.query(
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",

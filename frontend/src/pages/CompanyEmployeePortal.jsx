@@ -837,7 +837,9 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   ]);
 
   const buildForm = (src) => {
-    const meta = src?.metadata || {};
+    const meta = typeof src?.metadata === "string"
+      ? (() => { try { return JSON.parse(src.metadata || "{}"); } catch { return {}; } })()
+      : (src?.metadata || {});
     // Populate any unknown meta keys as _custom_ fields (for editing dynamic-type assets)
     const customFromMeta = {};
     for (const [k, v] of Object.entries(meta)) {
@@ -875,7 +877,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       nextServiceDate:      meta.nextServiceDate      || "",
       technician:           meta.technician           || "",
       // Healthcare
-      hcEquipmentName:     meta.equipmentName     || "",
+      hcEquipmentName:     meta.equipmentName     || meta.hcEquipmentName || src?.assetName || "",
       hcMake:              meta.make              || "",
       hcManufacturer:      meta.manufacturer      || "",
       hcModel:             meta.model             || "",
@@ -908,9 +910,21 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       hcCalibrationCertificateNumber: hcCalibration.certificateNumber || meta.calibrationCertificateNumber || "",
       hcCalibrationStatus: hcCalibration.status || meta.calibrationStatus || "Pending",
       hcCalibrationAlertBeforeDays: hcCalibration.alertBeforeDays || meta.alertBeforeDays || 30,
-      hcImages:            Array.isArray(meta.hcImages)
-        ? meta.hcImages.map(img => typeof img === 'string' ? { url: img, name: img.split('/').pop() || 'photo' } : img)
-        : [],
+      hcImages:            [
+        ...(Array.isArray(meta.hcImages) ? meta.hcImages : []),
+        ...(Array.isArray(meta.images) ? meta.images : []),
+      ]
+        .filter(Boolean)
+        .map((img) => {
+          if (typeof img === "string") return { url: img, name: img.split("/").pop() || "photo" };
+          if (img && typeof img === "object") {
+            const url = img.url || img.src || img.path || "";
+            const name = img.name || (typeof url === "string" ? (url.split("/").pop() || "photo") : "photo");
+            return { ...img, url, name };
+          }
+          return null;
+        })
+        .filter((img) => img && typeof img.url === "string" && img.url),
       hcInvoiceUrl:        meta.hcInvoiceUrl || (Array.isArray(meta.invoiceImages) && meta.invoiceImages.length ? meta.invoiceImages[0] : "") || "",
       // Valuation
       purchaseValue:    meta.purchaseValue    || "",
@@ -3949,6 +3963,111 @@ const NAV_ALL = [
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
 
+/* ─── Status Master Section ──────────────────────────────────────── */
+function StatusMasterSection({ token }) {
+  const [statuses, setStatuses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name: "", color: "#2563eb" });
+  const [msg, setMsg] = useState("");
+  const base = `${getApiBaseUrl()}`;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${base}/api/company-portal/asset-statuses`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      setStatuses(Array.isArray(d) ? d : []);
+    } catch { setStatuses([]); } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [token]);
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return setMsg("Status name is required");
+    setSaving(true);
+    try {
+      const url = editId ? `${base}/api/company-portal/asset-statuses/${editId}` : `${base}/api/company-portal/asset-statuses`;
+      const method = editId ? "PUT" : "POST";
+      const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.message || "Save failed"); }
+      setMsg(editId ? "Updated!" : "Status added!");
+      setForm({ name: "", color: "#2563eb" }); setEditId(null); load();
+    } catch (e) { setMsg(e.message); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this status?")) return;
+    try {
+      await fetch(`${base}/api/company-portal/asset-statuses/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      setMsg("Deleted"); load();
+    } catch { setMsg("Delete failed"); }
+  };
+
+  const PRESET_COLORS = ["#2563eb","#dc2626","#16a34a","#ca8a04","#7c3aed","#ea580c","#0891b2","#475569","#be185d"];
+
+  return (
+    <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "24px", marginTop: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "18px" }}>
+        <div style={{ width: "40px", height: "40px", background: "#faf5ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>Status Master</h2>
+          <p style={{ margin: 0, fontSize: "12.5px", color: "#64748b" }}>Manage custom asset working statuses for this company</p>
+        </div>
+      </div>
+
+      {msg && <div style={{ padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", color: "#16a34a", marginBottom: "14px" }}>{msg} <button onClick={() => setMsg("")} style={{ marginLeft: 6, background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>×</button></div>}
+
+      {/* Add / Edit form */}
+      <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", marginBottom: "16px", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: "180px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Status Name *</label>
+          <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Under Maintenance" style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>Color</label>
+          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+            {PRESET_COLORS.map(c => (
+              <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
+                style={{ width: "24px", height: "24px", borderRadius: "50%", background: c, border: form.color === c ? "3px solid #0f172a" : "2px solid transparent", cursor: "pointer", flexShrink: 0 }} />
+            ))}
+            <input type="color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} title="Custom color" style={{ width: "28px", height: "28px", borderRadius: "50%", border: "none", padding: 0, cursor: "pointer", background: "none" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {editId && <button onClick={() => { setEditId(null); setForm({ name: "", color: "#2563eb" }); }} style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>}
+          <button onClick={handleSave} disabled={saving} style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#7c3aed", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving…" : editId ? "Update" : "+ Add Status"}
+          </button>
+        </div>
+      </div>
+
+      {/* Status list */}
+      {loading ? <div style={{ color: "#94a3b8", fontSize: "13px", padding: "12px 0" }}>Loading…</div> : statuses.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8", fontSize: "13px", background: "#f8fafc", borderRadius: "10px", border: "1px dashed #e2e8f0" }}>
+          No custom statuses yet. Add one above to override the default list in the mobile app.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {statuses.map(s => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", border: "1px solid #f1f5f9", background: "#fafafa" }}>
+              <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>{s.name}</span>
+              <button onClick={() => { setEditId(s.id); setForm({ name: s.name, color: s.color || "#2563eb" }); }} style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", color: "#374151", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>Edit</button>
+              <button onClick={() => handleDelete(s.id)} style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: "11.5px", color: "#94a3b8", marginTop: "14px", marginBottom: 0 }}>
+        These statuses appear in the mobile app when registering assets. If none are configured, the default statuses (Working, Not_Working, WIP…) are used.
+      </p>
+    </div>
+  );
+}
+
 /* ─── Main Portal ────────────────────────────────────────────────── */
 export default function CompanyEmployeePortal() {
   const navigate = useNavigate();
@@ -3962,6 +4081,8 @@ export default function CompanyEmployeePortal() {
   const [savingQrLabel, setSavingQrLabel] = useState(false);
   const [accessibleCompanies, setAccessibleCompanies] = useState([]); // multi-company list
   const [switchingCompany, setSwitchingCompany] = useState(false);
+  const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
+  const [companySwitcherSearch, setCompanySwitcherSearch] = useState("");
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -3978,6 +4099,43 @@ export default function CompanyEmployeePortal() {
     if (urlNav && urlNav !== nav) setNavState(urlNav);
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   const [enabledModules, setEnabledModules] = useState(null);
+  const hasTruthyPermission = useCallback((permNode) => {
+    if (permNode === true) return true;
+    if (!permNode || typeof permNode !== "object") return false;
+    return Object.values(permNode).some((v) => (typeof v === "object" ? hasTruthyPermission(v) : v === true));
+  }, []);
+
+  const canAccessModuleByPermission = useCallback((navKey) => {
+    if (currentUser?.role === "admin") return true;
+    const rolePerms = currentUser?.permissions;
+    if (!rolePerms || typeof rolePerms !== "object") return true;
+
+    const nonEmptyPermKeys = Object.keys(rolePerms).filter((k) => rolePerms[k] !== undefined && rolePerms[k] !== null);
+    if (nonEmptyPermKeys.length === 0) return true;
+
+    const keyMap = {
+      dashboard: ["dashboard"],
+      locations: ["locations"],
+      departments: ["departments"],
+      assets: ["assets"],
+      requests: ["requests", "workorders", "work_orders", "workOrders"],
+      employees: ["employees", "users", "team"],
+      qrcodes: ["qrcodes", "qr", "qrcode", "qrCodes"],
+      settings: ["settings"],
+      warnings: ["warnings"],
+      checklists: ["checklists"],
+      logsheets: ["logsheets"],
+      mytasks: ["mytasks", "tasks"],
+      ojt: ["ojt"],
+      shifts: ["shifts"],
+    };
+
+    const candidates = keyMap[navKey] || [navKey];
+    const hit = candidates.find((k) => Object.prototype.hasOwnProperty.call(rolePerms, k));
+    if (!hit) return false;
+    return hasTruthyPermission(rolePerms[hit]);
+  }, [currentUser?.permissions, currentUser?.role, hasTruthyPermission]);
+
   const visibleNav = useMemo(() => {
     const normalizeModuleKey = (value) => {
       const key = String(value || "").trim().toLowerCase();
@@ -3992,15 +4150,12 @@ export default function CompanyEmployeePortal() {
       : null;
     const ALWAYS_VISIBLE = new Set(["dashboard"]);
 
-    // Filter by company enabled modules. Role-based tab visibility is already
-    // handled by getNav(role) above — role_permissions keys are for CRUD ops,
-    // not for portal tab visibility, so we do NOT apply a second permissions filter here.
     const byCompany = !enabledSet
       ? base
       : base.filter((n) => ALWAYS_VISIBLE.has(n.key) || enabledSet.has(n.key));
 
-    return byCompany;
-  }, [enabledModules, currentUser?.role]);
+    return byCompany.filter((n) => ALWAYS_VISIBLE.has(n.key) || canAccessModuleByPermission(n.key));
+  }, [enabledModules, currentUser?.role, canAccessModuleByPermission]);
   const [dashboard, setDashboard] = useState(null);
 
   // ── Alert sound / toast / bell notification state ───────────────
@@ -4151,6 +4306,9 @@ export default function CompanyEmployeePortal() {
   const [requestSearch, setRequestSearch] = useState("");
   // Asset detail view
   const [assetDetailModal, setAssetDetailModal] = useState(null); // asset object or null
+  const [assetDetailTab, setAssetDetailTab] = useState("overview");
+  const [assetDetailCallLogs, setAssetDetailCallLogs] = useState(null);
+  const [assetDetailCalibration, setAssetDetailCalibration] = useState(null);
   // Pre-generated QR codes
   const [preQrCodes, setPreQrCodes] = useState([]);
   const [preQrLoading, setPreQrLoading] = useState(false);
@@ -4214,7 +4372,8 @@ export default function CompanyEmployeePortal() {
     if (!token) return;
     load("dashboard", () => getCompanyPortalDashboard(token)).then((d) => d && setDashboard(d));
     getCompanyPortalMe(token).then((me) => {
-      if (me?.enabledModules) setEnabledModules(me.enabledModules);
+      // Always update enabledModules (null means no restriction = show all)
+      setEnabledModules(Array.isArray(me?.enabledModules) ? me.enabledModules : null);
       if (me?.logoUrl) setCompanyLogoUrl(me.logoUrl);
       if (Array.isArray(me?.sectors)) setCompanySectors(me.sectors);
       if (me?.companyName) setCompanyDisplayName(me.companyName);
@@ -5144,45 +5303,83 @@ export default function CompanyEmployeePortal() {
       </aside>
 
       {/* Main content */}
-      <main style={{ marginLeft: "240px", flex: 1, padding: "28px 32px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ marginLeft: "240px", flex: 1, padding: "16px 32px 28px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
 
         {/* Top-right company switcher bar */}
         {accessibleCompanies.length > 1 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Company:</span>
-            <select
-              disabled={switchingCompany}
-              value={currentUser?.companyId || ""}
-              onChange={async (e) => {
-                const newId = Number(e.target.value);
-                if (newId === currentUser?.companyId) return;
-                // Immediately update sidebar label
-                const selected = accessibleCompanies.find(c => c.companyId === newId);
-                if (selected) setCompanyDisplayName(selected.companyName);
-                setSwitchingCompany(true);
-                try {
-                  const r = await fetch(`/api/company-auth/switch-company`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ companyId: newId }),
-                  });
-                  if (!r.ok) throw new Error("Switch failed");
-                  const data = await r.json();
-                  sessionStorage.setItem("cp_token", data.token);
-                  sessionStorage.setItem("cp_user", JSON.stringify(data.user));
-                  window.location.reload();
-                } catch {
-                  alert("Could not switch company. Please try again.");
-                } finally {
-                  setSwitchingCompany(false);
-                }
-              }}
-              style={{ fontSize: "13px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#374151", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 600, minWidth: "180px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-            >
-              {accessibleCompanies.map(c => (
-                <option key={c.companyId} value={c.companyId}>{c.companyName}{c.primary ? " ★" : ""}</option>
-              ))}
-            </select>
+            <div style={{ position: "relative" }}>
+              <button
+                disabled={switchingCompany}
+                onClick={() => { setCompanySwitcherSearch(""); setCompanySwitcherOpen(o => !o); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 700, minWidth: "200px", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.companyName || "Select Company"}
+                  {accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.primary ? " ★" : ""}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {companySwitcherOpen && !switchingCompany && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 500, minWidth: "240px", overflow: "hidden" }}>
+                  <div style={{ padding: "8px" }}>
+                    <input
+                      autoFocus
+                      value={companySwitcherSearch}
+                      onChange={e => setCompanySwitcherSearch(e.target.value)}
+                      placeholder="Search companies..."
+                      style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", boxSizing: "border-box", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ maxHeight: "260px", overflowY: "auto", padding: "4px 6px 8px" }}>
+                    {accessibleCompanies
+                      .filter(c => {
+                        const q = (companySwitcherSearch || "").toLowerCase().trim();
+                        if (!q) return true;
+                        return (c.companyName || "").toLowerCase().includes(q);
+                      })
+                      .map(c => {
+                        const isActive = c.companyId === currentUser?.companyId;
+                        return (
+                          <button key={c.companyId}
+                            onClick={async () => {
+                              setCompanySwitcherOpen(false);
+                              if (c.companyId === currentUser?.companyId) return;
+                              const selected = accessibleCompanies.find(x => x.companyId === c.companyId);
+                              if (selected) setCompanyDisplayName(selected.companyName);
+                              setSwitchingCompany(true);
+                              try {
+                                const r = await fetch(`/api/company-auth/switch-company`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ companyId: c.companyId }),
+                                });
+                                if (!r.ok) throw new Error("Switch failed");
+                                const data = await r.json();
+                                sessionStorage.setItem("cp_token", data.token);
+                                sessionStorage.setItem("cp_user", JSON.stringify(data.user));
+                                window.location.reload();
+                              } catch {
+                                alert("Could not switch company. Please try again.");
+                              } finally {
+                                setSwitchingCompany(false);
+                              }
+                            }}
+                            style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 10px", borderRadius: "7px", border: "none", background: isActive ? "#eff6ff" : "transparent", color: isActive ? "#2563eb" : "#374151", cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: isActive ? 700 : 500 }}
+                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = isActive ? "#eff6ff" : "transparent"; }}>
+                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: isActive ? "#2563eb" : "#e2e8f0", flexShrink: 0 }} />
+                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {c.companyName}{c.primary ? " ★" : ""}
+                            </span>
+                            {isActive && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
             {switchingCompany && <span style={{ fontSize: "12px", color: "#7c3aed" }}>Switching...</span>}
           </div>
         )}
@@ -5191,7 +5388,30 @@ export default function CompanyEmployeePortal() {
         {nav === "dashboard" && (() => {
 
           /* ── Always show Healthcare Dashboard ─────────────────── */
-          return <HealthcareDashboard token={token} />;
+          const openAssetFromDash = (dashAsset) => {
+            const parsed = typeof dashAsset.metadata === "string"
+              ? (() => { try { return JSON.parse(dashAsset.metadata || "{}"); } catch { return {}; } })()
+              : (dashAsset.metadata || {});
+            setAssetDetailModal({
+              id: dashAsset.id,
+              generatedAssetId: dashAsset.generated_asset_id || dashAsset.asset_unique_id,
+              assetUniqueId: dashAsset.asset_unique_id,
+              assetName: dashAsset.asset_name,
+              status: dashAsset.status || "Active",
+              departmentName: dashAsset.department_name,
+              building: dashAsset.building,
+              floor: dashAsset.floor,
+              room: dashAsset.room,
+              criticality: dashAsset.criticality,
+              working_status: dashAsset.working_status,
+              createdAt: dashAsset.created_at,
+              metadata: parsed,
+            });
+            setAssetDetailTab("overview");
+            setAssetDetailCallLogs(null);
+            setAssetDetailCalibration(null);
+          };
+          return <HealthcareDashboard token={token} onOpenAsset={openAssetFromDash} />;
 
           const FREQ_LABELS = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", half_yearly: "Half-Yearly", yearly: "Yearly" };
           const FREQ_COLORS = { daily: ["#dcfce7","#16a34a"], weekly: ["#dbeafe","#1d4ed8"], monthly: ["#fef9c3","#ca8a04"], quarterly: ["#ede9fe","#7c3aed"], half_yearly: ["#fce7f3","#be185d"], yearly: ["#ffedd5","#c2410c"] };
@@ -5531,7 +5751,13 @@ export default function CompanyEmployeePortal() {
                     </button>
                   ))}
                 </div>
-                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} /> : null}
+                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} onOpenAsset={(dashAsset) => {
+                  const parsed = typeof dashAsset.metadata === "string"
+                    ? (() => { try { return JSON.parse(dashAsset.metadata || "{}"); } catch { return {}; } })()
+                    : (dashAsset.metadata || {});
+                  setAssetDetailModal({ id: dashAsset.id, generatedAssetId: dashAsset.generated_asset_id || dashAsset.asset_unique_id, assetUniqueId: dashAsset.asset_unique_id, assetName: dashAsset.asset_name, status: dashAsset.status || "Active", departmentName: dashAsset.department_name, building: dashAsset.building, floor: dashAsset.floor, room: dashAsset.room, criticality: dashAsset.criticality, working_status: dashAsset.working_status, createdAt: dashAsset.created_at, metadata: parsed });
+                  setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null);
+                }} /> : null}
                 {dashboardSubNav !== "healthcare" && <div>
                 {/* Header */}
                 <div style={{ marginBottom: "24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -6040,46 +6266,14 @@ export default function CompanyEmployeePortal() {
             {assetSubNav === "manage" && (<div style={{ paddingTop: "0" }}>
 
             {/* Sticky header: title + combined filter+buttons row */}
-            <div style={{ position: "sticky", top: 0, zIndex: 30, background: "#f1f5f9", paddingBottom: "10px", paddingTop: "4px", marginBottom: "0" }}>
-              {/* Title row — no buttons here */}
-              <div style={{ marginBottom: "8px" }}>
-                <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "2px" }}>Assets</h1>
-                <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>All registered assets · {filteredAssets.length} total</p>
+            {/* Page header: title + action buttons */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+              <div>
+                <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Assets</h1>
+                <p style={{ color: "#64748b", fontSize: "13.5px", margin: 0 }}>All registered assets · {filteredAssets.length} total</p>
               </div>
-              {errors.assets && <Alert>{errors.assets}</Alert>}
-              {/* Combined filter + action buttons row */}
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "nowrap", overflowX: "auto" }}>
-                <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
-                  style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-                  <option value="">All Types</option>
-                  <option value="soft">Soft</option>
-                  <option value="technical">Technical</option>
-                  <option value="fleet">Fleet</option>
-                </select>
-                <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
-                  style={{ padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", background: "#fff", outline: "none" }}>
-                  <option value="">All Assets</option>
-                  <option value="verified">✓ Verified</option>
-                  <option value="unverified">✗ Unverified</option>
-                </select>
-                <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search assets…"
-                  style={{ padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "13px", outline: "none", width: "200px" }} />
-                <div style={{ flex: 1, minWidth: "8px" }} />
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                 {isAdmin && (<>
-                  {/* QR card client label text input */}
-                  <form onSubmit={async (e) => {
-                    e.preventDefault();
-                    setSavingQrLabel(true);
-                    try {
-                      const r = await fetch("/api/company-portal/me/qr-label", { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ label: qrCardLabel }) });
-                      if (!r.ok) throw new Error((await r.json()).message || "Save failed");
-                    } catch (err) { alert(err.message); }
-                    setSavingQrLabel(false);
-                  }} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <input value={qrCardLabel} onChange={(e) => setQrCardLabel(e.target.value)} placeholder="Client label on QR card" maxLength={20}
-                      style={{ padding: "6px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "150px" }} />
-                    <button type="submit" disabled={savingQrLabel} style={{ padding: "6px 10px", borderRadius: "7px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, fontSize: "12px", cursor: "pointer", opacity: savingQrLabel ? 0.7 : 1 }}>{savingQrLabel ? "…" : "Save"}</button>
-                  </form>
                   {/* Print selected */}
                   {selectedQrIds.size > 0 && (
                     <button disabled={bulkQrPrinting} onClick={() => { const toPrint = filteredAssets.filter(a => selectedQrIds.has(a.id)); openQrCodePrintWindow(toPrint); }}
@@ -6098,43 +6292,69 @@ export default function CompanyEmployeePortal() {
                   )}
                   {/* Print All QR */}
                   <button disabled={bulkQrPrinting || filteredAssets.length === 0} onClick={() => openQrCodePrintWindow(filteredAssets)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: "#fdf4ff", color: "#9333ea", border: "1px solid #f0abfc", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
+                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 13px", borderRadius: "8px", background: "#fdf4ff", color: "#9333ea", border: "1px solid #f0abfc", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>
                     {bulkQrPrinting ? "Generating…" : "Print All QR"}
                   </button>
                   {/* Add Asset */}
                   {canAssetCreate && (
-                    <Btn onClick={() => { setEditAsset(null); setShowAssetModal(true); }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <button onClick={() => { setEditAsset(null); setShowAssetModal(true); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 13px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: "none", background: "#2563eb", color: "#fff" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                       Add Asset
-                    </Btn>
+                    </button>
                   )}
                   {/* Import Excel */}
                   <button onClick={() => { setBulkAssetFile(null); setBulkAssetDeptId(""); setBulkAssetResult(null); setShowBulkAssetImport(true); }}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Import
-                  </button>
-                  {/* Export CSV */}
-                  <button onClick={() => {
-                    const headers = ["SN","Asset ID","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status","Created At"];
-                    const rows = filteredAssets.map((a, i) => {
-                      const m = a.metadata || {};
-                      return [i+1, a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : ""].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
-                    });
-                    const csv = [headers.join(","), ...rows].join("\n");
-                    const blob = new Blob([csv], { type: "text/csv" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a"); a.href = url; a.download = "assets.csv"; a.click(); URL.revokeObjectURL(url);
-                  }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Export Excel
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 13px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: "1.5px solid #2563eb", background: "#eff6ff", color: "#2563eb", whiteSpace: "nowrap" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Import Excel
                   </button>
                 </>)}
               </div>
-            </div>{/* end sticky header */}
-            {/* Table */}
-            <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            </div>
+            {errors.assets && <div style={{ marginBottom: "10px", padding: "10px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", fontSize: "13px" }}>{errors.assets}</div>}
+
+            {/* White card: "Asset List" header + filters row + table */}
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", margin: 0, lineHeight: 1.3 }}>Asset List</p>
+                  <p style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px", marginBottom: 0 }}>{filteredAssets.length} assets</p>
+                </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
+                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
+                    <option value="">All Types</option>
+                    <option value="soft">Soft</option>
+                    <option value="technical">Technical</option>
+                    <option value="fleet">Fleet</option>
+                  </select>
+                  <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
+                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
+                    <option value="">All Status</option>
+                    <option value="verified">✓ Verified</option>
+                    <option value="unverified">✗ Unverified</option>
+                  </select>
+                  <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search..."
+                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "140px" }} />
+                  {isAdmin && (
+                    <button onClick={() => {
+                      const headers = ["SN","Asset ID","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status","Created At"];
+                      const rows = filteredAssets.map((a, i) => {
+                        const m = a.metadata || {};
+                        return [i+1, a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : ""].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+                      });
+                      const csv = [headers.join(","), ...rows].join("\n");
+                      const blob = new Blob([csv], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const el = document.createElement("a"); el.href = url; el.download = "assets.csv"; el.click(); URL.revokeObjectURL(url);
+                    }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "7px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      Export CSV
+                    </button>
+                  )}
+                </div>
+              </div>
               {loading.assets
                 ? <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading…</p>
                 : (
@@ -6292,7 +6512,7 @@ export default function CompanyEmployeePortal() {
                   </table>
                   </div>
                 )}
-            </div>
+            </div>{/* end white card */}
             </div>)}
           </div>
           );
@@ -6387,6 +6607,19 @@ export default function CompanyEmployeePortal() {
 
         {/* ── Requests ──────────────────────────────────────────── */}
         {nav === "requests" && (() => {
+          const isAdmin = currentUser.role === "admin";
+          const reqPerms = currentUser?.permissions?.requests || currentUser?.permissions?.workorders || {};
+          const canRequestRead = isAdmin || reqPerms.r === true || reqPerms.read === true || reqPerms.view === true;
+          const canRequestManage = isAdmin || reqPerms.c === true || reqPerms.create === true || reqPerms.u === true || reqPerms.update === true || reqPerms.edit === true || reqPerms.d === true || reqPerms.delete === true || reqPerms.resolve === true;
+
+          if (!canRequestRead) {
+            return (
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "24px", color: "#64748b" }}>
+                You do not have permission to view requests.
+              </div>
+            );
+          }
+
           return (
             <RequestTrackingPanel
               token={token}
@@ -6394,8 +6627,8 @@ export default function CompanyEmployeePortal() {
               companyId={currentUser.companyId}
               employees={employees}
               departments={departments}
-              isAdmin={currentUser.role === "admin"}
-              isSupervisor={currentUser.role === "supervisor"}
+              isAdmin={isAdmin && canRequestManage}
+              isSupervisor={currentUser.role === "supervisor" && canRequestManage}
             />
           );
         })()}
@@ -6493,7 +6726,11 @@ export default function CompanyEmployeePortal() {
                                     <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 600, marginBottom: "8px" }}>ATTACHED IMAGES ({imgs.length})</div>
                                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                                       {imgs.map((img, i) => {
-                                        const src = img.startsWith("http") || img.startsWith("/") ? img : `${window.location.origin}${img}`;
+                                        const raw = typeof img === "string"
+                                          ? img
+                                          : (img && typeof img === "object" ? (img.url || img.src || img.path || "") : "");
+                                        if (!raw || typeof raw !== "string") return null;
+                                        const src = raw.startsWith("http") || raw.startsWith("/") ? raw : `${window.location.origin}${raw}`;
                                         return (
                                           <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", flexShrink: 0 }}>
                                             <img src={src} alt={`img-${i+1}`}
@@ -6897,9 +7134,22 @@ export default function CompanyEmployeePortal() {
 
         {/* ── Employees ─────────────────────────────────────────── */}
         {nav === "employees" && (() => {
-          const canManage = currentUser.role === "admin" || currentUser.role === "supervisor";
           const isAdmin = currentUser.role === "admin";
+          const empPerms = currentUser?.permissions?.employees || currentUser?.permissions?.users || currentUser?.permissions?.team || {};
+          const canEmpRead = isAdmin || empPerms.r === true || empPerms.read === true || empPerms.view === true;
+          const canEmpCreate = isAdmin || empPerms.c === true || empPerms.create === true;
+          const canEmpUpdate = isAdmin || empPerms.u === true || empPerms.update === true || empPerms.edit === true;
+          const canEmpDelete = isAdmin || empPerms.d === true || empPerms.delete === true || empPerms.remove === true;
+          const canManage = canEmpCreate || canEmpUpdate || canEmpDelete;
           const isSupervisor = currentUser.role === "supervisor";
+
+          if (!canEmpRead) {
+            return (
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "24px", color: "#64748b" }}>
+                You do not have permission to view employees.
+              </div>
+            );
+          }
 
           const EmpRow = ({ e, showAssign }) => (
             <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "8px", background: "#fafafa", border: "1px solid #f1f5f9" }}>
@@ -6925,11 +7175,11 @@ export default function CompanyEmployeePortal() {
                       Assign
                     </button>
                   )}
-                  <button title="Edit" onClick={() => { setEditEmp(e); setShowEmpModal(true); }}
+                  {canEmpUpdate && <button title="Edit" onClick={() => { setEditEmp(e); setShowEmpModal(true); }}
                     style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  {isAdmin && e.id !== currentUser.id && (
+                  </button>}
+                  {canEmpDelete && isAdmin && e.id !== currentUser.id && (
                     <button title="Delete" onClick={() => handleDeleteEmp(e.id)}
                       style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -6950,7 +7200,7 @@ export default function CompanyEmployeePortal() {
                 </div>
                 {canManage && (
                   <div style={{ display: "flex", gap: "8px" }}>
-                    {isAdmin && (
+                    {isAdmin && canEmpUpdate && (
                       <Btn onClick={() => setShowRolesModal(true)} outline color="#7c3aed" bg="#fff">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
                         Manage Roles
@@ -6960,10 +7210,10 @@ export default function CompanyEmployeePortal() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
                       Import CSV
                     </Btn>
-                    <Btn onClick={() => { setEditEmp(null); setShowEmpModal(true); }}>
+                    {canEmpCreate && <Btn onClick={() => { setEditEmp(null); setShowEmpModal(true); }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                       Add Employee
-                    </Btn>
+                    </Btn>}
                   </div>
                 )}
               </div>
@@ -7040,7 +7290,7 @@ export default function CompanyEmployeePortal() {
                                     Assign
                                   </button>
                                 )}
-                                {canManage && (
+                                {canEmpUpdate && (
                                   <button title="Edit" onClick={() => { setEditEmp(emp); setShowEmpModal(true); }}
                                     style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -7189,11 +7439,11 @@ export default function CompanyEmployeePortal() {
                                           Assign
                                         </button>
                                       )}
-                                      <button title="Edit" onClick={() => { setEditEmp(e); setShowEmpModal(true); }}
+                                      {canEmpUpdate && <button title="Edit" onClick={() => { setEditEmp(e); setShowEmpModal(true); }}
                                         style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                      </button>
-                                      {isAdmin && e.id !== currentUser.id && (
+                                      </button>}
+                                      {canEmpDelete && isAdmin && e.id !== currentUser.id && (
                                         <button title="Delete" onClick={() => handleDeleteEmp(e.id)}
                                           style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -8442,6 +8692,10 @@ export default function CompanyEmployeePortal() {
                 </div>
               )}
             </div>
+
+            {/* ── Status Master ── */}
+            <StatusMasterSection token={token} />
+
           </div>
           </main>
         );
@@ -8457,11 +8711,27 @@ export default function CompanyEmployeePortal() {
           onSaved={handleDeptSaved}
         />
       )}
-      {/* Asset Detail Modal */}
+      {/* Asset Detail Modal — full screen with tabs */}
       {assetDetailModal && (() => {
         const a = assetDetailModal;
-        const m = a.metadata || {};
-        const hcImages = [...(m.hcImages || []), ...(m.invoiceImages || []), ...(m.invoiceUrl ? [m.invoiceUrl] : [])].filter(Boolean);
+        const m = typeof a.metadata === "string"
+          ? (() => { try { return JSON.parse(a.metadata || "{}"); } catch { return {}; } })()
+          : (a.metadata || {});
+        const normalizeImgUrl = (img) => {
+          const raw = typeof img === "string"
+            ? img
+            : (img && typeof img === "object" ? (img.url || img.src || img.path || "") : "");
+          if (!raw || typeof raw !== "string") return "";
+          if (raw.startsWith("http") || raw.startsWith("/")) return raw;
+          return `/${raw}`;
+        };
+        const hcImages = [
+          ...(Array.isArray(m.hcImages) ? m.hcImages : []),
+          ...(Array.isArray(m.images) ? m.images : []),
+          ...(Array.isArray(m.invoiceImages) ? m.invoiceImages : []),
+          ...(m.invoiceUrl ? [m.invoiceUrl] : []),
+          ...(m.hcInvoiceUrl ? [m.hcInvoiceUrl] : []),
+        ].map(normalizeImgUrl).filter(Boolean);
         const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
         const fields = [
           ["Asset ID", a.generatedAssetId || a.assetUniqueId],
@@ -8486,53 +8756,389 @@ export default function CompanyEmployeePortal() {
           ["Status", a.status],
           ["Registered On", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : null],
         ].filter(([, v]) => v);
+
+        // Fetch call logs for the asset when tab selected
+        const loadCallLogs = async () => {
+          if (assetDetailCallLogs !== null) return;
+          try {
+            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${a.id}&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+            const d = await r.json();
+            setAssetDetailCallLogs(Array.isArray(d?.data) ? d.data : []);
+          } catch { setAssetDetailCallLogs([]); }
+        };
+
+        const loadCalibration = async () => {
+          if (assetDetailCalibration !== null) return;
+          try {
+            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/assets/${a.id}/calibration-records`, { headers: { Authorization: `Bearer ${token}` } });
+            const d = await r.json();
+            setAssetDetailCalibration(Array.isArray(d) ? d : []);
+          } catch { setAssetDetailCalibration([]); }
+        };
+
+        const handleTabChange = (tab) => {
+          setAssetDetailTab(tab);
+          if (tab === "calllogs" || tab === "downtime") loadCallLogs();
+          if (tab === "calibration") loadCalibration();
+        };
+
+        // Purchase history fields from asset metadata
+        const purchaseMeta = {
+          invoiceNo: m.invoiceNo || "",
+          invoiceDate: m.invoiceDate || "",
+          purchaseCost: m.purchaseCost || "",
+          hcInvoiceUrl: m.hcInvoiceUrl || "",
+          maintenanceTypes: m.maintenanceTypes || {},
+          warrantyStart: m.warrantyStart || "",
+          warrantyEnd: m.warrantyEnd || "",
+          amcStart: m.amcStart || "",
+          amcEnd: m.amcEnd || "",
+          cmcStart: m.cmcStart || "",
+          cmcEnd: m.cmcEnd || "",
+          remarks: m.remarks || "",
+        };
+
+        const TABS = [
+          { key: "overview", label: "Overview" },
+          { key: "calllogs", label: "Call Log History" },
+          { key: "pms", label: "Preventive Maintenance History" },
+          { key: "calibration", label: "Calibration History" },
+          { key: "purchase", label: "Purchase History" },
+          { key: "downtime", label: "Total Down Time" },
+        ];
+
+        const tabStyle = (key) => ({
+          padding: "12px 18px", background: "none", border: "none",
+          borderBottom: assetDetailTab === key ? "3px solid #2563eb" : "3px solid transparent",
+          color: assetDetailTab === key ? "#2563eb" : "#64748b",
+          fontSize: "13.5px", fontWeight: assetDetailTab === key ? 700 : 500,
+          cursor: "pointer", whiteSpace: "nowrap", transition: "color 0.15s",
+        });
+
+        const EmptyMsg = ({ msg }) => (
+          <div style={{ textAlign: "center", padding: "48px 24px", color: "#94a3b8" }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: "12px", opacity: 0.5 }}><path d="M9 12h6m-6 4h6M9 8h.01M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3z"/></svg>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>{msg || "No records found"}</p>
+          </div>
+        );
+
         return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-            onClick={e => e.target === e.currentTarget && setAssetDetailModal(null)}>
-            <div style={{ background: "#fff", borderRadius: "16px", width: "700px", maxWidth: "96vw", maxHeight: "92vh", overflow: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
-              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
-                  <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "stretch", justifyContent: "stretch" }}
+            onClick={e => e.target === e.currentTarget && (setAssetDetailModal(null), setAssetDetailTab("overview"), setAssetDetailCallLogs(null), setAssetDetailCalibration(null))}>
+            <div style={{ background: "#fff", width: "100vw", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {/* Header */}
+              <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
+                    <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
+                  </div>
+                  <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "—"}</span>
                 </div>
-                <button onClick={() => setAssetDetailModal(null)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "18px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); setEditAsset(a); setShowAssetModal(true); }}
+                    style={{ padding: "8px 16px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
+                  <button onClick={() => { handleShowAssetQR(a); setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); }}
+                    style={{ padding: "8px 16px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Print QR</button>
+                  <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); }}
+                    style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                </div>
               </div>
-              <div style={{ padding: "20px 24px" }}>
-                {/* Images */}
-                {hcImages.length > 0 && (
-                  <div style={{ marginBottom: "20px" }}>
-                    <h4 style={{ fontSize: "12.5px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Images</h4>
-                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                      {hcImages.map((img, i) => {
-                        const src = img.startsWith("http") || img.startsWith("/") ? img : `/${img}`;
-                        return (
-                          <a key={i} href={src} target="_blank" rel="noreferrer">
-                            <img src={src} alt={`img-${i+1}`} style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "10px", border: "1.5px solid #e2e8f0" }}
-                              onError={e => { e.currentTarget.style.display = "none"; }} />
-                          </a>
-                        );
-                      })}
+
+              {/* Tab bar */}
+              <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff", padding: "0 24px", overflowX: "auto", flexShrink: 0 }}>
+                {TABS.map(t => (
+                  <button key={t.key} style={tabStyle(t.key)} onClick={() => handleTabChange(t.key)}>{t.label}</button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div style={{ flex: 1, overflowY: "auto", background: "#f8fafc", padding: "24px" }}>
+
+                {/* Overview */}
+                {assetDetailTab === "overview" && (
+                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                    {hcImages.length > 0 && (
+                      <div style={{ marginBottom: "24px" }}>
+                        <h4 style={{ fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Images</h4>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          {hcImages.map((img, i) => {
+                            const src = img;
+                            return (
+                              <a key={i} href={src} target="_blank" rel="noreferrer">
+                                <img src={src} alt={`img-${i+1}`} style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "10px", border: "1.5px solid #e2e8f0" }}
+                                  onError={e => { e.currentTarget.style.display = "none"; }} />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
+                      {fields.map(([label, value]) => (
+                        <div key={label} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
+                          <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600, wordBreak: "break-word" }}>{value}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-                {/* Fields */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  {fields.map(([label, value]) => (
-                    <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px" }}>
-                      <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>{label}</div>
-                      <div style={{ fontSize: "13.5px", color: "#0f172a", fontWeight: 600, wordBreak: "break-word" }}>{value}</div>
+
+                {/* Call Logs */}
+                {assetDetailTab === "calllogs" && (
+                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Call Log History / Work Orders for this Asset</h4>
+                    {assetDetailCallLogs === null ? (
+                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
+                    ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
+                      // Calculate total downtime across all closed/resolved work orders
+                      const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => {
+                        if ((wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt) {
+                          return sum + (new Date(wo.closedAt) - new Date(wo.createdAt));
+                        }
+                        return sum;
+                      }, 0);
+                      const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
+                      const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
+                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
+                      return (
+                        <>
+                          <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Calls</div>
+                              <div style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a" }}>{assetDetailCallLogs.length}</div>
+                            </div>
+                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Down Time</div>
+                              <div style={{ fontSize: "24px", fontWeight: 800, color: totalDowntimeMs > 0 ? "#dc2626" : "#0f172a" }}>{downtimeLabel}</div>
+                            </div>
+                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Open</div>
+                              <div style={{ fontSize: "24px", fontWeight: 800, color: "#854d0e" }}>{assetDetailCallLogs.filter(wo => wo.status !== "closed" && wo.status !== "resolved").length}</div>
+                            </div>
+                          </div>
+                          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                              <thead>
+                                <tr style={{ background: "#f8fafc" }}>
+                                  {["WO Number","Description","Priority","Status","Assigned To","Created","Closed","Down Time"].map(h => (
+                                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {assetDetailCallLogs.map(wo => {
+                                  const downMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
+                                    ? new Date(wo.closedAt) - new Date(wo.createdAt) : 0;
+                                  const downH = Math.floor(downMs / 3600000);
+                                  const downM = Math.floor((downMs % 3600000) / 60000);
+                                  const downLabel = downMs > 0 ? `${downH}h ${downM}m` : "—";
+                                  return (
+                                    <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
+                                      <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
+                                      <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "260px" }}>{wo.issueDescription || "—"}</td>
+                                      <td style={{ padding: "10px 14px" }}>
+                                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: wo.priority === "high" ? "#fee2e2" : wo.priority === "medium" ? "#fef9c3" : "#f1f5f9", color: wo.priority === "high" ? "#dc2626" : wo.priority === "medium" ? "#854d0e" : "#64748b" }}>{wo.priority || "—"}</span>
+                                      </td>
+                                      <td style={{ padding: "10px 14px" }}>
+                                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: wo.status === "closed" || wo.status === "resolved" ? "#dcfce7" : wo.status === "in_progress" ? "#dbeafe" : "#fef9c3", color: wo.status === "closed" || wo.status === "resolved" ? "#166534" : wo.status === "in_progress" ? "#1e40af" : "#854d0e" }}>{wo.status || "—"}</span>
+                                      </td>
+                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {assetDetailTab === "downtime" && (
+                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                    {assetDetailCallLogs === null ? (
+                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
+                    ) : (() => {
+                      const closedOrResolved = assetDetailCallLogs.filter(
+                        (wo) => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
+                      );
+                      const totalDowntimeMs = closedOrResolved.reduce(
+                        (sum, wo) => sum + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)),
+                        0
+                      );
+                      const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
+                      const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
+                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
+                      return (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "16px" }}>
+                            <div style={{ background: "#fff", borderRadius: "10px", padding: "14px 18px", border: "1px solid #e2e8f0" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Down Time</div>
+                              <div style={{ fontSize: "30px", fontWeight: 800, color: totalDowntimeMs > 0 ? "#dc2626" : "#0f172a" }}>{downtimeLabel}</div>
+                            </div>
+                            <div style={{ background: "#fff", borderRadius: "10px", padding: "14px 18px", border: "1px solid #e2e8f0" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Closed/Resolved Calls</div>
+                              <div style={{ fontSize: "30px", fontWeight: 800, color: "#0f172a" }}>{closedOrResolved.length}</div>
+                            </div>
+                          </div>
+
+                          {closedOrResolved.length === 0 ? <EmptyMsg msg="No closed or resolved calls with downtime" /> : (
+                            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                                <thead>
+                                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                                    {[
+                                      "WO Number",
+                                      "Description",
+                                      "Created",
+                                      "Closed",
+                                      "Down Time",
+                                    ].map(h => (
+                                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {closedOrResolved.map((wo) => {
+                                    const dtMs = Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt));
+                                    const h = Math.floor(dtMs / 3600000);
+                                    const m = Math.floor((dtMs % 3600000) / 60000);
+                                    return (
+                                      <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                        <td style={{ padding: "10px 12px", color: "#0f172a", fontWeight: 600 }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
+                                        <td style={{ padding: "10px 12px", color: "#475569" }}>{wo.issueDescription || "—"}</td>
+                                        <td style={{ padding: "10px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{new Date(wo.createdAt).toLocaleString("en-IN")}</td>
+                                        <td style={{ padding: "10px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{new Date(wo.closedAt).toLocaleString("en-IN")}</td>
+                                        <td style={{ padding: "10px 12px", color: "#dc2626", fontWeight: 700 }}>{`${h}h ${m}m`}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Calibration Records */}
+                {assetDetailTab === "calibration" && (
+                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Calibration Records</h4>
+                    {assetDetailCalibration === null ? (
+                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
+                    ) : assetDetailCalibration.length === 0 ? <EmptyMsg msg="No calibration records found" /> : (
+                      <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                          <thead>
+                            <tr style={{ background: "#f8fafc" }}>
+                              {["Calibration Date","Next Due","Vendor","Certificate No.","Calibrated By","Status","Remarks"].map(h => (
+                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {assetDetailCalibration.map(cr => (
+                              <tr key={cr.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
+                                <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600 }}>{cr.calibrationDate ? new Date(cr.calibrationDate).toLocaleDateString("en-IN") : "—"}</td>
+                                <td style={{ padding: "10px 14px", color: cr.nextDueDate && new Date(cr.nextDueDate) < new Date() ? "#dc2626" : "#475569", fontWeight: cr.nextDueDate && new Date(cr.nextDueDate) < new Date() ? 700 : 400 }}>{cr.nextDueDate ? new Date(cr.nextDueDate).toLocaleDateString("en-IN") : "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#475569" }}>{cr.vendorName || "—"}</td>
+                                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#2563eb" }}>{cr.certificateNumber || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#475569" }}>{cr.calibratedBy || "—"}</td>
+                                <td style={{ padding: "10px 14px" }}>
+                                  <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534" }}>{cr.status || "Active"}</span>
+                                </td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{cr.remarks || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* PMS History */}
+                {assetDetailTab === "pms" && (
+                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Preventive Maintenance History</h4>
+                    <EmptyMsg msg="Preventive maintenance records will appear here once scheduled maintenance is logged for this asset." />
+                  </div>
+                )}
+
+                {/* Purchase History */}
+                {assetDetailTab === "purchase" && (
+                  <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Purchase History</h4>
+                    <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                        {[
+                          ["Invoice No.", purchaseMeta.invoiceNo],
+                          ["Purchase Date", purchaseMeta.invoiceDate ? new Date(purchaseMeta.invoiceDate).toLocaleDateString("en-IN") : null],
+                          ["Purchase Cost", purchaseMeta.purchaseCost ? `\u20B9 ${purchaseMeta.purchaseCost}` : null],
+                        ].map(([label, value]) => value ? (
+                          <div key={label} style={{ background: "#f8fafc", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
+                            <div style={{ fontSize: "15px", color: "#0f172a", fontWeight: 600 }}>{value}</div>
+                          </div>
+                        ) : null)}
+                      </div>
+                      {purchaseMeta.hcInvoiceUrl && (
+                        <div style={{ marginBottom: "20px" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Invoice File</div>
+                          <a href={purchaseMeta.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", color: "#2563eb", fontWeight: 600, fontSize: "13px", textDecoration: "none" }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            View Invoice
+                          </a>
+                        </div>
+                      )}
+                      {Object.keys(purchaseMeta.maintenanceTypes).length > 0 && (
+                        <div>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>Maintenance Under</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+                            {purchaseMeta.maintenanceTypes.warranty && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>Warranty</span>}
+                            {purchaseMeta.maintenanceTypes.amc && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#dbeafe", color: "#1e40af" }}>AMC</span>}
+                            {purchaseMeta.maintenanceTypes.cmc && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>CMC</span>}
+                            {purchaseMeta.maintenanceTypes.inHouse && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#f3e8ff", color: "#6b21a8" }}>In House</span>}
+                            {purchaseMeta.maintenanceTypes.catalyst && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#fce7f3", color: "#9d174d" }}>Catalyst</span>}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
+                            {purchaseMeta.maintenanceTypes.warranty && purchaseMeta.warrantyStart && (
+                              <div style={{ background: "#f0fdf4", borderRadius: "10px", padding: "12px 16px", border: "1px solid #bbf7d0" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#166534", textTransform: "uppercase", marginBottom: "4px" }}>Warranty Period</div>
+                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.warrantyStart).toLocaleDateString("en-IN")} — {purchaseMeta.warrantyEnd ? new Date(purchaseMeta.warrantyEnd).toLocaleDateString("en-IN") : "—"}</div>
+                              </div>
+                            )}
+                            {purchaseMeta.maintenanceTypes.amc && purchaseMeta.amcStart && (
+                              <div style={{ background: "#eff6ff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #bfdbfe" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#1e40af", textTransform: "uppercase", marginBottom: "4px" }}>AMC Period</div>
+                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.amcStart).toLocaleDateString("en-IN")} — {purchaseMeta.amcEnd ? new Date(purchaseMeta.amcEnd).toLocaleDateString("en-IN") : "—"}</div>
+                              </div>
+                            )}
+                            {purchaseMeta.maintenanceTypes.cmc && purchaseMeta.cmcStart && (
+                              <div style={{ background: "#fffbeb", borderRadius: "10px", padding: "12px 16px", border: "1px solid #fde68a" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", marginBottom: "4px" }}>CMC Period</div>
+                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.cmcStart).toLocaleDateString("en-IN")} — {purchaseMeta.cmcEnd ? new Date(purchaseMeta.cmcEnd).toLocaleDateString("en-IN") : "—"}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {!purchaseMeta.invoiceNo && !purchaseMeta.purchaseCost && !purchaseMeta.hcInvoiceUrl && Object.keys(purchaseMeta.maintenanceTypes).length === 0 && (
+                        <EmptyMsg msg="No purchase information recorded for this asset." />
+                      )}
                     </div>
-                  ))}
-                </div>
-                {/* Action buttons */}
-                <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexWrap: "wrap" }}>
-                  <button onClick={() => { setAssetDetailModal(null); setEditAsset(a); setShowAssetModal(true); }}
-                    style={{ padding: "9px 18px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
-                  <button onClick={() => { handleShowAssetQR(a); setAssetDetailModal(null); }}
-                    style={{ padding: "9px 18px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Print QR</button>
-                  <button onClick={() => setAssetDetailModal(null)}
-                    style={{ padding: "9px 18px", background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>Close</button>
-                </div>
+                  </div>
+                )}
+
               </div>
             </div>
           </div>
