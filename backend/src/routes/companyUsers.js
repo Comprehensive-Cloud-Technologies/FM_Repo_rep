@@ -479,7 +479,7 @@ router.get("/employees", requireAuth, async (req, res, next) => {
     const { companyId } = req.query;
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
     const [rows] = await pool.query(
-      `SELECT id, full_name AS "fullName", email, phone, role, designation,
+      `SELECT id, company_id AS "companyId", full_name AS "fullName", email, phone, role, designation,
               COALESCE(department_id, NULL) AS "departmentId", status,
               COALESCE(permissions, '{}') AS "permissions",
               COALESCE(module_access, '[]') AS "moduleAccess", created_at AS "createdAt"

@@ -1066,28 +1066,6 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
           </div>
         </div>
 
-        <div style={{ marginTop: "14px" }}>
-          <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-            {[
-              { key: "calibrationDueThisMonth", label: "Due This Month", icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
-              { key: "calibrationOverdue", label: "Overdue", icon: Icon.Calibration, color: "red", value: snapshot?.calibrationOverdue },
-              { key: "calibrationUpcoming", label: "Upcoming (30D)", icon: Icon.Calibration, color: "blue", value: snapshot?.calibrationUpcoming },
-              { key: "calibrationCompletedThisMonth", label: "Completed This Month", icon: Icon.Calibration, color: "green", value: snapshot?.calibrationCompletedThisMonth },
-            ].map(k => (
-              <KpiCard
-                key={k.key}
-                label={k.label}
-                value={k.value}
-                icon={k.icon}
-                color={k.color}
-                loading={snapLoading}
-                isActive={false}
-              />
-            ))}
-          </div>
-        </div>
-
         {/* Asset tile drill-down — shown when an asset KPI tile is clicked */}
         {activeKpiKey && (
           <div style={{ marginTop: "14px" }}>
@@ -1178,6 +1156,29 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
               <EmptyState small />
             }
           </ChartCard>
+        </div>
+      </section>
+
+      {/* ── CALIBRATION PROFILE ── */}
+      <section style={{ marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+          {[
+            { key: "calibrationDueThisMonth", label: "Due This Month", icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
+            { key: "calibrationOverdue", label: "Overdue", icon: Icon.Calibration, color: "red", value: snapshot?.calibrationOverdue },
+            { key: "calibrationUpcoming", label: "Upcoming (30D)", icon: Icon.Calibration, color: "blue", value: snapshot?.calibrationUpcoming },
+            { key: "calibrationCompletedThisMonth", label: "Completed This Month", icon: Icon.Calibration, color: "green", value: snapshot?.calibrationCompletedThisMonth },
+          ].map(k => (
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              loading={snapLoading}
+              isActive={false}
+            />
+          ))}
         </div>
       </section>
 

@@ -3,7 +3,8 @@
  * Opened in a new browser tab when the user clicks an asset ID.
  *
  * URL: /company/portal/asset/:id
- * Auth: reads cp_token from sessionStorage (set by CompanyEmployeePortal login)
+ * Auth: reads cp_token from sessionStorage (company employee) OR
+ *       company_portal_token from localStorage (admin portal).
  */
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -17,7 +18,11 @@ const fmt = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "—");
 
 export default function AssetDetailPage() {
   const { id } = useParams();
-  const token = sessionStorage.getItem("cp_token");
+  const cpToken    = sessionStorage.getItem("cp_token");
+  const adminToken = localStorage.getItem("company_portal_token");
+  const token      = cpToken || adminToken;
+  const isAdmin    = !cpToken && !!adminToken;
+
   const [asset, setAsset] = useState(null);
   const [callLogs, setCallLogs] = useState(null);
   const [calibration, setCalibration] = useState(null);
@@ -28,14 +33,21 @@ export default function AssetDetailPage() {
   useEffect(() => {
     if (!token || !id) { setError("Not authenticated or asset not found."); setLoading(false); return; }
     const base = getApiBaseUrl();
-    fetch(`${base}/api/company-portal/assets/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+    const assetUrl = isAdmin
+      ? `${base}/api/companies/assets/${id}`
+      : `${base}/api/company-portal/assets/${id}`;
+    fetch(assetUrl, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => { setAsset(data); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
-  }, [id, token]);
+  }, [id, token, isAdmin]);
 
   useEffect(() => {
-    if (!token || !id) return;
+    if (!token || !id || isAdmin) {
+      // Admin view: work orders and calibration require company-employee auth — skip
+      if (isAdmin) { setCallLogs([]); setCalibration([]); }
+      return;
+    }
     const base = getApiBaseUrl();
     fetch(`${base}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
@@ -45,7 +57,7 @@ export default function AssetDetailPage() {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => setCalibration(Array.isArray(d) ? d : []))
       .catch(() => setCalibration([]));
-  }, [id, token]);
+  }, [id, token, isAdmin]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "Inter, sans-serif", color: "#64748b" }}>

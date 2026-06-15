@@ -4339,20 +4339,28 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       if (editEmp) {
         await updateAdminEmployee(token, editEmp.id, { ...form });
         // Update additional company access
-        await fetch(`/api/company-users/${editEmp.id}/companies`, {
+        const accessResp = await fetch(`/api/company-users/${editEmp.id}/companies`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ additionalCompanyIds: extraCompanyIds }),
-        }).catch(() => {});
+        });
+        if (!accessResp.ok) {
+          const errBody = await accessResp.json().catch(() => ({}));
+          throw new Error(errBody.message || "Failed to update company access");
+        }
       } else {
         const created = await createAdminEmployee(token, { ...form, companyId: primaryCompanyId });
         // Set additional company access for newly created user
         if (created?.id && extraCompanyIds.length > 0) {
-          await fetch(`/api/company-users/${created.id}/companies`, {
+          const accessResp2 = await fetch(`/api/company-users/${created.id}/companies`, {
             method: "PUT",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ additionalCompanyIds: extraCompanyIds }),
-          }).catch(() => {});
+          });
+          if (!accessResp2.ok) {
+            const errBody2 = await accessResp2.json().catch(() => ({}));
+            throw new Error(errBody2.message || "Failed to set company access");
+          }
         }
       }
       await load(selCo);
@@ -4511,8 +4519,9 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                           return !companyAccessSearch || name.includes(companyAccessSearch.toLowerCase());
                         })
                         .map(c => {
-                          const isPrimary = c.id === (selCo || formCompanyId);
-                          const isChecked = isPrimary || extraCompanyIds.includes(c.id);
+                          const primaryId = editEmp?.companyId ?? selCo ?? formCompanyId;
+                          const isPrimary = primaryId != null && Number(c.id) === Number(primaryId);
+                          const isChecked = isPrimary || extraCompanyIds.some(id => Number(id) === Number(c.id));
                           return (
                             <label key={c.id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"6px 4px", cursor:"pointer", fontSize:"13px", color:"#374151", borderBottom:"1px solid #f8fafc" }}>
                               <input type="checkbox"
@@ -4520,7 +4529,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                                 onChange={ev => {
                                   if (isPrimary) return;
                                   if (!selCo && !editEmp && !formCompanyId && ev.target.checked) { setFormCompanyId(c.id); return; }
-                                  setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
+                                  setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => Number(id) !== Number(c.id)));
                                 }}
                                 style={{ accentColor:"#2563eb" }}
                               />
@@ -4598,8 +4607,8 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                           const r = await fetch(`/api/company-users/${e.id}/companies`, { headers: { Authorization: `Bearer ${token}` } });
                           if (r.ok) {
                             const d = await r.json();
-                            const primId = e.companyId || selCo;
-                            setExtraCompanyIds((d.companyIds || []).filter(id => id !== primId));
+                            const primId = e.companyId ?? selCo;
+                            setExtraCompanyIds((d.companyIds || []).filter(id => Number(id) !== Number(primId)));
                           }
                         } catch { setExtraCompanyIds([]); }
                       }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>Edit</button>
@@ -28346,17 +28355,7 @@ const CompanyPortal = () => {
 
         )}
 
-
-
-
-
-
-
-
-
-
-
-        {nav === "dashboard" && (() => {
+{nav === "dashboard" && (() => {
 
           const SECTOR_COLORS = {
             healthcare:    { bg: "#eff6ff", col: "#2563eb", label: "Healthcare" },
@@ -28555,7 +28554,7 @@ const CompanyPortal = () => {
             critical:          { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
             non_critical:      { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
             rber:              { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
-            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `₹${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : v >= 1000 ? `₹${(v/1000).toFixed(1)}K` : `₹${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
+            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `₹${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : v >= 1000 ? `₹{(v/1000).toFixed(1)}K` : `₹${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
             new_addition:      { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
             total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
             wip:            { label: "WORK IN PROGRESS",   value: dashboardStats ? (complaintProfile.wip ?? 0) : null, col: "#ca8a04" },
@@ -29138,16 +29137,6 @@ const CompanyPortal = () => {
   );
 
 };
-
-
-
-
-
-
-
-
-
-
 
 export default CompanyPortal;
 

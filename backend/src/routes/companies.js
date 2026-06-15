@@ -275,6 +275,34 @@ router.get("/stats", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/companies/assets/:id — single asset detail for admin
+router.get("/assets/:id", async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const assetId = Number(req.params.id);
+    const [[row]] = await pool.query(
+      `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.generated_asset_id AS "generatedAssetId",
+              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.created_at AS "createdAt",
+              c.id AS "companyId", c.company_name AS "companyName",
+              d.name AS "departmentName",
+              ad.metadata
+       FROM assets a
+       JOIN companies c ON c.id = a.company_id AND c.user_id = ?
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       WHERE a.id = ?`,
+      [userId, assetId]
+    );
+    if (!row) return res.status(404).json({ message: "Asset not found" });
+    if (row.metadata && typeof row.metadata === "string") {
+      try { row.metadata = JSON.parse(row.metadata); } catch {}
+    }
+    res.json(row);
+  } catch (err) { next(err); }
+});
+
 // GET /api/companies/assets — full asset list for all companies managed by this user
 router.get("/assets", async (req, res, next) => {
   try {
