@@ -999,8 +999,8 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
     { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} },
     { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
-    { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
     { key: "totalAssetValue", label: "Total Asset Value", icon: Icon.NotWorking, color: "indigo", filterData: {}, isValue: true },
+    { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
     { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
   ];
 

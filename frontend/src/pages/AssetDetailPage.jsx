@@ -126,11 +126,11 @@ export default function AssetDetailPage() {
   const failures = closed.length;
   const assetAge = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
   const operatingMs = Math.max(0, assetAge - totalDownMs);
-  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "—";
+  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "0";
   // MTTR = Total downtime / number of breakdowns
-  const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "—";
+  const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "0";
 
-  const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
+  const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "0";
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
