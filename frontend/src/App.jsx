@@ -8,6 +8,7 @@ import CompanyPortal from "./pages/CompanyPortal";
 import CompanyLogin from "./pages/CompanyLogin";
 import CompanyEmployeePortal from "./pages/CompanyEmployeePortal";
 import AssetScanPage from "./pages/AssetScanPage";
+import AssetDetailPage from "./pages/AssetDetailPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
 import PublicDashboard from "./pages/PublicDashboard";
 import "./styles.css";
@@ -259,6 +260,7 @@ function App() {
       <Route path="/client" element={<CompanyPortal />} />
       <Route path="/company" element={<CompanyLogin />} />
       <Route path="/company/portal/*" element={<CompanyEmployeePortal />} />
+      <Route path="/company/asset/:id" element={<AssetDetailPage />} />
       <Route path="/company/submissions" element={<SubmissionsPage />} />
       <Route path="/public/:token" element={<PublicDashboard />} />
       <Route path="/asset-scan/:assetId" element={<AssetScanPage />} />

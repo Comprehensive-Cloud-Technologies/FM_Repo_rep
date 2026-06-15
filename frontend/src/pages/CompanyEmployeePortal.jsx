@@ -4309,6 +4309,17 @@ export default function CompanyEmployeePortal() {
   const [assetDetailTab, setAssetDetailTab] = useState("overview");
   const [assetDetailCallLogs, setAssetDetailCallLogs] = useState(null);
   const [assetDetailCalibration, setAssetDetailCalibration] = useState(null);
+
+  // Eagerly load call logs when asset detail modal opens (needed for MTBF/MTTR in overview)
+  useEffect(() => {
+    if (!assetDetailModal) { setAssetDetailCallLogs(null); setAssetDetailCalibration(null); return; }
+    const id = assetDetailModal.id;
+    if (!id || !token) return;
+    fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setAssetDetailCallLogs(Array.isArray(d?.data) ? d.data : []))
+      .catch(() => setAssetDetailCallLogs([]));
+  }, [assetDetailModal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Pre-generated QR codes
   const [preQrCodes, setPreQrCodes] = useState([]);
   const [preQrLoading, setPreQrLoading] = useState(false);
@@ -6379,7 +6390,8 @@ export default function CompanyEmployeePortal() {
                         ? <tr><td colSpan={isAdmin ? 21 : (canAssetAction ? 20 : 19)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
-                          const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+                          const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst) };
+                          const maint = [mt.warranty && "Warranty", mt.amc && "AMC", mt.cmc && "CMC", mt.inHouse && "In House", mt.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
                           return (
                           <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedQrIds.has(a.id) ? "#f0fdf4" : undefined }}>
                             {isAdmin && (
@@ -6391,8 +6403,8 @@ export default function CompanyEmployeePortal() {
                             )}
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
                             <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
-                              title="Click to view asset details"
-                              onClick={() => setAssetDetailModal(a)}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
+                              title="Click to open asset details in new window"
+                              onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
                               title="Click to view asset details"
                               onClick={() => setAssetDetailModal(a)}>{m.equipmentName || a.assetName || "—"}</td>
@@ -6438,9 +6450,11 @@ export default function CompanyEmployeePortal() {
                                   : ws === "Not_Working" ? "Not_Working"
                                   : ws === "WIP" ? "WIP"
                                   : crit === "Critical" ? "Critical"
+                                  : ws === "Working" ? "Working"
                                   : "Active";
                                 const COLOR_MAP = {
                                   Active:       { bg: "#f0fdf4", color: "#16a34a" },
+                                  Working:      { bg: "#f0fdf4", color: "#16a34a" },
                                   Unverified:   { bg: "#fff7ed", color: "#ea580c" },
                                   Inactive:     { bg: "#f8fafc", color: "#94a3b8" },
                                   Verified:     { bg: "#dbeafe", color: "#1d4ed8" },
@@ -6457,8 +6471,9 @@ export default function CompanyEmployeePortal() {
                                     value={combined}
                                     onChange={e => {
                                       const v = e.target.value;
-                                      if (v === "Unverified")       return; // read-only state set by mobile registration
-                                      if (v === "Inactive")         handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false, rber: false });
+                                      if (v === "Unverified")       handleHCStatusUpdate(a.id, { status: "Unverified", isVerified: false, workingStatus: null, rber: false });
+                                      else if (v === "Working")     handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
+                                      else if (v === "Inactive")    handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false, rber: false });
                                       else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working", criticality: "Non_Critical", rber: false });
                                       else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false, rber: false });
                                       else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: false });
@@ -6469,6 +6484,7 @@ export default function CompanyEmployeePortal() {
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
                                     <option value="Unverified">⚠ Unverified</option>
+                                    <option value="Working">Working</option>
                                     <option value="Active">Active</option>
                                     <option value="Verified">Verified</option>
                                     <option value="Inactive">Inactive</option>
@@ -8732,7 +8748,22 @@ export default function CompanyEmployeePortal() {
           ...(m.invoiceUrl ? [m.invoiceUrl] : []),
           ...(m.hcInvoiceUrl ? [m.hcInvoiceUrl] : []),
         ].map(normalizeImgUrl).filter(Boolean);
-        const maint = [m.maintenanceTypes?.warranty && "Warranty", m.maintenanceTypes?.amc && "AMC", m.maintenanceTypes?.cmc && "CMC", m.maintenanceTypes?.inHouse && "In House", m.maintenanceTypes?.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+
+        // Normalize maintenance types from both web schema (maintenanceTypes) and mobile schema (warranty/amc/cmc objects)
+        const maintenanceTypes = m.maintenanceTypes || {
+          warranty: !!(m.warranty?.enabled),
+          amc: !!(m.amc?.enabled),
+          cmc: !!(m.cmc?.enabled),
+          inHouse: !!(m.inHouse),
+          catalyst: !!(m.catalyst),
+        };
+        const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
+        const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
+        const amcStart      = m.amcStart      || m.amc?.startDate      || "";
+        const amcEnd        = m.amcEnd        || m.amc?.endDate        || "";
+        const cmcStart      = m.cmcStart      || m.cmc?.startDate      || "";
+        const cmcEnd        = m.cmcEnd        || m.cmc?.endDate        || "";
+        const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
         const fields = [
           ["Asset ID", a.generatedAssetId || a.assetUniqueId],
           ["Equipment Name", m.equipmentName || a.assetName],
@@ -8741,27 +8772,46 @@ export default function CompanyEmployeePortal() {
           ["Serial No.", m.serialNo],
           ["Accessories", m.accessories],
           ["Dealer / Distributor", m.dealer],
-          ["Manufacturing Year", m.manufacturingYear],
+          ["Manufacturing Year", m.manufacturingYear || m.mfgYear],
           ["Installation Date", m.installationDate],
           ["Invoice No.", m.invoiceNo],
           ["Purchase Date", m.purchaseDate],
-          ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
-          ["Maintenance", maint],
-          ["RBER", m.rber],
+          ["Purchase Cost / Asset Value", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+          ["Maintenance", maint !== "—" ? maint : null],
+          ["RBER", m.rber ? "Yes" : null],
           ["Remarks", m.remarks],
           ["Department", a.departmentName],
           ["Building", a.building],
           ["Floor", a.floor],
           ["Room / Area", a.room],
+          ["Working Status", a.working_status || m.workingStatus],
           ["Status", a.status],
           ["Registered On", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : null],
         ].filter(([, v]) => v);
+
+        // Helper: format milliseconds as hh:mm:ss
+        const fmtMs = (ms) => {
+          const h = Math.floor(ms / 3600000);
+          const min = Math.floor((ms % 3600000) / 60000);
+          const sec = Math.floor((ms % 60000) / 1000);
+          return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+        };
+
+        // Compute MTBF / MTTR / Total downtime from call logs (available after loadCallLogs)
+        const closedCalls = (assetDetailCallLogs || []).filter(wo => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt);
+        const totalDownMs = closedCalls.reduce((s, wo) => s + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)), 0);
+        const failures = closedCalls.length;
+        const assetAgeMs = a.createdAt ? Math.max(0, Date.now() - new Date(a.createdAt)) : 0;
+        const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
+        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "—";
+        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "—";
+        const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
 
         // Fetch call logs for the asset when tab selected
         const loadCallLogs = async () => {
           if (assetDetailCallLogs !== null) return;
           try {
-            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${a.id}&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${a.id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } });
             const d = await r.json();
             setAssetDetailCallLogs(Array.isArray(d?.data) ? d.data : []);
           } catch { setAssetDetailCallLogs([]); }
@@ -8778,7 +8828,7 @@ export default function CompanyEmployeePortal() {
 
         const handleTabChange = (tab) => {
           setAssetDetailTab(tab);
-          if (tab === "calllogs" || tab === "downtime") loadCallLogs();
+          if (tab === "calllogs") loadCallLogs();
           if (tab === "calibration") loadCalibration();
         };
 
@@ -8788,13 +8838,13 @@ export default function CompanyEmployeePortal() {
           invoiceDate: m.invoiceDate || "",
           purchaseCost: m.purchaseCost || "",
           hcInvoiceUrl: m.hcInvoiceUrl || "",
-          maintenanceTypes: m.maintenanceTypes || {},
-          warrantyStart: m.warrantyStart || "",
-          warrantyEnd: m.warrantyEnd || "",
-          amcStart: m.amcStart || "",
-          amcEnd: m.amcEnd || "",
-          cmcStart: m.cmcStart || "",
-          cmcEnd: m.cmcEnd || "",
+          maintenanceTypes,
+          warrantyStart,
+          warrantyEnd,
+          amcStart,
+          amcEnd,
+          cmcStart,
+          cmcEnd,
           remarks: m.remarks || "",
         };
 
@@ -8804,7 +8854,7 @@ export default function CompanyEmployeePortal() {
           { key: "pms", label: "Preventive Maintenance History" },
           { key: "calibration", label: "Calibration History" },
           { key: "purchase", label: "Purchase History" },
-          { key: "downtime", label: "Total Down Time" },
+          { key: "indent", label: "Indent Details" },
         ];
 
         const tabStyle = (key) => ({
@@ -8874,6 +8924,19 @@ export default function CompanyEmployeePortal() {
                         </div>
                       </div>
                     )}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                      {[
+                        ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
+                        ["Total Down Time", totalDownLabel],
+                        ["MTBF (hh:mm:ss)", mtbfLabel],
+                        ["MTTR (hh:mm:ss)", mttrLabel],
+                      ].map(([lbl, val]) => (
+                        <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>
+                          <div style={{ fontSize: "18px", color: "#0f172a", fontWeight: 800 }}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
                       {fields.map(([label, value]) => (
                         <div key={label} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
@@ -8930,10 +8993,8 @@ export default function CompanyEmployeePortal() {
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
                                   const downMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
-                                    ? new Date(wo.closedAt) - new Date(wo.createdAt) : 0;
-                                  const downH = Math.floor(downMs / 3600000);
-                                  const downM = Math.floor((downMs % 3600000) / 60000);
-                                  const downLabel = downMs > 0 ? `${downH}h ${downM}m` : "—";
+                                    ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                                  const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
                                   return (
                                     <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                       <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
@@ -8960,72 +9021,36 @@ export default function CompanyEmployeePortal() {
                   </div>
                 )}
 
-                {assetDetailTab === "downtime" && (
-                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    {assetDetailCallLogs === null ? (
-                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
-                    ) : (() => {
-                      const closedOrResolved = assetDetailCallLogs.filter(
-                        (wo) => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
-                      );
-                      const totalDowntimeMs = closedOrResolved.reduce(
-                        (sum, wo) => sum + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)),
-                        0
-                      );
-                      const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
-                      const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
-                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
-                      return (
-                        <>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-                            <div style={{ background: "#fff", borderRadius: "10px", padding: "14px 18px", border: "1px solid #e2e8f0" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Down Time</div>
-                              <div style={{ fontSize: "30px", fontWeight: 800, color: totalDowntimeMs > 0 ? "#dc2626" : "#0f172a" }}>{downtimeLabel}</div>
-                            </div>
-                            <div style={{ background: "#fff", borderRadius: "10px", padding: "14px 18px", border: "1px solid #e2e8f0" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Closed/Resolved Calls</div>
-                              <div style={{ fontSize: "30px", fontWeight: 800, color: "#0f172a" }}>{closedOrResolved.length}</div>
-                            </div>
+                {assetDetailTab === "indent" && (
+                  <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Indent Details</h4>
+                    <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
+                        {[
+                          ["Indent No.", m.indentNo],
+                          ["Indent Date", m.indentDate ? new Date(m.indentDate).toLocaleDateString("en-IN") : null],
+                          ["Requested By", m.requestedBy],
+                          ["Approved By", m.approvedBy],
+                          ["Supplier", m.supplier || m.dealer],
+                          ["PO Number", m.poNumber],
+                          ["PO Date", m.poDate ? new Date(m.poDate).toLocaleDateString("en-IN") : null],
+                          ["Quantity", m.quantity],
+                          ["Unit Price", m.unitPrice ? `₹ ${m.unitPrice}` : null],
+                          ["Total Cost", m.totalCost ? `₹ ${m.totalCost}` : (m.purchaseCost ? `₹ ${m.purchaseCost}` : null)],
+                          ["GRN Number", m.grnNumber],
+                          ["GRN Date", m.grnDate ? new Date(m.grnDate).toLocaleDateString("en-IN") : null],
+                          ["Remarks", m.indentRemarks || m.remarks],
+                        ].filter(([, v]) => v).map(([label, value]) => (
+                          <div key={label} style={{ background: "#f8fafc", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
+                            <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600 }}>{value}</div>
                           </div>
-
-                          {closedOrResolved.length === 0 ? <EmptyMsg msg="No closed or resolved calls with downtime" /> : (
-                            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                                <thead>
-                                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                                    {[
-                                      "WO Number",
-                                      "Description",
-                                      "Created",
-                                      "Closed",
-                                      "Down Time",
-                                    ].map(h => (
-                                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {closedOrResolved.map((wo) => {
-                                    const dtMs = Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt));
-                                    const h = Math.floor(dtMs / 3600000);
-                                    const m = Math.floor((dtMs % 3600000) / 60000);
-                                    return (
-                                      <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                        <td style={{ padding: "10px 12px", color: "#0f172a", fontWeight: 600 }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
-                                        <td style={{ padding: "10px 12px", color: "#475569" }}>{wo.issueDescription || "—"}</td>
-                                        <td style={{ padding: "10px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{new Date(wo.createdAt).toLocaleString("en-IN")}</td>
-                                        <td style={{ padding: "10px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{new Date(wo.closedAt).toLocaleString("en-IN")}</td>
-                                        <td style={{ padding: "10px 12px", color: "#dc2626", fontWeight: 700 }}>{`${h}h ${m}m`}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                        ))}
+                      </div>
+                      {!m.indentNo && !m.poNumber && !m.grnNumber && !m.requestedBy && (
+                        <EmptyMsg msg="No indent details recorded for this asset." />
+                      )}
+                    </div>
                   </div>
                 )}
 

@@ -92,7 +92,12 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
            SUM(CASE WHEN a.working_status = 'Condemned'
                       OR JSON_EXTRACT(ad.metadata, '$.condemned') = true
                       OR JSON_EXTRACT(ad.metadata, '$.condemned') = 1 THEN 1 ELSE 0 END) AS condemned,
-           SUM(CASE WHEN a.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_addition
+           SUM(CASE WHEN a.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_addition,
+           COALESCE(SUM(
+             CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+                  THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2))
+                  ELSE 0 END
+           ), 0) AS total_asset_value
          FROM assets a
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
          ${where}`,
@@ -151,6 +156,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       rber:         Number(snap.rber         || 0),
       condemned:    Number(snap.condemned    || 0),
       newAddition:  Number(snap.new_addition || 0),
+      totalAssetValue: Number(snap.total_asset_value || 0),
       // Complaint / Request Profile
       totalComplaints:  Number(reqStats.total_requests    || 0),
       wipComplaints:    Number(reqStats.wip_requests      || 0),

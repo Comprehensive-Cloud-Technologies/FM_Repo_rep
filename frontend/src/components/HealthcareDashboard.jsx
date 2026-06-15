@@ -1000,7 +1000,7 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
     { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
     { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
-    { key: "condemned",   label: "Condemned",          icon: Icon.NotWorking,  color: "purple", filterData: { condemned: "1" } },
+    { key: "totalAssetValue", label: "Total Asset Value", icon: Icon.NotWorking, color: "indigo", filterData: {}, isValue: true },
     { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
   ];
 
@@ -1016,18 +1016,28 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
           <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {KPI_LIST.map(k => (
-            <KpiCard
-              key={k.key}
-              label={k.label}
-              value={snapshot?.[k.key]}
-              icon={k.icon}
-              color={k.color}
-              loading={snapLoading}
-              isActive={activeKpiKey === k.key}
-              onClick={() => handleTileClick(k)}
-            />
-          ))}
+          {KPI_LIST.map(k => {
+            let displayValue = snapshot?.[k.key];
+            if (k.isValue && displayValue != null) {
+              const v = Number(displayValue);
+              if (v >= 10000000) displayValue = `₹${(v / 10000000).toFixed(2)}Cr`;
+              else if (v >= 100000) displayValue = `₹${(v / 100000).toFixed(2)}L`;
+              else if (v >= 1000) displayValue = `₹${(v / 1000).toFixed(1)}K`;
+              else displayValue = `₹${v.toFixed(0)}`;
+            }
+            return (
+              <KpiCard
+                key={k.key}
+                label={k.label}
+                value={displayValue}
+                icon={k.icon}
+                color={k.color}
+                loading={snapLoading}
+                isActive={!k.isValue && activeKpiKey === k.key}
+                onClick={k.isValue ? undefined : () => handleTileClick(k)}
+              />
+            );
+          })}
         </div>
 
         {/* Complaint Profile row */}

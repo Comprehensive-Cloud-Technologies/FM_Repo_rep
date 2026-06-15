@@ -82,7 +82,7 @@ export default function CompanyCodeScreen() {
               resizeMode="contain"
               accessibilityLabel="Catalyst Solutions logo"
             />
-            <Text style={[styles.appName, { color: theme.textPrimary }]}>FM App</Text>
+            <Text style={[styles.appName, { color: theme.textPrimary }]}>HTM App</Text>
             <Text style={[styles.tagline, { color: theme.textSecondary }]}>Facility Management</Text>
           </View>
 

@@ -20419,7 +20419,7 @@ const CompanyPortal = () => {
                                 <input type="checkbox" checked={selectedAssetIds.includes(a.id)} onChange={e => setSelectedAssetIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} />
                               </td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{a.generatedAssetId || a.id}</td>
+                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to open asset details in new window" onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.id}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "-"}</td>
                               <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "-"}</td>
@@ -23983,7 +23983,21 @@ const CompanyPortal = () => {
               const closeDetail = () => { setViewingAsset(null); setViewingAssetTab("overview"); setViewingAssetCallLogs(null); setViewingAssetCalibration(null); };
               const mf = (field) => a[field] || m[field];
               const dateField = (v) => v ? String(v).replace("T00:00:00.000Z","").replace("T"," ").slice(0,10) : "";
-              const maint = [m.warranty?.enabled && "Warranty", m.amc?.enabled && "AMC", m.cmc?.enabled && "CMC", m.inHouse && "In House", m.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+              // Normalize maintenance types from both web and mobile schemas
+              const maintenanceTypes = m.maintenanceTypes || {
+                warranty: !!(m.warranty?.enabled),
+                amc: !!(m.amc?.enabled),
+                cmc: !!(m.cmc?.enabled),
+                inHouse: !!(m.inHouse),
+                catalyst: !!(m.catalyst),
+              };
+              const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
+              const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
+              const amcStart      = m.amcStart      || m.amc?.startDate      || "";
+              const amcEnd        = m.amcEnd        || m.amc?.endDate        || "";
+              const cmcStart      = m.cmcStart      || m.cmc?.startDate      || "";
+              const cmcEnd        = m.cmcEnd        || m.cmc?.endDate        || "";
+              const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
               const normalizeImg = (img) => {
                 const raw = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
                 if (!raw || typeof raw !== "string") return "";
@@ -24017,7 +24031,7 @@ const CompanyPortal = () => {
               };
               const handleTab = (tab) => {
                 setViewingAssetTab(tab);
-                if (tab === "calllogs" || tab === "downtime") loadCallLogs();
+                if (tab === "calllogs") loadCallLogs();
                 if (tab === "calibration") loadCalibration();
               };
               const TABS = [
@@ -24025,7 +24039,7 @@ const CompanyPortal = () => {
                 { key: "calllogs",    label: "Call Log History" },
                 { key: "calibration", label: "Calibration History" },
                 { key: "purchase",    label: "Purchase History" },
-                { key: "downtime",    label: "Total Down Time" },
+                { key: "indent",      label: "Indent Details" },
               ];
               const tabStyle = (key) => ({
                 padding: "12px 18px", background: "none", border: "none",
@@ -24110,6 +24124,19 @@ const CompanyPortal = () => {
                               </div>
                             </div>
                           )}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px" }}>
+                            {[
+                              ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
+                              ["Total Down Time", "—"],
+                              ["MTBF", "—"],
+                              ["MTTR", "—"],
+                            ].map(([lbl, val]) => (
+                              <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
+                                <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
+                                <p style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0 }}>{val}</p>
+                              </div>
+                            ))}
+                          </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
                             {fields.map(([label, val]) => (
                               <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
@@ -24178,9 +24205,9 @@ const CompanyPortal = () => {
                             ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
                             ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
                             ["Dealer / Distributor", m.dealer],
-                            ["Warranty", m.warranty?.enabled ? `${m.warranty.startDate || ""} → ${m.warranty.endDate || ""}` : null],
-                            ["AMC", m.amc?.enabled ? `${m.amc.startDate || ""} → ${m.amc.endDate || ""}` : null],
-                            ["CMC", m.cmc?.enabled ? `${m.cmc.startDate || ""} → ${m.cmc.endDate || ""}` : null],
+                            ["Warranty", maintenanceTypes.warranty ? `${warrantyStart || "—"} → ${warrantyEnd || "—"}` : null],
+                            ["AMC", maintenanceTypes.amc ? `${amcStart || "—"} → ${amcEnd || "—"}` : null],
+                            ["CMC", maintenanceTypes.cmc ? `${cmcStart || "—"} → ${cmcEnd || "—"}` : null],
                             ["Remarks", m.remarks],
                           ].filter(([, v]) => v).map(([label, val]) => (
                             <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
@@ -24188,45 +24215,37 @@ const CompanyPortal = () => {
                               <p style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", margin: 0 }}>{String(val)}</p>
                             </div>
                           ))}
-                          {[
-                            ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
-                            ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
-                            ["Dealer / Distributor", m.dealer],
-                          ].every(([, v]) => !v) && <EmptyMsg msg="No purchase information recorded" />}
+                          {!m.invoiceNo && !m.purchaseDate && !m.purchaseCost && !m.dealer && <EmptyMsg msg="No purchase information recorded" />}
                         </div>
                       )}
 
-                      {/* ── Total Down Time ── */}
-                      {viewingAssetTab === "downtime" && (
-                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading…" /> : (() => {
-                          const notWorking = (viewingAssetCallLogs || []).filter(w => w.workingStatus === "Not_Working" || w.status === "open");
-                          if (!notWorking.length) return <EmptyMsg msg="No downtime records found" />;
-                          const totalHrs = notWorking.reduce((acc, w) => acc + (Number(w.downtimeHours) || 0), 0);
-                          return (
-                            <div>
-                              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "16px", display: "flex", gap: "24px" }}>
-                                <div><p style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", margin: "0 0 4px" }}>Total Events</p><p style={{ fontSize: "26px", fontWeight: 800, color: "#dc2626", margin: 0 }}>{notWorking.length}</p></div>
-                                <div><p style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", margin: "0 0 4px" }}>Total Hours</p><p style={{ fontSize: "26px", fontWeight: 800, color: "#ea580c", margin: 0 }}>{totalHrs.toFixed(1)}</p></div>
+                      {/* ── Indent Details ── */}
+                      {viewingAssetTab === "indent" && (
+                        <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+                            {[
+                              ["Indent No.", m.indentNo],
+                              ["Indent Date", m.indentDate ? dateField(m.indentDate) : null],
+                              ["Requested By", m.requestedBy],
+                              ["Approved By", m.approvedBy],
+                              ["Supplier", m.supplier || m.dealer],
+                              ["PO Number", m.poNumber],
+                              ["PO Date", m.poDate ? dateField(m.poDate) : null],
+                              ["Quantity", m.quantity],
+                              ["Unit Price", m.unitPrice ? `₹ ${m.unitPrice}` : null],
+                              ["Total Cost", m.totalCost ? `₹ ${m.totalCost}` : (m.purchaseCost ? `₹ ${m.purchaseCost}` : null)],
+                              ["GRN Number", m.grnNumber],
+                              ["GRN Date", m.grnDate ? dateField(m.grnDate) : null],
+                              ["Remarks", m.indentRemarks || m.remarks],
+                            ].filter(([, v]) => v).map(([label, val]) => (
+                              <div key={label} style={{ background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
+                                <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{label}</p>
+                                <p style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", margin: 0 }}>{String(val)}</p>
                               </div>
-                              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                                  <thead><tr style={{ background: "#f8fafc" }}>
-                                    {["#","Title","Status","Downtime (hrs)","Created"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>)}
-                                  </tr></thead>
-                                  <tbody>{notWorking.map((w, i) => (
-                                    <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                      <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "—"}</td>
-                                      <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#fee2e2", color: "#dc2626" }}>{w.status || "open"}</span></td>
-                                      <td style={{ padding: "10px 14px", color: "#ea580c", fontWeight: 700 }}>{w.downtimeHours || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "—"}</td>
-                                    </tr>
-                                  ))}</tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })()
+                            ))}
+                          </div>
+                          {!m.indentNo && !m.poNumber && !m.grnNumber && !m.requestedBy && <EmptyMsg msg="No indent details recorded for this asset." />}
+                        </div>
                       )}
 
                     </div>
@@ -28456,8 +28475,8 @@ const CompanyPortal = () => {
 
           const handleExport = async (type) => {
             const coParam = dashCompanyFilters.length > 0 ? ("&companyIds=" + dashCompanyFilters.join(",")) : "";
-            if (type === "asset_profile" || type === "critical" || type === "non_critical" || type === "rber" || type === "condemned" || type === "new_addition" || type === "total_assets") {
-              const statusMap = { asset_profile: "", total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", condemned: "condemned", new_addition: "new_addition" };
+            if (type === "asset_profile" || type === "critical" || type === "non_critical" || type === "rber" || type === "new_addition" || type === "total_assets") {
+              const statusMap = { asset_profile: "", total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", new_addition: "new_addition" };
               const statusParam = statusMap[type] ? ("status=" + statusMap[type]) : "";
               const qs = [statusParam, coParam.slice(1)].filter(Boolean).join("&");
               try {
@@ -28489,9 +28508,9 @@ const CompanyPortal = () => {
           };
 
           // Tile click handler - show drill-down on same dashboard
-          const ASSET_TILES = ["total_assets","critical","non_critical","rber","condemned","new_addition"];
+          const ASSET_TILES = ["total_assets","critical","non_critical","rber","new_addition"];
           const COMPLAINT_TILES = ["total_complaint","wip","lt7d","gt7d","resolved","closed"];
-          const tileStatusMap = { total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", condemned: "condemned", new_addition: "new_addition" };
+          const tileStatusMap = { total_assets: "", critical: "critical", non_critical: "non_critical", rber: "rber", new_addition: "new_addition" };
 
           const getDashUserSelectionKey = (u) => `${u.id}-${u.companyId}`;
 
@@ -28532,12 +28551,12 @@ const CompanyPortal = () => {
           };
 
           const tileConfig = {
-            total_assets:   { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
-            critical:       { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
-            non_critical:   { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
-            rber:           { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
-            condemned:      { label: "CONDEMNED",          value: dashboardStats ? (assetProfile.condemned ?? 0) : null, col: "#64748b" },
-            new_addition:   { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
+            total_assets:      { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
+            critical:          { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
+            non_critical:      { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
+            rber:              { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
+            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `₹${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : v >= 1000 ? `₹${(v/1000).toFixed(1)}K` : `₹${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
+            new_addition:      { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
             total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
             wip:            { label: "WORK IN PROGRESS",   value: dashboardStats ? (complaintProfile.wip ?? 0) : null, col: "#ca8a04" },
             lt7d:           { label: "< 7 DAYS",           value: dashboardStats ? (complaintProfile.lt7d ?? 0) : null, col: "#2563eb" },
@@ -28547,12 +28566,12 @@ const CompanyPortal = () => {
           };
 
           const TILE_ICONS = {
-            total_assets:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
-            critical:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-            non_critical:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-            rber:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-            condemned:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
-            new_addition:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            total_assets:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
+            critical:          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            non_critical:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            rber:              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+            total_asset_value: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+            new_addition:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
             total_complaint: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
             wip:             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
             lt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
@@ -28561,13 +28580,13 @@ const CompanyPortal = () => {
             closed:          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
           };
 
-          const KpiTile = ({ id, label, value, col, icon }) => {
+          const KpiTile = ({ id, label, value, col, icon, noFilter }) => {
             const isActive = activeTile === id;
             const bgLight = col + "12";
             const borderLight = col + "40";
             return (
               <div
-                onClick={() => handleTileClick(id)}
+                onClick={() => !noFilter && handleTileClick(id)}
                 style={{
                   background: isActive ? bgLight : "#fff",
                   borderRadius: "10px",
@@ -28828,7 +28847,7 @@ const CompanyPortal = () => {
                               { id: "critical",        label: "Critical Assets",     icon: "" },
                               { id: "non_critical",    label: "Non-Critical Assets", icon: "" },
                               { id: "rber",            label: "RBER Assets",         icon: "" },
-                              { id: "condemned",       label: "Condemned Assets",    icon: "" },
+                              { id: "rber",            label: "RBER Assets",          icon: "" },
                               { id: "new_addition",    label: "New Addition Assets",  icon: "" },
                               { id: "complaint_profile",label: "Complaint Profile (CSV)", icon: "" },
                               { id: "companies",       label: "Companies Summary",   icon: "" },
@@ -28911,9 +28930,9 @@ const CompanyPortal = () => {
                   <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                  {["total_assets","critical","non_critical","rber","condemned","new_addition"].map(id => {
+                  {["total_assets","critical","non_critical","rber","total_asset_value","new_addition"].map(id => {
                     const t = tileConfig[id];
-                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} noFilter={t.noFilter} />;
                   })}
                 </div>
               </div>
@@ -29009,7 +29028,7 @@ const CompanyPortal = () => {
                                 <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "—"}</td>
                                 <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "—"}</td>
                                 <td style={{ padding: "9px 12px" }}>
-                                  <button onClick={() => setViewingAsset(a)} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "—"}</button>
+                                  <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "—"}</button>
                                 </td>
                                 <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "—"}</td>
                                 <td style={{ padding: "9px 12px" }}>

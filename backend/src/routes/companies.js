@@ -255,9 +255,19 @@ router.get("/stats", async (req, res, next) => {
        AND a.last_calibration_date BETWEEN DATE_FORMAT(CURDATE(), '%Y-%m-01') AND CURDATE()`, compArgs
     ).catch(() => [[{ calCompletedThisMonth: 0 }]]);
 
+    // Total asset value (sum of purchaseCost from metadata JSON)
+    const [[{ totalAssetValue }]] = await pool.query(
+      `SELECT COALESCE(SUM(
+         CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+              THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2))
+              ELSE 0 END
+       ), 0) AS totalAssetValue ${assetJoin}`,
+      compArgs
+    ).catch(() => [[{ totalAssetValue: 0 }]]);
+
     res.json({
       totalCompanies, activeCompanies, totalAssets, totalEmployees,
-      assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, verifiedAssets },
+      assetProfile: { total: totalAssets, critical: criticalAssets, nonCritical: nonCriticalAssets, condemned: condemnedAssets, rber: rberAssets, verifiedAssets, totalAssetValue: Number(totalAssetValue || 0) },
       complaintProfile: { total: totalComplaints, wip: wipComplaints, lt7d: lt7dComplaints, gt7d: gt7dComplaints, resolved: resolvedComplaints, closed: closedComplaints },
       calibrationProfile: { total: calTotal, dueThisMonth: calDueThisMonth, overdue: calOverdue, upcoming30d: calUpcoming30d, completedThisMonth: calCompletedThisMonth },
       byCompany, byUser,
