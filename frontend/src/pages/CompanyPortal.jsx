@@ -5016,6 +5016,7 @@ const CompanyPortal = () => {
   const [empInitCompanyId, setEmpInitCompanyId] = useState(null);
   const [tileAssets, setTileAssets] = useState(null); // loaded assets for the active tile drill-down
   const [tileAssetsLoading, setTileAssetsLoading] = useState(false);
+  const drillDownRef = useRef(null); // ref for scroll-to when tile activated;
 
 
 
@@ -28498,6 +28499,8 @@ const CompanyPortal = () => {
             if (activeTile === tileId) { setActiveTile(null); setTileAssets(null); return; }
             setActiveTile(tileId);
             setTileAssets(null);
+            // Scroll drill-down panel into view after React re-renders
+            setTimeout(() => drillDownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
             if (ASSET_TILES.includes(tileId)) {
               setTileAssetsLoading(true);
               try {
@@ -28676,11 +28679,13 @@ const CompanyPortal = () => {
                           {companies
                             .filter((co) => {
                               // When user filter is active, only list companies assigned to selected users
+                              // BUT only apply this restriction if byUser actually has data for those users
                               if (dashUserFilters.length > 0) {
                                 const userCompanyIds = new Set(
                                   byUser.filter(u2 => dashUserFilters.includes(getDashUserSelectionKey(u2))).map(u2 => String(u2.companyId))
                                 );
-                                if (!userCompanyIds.has(String(co.id))) return false;
+                                // If we got a valid non-empty intersection, filter; otherwise show all (byUser may be scoped to fewer companies)
+                                if (userCompanyIds.size > 0 && !userCompanyIds.has(String(co.id))) return false;
                               }
                               const q = (dashCompanySearch || "").toLowerCase().trim();
                               if (!q) return true;
@@ -28961,7 +28966,7 @@ const CompanyPortal = () => {
 
               {/* ×××××× Drill-down panel (when tile clicked) ×××××× */}
               {activeTile && (
-                <div style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
+                <div ref={drillDownRef} style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>

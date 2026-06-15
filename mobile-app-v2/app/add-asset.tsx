@@ -16,6 +16,7 @@ import { useTheme, Spacing, Radius } from '../utils/theme';
 import {
   fetchAllCompaniesForEngineer,
   fetchDepartmentsByCompany,
+  createDepartmentForCompany,
   fetchWorkingStatuses,
   fetchLocationBuildingsByCompany,
   fetchLocationFloorsByBuilding,
@@ -253,15 +254,36 @@ function DocumentAttachField({
 
 // ─── Picker Modal (company / department selector) ─────────────────────────────
 function PickerModal({
-  visible, title, items, onSelect, onClose, search, setSearch,
+  visible, title, items, onSelect, onClose, search, setSearch, onAdd,
 }: {
   visible: boolean; title: string;
   items: Array<{ id: number; label: string }>;
   onSelect: (id: number, label: string) => void;
   onClose: () => void;
   search?: string; setSearch?: (v: string) => void;
+  onAdd?: (name: string) => Promise<void>;
 }) {
   const { theme } = useTheme();
+  const [showAddForm, setShowAddForm] = React.useState(false);
+  const [addName, setAddName] = React.useState('');
+  const [adding, setAdding] = React.useState(false);
+
+  React.useEffect(() => { if (!visible) { setShowAddForm(false); setAddName(''); } }, [visible]);
+
+  const handleAdd = async () => {
+    if (!addName.trim() || !onAdd) return;
+    setAdding(true);
+    try {
+      await onAdd(addName.trim());
+      setAddName('');
+      setShowAddForm(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to add department');
+    } finally {
+      setAdding(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={pick.overlay}>
@@ -296,12 +318,48 @@ function PickerModal({
             </View>
           )}
 
+          {/* Add Department inline form */}
+          {onAdd && showAddForm && (
+            <View style={{ paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#16a34a', marginBottom: 6, letterSpacing: 0.5 }}>NEW DEPARTMENT</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  value={addName}
+                  onChangeText={setAddName}
+                  placeholder="Department name…"
+                  placeholderTextColor={theme.textMuted}
+                  style={{ flex: 1, fontSize: 13, color: theme.textPrimary, borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#fff' }}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleAdd}
+                />
+                <TouchableOpacity onPress={handleAdd} disabled={!addName.trim() || adding}
+                  style={{ backgroundColor: addName.trim() && !adding ? '#16a34a' : '#94a3b8', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 }}>
+                  {adding
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Add</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowAddForm(false); setAddName(''); }}>
+                  <MaterialCommunityIcons name="close" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Items */}
           <ScrollView
             style={pick.list}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {/* Add Department button */}
+            {onAdd && !showAddForm && (
+              <TouchableOpacity onPress={() => setShowAddForm(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: '#f0fdf4' }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#16a34a" />
+                <Text style={{ color: '#16a34a', fontWeight: '700', fontSize: 14 }}>Add Department</Text>
+              </TouchableOpacity>
+            )}
             {items.length === 0 ? (
               <View style={pick.empty}>
                 <Text style={{ color: theme.textMuted, fontSize: 14 }}>No options found</Text>
@@ -958,6 +1016,12 @@ export default function AddAssetScreen() {
         items={departments.map(d => ({ id: d.id, label: d.name }))}
         onSelect={(id) => setSelectedDeptId(id)}
         onClose={() => setShowDeptPicker(false)}
+        onAdd={selectedCompanyId ? async (name) => {
+          const created = await createDepartmentForCompany(selectedCompanyId, name);
+          setDepartments(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+          setSelectedDeptId(created.id);
+          setShowDeptPicker(false);
+        } : undefined}
       />
       <PickerModal
         visible={showWorkingStatusPicker}

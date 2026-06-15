@@ -128,6 +128,29 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /departments-by-company/:companyId  (any company user: add dept from mobile) ──
+router.post("/departments-by-company/:companyId", async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    // Security: user must belong to this company
+    if (String(req.companyUser.companyId) !== String(companyId)) {
+      return res.status(403).json({ message: "Access denied: company mismatch" });
+    }
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: "name is required" });
+    const [result] = await pool.query(
+      "INSERT INTO departments (company_id, name) VALUES (?, ?)",
+      [Number(companyId), name.trim()]
+    );
+    res.status(201).json({ id: result.insertId, name: name.trim() });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY" || err.code === "23505") {
+      return res.status(409).json({ message: "Department already exists" });
+    }
+    next(err);
+  }
+});
+
 // ── Startup migrations ────────────────────────────────────────────────────────
 (async () => {
   const migrations = [

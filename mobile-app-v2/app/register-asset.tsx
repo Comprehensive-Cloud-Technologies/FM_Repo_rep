@@ -19,7 +19,9 @@ import {
   uploadQueryImage,
   fetchPreQrByUid,
   fetchDepartmentsByCompany,
+  createDepartmentForCompany,
   fetchWorkingStatuses,
+  fetchCompanyAssetStatuses,
   fetchLocationBuildingsByCompany,
   fetchLocationFloorsByBuilding,
   fetchLocationRoomsByFloor,
@@ -308,26 +310,105 @@ function PickerModal({
   items,
   onSelect,
   onClose,
+  searchable = false,
+  onAdd,
 }: {
   visible: boolean;
   title: string;
   items: Array<{ id: number; label: string }>;
   onSelect: (id: number) => void;
   onClose: () => void;
+  searchable?: boolean;
+  onAdd?: (name: string) => Promise<void>;
 }) {
   const { theme } = useTheme();
+  const [query, setQuery] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const filtered = searchable && query.trim()
+    ? items.filter(it => it.label.toLowerCase().includes(query.toLowerCase()))
+    : items;
+
+  // Reset search when modal opens
+  React.useEffect(() => { if (!visible) { setQuery(''); setShowAddForm(false); setAddName(''); } }, [visible]);
+
+  const handleAdd = async () => {
+    if (!addName.trim() || !onAdd) return;
+    setAdding(true);
+    try {
+      await onAdd(addName.trim());
+      setAddName('');
+      setShowAddForm(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to add department');
+    } finally {
+      setAdding(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', padding: 22 }}>
-        <View style={{ backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.border, maxHeight: '72%' }}>
+        <View style={{ backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.border, maxHeight: '85%' }}>
           <View style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ fontSize: 15, fontWeight: '700', color: theme.textPrimary }}>{title}</Text>
             <TouchableOpacity onPress={onClose}><MaterialCommunityIcons name="close" size={20} color={theme.textMuted} /></TouchableOpacity>
           </View>
-          <ScrollView>
-            {items.length === 0 ? (
-              <Text style={{ padding: 14, color: theme.textMuted }}>No options available</Text>
-            ) : items.map((it) => (
+          {searchable && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.background ?? '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 10 }}>
+                <MaterialCommunityIcons name="magnify" size={16} color={theme.textMuted} style={{ marginRight: 6 }} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search…"
+                  placeholderTextColor={theme.textMuted}
+                  style={{ flex: 1, fontSize: 13, color: theme.textPrimary, paddingVertical: 7 }}
+                  autoFocus
+                  clearButtonMode="while-editing"
+                />
+              </View>
+            </View>
+          )}
+          {/* Add Department inline form */}
+          {onAdd && showAddForm && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: '#f0fdf4' }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#16a34a', marginBottom: 6 }}>NEW DEPARTMENT</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  value={addName}
+                  onChangeText={setAddName}
+                  placeholder="Department name…"
+                  placeholderTextColor={theme.textMuted}
+                  style={{ flex: 1, fontSize: 13, color: theme.textPrimary, borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#fff' }}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleAdd}
+                />
+                <TouchableOpacity onPress={handleAdd} disabled={!addName.trim() || adding}
+                  style={{ backgroundColor: addName.trim() && !adding ? '#16a34a' : '#94a3b8', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
+                  {adding
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Add</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowAddForm(false); setAddName(''); }}>
+                  <MaterialCommunityIcons name="close" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {onAdd && !showAddForm && (
+              <TouchableOpacity onPress={() => setShowAddForm(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: '#f0fdf4' }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#16a34a" />
+                <Text style={{ color: '#16a34a', fontWeight: '700', fontSize: 14 }}>Add Department</Text>
+              </TouchableOpacity>
+            )}
+            {filtered.length === 0 ? (
+              <Text style={{ padding: 14, color: theme.textMuted }}>No options found</Text>
+            ) : filtered.map((it) => (
               <TouchableOpacity key={it.id} onPress={() => { onSelect(it.id); onClose(); }} style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                 <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{it.label}</Text>
               </TouchableOpacity>
@@ -412,6 +493,12 @@ export default function RegisterAssetScreen() {
   useEffect(() => {
     fetchWorkingStatuses().then(setWorkingStatuses).catch(() => {});
   }, []);
+
+  // When companyId is known, reload statuses from the company's Status Master
+  useEffect(() => {
+    if (!companyId) return;
+    fetchCompanyAssetStatuses().then(setWorkingStatuses).catch(() => {});
+  }, [companyId]);
 
   useEffect(() => {
     if (!qrUid) return;
@@ -908,12 +995,20 @@ export default function RegisterAssetScreen() {
         visible={showDeptPicker}
         title="Select Department"
         items={departments.map((d) => ({ id: d.id, label: d.name }))}
+        searchable
         onSelect={(id) => {
           const dept = departments.find((d) => d.id === id);
           setSelectedDeptId(id);
           setSelectedDeptName(dept?.name || '');
         }}
         onClose={() => setShowDeptPicker(false)}
+        onAdd={companyId ? async (name) => {
+          const created = await createDepartmentForCompany(companyId, name);
+          setDepartments(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+          setSelectedDeptId(created.id);
+          setSelectedDeptName(created.name);
+          setShowDeptPicker(false);
+        } : undefined}
       />
       <PickerModal
         visible={showWorkingStatusPicker}

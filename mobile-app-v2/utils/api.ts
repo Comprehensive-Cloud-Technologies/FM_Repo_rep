@@ -915,6 +915,11 @@ export async function fetchDepartmentsByCompany(companyId: number): Promise<Arra
   return apiGet<Array<{ id: number; name: string }>>(`/api/company-portal/departments-by-company/${companyId}`);
 }
 
+/** Create a new department for a specific company (accessible by any authenticated company user). */
+export async function createDepartmentForCompany(companyId: number, name: string): Promise<{ id: number; name: string }> {
+  return apiPost<{ id: number; name: string }>(`/api/company-portal/departments-by-company/${companyId}`, { name });
+}
+
 const FALLBACK_WORKING_STATUSES = ['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified'];
 
 export async function fetchWorkingStatuses(): Promise<string[]> {
@@ -923,6 +928,18 @@ export async function fetchWorkingStatuses(): Promise<string[]> {
     return data.statuses ?? FALLBACK_WORKING_STATUSES;
   } catch {
     return FALLBACK_WORKING_STATUSES;
+  }
+}
+
+/** Fetch company-specific custom asset statuses (Status Master).
+ *  Falls back to the global working statuses list if none are configured. */
+export async function fetchCompanyAssetStatuses(): Promise<string[]> {
+  try {
+    const rows = await apiGet<Array<{ id: number; name: string; color: string }>>('/api/company-portal/asset-statuses');
+    if (Array.isArray(rows) && rows.length > 0) return rows.map(r => r.name);
+    return fetchWorkingStatuses();
+  } catch {
+    return fetchWorkingStatuses();
   }
 }
 
