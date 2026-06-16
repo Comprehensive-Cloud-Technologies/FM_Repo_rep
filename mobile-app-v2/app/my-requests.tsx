@@ -54,9 +54,12 @@ export default function MyRequestsScreen() {
       setQueries((prev) =>
         prev.map((q) => q.id === closeModal.id ? { ...q, status: 'closed' } : q)
       );
+      const closedId    = closeModal.id;
+      const closedTitle = closeModal.title;
       setCloseModal(null);
       setCodeInput('');
-      Alert.alert('Success', 'Request closed successfully.');
+      // Navigate to the review screen
+      router.push({ pathname: '/issue-review', params: { queryId: String(closedId), queryTitle: closedTitle } });
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Invalid code. Please try again.');
     } finally { setClosing(false); }

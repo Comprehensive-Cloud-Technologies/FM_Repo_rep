@@ -198,6 +198,9 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS close_code VARCHAR(10) DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS rating TINYINT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS review_text TEXT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS reviewed_at DATETIME DEFAULT NULL`,
   // Ensure notifications table has the right columns (may have been created by old flag engine)
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2511,6 +2514,142 @@ router.patch("/asset-queries/:id/close", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ── Asset Queries — assign engineer ──────────────────────────────────── */
+router.patch("/asset-queries/:id/assign", async (req, res, next) => {
+  try {
+    if (!["admin", "supervisor", "catalyst_admin"].includes(req.companyUser.role))
+      return res.status(403).json({ message: "Admin/supervisor only" });
+    const { id } = req.params;
+    const { assignedTo } = req.body;
+    const [[query]] = await pool.query(
+      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+    );
+    if (!query) return res.status(404).json({ message: "Request not found" });
+    await pool.query(
+      "UPDATE asset_queries SET assigned_to = ?, updated_at = NOW() WHERE id = ?",
+      [assignedTo ? Number(assignedTo) : null, id]
+    );
+    // Notify the assigned engineer
+    if (assignedTo) {
+      try {
+        const [[eng]] = await pool.query("SELECT full_name FROM company_users WHERE id = ?", [assignedTo]);
+        const [[aq]] = await pool.query("SELECT title FROM asset_queries WHERE id = ?", [id]);
+        const { createNotification } = await import("../utils/notificationsHelper.js");
+        await createNotification({
+          companyId: cid(req),
+          recipientId: Number(assignedTo),
+          type: "request_assigned",
+          title: "New request assigned to you",
+          message: `You have been assigned to resolve: "${aq?.title || `Request #${id}`}"`,
+        });
+      } catch { /* non-critical */ }
+    }
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset Queries — submit rating & review after closure ─────────────── */
+router.post("/asset-queries/:id/review", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rating, reviewText } = req.body;
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "rating must be 1–5" });
+    const [[query]] = await pool.query(
+      "SELECT id, status, raised_by FROM asset_queries WHERE id = ? AND company_id = ?",
+      [id, cid(req)]
+    );
+    if (!query) return res.status(404).json({ message: "Request not found" });
+    if (query.status !== "closed") return res.status(400).json({ message: "Request must be closed before reviewing" });
+    if (query.raised_by !== req.companyUser.id) return res.status(403).json({ message: "Only the requester can review" });
+    await pool.query(
+      "UPDATE asset_queries SET rating = ?, review_text = ?, reviewed_at = NOW() WHERE id = ?",
+      [rating, reviewText || null, id]
+    );
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset Queries — reviews analytics ────────────────────────────────── */
+router.get("/asset-queries/reviews", async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const off = (Number(page) - 1) * Number(limit);
+    // Aggregated analytics
+    const [[agg]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         ROUND(AVG(rating), 2) AS avgRating,
+         SUM(rating = 5) AS r5, SUM(rating = 4) AS r4,
+         SUM(rating = 3) AS r3, SUM(rating = 2) AS r2, SUM(rating = 1) AS r1
+       FROM asset_queries
+       WHERE company_id = ? AND rating IS NOT NULL`,
+      [cid(req)]
+    );
+    // Monthly trend (last 6 months)
+    const [trend] = await pool.query(
+      `SELECT DATE_FORMAT(reviewed_at, '%Y-%m') AS month, ROUND(AVG(rating), 2) AS avg
+       FROM asset_queries
+       WHERE company_id = ? AND rating IS NOT NULL
+         AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+       GROUP BY month ORDER BY month ASC`,
+      [cid(req)]
+    );
+    // Paginated reviews list
+    const [[{ cnt }]] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM asset_queries WHERE company_id = ? AND rating IS NOT NULL",
+      [cid(req)]
+    );
+    const [reviews] = await pool.query(
+      `SELECT aq.id, aq.title, aq.rating, aq.review_text AS "reviewText",
+              aq.reviewed_at AS "reviewedAt",
+              cu.full_name AS "reviewerName",
+              a.asset_name AS "assetName"
+       FROM asset_queries aq
+       LEFT JOIN company_users cu ON cu.id = aq.raised_by
+       LEFT JOIN assets a ON a.id = aq.asset_id
+       WHERE aq.company_id = ? AND aq.rating IS NOT NULL
+       ORDER BY aq.reviewed_at DESC
+       LIMIT ? OFFSET ?`,
+      [cid(req), Number(limit), off]
+    );
+    res.json({
+      analytics: {
+        total: Number(agg.total),
+        avgRating: Number(agg.avgRating || 0),
+        distribution: {
+          5: Number(agg.r5), 4: Number(agg.r4), 3: Number(agg.r3),
+          2: Number(agg.r2), 1: Number(agg.r1),
+        },
+        trend,
+      },
+      reviews,
+      pagination: { page: Number(page), limit: Number(limit), total: Number(cnt), hasMore: off + reviews.length < Number(cnt) },
+    });
+  } catch (err) { next(err); }
+});
+
+/* ── Asset Queries — fetch queries assigned to me (for engineers) ──────── */
+router.get("/assigned-queries", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
+              a.asset_unique_id AS "assetUniqueId",
+              aq.raised_by AS "raisedBy", cu_r.full_name AS "raisedByName",
+              aq.title, aq.description, aq.status, aq.priority,
+              aq.escalation_level AS "escalationLevel",
+              aq.resolution_note AS "resolutionNote",
+              aq.created_at AS "createdAt", aq.resolved_at AS "resolvedAt"
+       FROM asset_queries aq
+       JOIN assets a ON a.id = aq.asset_id
+       LEFT JOIN company_users cu_r ON cu_r.id = aq.raised_by
+       WHERE aq.company_id = ? AND aq.assigned_to = ?
+       ORDER BY aq.created_at DESC`,
+      [cid(req), req.companyUser.id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 /* ── Asset Queries — fetch my raised queries (for mobile requester) ─── */
 router.get("/my-queries", async (req, res, next) => {
   try {
@@ -2520,6 +2659,7 @@ router.get("/my-queries", async (req, res, next) => {
               aq.resolution_note AS "resolutionNote",
               aq.close_code IS NOT NULL AS "hasCloseCode",
               aq.assigned_to AS "assignedTo", cu_a.full_name AS "assignedToName",
+              aq.rating, aq.review_text AS "reviewText",
               aq.created_at AS "createdAt", aq.resolved_at AS "resolvedAt"
        FROM asset_queries aq
        JOIN assets a ON a.id = aq.asset_id

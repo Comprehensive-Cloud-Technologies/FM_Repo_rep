@@ -417,7 +417,7 @@ import QRCode from "qrcode";
 
 
 
-import { buildApiUrl, getPublicAppUrl } from "../utils/runtimeConfig";
+import { buildApiUrl, getApiBaseUrl, getPublicAppUrl } from "../utils/runtimeConfig";
 
 
 
@@ -3361,6 +3361,157 @@ function AdminQrCodesSection({ token, companies = [] }) {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Asset Queries (Issue Lifecycle) Section ─────────────────────────────── */
+const QUERY_STATUS_STYLES = {
+  open:     { background: '#FEF9C3', color: '#92400E', label: 'Open' },
+  resolved: { background: '#DCFCE7', color: '#166534', label: 'Resolved' },
+  closed:   { background: '#F1F5F9', color: '#64748B', label: 'Closed' },
+};
+const PRIORITY_DOT = { critical: '#DC2626', high: '#EA580C', normal: '#2563EB', low: '#16A34A' };
+
+function AssetQueriesSection({ token }) {
+  const BASE_URL = getApiBaseUrl();
+  const [queries, setQueries]   = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [assigning, setAssigning] = useState({});
+
+  const cpFetch = useCallback(async (path, opts = {}) => {
+    const res = await fetch(`${BASE_URL}/api/company-portal${path}`, {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...opts.headers },
+      ...opts,
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `HTTP ${res.status}`); }
+    return res.json();
+  }, [token, BASE_URL]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [qData, empData] = await Promise.all([
+        cpFetch("/asset-queries?limit=200"),
+        cpFetch("/employees?limit=500").catch(() => []),
+      ]);
+      setQueries(Array.isArray(qData) ? qData : qData.queries || []);
+      setEmployees(Array.isArray(empData) ? empData : empData.employees || []);
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, [cpFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAssign = async (queryId, employeeId) => {
+    if (!employeeId) return;
+    setAssigning((p) => ({ ...p, [queryId]: true }));
+    try {
+      await cpFetch(`/asset-queries/${queryId}/assign`, { method: "PATCH", body: JSON.stringify({ assignedTo: Number(employeeId) }) });
+      setQueries((prev) => prev.map((q) => q.id === queryId ? { ...q, assignedTo: Number(employeeId), assignedName: employees.find((e) => e.id === Number(employeeId))?.fullName || "Assigned" } : q));
+    } catch (e) { alert(e.message); }
+    finally { setAssigning((p) => ({ ...p, [queryId]: false })); }
+  };
+
+  const filtered = statusFilter === "all" ? queries : queries.filter((q) => q.status === statusFilter);
+  const counts   = { open: 0, resolved: 0, closed: 0 };
+  queries.forEach((q) => { if (counts[q.status] !== undefined) counts[q.status]++; });
+
+  const tabs = [
+    { key: "all", label: `All (${queries.length})` },
+    { key: "open", label: `Open (${counts.open})` },
+    { key: "resolved", label: `Resolved (${counts.resolved})` },
+    { key: "closed", label: `Closed (${counts.closed})` },
+  ];
+
+  return (
+    <div style={{ padding: "24px 28px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1E293B", margin: 0 }}>Asset Issues</h2>
+        <button onClick={load} style={{ padding: "6px 14px", borderRadius: 8, background: "#F1F5F9", border: "1px solid #E2E8F0", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Status tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {tabs.map((t) => (
+          <button key={t.key} onClick={() => setStatusFilter(t.key)}
+            style={{ padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
+              background: statusFilter === t.key ? "#3B82F6" : "#F1F5F9",
+              color: statusFilter === t.key ? "#fff" : "#64748B" }}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p style={{ color: "#94A3B8" }}>Loading…</p>
+      ) : filtered.length === 0 ? (
+        <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "40px 24px", textAlign: "center", color: "#94A3B8", border: "1px solid #E2E8F0" }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>No issues found</p>
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+                {["#", "Asset", "Title", "Raised By", "Priority", "Status", "Assigned To", "Date", "Assign Engineer"].map((h) => (
+                  <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748B", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((q, idx) => {
+                const st = QUERY_STATUS_STYLES[q.status] || QUERY_STATUS_STYLES.open;
+                return (
+                  <tr key={q.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                    <td style={{ padding: "10px 12px", color: "#94A3B8" }}>{idx + 1}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1E293B" }}>{q.assetName || "—"}</td>
+                    <td style={{ padding: "10px 12px", maxWidth: 200 }}>
+                      <span title={q.title} style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1E293B" }}>{q.title}</span>
+                    </td>
+                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.raisedByName || "—"}</td>
+                    <td style={{ padding: "10px 12px" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, textTransform: "capitalize", color: PRIORITY_DOT[q.priority] || "#64748B" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_DOT[q.priority] || "#94A3B8", display: "inline-block" }} />
+                        {q.priority}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.background, color: st.color }}>{st.label}</span>
+                    </td>
+                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.assignedToName || q.assignedName || <em style={{ color: "#CBD5E1" }}>Unassigned</em>}</td>
+                    <td style={{ padding: "10px 12px", color: "#94A3B8", whiteSpace: "nowrap" }}>
+                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      {q.status !== "closed" ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <select
+                            defaultValue={q.assignedTo || ""}
+                            onChange={(e) => handleAssign(q.id, e.target.value)}
+                            disabled={assigning[q.id]}
+                            style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 12, cursor: "pointer", maxWidth: 160 }}
+                          >
+                            <option value="">— Select engineer —</option>
+                            {employees.map((e) => (
+                              <option key={e.id} value={e.id}>{e.fullName}</option>
+                            ))}
+                          </select>
+                          {assigning[q.id] && <span style={{ fontSize: 11, color: "#94A3B8" }}>Saving…</span>}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#CBD5E1", fontSize: 12 }}>Closed</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -14917,6 +15068,10 @@ const CompanyPortal = () => {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span className="nav-label">Requests</span>
           </button>
+          <button className={nav === "queries" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("queries"); setShowAddForm(false); }} title="Asset Issues">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span className="nav-label">Asset Issues</span>
+          </button>
           <button className={nav === "qrcodes" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("qrcodes"); setShowAddForm(false); }} title="QR Codes">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="16" y="16" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/></svg>
             <span className="nav-label">QR Codes</span>
@@ -25611,17 +25766,11 @@ const CompanyPortal = () => {
         )}
 
         {nav === "workorders" && (
-
-
-
-
-
           <AdminWorkOrdersSection token={token} companies={companies} />
+        )}
 
-
-
-
-
+        {nav === "queries" && (
+          <AssetQueriesSection token={token} />
         )}
 
 

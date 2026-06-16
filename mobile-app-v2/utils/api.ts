@@ -503,6 +503,31 @@ export async function closeAssetQuery(queryId: number, closeCode: string): Promi
   return apiPatch<{ success: boolean }>(`/api/company-portal/asset-queries/${queryId}/close`, { closeCode });
 }
 
+/** Resolve a request (engineer marks it complete — generates close code for requester) */
+export async function resolveAssetQuery(queryId: number, resolutionNote?: string): Promise<{ success: boolean; closeCode: string }> {
+  return apiPatch<{ success: boolean; closeCode: string }>(`/api/company-portal/asset-queries/${queryId}/resolve`, { resolutionNote });
+}
+
+/** Assign an engineer to a request (admin/supervisor only) */
+export async function assignAssetQuery(queryId: number, assignedTo: number | null): Promise<{ success: boolean }> {
+  return apiPatch<{ success: boolean }>(`/api/company-portal/asset-queries/${queryId}/assign`, { assignedTo });
+}
+
+/** Submit a star rating + review after an issue is closed */
+export async function submitQueryReview(queryId: number, rating: number, reviewText?: string): Promise<{ success: boolean }> {
+  return apiPost<{ success: boolean }>(`/api/company-portal/asset-queries/${queryId}/review`, { rating, reviewText });
+}
+
+/** Fetch queries assigned to the current user (for engineers) */
+export async function fetchAssignedQueries(): Promise<any[]> {
+  return apiGet<any[]>('/api/company-portal/assigned-queries');
+}
+
+/** Fetch reviews analytics + paginated review list */
+export async function fetchReviewsAnalytics(page = 1, limit = 10): Promise<any> {
+  return apiGet<any>(`/api/company-portal/asset-queries/reviews?page=${page}&limit=${limit}`);
+}
+
 // ─── Assignments / Templates ─────────────────────────────────────────────────
 export async function fetchMyAssignments() {
   return apiGet<unknown[]>('/api/template-assignments/my-assignments');

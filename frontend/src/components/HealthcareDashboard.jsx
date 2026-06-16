@@ -887,6 +887,127 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
   );
 }
 
+/* ─── Reviews & Ratings section ──────────────────────────────────────────── */
+const STAR_COLORS = { 5: '#22C55E', 4: '#84CC16', 3: '#EAB308', 2: '#F97316', 1: '#EF4444' };
+
+function StarDisplay({ rating, size = 16 }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: 2 }}>
+      {[1,2,3,4,5].map((s) => (
+        <svg key={s} width={size} height={size} viewBox="0 0 24 24" fill={s <= Math.round(rating) ? '#F59E0B' : '#E5E7EB'}>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function ReviewsSection({ token }) {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage]       = useState(1);
+  const [allReviews, setAllReviews] = useState([]);
+  const LIMIT = 10;
+
+  const fetchData = useCallback(async (p = 1, reset = true) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/company-portal/asset-queries/reviews?page=${p}&limit=${LIMIT}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setData(json);
+      setAllReviews((prev) => reset ? (json.reviews || []) : [...prev, ...(json.reviews || [])]);
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchData(1, true); setPage(1); }, [fetchData]);
+
+  const loadMore = () => {
+    const next = page + 1;
+    setPage(next);
+    fetchData(next, false);
+  };
+
+  const hasMore = data ? allReviews.length < data.totalReviews : false;
+
+  const maxDist = data?.distribution ? Math.max(...Object.values(data.distribution), 1) : 1;
+
+  return (
+    <section style={{ margin: '24px 0', padding: '0 4px' }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: '#1E293B' }}>Ratings &amp; Reviews</h2>
+      {loading && !data ? (
+        <p style={{ color: '#94A3B8' }}>Loading reviews…</p>
+      ) : !data || data.totalReviews === 0 ? (
+        <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '40px 24px', textAlign: 'center', color: '#94A3B8', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>No reviews yet</p>
+          <p style={{ fontSize: 13 }}>Reviews will appear here once users rate closed issues.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px,320px) 1fr', gap: 20 }}>
+          {/* ── Summary card ── */}
+          <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0', padding: 24, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 16, borderBottom: '1px solid #F1F5F9' }}>
+              <span style={{ fontSize: 56, fontWeight: 800, color: '#1E293B', lineHeight: 1 }}>{Number(data.avgRating).toFixed(1)}</span>
+              <StarDisplay rating={data.avgRating} size={22} />
+              <span style={{ fontSize: 13, color: '#64748B' }}>{data.totalReviews.toLocaleString()} rating{data.totalReviews !== 1 ? 's' : ''}</span>
+            </div>
+            {/* Distribution bars */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[5,4,3,2,1].map((star) => {
+                const count = data.distribution?.[star] || 0;
+                const pct   = Math.round((count / maxDist) * 100);
+                return (
+                  <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B', width: 12, textAlign: 'right' }}>{star}</span>
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="#F59E0B" style={{ flexShrink: 0 }}>
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    <div style={{ flex: 1, background: '#F1F5F9', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: STAR_COLORS[star], borderRadius: 4, transition: 'width .4s' }} />
+                    </div>
+                    <span style={{ fontSize: 12, color: '#94A3B8', width: 30, textAlign: 'right' }}>{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Reviews list ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {allReviews.map((r) => (
+              <div key={r.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: '#1E293B' }}>{r.reviewerName || 'User'}</span>
+                    <div style={{ marginTop: 3 }}><StarDisplay rating={r.rating} size={14} /></div>
+                  </div>
+                  <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                    {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                  </span>
+                </div>
+                <p style={{ fontSize: 13, color: '#475569', margin: 0, lineHeight: 1.5 }}>{r.reviewText || <em style={{ color: '#94A3B8' }}>No comment provided.</em>}</p>
+                {r.queryTitle && <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0', fontStyle: 'italic' }}>Re: {r.queryTitle}</p>}
+              </div>
+            ))}
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                disabled={loading}
+                style={{ alignSelf: 'center', padding: '8px 28px', borderRadius: 8, background: '#3B82F6', color: '#fff', border: 'none', fontWeight: 600, fontSize: 13, cursor: 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}
+              >
+                {loading ? 'Loading…' : 'Load More'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function HealthcareDashboard({ token, onOpenAsset }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
@@ -1344,6 +1465,9 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
         {/* Active record table */}
         <RecordsTable key={`${activeRecord}-${JSON.stringify(appliedFilters)}`} type={activeRecord} token={token} globalFilters={appliedFilters} />
       </section>
+
+      {/* ── RATINGS & REVIEWS ── */}
+      <ReviewsSection token={token} />
     </div>
   );
 }

@@ -515,6 +515,12 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
 
           <ActionCard icon="clipboard-list-outline" label="HC Requests" sublabel="Queries & work orders" color="#0284C7" onPress={() => router.push('/hc-requests')} />
 
+          <ActionCard icon="ticket-outline" label="My Issues" sublabel="Track raised requests" color="#7C3AED" onPress={() => router.push('/my-requests')} />
+
+          {capabilities.isHCEngineer ? (
+            <ActionCard icon="wrench-clock" label="Assigned Issues" sublabel="Complete & resolve" color="#DC2626" onPress={() => router.push('/assigned-queries')} />
+          ) : null}
+
           <ActionCard icon="history" label="History" sublabel="Past submissions" color={theme.info} onPress={() => router.push('/history')} />
 
           {hasTechAccess(capabilities) ? (
