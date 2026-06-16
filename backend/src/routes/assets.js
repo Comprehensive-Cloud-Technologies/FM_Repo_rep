@@ -267,8 +267,8 @@ const updateRules = [
   body("departmentId").optional().isInt({ min: 1 }),
   body("assetName").optional().isString().notEmpty(),
   body("assetType").optional().isString().trim(),
-  body("status").optional().isIn(["Active", "Inactive"]),
-  body("workingStatus").optional().isIn(["Working", "WIP", "Not_Working", "Condemned"]),
+  body("status").optional().isIn(["Active", "Inactive", "Unverified"]),
+  body("workingStatus").optional({ nullable: true }).isIn(["Working", "WIP", "Not_Working", "Condemned"]).if(body("workingStatus").notEmpty()),
   body("criticality").optional().isIn(["Critical", "Non_Critical"]),
   body("verified").optional().isInt({ min: 0, max: 1 }),
   body("rber").optional().isBoolean(),
@@ -617,7 +617,7 @@ router.post(
         companyId, departmentId, assetName, assetType,
         assetUniqueId, building, floor, room,
         buildingId, floorId, locDeptId, roomId, locationId,
-        status = "Active", qrCode, metadata = {},
+        status = "Active", qrCode, metadata = {}, criticality,
       } = req.body;
 
       const assetTypeRecord = await getAssetType(assetType);
@@ -657,8 +657,8 @@ router.post(
         `INSERT INTO assets
            (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
             building, floor, room, building_id, floor_id, loc_dept_id, room_id, location_id,
-            status, qr_code, created_by, verified)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+            status, qr_code, created_by, verified, criticality)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         [companyId, departmentId, assetName, uniqueIdToUse, generatedAssetId, assetTypeRecord.code,
         loc.building, loc.floor, loc.room,
         buildingId || loc.buildingId || null,
@@ -666,7 +666,7 @@ router.post(
         locDeptId || null,
         roomId || loc.roomId || null,
         locationId || loc.locationId || null,
-         status, qrCode || null, req.user.id]
+         status, qrCode || null, req.user.id, criticality || "Non_Critical"]
       );
 
       const assetId = result.insertId;

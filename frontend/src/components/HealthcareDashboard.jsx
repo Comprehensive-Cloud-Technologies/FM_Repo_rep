@@ -45,6 +45,7 @@ const Icon = {
   Critical:    () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   NonCritical: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   Working:     () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Unverified:  () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   Wip:         () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   NotWorking:  () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
   Download:    () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
@@ -894,6 +895,7 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
   const [snapshot, setSnapshot]     = useState(null);
   const [charts, setCharts]         = useState(null);
   const [snapLoading, setSnapL]     = useState(false);
+  const [showCostPopup, setShowCostPopup] = useState(false);  // cost breakdown popup
   const [chartLoading, setChartL]   = useState(false);
   const [snapError, setSnapE]       = useState(null);
   const [activeRecord, setActiveRec]= useState("call-logs");
@@ -996,13 +998,21 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
   };
 
   const KPI_LIST = [
-    { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} },
+    { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} ,animation: "blink-dot 1s ease-in-out infinite" },
     { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
     { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
-    { key: "totalAssetValue", label: "Total Asset Value", icon: Icon.NotWorking, color: "indigo", filterData: {}, isValue: true },
-    { key: "verified",    label: "Verified",          icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
+    { key: "verified",    label: "Verified",       icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
     { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
   ];
+
+  // Helper to format currency amounts
+  const fmtCurrency = (v) => {
+    const n = Number(v || 0);
+    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
+    if (n >= 100000)   return `₹${(n / 100000).toFixed(2)}L`;
+    if (n >= 1000)     return `₹${n.toLocaleString('en-IN')}`;
+    return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  };
 
   return (
     <div style={{ padding: "6px 0 24px", maxWidth: "1400px", fontFamily: "'Inter', -apple-system, sans-serif" }}>
@@ -1016,29 +1026,91 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
           <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {KPI_LIST.map(k => {
-            let displayValue = snapshot?.[k.key];
-            if (k.isValue && displayValue != null) {
-              const v = Number(displayValue);
-              if (v >= 10000000) displayValue = `₹${(v / 10000000).toFixed(2)}Cr`;
-              else if (v >= 100000) displayValue = `₹${(v / 100000).toFixed(2)}L`;
-              else if (v >= 1000) displayValue = `₹${(v / 1000).toFixed(1)}K`;
-              else displayValue = `₹${v.toFixed(0)}`;
-            }
-            return (
-              <KpiCard
-                key={k.key}
-                label={k.label}
-                value={displayValue}
-                icon={k.icon}
-                color={k.color}
-                loading={snapLoading}
-                isActive={!k.isValue && activeKpiKey === k.key}
-                onClick={k.isValue ? undefined : () => handleTileClick(k)}
-              />
-            );
-          })}
+          {KPI_LIST.slice(0, 3).map(k => (
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={snapshot?.[k.key]}
+              icon={k.icon}
+              color={k.color}
+              loading={snapLoading}
+              isActive={activeKpiKey === k.key}
+              onClick={() => handleTileClick(k)}
+            />
+          ))}
+          {/* Total Asset Value tile — 4th position, clickable, opens cost breakdown popup */}
+          <div
+            onClick={() => setShowCostPopup(true)}
+            style={{
+              background: "#fff", borderRadius: "10px", border: "1px solid #ddd6fe",
+              padding: "10px 10px 8px", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: "5px",
+              minHeight: "80px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", textAlign: "center",
+              cursor: "pointer", transition: "all 0.15s ease", position: "relative",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px #ddd6fe"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+              <div style={{ width: "22px", height: "22px", background: "#ede9fe", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
+            </div>
+            <p style={{ fontSize: "18px", fontWeight: 900, color: "#7c3aed", margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>
+              {snapLoading ? "—" : fmtCurrency(snapshot?.totalAssetValue)}
+            </p>
+            <span style={{ fontSize: "9px", color: "#a78bfa", marginTop: "2px" }}>tap for breakdown ▼</span>
+          </div>
+          {KPI_LIST.slice(3).map(k => (
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={snapshot?.[k.key]}
+              icon={k.icon}
+              color={k.color}
+              loading={snapLoading}
+              isActive={activeKpiKey === k.key}
+              onClick={() => handleTileClick(k)}
+            />
+          ))}
         </div>
+
+        {/* Cost Breakdown Popup */}
+        {showCostPopup && (
+          <div
+            onClick={() => setShowCostPopup(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: "14px", padding: "20px 24px", minWidth: "300px", maxWidth: "380px", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#3730a3", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Asset Value</div>
+                  <div style={{ fontSize: "22px", fontWeight: 900, color: "#7c3aed", marginTop: "2px" }}>{fmtCurrency(snapshot?.totalAssetValue)}</div>
+                </div>
+                <button onClick={() => setShowCostPopup(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "10px" }}>Purchase cost by maintenance type</div>
+              {[
+                { label: "High End Equipment", value: snapshot?.highEndCost,  color: "#7c3aed", bg: "#ede9fe" },
+                { label: "Under Catalyst",     value: snapshot?.catalystCost, color: "#0891b2", bg: "#e0f2fe" },
+                { label: "Under Warranty",     value: snapshot?.warrantyCost, color: "#16a34a", bg: "#dcfce7" },
+                { label: "Under AMC/CMC",      value: snapshot?.amcCmcCost,   color: "#dc2626", bg: "#fee2e2" },
+              ].map(row => (
+                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: row.color, display: "inline-block" }} />
+                    <span style={{ fontSize: "13px", color: "#475569" }}>{row.label}</span>
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: "14px", color: row.color }}>{snapLoading ? "—" : `₹${Number(row.value || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Complaint Profile row */}
         <div style={{ marginTop: "14px" }}>

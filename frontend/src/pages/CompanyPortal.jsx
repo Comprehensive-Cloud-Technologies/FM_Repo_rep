@@ -1468,7 +1468,10 @@ const emptyAsset = {
 
 
 
-  maintenanceType: "",  // "warranty" | "amc" | "cmc" | "inhouse" | "catalyst"
+  maintenanceType: "",  // legacy single-select (backward compat)
+  maintenanceTypes: { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false },
+  maintenanceCosts: { warranty: "", amc: "", cmc: "", catalyst: "", highEnd: "" },
+  category: "Non_Critical",
 
 
 
@@ -10424,6 +10427,9 @@ const CompanyPortal = () => {
 
 
         maintenanceType: meta.maintenanceType || "",
+        maintenanceTypes: meta.maintenanceTypes || { warranty: !!(meta.maintenanceType === 'warranty' || meta.warranty?.enabled), amc: !!(meta.maintenanceType === 'amc' || meta.amc?.enabled), cmc: !!(meta.maintenanceType === 'cmc' || meta.cmc?.enabled), inhouse: !!(meta.maintenanceType === 'inhouse' || meta.inHouse), catalyst: !!(meta.maintenanceType === 'catalyst' || meta.catalyst), highEnd: !!(meta.maintenanceTypes?.highEnd || meta.highEnd) },
+        maintenanceCosts: meta.maintenanceCosts || { warranty: meta.warrantyCost || "", amc: meta.amcCost || "", cmc: meta.cmcCost || "", catalyst: meta.catalystCost || "", highEnd: meta.highEndCost || "" },
+        category: asset.criticality || meta.criticality || "Non_Critical",
 
 
 
@@ -11264,6 +11270,7 @@ const CompanyPortal = () => {
         locationId: assetForm.locationId || null,
 
         status: assetForm.status,
+        criticality: assetForm.category || "Non_Critical",
 
         qrCode: assetForm.qrCode,
 
@@ -20373,7 +20380,7 @@ const CompanyPortal = () => {
                         <th style={{ padding: "10px 8px", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
                           <input type="checkbox" onChange={e => setSelectedAssetIds(e.target.checked ? filteredAssets.map(a => a.id) : [])} checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length} />
                         </th>
-                        {["SN", "Asset ID", "Company", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                        {["SN", "Asset ID", "Company", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -20399,7 +20406,6 @@ const CompanyPortal = () => {
                             : m.rber ? "RBER"
                             : ws === "Not_Working" ? "Not_Working"
                             : ws === "WIP" ? "WIP"
-                            : crit === "Critical" ? "Critical"
                             : "Active";
                           const COLOR_MAP = {
                             Active:      { bg: "#f0fdf4", color: "#16a34a" },
@@ -20418,9 +20424,10 @@ const CompanyPortal = () => {
                                 <input type="checkbox" checked={selectedAssetIds.includes(a.id)} onChange={e => setSelectedAssetIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} />
                               </td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                              <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to open asset details in new window" onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.id}</td>
+                              <td style={{ padding: "10px 14px", color: Number(a.verified) === 1 ? "#16a34a" : "#dc2626", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }} title="Click to open asset details in new window" onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.id}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.companyName || "-"}</td>
                               <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }} title="Click to view asset details" onClick={() => setViewingAsset(a)}>{m.equipmentName || a.assetName || "-"}</td>
+                              <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}><span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: (a.criticality || m.criticality) === "Critical" ? "#fce7f3" : "#f0fdf4", color: (a.criticality || m.criticality) === "Critical" ? "#9d174d" : "#16a34a" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</span></td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "-"}</td>
@@ -20445,7 +20452,6 @@ const CompanyPortal = () => {
                                     else if (v === "Verified")    handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", verified: 1, rber: false });
                                     else if (v === "WIP")         handleInlineAssetStatus(a.id, { workingStatus: "WIP", status: "Active", verified: 0, rber: false });
                                     else if (v === "Not_Working") handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", verified: 0, rber: false });
-                                    else if (v === "Critical")    handleInlineAssetStatus(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active", verified: 0, rber: false });
                                     else if (v === "RBER")        handleInlineAssetStatus(a.id, { workingStatus: "Not_Working", status: "Active", verified: 0, rber: true });
                                     else if (v === "Condemned")   handleInlineAssetStatus(a.id, { workingStatus: "Condemned", status: "Active", verified: 0, rber: false });
                                     else                           handleInlineAssetStatus(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", verified: 0, rber: false });
@@ -20456,7 +20462,6 @@ const CompanyPortal = () => {
                                   <option value="Inactive">Inactive</option>
                                   <option value="WIP">WIP</option>
                                   <option value="Not_Working">Not Working</option>
-                                  <option value="Critical">Critical</option>
                                   <option value="RBER">RBER</option>
                                   <option value="Condemned">Condemned</option>
                                 </select>
@@ -20896,6 +20901,14 @@ const CompanyPortal = () => {
 
 
 
+                          </div>
+
+                          <div className="form-group">
+                            <label>Category</label>
+                            <select name="category" value={assetForm.category || "Non_Critical"} onChange={handleAssetChange} className="form-select">
+                              <option value="Non_Critical">Non-Critical</option>
+                              <option value="Critical">Critical</option>
+                            </select>
                           </div>
 
 
@@ -21674,17 +21687,9 @@ const CompanyPortal = () => {
 
 
 
-                            <label>Purchase Cost (Rs.)</label>
-
-
-
-
+                            <label>Purchase Cost (₹)</label>
 
                             <input type="number" name="purchaseCost" value={assetForm.purchaseCost} onChange={handleAssetChange} className="form-input" placeholder="0.00" min="0" step="0.01" />
-
-
-
-
 
                           </div>
 
@@ -21706,195 +21711,36 @@ const CompanyPortal = () => {
 
                         {/* Maintenance Under */}
 
-
-
-
-
                         <div style={{ background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", padding: "14px 16px", marginBottom: "12px" }}>
-
-
-
-
-
                           <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "10px", display: "block" }}>Maintenance Under</label>
-
-
-
-
-
-                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
-
-
-
-
-
-                            {[["warranty","Warranty"],["amc","AMC"],["cmc","CMC"],["inhouse","In House"],["catalyst","Catalyst"]].map(([v, l]) => (
-
-
-
-
-
-                              <button key={v} type="button"
-
-
-
-
-
-                                onClick={() => setAssetForm((p) => ({ ...p, maintenanceType: p.maintenanceType === v ? "" : v }))}
-
-
-
-
-
-                                style={{ padding: "5px 14px", borderRadius: "20px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", border: `2px solid ${assetForm.maintenanceType === v ? "#2563eb" : "#e2e8f0"}`, background: assetForm.maintenanceType === v ? "#eff6ff" : "#fff", color: assetForm.maintenanceType === v ? "#1d4ed8" : "#64748b" }}>
-
-
-
-
-
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+                            {[["warranty","a. Warranty"],["amc","b. AMC (Annual Maintenance Contract)"],["cmc","c. CMC (Comprehensive Maintenance Contract)"],["inhouse","d. In House"],["catalyst","e. Catalyst"],["highEnd","f. High End Equipment"]].map(([v, l]) => (
+                              <label key={v} style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12.5px", fontWeight: 600, color: assetForm.maintenanceTypes?.[v] ? "#1d4ed8" : "#64748b", padding: "5px 10px", borderRadius: "20px", border: `2px solid ${assetForm.maintenanceTypes?.[v] ? "#2563eb" : "#e2e8f0"}`, background: assetForm.maintenanceTypes?.[v] ? "#eff6ff" : "#fff" }}>
+                                <input type="checkbox" checked={!!assetForm.maintenanceTypes?.[v]} onChange={e => setAssetForm(p => ({ ...p, maintenanceTypes: { ...p.maintenanceTypes, [v]: e.target.checked } }))} style={{ accentColor: "#2563eb" }} />
                                 {l}
-
-
-
-
-
-                              </button>
-
-
-
-
-
+                              </label>
                             ))}
-
-
-
-
-
                           </div>
 
-
-
-
-
-                          {assetForm.maintenanceType === "warranty" && (
-
-
-
-
-
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-
-
-
-
-
+                          {assetForm.maintenanceTypes?.warranty && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "8px" }}>
                               <div className="form-group"><label>Warranty Start</label><input type="date" name="warrantyStart" value={assetForm.warrantyStart} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                               <div className="form-group"><label>Warranty End</label><input type="date" name="warrantyEnd" value={assetForm.warrantyEnd} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                             </div>
-
-
-
-
-
                           )}
-
-
-
-
-
-                          {assetForm.maintenanceType === "amc" && (
-
-
-
-
-
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-
-
-
-
-
+                          {assetForm.maintenanceTypes?.amc && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "8px" }}>
                               <div className="form-group"><label>AMC Start</label><input type="date" name="amcStart" value={assetForm.amcStart} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                               <div className="form-group"><label>AMC End</label><input type="date" name="amcEnd" value={assetForm.amcEnd} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                             </div>
-
-
-
-
-
                           )}
-
-
-
-
-
-                          {assetForm.maintenanceType === "cmc" && (
-
-
-
-
-
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-
-
-
-
-
+                          {assetForm.maintenanceTypes?.cmc && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "8px" }}>
                               <div className="form-group"><label>CMC Start</label><input type="date" name="cmcStart" value={assetForm.cmcStart} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                               <div className="form-group"><label>CMC End</label><input type="date" name="cmcEnd" value={assetForm.cmcEnd} onChange={handleAssetChange} className="form-input" /></div>
-
-
-
-
-
                             </div>
-
-
-
-
-
                           )}
-
-
-
-
-
                         </div>
-
-
-
-
-
-
-
-
-
-
 
                         {/* RBER + Remarks */}
 
@@ -23408,23 +23254,10 @@ const CompanyPortal = () => {
 
 
                           { label: "Total Rows", value: bulkImportResult.total, color: "#0f172a" },
-
-
-
-
-
                           { label: "Created", value: bulkImportResult.created, color: "#16a34a" },
-
-
-
-
-
-                          { label: "Skipped", value: bulkImportResult.skipped, color: "#d97706" },
-
-
-
-
-
+                          { label: "Updated", value: bulkImportResult.updated ?? 0, color: "#2563eb" },
+                          { label: "Unchanged", value: bulkImportResult.unchanged ?? 0, color: "#64748b" },
+                          { label: "Errors", value: bulkImportResult.skipped, color: "#d97706" },
                         ].map(({ label, value, color }) => (
 
 
@@ -28545,7 +28378,7 @@ const CompanyPortal = () => {
             non_critical:      { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
             total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `₹${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : v >= 1000 ? `₹{(v/1000).toFixed(1)}K` : `₹${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
             rber:              { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
-            new_addition:      { label: "NEW ADDITION",       value: dashboardStats ? (assetProfile.newAdditions ?? 0) : null, col: "#0d9488" },
+            new_addition:      { label: "Verified",       value: dashboardStats ? (assetProfile.verified ?? 0) : null, col: "#0d9488" },
             total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
             wip:            { label: "WORK IN PROGRESS",   value: dashboardStats ? (complaintProfile.wip ?? 0) : null, col: "#ca8a04" },
             lt7d:           { label: "< 7 DAYS",           value: dashboardStats ? (complaintProfile.lt7d ?? 0) : null, col: "#2563eb" },
@@ -28561,7 +28394,7 @@ const CompanyPortal = () => {
               total_asset_value: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
               rber:              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
           
-            new_addition:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            //new_addition:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
             total_complaint: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
             wip:             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
             lt7d:            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,

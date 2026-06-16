@@ -51,11 +51,14 @@ function buildAssetWhere(companyId, q) {
   if (q.status) {
     if (q.status === 'verified') {
       where += " AND a.is_verified = 1";
+    } else if (q.status === 'unverified') {
+      where += " AND (a.status = 'Unverified' OR a.is_verified = 0)";
     } else {
-      where += " AND a.working_status = ?"; p.push(q.status);
+      where += " AND a.status = ?"; p.push(q.status);
     }
   }
   if (q.verified === "true" || q.verified === "1") { where += " AND a.is_verified = 1"; }
+  if (q.verified === "false" || q.verified === "0") { where += " AND (a.status = 'Unverified' OR a.is_verified = 0)"; }
   if (q.isVerified !== undefined && q.isVerified !== "") {
     where += " AND a.is_verified = ?";
     p.push(q.isVerified === "true" || q.isVerified === "1" ? 1 : 0);
@@ -82,6 +85,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
         `SELECT
            COUNT(*)                                                    AS total,
            SUM(CASE WHEN a.is_verified = 1 THEN 1 ELSE 0 END)         AS verified,
+           SUM(CASE WHEN a.status = 'Unverified' OR a.is_verified = 0 THEN 1 ELSE 0 END) AS unverified,
            SUM(CASE WHEN a.criticality = 'Critical' THEN 1 ELSE 0 END) AS critical,
            SUM(CASE WHEN a.criticality = 'Non_Critical' THEN 1 ELSE 0 END) AS non_critical,
            SUM(CASE WHEN a.working_status = 'Working' THEN 1 ELSE 0 END)   AS working,
@@ -97,7 +101,20 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
              CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
                   THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2))
                   ELSE 0 END
-           ), 0) AS total_asset_value
+           ), 0) AS total_asset_value,
+           /* Per maintenance-type costs: attribute purchaseCost to each selected type */
+           COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.highEnd') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.highEnd') = 1)
+             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS high_end_cost,
+           COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.catalyst') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.catalyst') = 1)
+             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS catalyst_cost,
+           COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = 1)
+             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS warranty_cost,
+           COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = 1) OR (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = 1))
+             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cmc_cost
          FROM assets a
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
          ${where}`,
@@ -148,6 +165,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
     res.json({
       total:        Number(snap.total        || 0),
       verified:     Number(snap.verified     || 0),
+      unverified:   Number(snap.unverified   || 0),
       critical:     Number(snap.critical     || 0),
       nonCritical:  Number(snap.non_critical || 0),
       working:      Number(snap.working      || 0),
@@ -157,6 +175,11 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       condemned:    Number(snap.condemned    || 0),
       newAddition:  Number(snap.new_addition || 0),
       totalAssetValue: Number(snap.total_asset_value || 0),
+      // Per-maintenance-type cost breakdown
+      highEndCost:    Number(snap.high_end_cost   || 0),
+      catalystCost:   Number(snap.catalyst_cost   || 0),
+      warrantyCost:   Number(snap.warranty_cost   || 0),
+      amcCmcCost:     Number(snap.amc_cmc_cost    || 0),
       // Complaint / Request Profile
       totalComplaints:  Number(reqStats.total_requests    || 0),
       wipComplaints:    Number(reqStats.wip_requests      || 0),
@@ -628,9 +651,9 @@ router.post("/records/rber", validate([
 router.patch("/assets/:id", validate([
   param("id").isInt({ min: 1 }),
   body("isVerified").optional().isBoolean(),
-  body("status").optional().isIn(["Active","Inactive"]),
+  body("status").optional().isIn(["Active","Inactive","Unverified"]),
   body("criticality").optional().isIn(["Critical","Non_Critical"]),
-  body("workingStatus").optional().isIn(["Working","WIP","Not_Working","Condemned"]),
+  body("workingStatus").optional({ nullable: true }).isIn(["Working","WIP","Not_Working","Unverified","Verified","Condemned"]).if(body("workingStatus").notEmpty()),
   body("assetCategory").optional().isString().trim(),
   body("locationDetail").optional().isString().trim(),
   body("rber").optional().isBoolean(),

@@ -425,7 +425,7 @@ export default function AddAssetScreen() {
 
   // Working Status
   const [workingStatus, setWorkingStatus] = useState('Working');
-  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified']);
+  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Unverified', 'Verified']);
 
   // Equipment Details
   const [assetName,        setAssetName]        = useState('');
@@ -449,6 +449,10 @@ export default function AddAssetScreen() {
   const [cmc,      setCmc]      = useState<DateRange>(emptyRange());
   const [inHouse,  setInHouse]  = useState(false);
   const [catalyst, setCatalyst] = useState(false);
+  const [highEnd,  setHighEnd]  = useState(false);
+  const [category, setCategory] = useState<'Non_Critical' | 'Critical'>('Non_Critical');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
   const [rber,     setRber]     = useState(false);
   const [remarks,  setRemarks]  = useState('');
   const [calibrationRequired, setCalibrationRequired] = useState(false);
@@ -575,6 +579,7 @@ export default function AddAssetScreen() {
         floor: floor.trim() || undefined,
         room: room.trim() || undefined,
         workingStatus: workingStatus || undefined,
+        criticality: category,
         metadata: {
           make: make.trim() || undefined,
           model: model.trim() || undefined,
@@ -591,6 +596,11 @@ export default function AddAssetScreen() {
           cmc: cmc.enabled ? cmc : undefined,
           inHouse: inHouse || undefined,
           catalyst: catalyst || undefined,
+          highEnd: highEnd || undefined,
+          maintenanceTypes: {
+            warranty: warranty.enabled, amc: amc.enabled, cmc: cmc.enabled,
+            inHouse, catalyst, highEnd,
+          },
           calibration: calibrationRequired ? {
             required: true,
             frequency: calibrationFrequency || undefined,
@@ -752,6 +762,16 @@ export default function AddAssetScreen() {
             <TextInput style={inp()} placeholder="e.g. Ultrasound Machine" placeholderTextColor={theme.textMuted}
               value={assetName} onChangeText={setAssetName} />
           </Field>
+          {/* ── CATEGORY ── */}
+          <Field label="Category">
+            <TouchableOpacity
+              style={[inp(), { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowCategoryPicker(true)}
+            >
+              <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{category === 'Critical' ? 'Critical' : 'Non-Critical'}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Field label="Make / Manufacturer">
@@ -834,6 +854,11 @@ export default function AddAssetScreen() {
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={catalyst} label="Catalyst" onToggle={() => setCatalyst(v => !v)} />
           </View>
+          <View style={{ marginTop: 8 }}>
+            <Checkbox checked={highEnd} label="High End Equipment" onToggle={() => setHighEnd(v => !v)} />
+          </View>
+          {/* Per-type purchase cost inputs */}
+
           <View style={{ marginTop: 10 }}>
             <Checkbox checked={rber} label="RBER (Recommended Beyond Economic Repair)" onToggle={() => setRber(v => !v)} />
           </View>
@@ -1001,6 +1026,13 @@ export default function AddAssetScreen() {
       </KeyboardAvoidingView>
 
       {/* Pickers — rendered at SafeAreaView root so they clear the footer */}
+      <PickerModal
+        visible={showCategoryPicker}
+        title="Category"
+        items={[{ id: 1, label: 'Non-Critical' }, { id: 2, label: 'Critical' }]}
+        onSelect={(id) => { setCategory(id === 2 ? 'Critical' : 'Non_Critical'); setShowCategoryPicker(false); }}
+        onClose={() => setShowCategoryPicker(false)}
+      />
       <PickerModal
         visible={showCompanyPicker}
         title="Select Company"

@@ -415,7 +415,9 @@ export async function registerAssetOnQr(
     warranty?: { enabled: boolean; startDate: string; endDate: string };
     amc?:      { enabled: boolean; startDate: string; endDate: string };
     cmc?:      { enabled: boolean; startDate: string; endDate: string };
-    inHouse?: boolean; catalyst?: boolean;
+    inHouse?: boolean; catalyst?: boolean; highEnd?: boolean;
+    criticality?: string;
+    maintenanceTypes?: { warranty?: boolean; amc?: boolean; cmc?: boolean; inHouse?: boolean; catalyst?: boolean; highEnd?: boolean };
     calibrationRequired?: boolean;
     calibrationFrequency?: string;
     lastCalibrationDate?: string;
@@ -896,6 +898,7 @@ export interface ManualAssetPayload {
   floor?: string;
   room?: string;
   workingStatus?: string;
+  criticality?: string;
   calibrationRequired?: boolean;
   calibrationFrequency?: string;
   lastCalibrationDate?: string;
@@ -920,15 +923,22 @@ export async function createDepartmentForCompany(companyId: number, name: string
   return apiPost<{ id: number; name: string }>(`/api/company-portal/departments-by-company/${companyId}`, { name });
 }
 
-const FALLBACK_WORKING_STATUSES = ['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified'];
+const FALLBACK_WORKING_STATUSES = ['Working', 'Not_Working', 'WIP', 'Unverified', 'Verified'];
+const EXCLUDED_WORKING_STATUSES = new Set(['Condemned', 'Critical']);
 
 export async function fetchWorkingStatuses(): Promise<string[]> {
   try {
     const data = await apiGet<{ statuses: string[] }>('/api/company-portal/working-statuses');
-    return data.statuses ?? FALLBACK_WORKING_STATUSES;
+    const statuses = data.statuses ?? FALLBACK_WORKING_STATUSES;
+    return statuses.filter((s) => !EXCLUDED_WORKING_STATUSES.has(s));
   } catch {
     return FALLBACK_WORKING_STATUSES;
   }
+}
+
+/** Update the working_status of an asset (HC engineers only). */
+export async function updateAssetWorkingStatus(assetId: number, workingStatus: string): Promise<void> {
+  await apiPatch<{ message: string }>(`/api/company-portal/healthcare/assets/${assetId}`, { workingStatus });
 }
 
 /** Fetch company-specific custom asset statuses (Status Master).

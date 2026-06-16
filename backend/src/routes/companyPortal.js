@@ -1495,6 +1495,8 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
     };
 
     const created = [];
+    const updated = [];
+    const unchanged = [];
     const skipped = [];
 
     for (let i = 0; i < rawRows.length; i++) {
@@ -1581,13 +1583,92 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
           createdBy: req.companyUser.id || null,
         });
 
-        // Duplicate guard: skip if this uniqueId is already registered for this company
+        // Check if asset already exists for this company
         const [[existing]] = await pool.query(
-          "SELECT id FROM assets WHERE asset_unique_id = ? AND company_id = ? LIMIT 1",
+          `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
+                  a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
+                  a.status, ad.metadata
+           FROM assets a
+           LEFT JOIN asset_details ad ON ad.asset_id = a.id
+           WHERE a.asset_unique_id = ? AND a.company_id = ? LIMIT 1`,
           [uniqueIdToUse, cid(req)]
         );
         if (existing) {
-          skipped.push({ row: rowNum, assetName, reason: `Duplicate: asset_unique_id '${uniqueIdToUse}' already exists` });
+          // Build incoming metadata from this Excel row
+          const incomingMeta = {};
+          const mp2 = pick(row, "make", "manufacturer", "manufacturername", "brand", "mfg", "madeby", "makeby"); if (mp2) incomingMeta.make = mp2;
+          const mdl2 = pick(row, "model", "modelno", "model_no", "modelname"); if (mdl2) incomingMeta.model = mdl2;
+          const sn2 = pick(row, "serialno", "serial_no", "serialnumber", "srnumber", "srno", "sr_no", "serialnum"); if (sn2) incomingMeta.serialNo = sn2;
+          const acc2 = pick(row, "accessories", "accessory", "attachments"); if (acc2) incomingMeta.accessories = acc2;
+          const pd2 = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate"); if (pd2) incomingMeta.purchaseDate = pd2;
+          const id2up = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2up) incomingMeta.installationDate = id2up;
+          const inv2 = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum"); if (inv2) incomingMeta.invoiceNo = inv2;
+          const pc2 = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc2) incomingMeta.purchaseCost = pc2;
+          const my2 = pick(row, "mfgyear", "mfg_year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my2) incomingMeta.manufacturingYear = my2;
+          const dl2 = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername"); if (dl2) incomingMeta.dealer = dl2;
+          const rm2 = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm2) incomingMeta.remarks = rm2;
+          const rb2 = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb2) incomingMeta.rber = rb2.toLowerCase() === "yes" || rb2 === "1" || rb2.toLowerCase() === "true";
+          const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract"); if (mn2) incomingMeta.maintenanceType = mn2;
+
+          // Existing metadata (merge: only overwrite keys that appear in Excel row)
+          const existingMeta = existing.metadata
+            ? (typeof existing.metadata === "string" ? JSON.parse(existing.metadata) : existing.metadata)
+            : {};
+          const mergedMeta = { ...existingMeta };
+          let metaChanged = false;
+          for (const [k, v] of Object.entries(incomingMeta)) {
+            if (String(mergedMeta[k] ?? "") !== String(v)) {
+              mergedMeta[k] = v;
+              metaChanged = true;
+            }
+          }
+
+          // Detect changes in core asset fields
+          const assetChanges = {};
+          if (assetName && assetName !== existing.asset_name)           assetChanges.asset_name    = assetName;
+          if (departmentId != null && departmentId !== existing.department_id) assetChanges.department_id = departmentId;
+          if (assetType && assetType !== existing.asset_type)           assetChanges.asset_type    = assetType;
+          if (loc.building && loc.building !== existing.building)       assetChanges.building      = loc.building;
+          if (loc.floor    && loc.floor    !== existing.floor)          assetChanges.floor         = loc.floor;
+          if (loc.room     && loc.room     !== existing.room)           assetChanges.room          = loc.room;
+          if (loc.buildingId && loc.buildingId !== existing.building_id) assetChanges.building_id  = loc.buildingId;
+          if (loc.floorId  && loc.floorId  !== existing.floor_id)      assetChanges.floor_id      = loc.floorId;
+          if (loc.roomId   && loc.roomId   !== existing.room_id)        assetChanges.room_id       = loc.roomId;
+          if (loc.locationId && loc.locationId !== existing.location_id) assetChanges.location_id  = loc.locationId;
+          if (status && status !== existing.status)                     assetChanges.status        = status;
+
+          const hasAssetChanges = Object.keys(assetChanges).length > 0;
+
+          // Nothing changed — skip without touching DB
+          if (!hasAssetChanges && !metaChanged) {
+            unchanged.push({ row: rowNum, assetUniqueId: uniqueIdToUse, assetName });
+            continue;
+          }
+
+          // Apply core field changes
+          if (hasAssetChanges) {
+            const setClauses = Object.keys(assetChanges).map(k => `${k} = ?`).join(", ");
+            await pool.execute(
+              `UPDATE assets SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
+              [...Object.values(assetChanges), existing.id]
+            );
+          }
+
+          // Apply metadata changes (merge only)
+          if (metaChanged) {
+            await pool.execute(
+              `INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?)
+               ON DUPLICATE KEY UPDATE metadata = VALUES(metadata)`,
+              [existing.id, JSON.stringify(mergedMeta)]
+            );
+          }
+
+          updated.push({
+            row: rowNum, id: existing.id, assetName,
+            assetUniqueId: uniqueIdToUse,
+            generatedAssetId: existing.generated_asset_id,
+            changedFields: [...Object.keys(assetChanges), ...(metaChanged ? ["metadata"] : [])],
+          });
           continue;
         }
 
@@ -1655,8 +1736,9 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
     }
 
     res.status(201).json({
-      total: rawRows.length, created: created.length, skipped: skipped.length,
-      assets: created, errors: skipped,
+      total: rawRows.length, created: created.length, updated: updated.length,
+      unchanged: unchanged.length, skipped: skipped.length,
+      assets: created, updatedAssets: updated, unchangedAssets: unchanged, errors: skipped,
     });
   } catch (err) { next(err); }
 });
@@ -1878,7 +1960,7 @@ router.post("/assets", async (req, res, next) => {
 router.post("/assets/manual", async (req, res, next) => {
   try {
     const { companyId, departmentId, assetName, assetType = "healthcare",
-            building, floor, room, workingStatus, metadata = {} } = req.body;
+            building, floor, room, workingStatus, criticality, metadata = {} } = req.body;
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
     if (!companyId)         return res.status(400).json({ message: "companyId is required" });
 
@@ -1901,13 +1983,13 @@ router.post("/assets/manual", async (req, res, next) => {
                     calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
                     calibration_status, calibration_vendor_id, alert_before_days,
                            building, floor, room, building_id, floor_id, room_id, location_id,
-                           working_status, status, is_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
+                           working_status, criticality, status, is_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 0)`,
       [companyId, departmentId || null, assetName.trim(), generatedAssetId, assetType,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-       workingStatus || null]
+       workingStatus || null, criticality || metadata?.criticality || 'Non_Critical']
     );
     const newId = result.insertId;
 
@@ -1975,7 +2057,7 @@ router.patch("/assets/:id", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
-    const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status, metadata = {} } = req.body;
+    const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status, criticality, metadata = {} } = req.body;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
@@ -1995,13 +2077,14 @@ router.patch("/assets/:id", async (req, res, next) => {
          alert_before_days = ?,
          building = ?, floor = ?, room = ?,
          status = COALESCE(?, status),
+         criticality = COALESCE(?, criticality),
          updated_at = NOW()
        WHERE id = ?`,
       [
         assetName || null, assetUniqueId || null, assetType || null, departmentId || null,
         calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate,
         calibration.nextCalibrationDueDate, calibration.status, calibration.vendorId, calibration.alertBeforeDays,
-        building || null, floor || null, room || null, status || null, id,
+        building || null, floor || null, room || null, status || null, criticality || null, id,
       ]
     );
     const [[asset]] = await pool.query(
@@ -6010,7 +6093,11 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       maintenance, rber, remarks,
       floor, room,
       // New structured maintenance fields
-      warranty, amc, cmc, inHouse, catalyst,
+      warranty, amc, cmc, inHouse, catalyst, highEnd,
+      // Category / criticality
+      criticality,
+      // Explicit maintenanceTypes map (from mobile)
+      maintenanceTypes,
       // Calibration
       calibrationRequired, calibrationFrequency, lastCalibrationDate, nextCalibrationDueDate,
       calibrationVendorName, calibrationCertificateNumber, calibrationStatus, alertBeforeDays,
@@ -6054,13 +6141,13 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
          (company_id, department_id, asset_name, asset_type, generated_asset_id,
          calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
          calibration_status, calibration_vendor_id, alert_before_days,
-          building, floor, room, building_id, floor_id, room_id, location_id, working_status, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
+          building, floor, room, building_id, floor_id, room_id, location_id, working_status, criticality, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
       [cid(req), departmentId || null, assetName.trim(), assetType, generatedAssetId,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-       workingStatus || null]
+       workingStatus || null, criticality || 'Non_Critical']
     );
     const newAssetId = result.insertId;
 
@@ -6081,7 +6168,16 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
       warranty: warranty && warranty.enabled ? { enabled: true, startDate: warranty.startDate || null, endDate: warranty.endDate || null } : null,
       amc:      amc      && amc.enabled      ? { enabled: true, startDate: amc.startDate      || null, endDate: amc.endDate      || null } : null,
       cmc:      cmc      && cmc.enabled      ? { enabled: true, startDate: cmc.startDate      || null, endDate: cmc.endDate      || null } : null,
-      inHouse: !!inHouse, catalyst: !!catalyst,
+      inHouse: !!inHouse, catalyst: !!catalyst, highEnd: !!highEnd,
+      // maintenanceTypes map used by dashboard snapshot SQL
+      maintenanceTypes: maintenanceTypes || {
+        warranty: !!(warranty && warranty.enabled),
+        amc: !!(amc && amc.enabled),
+        cmc: !!(cmc && cmc.enabled),
+        inHouse: !!inHouse,
+        catalyst: !!catalyst,
+        highEnd: !!highEnd,
+      },
       rber: !!rber, remarks: remarks || null, notes: notes || null,
       workingStatus: workingStatus || "Working",
       calibration: {

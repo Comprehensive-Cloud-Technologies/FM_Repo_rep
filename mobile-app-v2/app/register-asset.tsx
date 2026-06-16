@@ -447,6 +447,8 @@ export default function RegisterAssetScreen() {
   const [cmc,      setCmc]      = useState<DateRange>(emptyRange());
   const [inHouse,  setInHouse]  = useState(false);
   const [catalyst, setCatalyst] = useState(false);
+  const [highEnd,  setHighEnd]  = useState(false);
+  const [category, setCategory] = useState<'Non_Critical' | 'Critical'>('Non_Critical');
   const [rber,     setRber]     = useState(false);
   const [remarks,  setRemarks]  = useState('');
   const [calibrationRequired, setCalibrationRequired] = useState(false);
@@ -485,11 +487,13 @@ export default function RegisterAssetScreen() {
   // Working Status
   const [workingStatus, setWorkingStatus] = useState('Working');
   const [showWorkingStatusPicker, setShowWorkingStatusPicker] = useState(false);
-  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Condemned', 'Critical', 'Unverified', 'Verified']);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Unverified', 'Verified']);
 
   const [submitting, setSubmitting] = useState(false);
   const [hcImages,   setHcImages]   = useState<string[]>([]);
 
+  const EXCLUDED_STATUSES = new Set(['Condemned', 'Critical']);
   useEffect(() => {
     fetchWorkingStatuses().then(setWorkingStatuses).catch(() => {});
   }, []);
@@ -497,7 +501,7 @@ export default function RegisterAssetScreen() {
   // When companyId is known, reload statuses from the company's Status Master
   useEffect(() => {
     if (!companyId) return;
-    fetchCompanyAssetStatuses().then(setWorkingStatuses).catch(() => {});
+    fetchCompanyAssetStatuses().then((s) => setWorkingStatuses(s.filter((x) => !EXCLUDED_STATUSES.has(x)))).catch(() => {});
   }, [companyId]);
 
   useEffect(() => {
@@ -588,6 +592,7 @@ export default function RegisterAssetScreen() {
         assetType: 'healthcare',
         departmentId: selectedDeptId ?? undefined,
         workingStatus: workingStatus || undefined,
+        criticality: category,
         location: building.trim() || undefined,
         floor: floor.trim() || undefined,
         room: room.trim() || undefined,
@@ -606,6 +611,8 @@ export default function RegisterAssetScreen() {
         cmc: cmc.enabled ? cmc : undefined,
         inHouse: inHouse || undefined,
         catalyst: catalyst || undefined,
+        highEnd: highEnd || undefined,
+        maintenanceTypes: { warranty: warranty.enabled, amc: amc.enabled, cmc: cmc.enabled, inHouse, catalyst, highEnd },
         calibrationRequired,
         calibrationFrequency: calibrationFrequency || undefined,
         lastCalibrationDate: lastCalibrationDate || undefined,
@@ -763,6 +770,16 @@ export default function RegisterAssetScreen() {
             <TextInput style={inp()} placeholder="e.g. ECG Machine, Ventilator…" placeholderTextColor={theme.textMuted}
               value={assetName} onChangeText={setAssetName} />
           </Field>
+          {/* ── CATEGORY ── */}
+          <Field label="Category">
+            <TouchableOpacity
+              style={[sStyles.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowCategoryPicker(true)}
+            >
+              <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{category === 'Critical' ? 'Critical' : 'Non-Critical'}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
           <Field label="Make / Manufacturer">
             <TextInput style={inp()} placeholder="e.g. GE, Philips, Siemens…" placeholderTextColor={theme.textMuted}
               value={make} onChangeText={setMake} />
@@ -835,6 +852,10 @@ export default function RegisterAssetScreen() {
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={catalyst} label="Catalyst" onToggle={() => setCatalyst(v => !v)} />
           </View>
+          <View style={{ marginTop: 8 }}>
+            <Checkbox checked={highEnd} label="High End Equipment" onToggle={() => setHighEnd(v => !v)} />
+          </View>
+
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={rber} label="RBER (Recommended Beyond Economic Repair)" onToggle={() => setRber(v => !v)} />
           </View>
@@ -1009,6 +1030,13 @@ export default function RegisterAssetScreen() {
           setSelectedDeptName(created.name);
           setShowDeptPicker(false);
         } : undefined}
+      />
+      <PickerModal
+        visible={showCategoryPicker}
+        title="Category"
+        items={[{ id: 1, label: 'Non-Critical' }, { id: 2, label: 'Critical' }]}
+        onSelect={(id) => { setCategory(id === 2 ? 'Critical' : 'Non_Critical'); setShowCategoryPicker(false); }}
+        onClose={() => setShowCategoryPicker(false)}
       />
       <PickerModal
         visible={showWorkingStatusPicker}

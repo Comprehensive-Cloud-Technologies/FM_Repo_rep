@@ -1,9 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { API_BASE, fetchAssetByQR, getStoredUser, getSoftRequestsForAsset } from '../utils/api';
+import { API_BASE, fetchAssetByQR, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus } from '../utils/api';
 import type { SoftRequest } from '../utils/api';
 import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
 import Header from '../components/Header';
@@ -77,8 +77,11 @@ export default function AssetDetailsScreen() {
   const [data,         setData]         = useState<any>(null);
   const [loading,      setLoading]      = useState(true);
   const [openRequests, setOpenRequests] = useState<SoftRequest[]>([]);
-  const [userCaps,     setUserCaps]     = useState<{ canRaiseSoftIssue: boolean; canResolveSoftIssue: boolean } | null>(null);
+  const [userCaps,     setUserCaps]     = useState<{ canRaiseSoftIssue: boolean; canResolveSoftIssue: boolean; isHCEngineer: boolean } | null>(null);
   const [recentSubmission, setRecentSubmission] = useState<any>(null);
+  // Engineer editing state
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [updatingStatus,   setUpdatingStatus]   = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -90,7 +93,7 @@ export default function AssetDetailsScreen() {
       setRecentSubmission(assetData?.recentSubmission ?? null);
 
       const caps = user?.roleCapabilities ?? null;
-      setUserCaps(caps ? { canRaiseSoftIssue: !!caps.canRaiseSoftIssue, canResolveSoftIssue: !!caps.canResolveSoftIssue } : null);
+      setUserCaps(caps ? { canRaiseSoftIssue: !!caps.canRaiseSoftIssue, canResolveSoftIssue: !!caps.canResolveSoftIssue, isHCEngineer: !!caps.isHCEngineer } : null);
 
       // Only fetch open soft requests for users who can resolve them
       if (caps?.canResolveSoftIssue) {
@@ -562,6 +565,72 @@ export default function AssetDetailsScreen() {
           {asset.metadata?.purchaseCost && <InfoRow label="Purchase Cost"       value={`\u20B9 ${asset.metadata.purchaseCost}`} />}
           {asset.metadata?.remarks     && <InfoRow label="Remarks"              value={asset.metadata.remarks} />}
         </View>
+
+        {/* ── Working Status Editor (HC Engineers only) ─────────────────────── */}
+        {userCaps?.isHCEngineer && (() => {
+          const ALLOWED_STATUSES = ['Working', 'Not_Working', 'WIP', 'Unverified', 'Verified'];
+          const currentStatus = asset.working_status ?? asset.workingStatus ?? '—';
+          const handleSelect = async (status: string) => {
+            setShowStatusPicker(false);
+            setUpdatingStatus(true);
+            try {
+              await updateAssetWorkingStatus(Number(asset.id ?? asset.assetId ?? assetId), status);
+              // Reflect immediately in local state
+              if (data?.asset) {
+                const updatedAsset = { ...data.asset, working_status: status, workingStatus: status };
+                setData({ ...data, asset: updatedAsset });
+              }
+              Alert.alert('Updated', `Working status set to "${status}".`);
+            } catch {
+              Alert.alert('Error', 'Failed to update working status. Please try again.');
+            } finally {
+              setUpdatingStatus(false);
+            }
+          };
+          return (
+            <>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: Spacing.lg }]}>WORKING STATUS</Text>
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md }]}
+                onPress={() => setShowStatusPicker(true)}
+                activeOpacity={0.85}
+                disabled={updatingStatus}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>Current Status</Text>
+                  <Text style={[styles.rowValue, { color: theme.textPrimary, fontSize: 15, fontWeight: '700', textAlign: 'left' }]}>{currentStatus}</Text>
+                </View>
+                {updatingStatus
+                  ? <ActivityIndicator size="small" color={theme.primary} />
+                  : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.primaryBg, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: Radius.md }}>
+                      <MaterialCommunityIcons name="pencil-outline" size={14} color={theme.primary} />
+                      <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '700' }}>Edit</Text>
+                    </View>
+                }
+              </TouchableOpacity>
+
+              {/* Status picker modal */}
+              <Modal visible={showStatusPicker} transparent animationType="slide" onRequestClose={() => setShowStatusPicker(false)}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setShowStatusPicker(false)}>
+                  <View style={{ backgroundColor: theme.background, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, paddingBottom: Spacing.xxl }}>
+                    <Text style={{ ...Typography.h3, color: theme.textPrimary, marginBottom: Spacing.md }}>Select Working Status</Text>
+                    {ALLOWED_STATUSES.map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => handleSelect(s)}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: theme.borderLight }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ color: s === currentStatus ? theme.primary : theme.textPrimary, fontSize: 15, fontWeight: s === currentStatus ? '700' : '400' }}>{s}</Text>
+                        {s === currentStatus && <MaterialCommunityIcons name="check-circle" size={18} color={theme.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+            </>
+          );
+        })()}
 
         {calibrationHistory.length > 0 && (
           <>

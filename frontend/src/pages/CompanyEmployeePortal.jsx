@@ -894,6 +894,13 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       hcCmc:       !!(hcMt.cmc      || hcLegacyMt === "CMC"      || hcLegacyMt === "AMC+CMC" || meta.cmc?.enabled),
       hcInHouse:   !!(hcMt.inHouse  || meta.inHouse),
       hcCatalyst:  !!(hcMt.catalyst || meta.catalyst),
+      hcHighEnd:   !!(hcMt.highEnd || meta.highEnd || meta.maintenanceTypes?.highEnd),
+      hcWarrantyCost: meta.maintenanceCosts?.warranty || "",
+      hcAmcCost:      meta.maintenanceCosts?.amc      || "",
+      hcCmcCost:      meta.maintenanceCosts?.cmc      || "",
+      hcCatalystCost: meta.maintenanceCosts?.catalyst || "",
+      hcHighEndCost:  meta.maintenanceCosts?.highEnd  || "",
+      hcCategory:  src?.criticality || meta.criticality || "Non_Critical",
       hcWarrantyStart:     meta.warrantyStart     || meta.warranty?.startDate || "",
       hcWarrantyEnd:       meta.warrantyEnd       || meta.warranty?.endDate   || "",
       hcAmcStart:          meta.amcStart          || meta.amc?.startDate      || "",
@@ -1051,12 +1058,17 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       invoiceNo: form.hcInvoiceNo, invoiceDate: form.hcInvoiceDate, purchaseCost: form.hcPurchaseCost,
       maintenanceTypes: {
         warranty: !!form.hcWarranty, amc: !!form.hcAmc, cmc: !!form.hcCmc,
-        inHouse: !!form.hcInHouse, catalyst: !!form.hcCatalyst,
+        inHouse: !!form.hcInHouse, catalyst: !!form.hcCatalyst, highEnd: !!form.hcHighEnd,
+      },
+      maintenanceCosts: {
+        warranty: form.hcWarrantyCost || "", amc: form.hcAmcCost || "", cmc: form.hcCmcCost || "",
+        catalyst: form.hcCatalystCost || "", highEnd: form.hcHighEndCost || "",
       },
       warrantyStart: form.hcWarrantyStart, warrantyEnd: form.hcWarrantyEnd,
       amcStart: form.hcAmcStart, amcEnd: form.hcAmcEnd,
       cmcStart: form.hcCmcStart, cmcEnd: form.hcCmcEnd,
       rber: !!form.hcRber, remarks: form.hcRemarks,
+      criticality: form.hcCategory || "Non_Critical",
       calibration: {
         required: !!form.hcCalibrationRequired,
         frequency: form.hcCalibrationFrequency || null,
@@ -1253,6 +1265,13 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
             <div style={{ gridColumn: "span 2" }}>
               <FInput label="Equipment Name" name="hcEquipmentName" value={form.hcEquipmentName} onChange={handleChange} placeholder="e.g. Ultrasound Machine" error={fieldErrors.hcEquipmentName} />
             </div>
+            <div>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Category</label>
+              <select name="hcCategory" value={form.hcCategory || "Non_Critical"} onChange={handleChange} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px", background: "#fff" }}>
+                <option value="Non_Critical">Non-Critical</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
             <FInput label="Make / Manufacturer" name="hcMake" value={form.hcMake} onChange={handleChange} placeholder="e.g. Philips" error={fieldErrors.hcMake} />
             <FInput label="Model" name="hcModel" value={form.hcModel} onChange={handleChange} placeholder="e.g. EPIQ 7G" error={fieldErrors.hcModel} />
             <FInput label="Serial No." name="hcSerialNo" value={form.hcSerialNo} onChange={handleChange} placeholder="Serial number" error={fieldErrors.hcSerialNo} />
@@ -1299,6 +1318,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                   { key: "hcCmc",      label: "c. CMC (Comprehensive Maintenance Contract)" },
                   { key: "hcInHouse",  label: "d. In House" },
                   { key: "hcCatalyst", label: "e. Catalyst" },
+                  { key: "hcHighEnd",  label: "f. High End Equipment" },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13.5px", color: "#374151", fontWeight: 500 }}>
                     <input type="checkbox" checked={!!form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.checked }))}
@@ -1308,6 +1328,8 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                 ))}
               </div>
             </div>
+            {/* Per-type purchase cost inputs */}
+            
             {form.hcWarranty && <>
               <FInput label="Warranty Start" name="hcWarrantyStart" type="date" value={form.hcWarrantyStart} onChange={handleChange} error={fieldErrors.hcWarrantyStart} />
               <FInput label="Warranty End" name="hcWarrantyEnd" type="date" value={form.hcWarrantyEnd} onChange={handleChange} error={fieldErrors.hcWarrantyEnd} />
@@ -2536,7 +2558,10 @@ function FleetAssetDetailView({ assetId, token, onBack }) {
 
   useEffect(() => { refresh(); }, [assetId]);
 
-  if (loading && !data) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>Loading Asset Details...</div>;
+  if (loading && !data) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>Loading Asset Details
+  
+  
+  ...</div>;
   if (!data) return <div style={{ padding: "40px", textAlign: "center", color: "#ef4444" }}>Failed to load asset.</div>;
 
   return (
@@ -6380,7 +6405,7 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["SN", "Asset ID", "Equipment Name", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
+                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -6390,8 +6415,8 @@ export default function CompanyEmployeePortal() {
                         ? <tr><td colSpan={isAdmin ? 21 : (canAssetAction ? 20 : 19)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
-                          const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst) };
-                          const maint = [mt.warranty && "Warranty", mt.amc && "AMC", mt.cmc && "CMC", mt.inHouse && "In House", mt.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+                          const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd) };
+                          const maint = [mt.warranty && "Warranty", mt.amc && "AMC", mt.cmc && "CMC", mt.inHouse && "In House", mt.catalyst && "Catalyst", mt.highEnd && "High End"].filter(Boolean).join(", ") || m.maintenanceType || "—";
                           return (
                           <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedQrIds.has(a.id) ? "#f0fdf4" : undefined }}>
                             {isAdmin && (
@@ -6402,12 +6427,13 @@ export default function CompanyEmployeePortal() {
                               </td>
                             )}
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
-                            <td style={{ padding: "10px 14px", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
+                            <td style={{ padding: "10px 14px", color: (a.isVerified || Number(a.verified) === 1) ? "#16a34a" : "#dc2626", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
                               title="Click to open asset details in new window"
                               onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
                               title="Click to view asset details"
                               onClick={() => setAssetDetailModal(a)}>{m.equipmentName || a.assetName || "—"}</td>
+                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}><span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: (a.criticality || m.criticality) === "Critical" ? "#fce7f3" : "#f0fdf4", color: (a.criticality || m.criticality) === "Critical" ? "#9d174d" : "#16a34a" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</span></td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>
@@ -6477,7 +6503,6 @@ export default function CompanyEmployeePortal() {
                                       else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working", criticality: "Non_Critical", rber: false });
                                       else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false, rber: false });
                                       else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: false });
-                                      else if (v === "Critical")    handleHCStatusUpdate(a.id, { criticality: "Critical", workingStatus: "Working", status: "Active", isVerified: false, rber: false });
                                       else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: true });
                                       else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active", isVerified: false, rber: false });
                                       else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
@@ -6490,7 +6515,6 @@ export default function CompanyEmployeePortal() {
                                     <option value="Inactive">Inactive</option>
                                     <option value="WIP">WIP</option>
                                     <option value="Not_Working">Not Working</option>
-                                    <option value="Critical">Critical</option>
                                     <option value="RBER">RBER</option>
                                     <option value="Condemned">Condemned</option>
                                   </select>
