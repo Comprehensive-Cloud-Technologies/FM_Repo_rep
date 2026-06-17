@@ -18,7 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount } from '../../utils/api';
 import { useTheme, Spacing, Radius } from '../../utils/theme';
-import { hasTechAccess, canManageTeam, canViewNotifications } from '../../utils/permissions';
+import { hasTechAccess, canManageTeam, canViewNotifications, canRegisterAssets } from '../../utils/permissions';
 
 // ─── Mini components ─────────────────────────────────────────────────────────
 
@@ -467,6 +467,14 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
                     <Text style={styles.badgeText}>{notifCount > 99 ? '99+' : notifCount}</Text>
                   </View>
                 ) : null}
+              </TouchableOpacity>
+            ) : null}
+            {canRegisterAssets(capabilities) ? (
+              <TouchableOpacity
+                style={[styles.iconBtn, { backgroundColor: '#16a34a' }]}
+                onPress={() => router.push('/add-asset')}
+              >
+                <MaterialCommunityIcons name="plus" size={20} color="#fff" />
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity

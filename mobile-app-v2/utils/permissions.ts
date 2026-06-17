@@ -93,6 +93,10 @@ export const canViewWarnings = (c?: RoleCapabilities | null) =>
 export const canViewNotifications = (c?: RoleCapabilities | null) =>
   hasTechAccess(c);
 
+/** Can register (add) assets — technician/engineer roles only */
+export const canRegisterAssets = (c?: RoleCapabilities | null) =>
+  !!(c?.isTechnician || c?.isHCEngineer);
+
 /** Healthcare: any HC role */
 export const isAnyHCRole = (c?: RoleCapabilities | null) =>
   !!(c?.isHCStaff || c?.isHCEngineer || c?.isHCAdmin);

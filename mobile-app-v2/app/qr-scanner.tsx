@@ -6,9 +6,13 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAssetByQR, fetchAssetByBarcode, fetchPreQrByUid } from '../utils/api';
 import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useAuth } from '../context/AuthContext';
+import { canRegisterAssets } from '../utils/permissions';
 
 export default function QRScannerScreen() {
   const { theme } = useTheme();
+  const { capabilities } = useAuth();
+  const isEngineer = canRegisterAssets(capabilities);
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const isTablet    = Math.min(width, height) >= 600;
@@ -81,9 +85,20 @@ export default function QRScannerScreen() {
           router.replace({ pathname: '/asset-query', params: { assetId: String(asset.id), assetName: asset.assetName, barcodeStr: raw } });
           return;
         } catch {
-          Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
-            { text: 'Scan Again', onPress: () => setScanned(false) },
-          ]);
+          if (isEngineer) {
+            Alert.alert(
+              'Asset Not Found',
+              'No asset matches this barcode. Would you like to register it as a new asset?',
+              [
+                { text: 'Register Asset', onPress: () => router.replace({ pathname: '/add-asset', params: { barcode: raw } }) },
+                { text: 'Scan Again', style: 'cancel', onPress: () => setScanned(false) },
+              ],
+            );
+          } else {
+            Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
+              { text: 'Scan Again', onPress: () => setScanned(false) },
+            ]);
+          }
           return;
         }
       }
@@ -99,9 +114,20 @@ export default function QRScannerScreen() {
         return;
       }
 
-      Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
-        { text: 'Scan Again', onPress: () => setScanned(false) },
-      ]);
+      if (isEngineer) {
+        Alert.alert(
+          'Asset Not Found',
+          'No asset matches this code. Would you like to register it as a new asset?',
+          [
+            { text: 'Register Asset', onPress: () => router.replace({ pathname: '/add-asset', params: { barcode: raw } }) },
+            { text: 'Scan Again', style: 'cancel', onPress: () => setScanned(false) },
+          ],
+        );
+      } else {
+        Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
+          { text: 'Scan Again', onPress: () => setScanned(false) },
+        ]);
+      }
     } catch {
       Alert.alert('Not Found', 'Could not find an asset for this barcode.', [
         { text: 'Scan Again', onPress: () => setScanned(false) },

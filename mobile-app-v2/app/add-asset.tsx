@@ -8,7 +8,7 @@ import {
   Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -405,6 +405,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AddAssetScreen() {
   const { theme } = useTheme();
+  const { barcode: scannedBarcode } = useLocalSearchParams<{ barcode?: string }>();
 
   const [companies, setCompanies]                 = useState<Array<{ id: number; companyName: string }>>([]);
   const [departments, setDepartments]             = useState<Array<{ id: number; name: string }>>([]);
@@ -431,7 +432,7 @@ export default function AddAssetScreen() {
   const [assetName,        setAssetName]        = useState('');
   const [make,             setMake]             = useState('');
   const [model,            setModel]            = useState('');
-  const [serialNo,         setSerialNo]         = useState('');
+  const [serialNo,         setSerialNo]         = useState(scannedBarcode ?? '');
   const [accessories,      setAccessories]      = useState('');
   const [dealer,           setDealer]           = useState('');
   const [mfgYear,          setMfgYear]          = useState('');
