@@ -504,8 +504,19 @@ export async function closeAssetQuery(queryId: number, closeCode: string): Promi
 }
 
 /** Resolve a request (engineer marks it complete — generates close code for requester) */
-export async function resolveAssetQuery(queryId: number, resolutionNote?: string): Promise<{ success: boolean; closeCode: string }> {
-  return apiPatch<{ success: boolean; closeCode: string }>(`/api/company-portal/asset-queries/${queryId}/resolve`, { resolutionNote });
+export async function resolveAssetQuery(
+  queryId: number,
+  payload: {
+    resolutionNote?: string;
+    partsReplaced?: string;
+    beforePhotos?: string[];
+    afterPhotos?: string[];
+  } = {}
+): Promise<{ success: boolean; closeCode: string }> {
+  return apiPatch<{ success: boolean; closeCode: string }>(
+    `/api/company-portal/asset-queries/${queryId}/resolve`,
+    payload,
+  );
 }
 
 /** Assign an engineer to a request (admin/supervisor only) */
@@ -737,8 +748,8 @@ export async function fetchNotifications() {
   return apiGet<unknown[]>('/api/notifications');
 }
 
-export async function fetchNotificationCount(): Promise<{ count: number }> {
-  return apiGet<{ count: number }>('/api/notifications/count');
+export async function fetchNotificationCount(): Promise<{ unread: number }> {
+  return apiGet<{ unread: number }>('/api/notifications/count');
 }
 
 export async function markAllNotificationsRead() {
@@ -746,7 +757,7 @@ export async function markAllNotificationsRead() {
 }
 
 export async function markNotificationRead(id: number) {
-  return authenticatedFetch(`/api/notifications/${id}`, { method: 'PUT' });
+  return authenticatedFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
 }
 
 // ─── OJT Training ────────────────────────────────────────────────────────────

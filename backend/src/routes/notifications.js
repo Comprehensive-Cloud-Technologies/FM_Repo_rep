@@ -38,6 +38,7 @@ router.get("/", async (req, res, next) => {
          n.type,
          n.title,
          n.message,
+         n.message   AS "body",
          n.is_read   AS "isRead",
          n.created_at AS "createdAt",
          -- flag snapshot for quick display
@@ -53,7 +54,20 @@ router.get("/", async (req, res, next) => {
       [userId, limit, offset]
     );
 
-    res.json(rows);
+    // Derive targetScreen so mobile can navigate directly from a notification tap
+    const TARGET_SCREEN_MAP = {
+      request_resolved: "/my-requests",
+      request_assigned: "/assigned-queries",
+      request_closed:   "/my-requests",
+      calibration_due:  "/notifications",
+      flag_raised:      "/warnings",
+    };
+    const enriched = rows.map((n) => ({
+      ...n,
+      targetScreen: TARGET_SCREEN_MAP[n.type] || null,
+    }));
+
+    res.json(enriched);
   } catch (err) {
     next(err);
   }

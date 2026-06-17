@@ -1,12 +1,45 @@
+import { createServer } from "http";
+import { Server } from "socket.io";
 import app from "./app.js";
+import { setIo } from "./utils/socket.js";
 import { startEscalationJob } from "./utils/escalationJob.js";
 import { startWorkOrderEscalationJob } from "./utils/workOrderEscalationJob.js";
 
 const port = Number(process.env.PORT || 4000);
 
-app.listen(port, () => {
+// Wrap Express with a plain HTTP server so Socket.IO can share the same port.
+const httpServer = createServer(app);
+
+const allowedOrigins = process.env.ALLOW_ORIGIN?.split(",").map((o) => o.trim());
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins?.length ? allowedOrigins : "*",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  // Allow long-polling fallback for environments that block WebSockets
+  transports: ["websocket", "polling"],
+});
+
+// Register the shared io instance so route handlers can emit events without a
+// circular dependency on server.js.
+setIo(io);
+
+io.on("connection", (socket) => {
+  // Portal/dashboard clients join a company-specific room so we can broadcast
+  // targeted updates without sending events to all connected clients.
+  socket.on("join-company", (companyId) => {
+    if (companyId) socket.join(`company-${companyId}`);
+  });
+
+  socket.on("leave-company", (companyId) => {
+    if (companyId) socket.leave(`company-${companyId}`);
+  });
+});
+
+httpServer.listen(port, () => {
   // eslint-disable-next-line no-console
-  console.log(`API running on port ${port}`);
+  console.log(`API + WebSocket running on port ${port}`);
   startEscalationJob();
   startWorkOrderEscalationJob();
 });

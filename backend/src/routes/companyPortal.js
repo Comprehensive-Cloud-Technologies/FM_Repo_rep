@@ -9,6 +9,7 @@ import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
+import { emitToCompany } from "../utils/socket.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -201,6 +202,9 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS rating TINYINT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS review_text TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS reviewed_at DATETIME DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS parts_replaced TEXT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS before_photos JSON DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS after_photos JSON DEFAULT NULL`,
   // Ensure notifications table has the right columns (may have been created by old flag engine)
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2420,13 +2424,22 @@ router.post("/asset-queries", async (req, res, next) => {
       [result.insertId]
     );
     res.status(201).json({ ...query, images: query.images ? (typeof query.images === "string" ? JSON.parse(query.images) : query.images) : [] });
+    // Notify all admin/portal clients watching this company's issue list
+    emitToCompany(cid(req), 'issue:new', {
+      id: result.insertId,
+      title: title.trim(),
+      status: 'open',
+      priority,
+      assetId,
+      raisedByName: requesterName,
+    });
   } catch (err) { next(err); }
 });
 
 router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { resolutionNote } = req.body;
+    const { resolutionNote, partsReplaced, beforePhotos, afterPhotos } = req.body;
     const [[query]] = await pool.query(
       "SELECT id, raised_by, company_id, title FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
     );
@@ -2437,8 +2450,17 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
 
     await pool.query(
       `UPDATE asset_queries SET status = 'resolved', resolved_by = ?, resolved_at = NOW(),
-       resolution_note = ?, close_code = ?, updated_at = NOW() WHERE id = ?`,
-      [req.companyUser.id, resolutionNote || null, closeCode, id]
+       resolution_note = ?, close_code = ?, parts_replaced = ?,
+       before_photos = ?, after_photos = ?, updated_at = NOW() WHERE id = ?`,
+      [
+        req.companyUser.id,
+        resolutionNote || null,
+        closeCode,
+        partsReplaced || null,
+        beforePhotos ? JSON.stringify(beforePhotos) : null,
+        afterPhotos  ? JSON.stringify(afterPhotos)  : null,
+        id,
+      ]
     );
 
     // Notify the requester with the close code
@@ -2458,6 +2480,8 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
     }
 
     res.json({ success: true, closeCode });
+    // Broadcast status change so dashboards update in real-time
+    emitToCompany(query.company_id || cid(req), 'issue:updated', { id: Number(id), status: 'resolved' });
   } catch (err) { next(err); }
 });
 
@@ -2491,25 +2515,27 @@ router.delete("/asset-queries/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Close a resolved request by submitting the close code (requester only)
+// Close a resolved request — close code is optional (pass it to verify, or omit to skip verification)
 router.patch("/asset-queries/:id/close", async (req, res, next) => {
   try {
     const { id } = req.params;
     const { closeCode } = req.body;
-    if (!closeCode) return res.status(400).json({ message: "closeCode is required" });
     const [[query]] = await pool.query(
       "SELECT id, raised_by, status, close_code FROM asset_queries WHERE id = ? AND company_id = ?",
       [id, cid(req)]
     );
     if (!query) return res.status(404).json({ message: "Request not found" });
-    if (query.status !== "resolved") return res.status(400).json({ message: "Request is not resolved yet" });
-    if (String(query.close_code) !== String(closeCode).trim()) {
+    if (query.status !== "resolved" && query.status !== "closed")
+      return res.status(400).json({ message: "Request is not in a resolved state" });
+    // If a code was supplied, validate it; if omitted, proceed without verification
+    if (closeCode && String(query.close_code) !== String(closeCode).trim()) {
       return res.status(400).json({ message: "Invalid close code" });
     }
     await pool.query(
       "UPDATE asset_queries SET status = 'closed', updated_at = NOW() WHERE id = ?",
       [id]
     );
+    emitToCompany(cid(req), 'issue:updated', { id: Number(id), status: 'closed' });
     res.json({ success: true });
   } catch (err) { next(err); }
 });
@@ -2529,6 +2555,11 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
       "UPDATE asset_queries SET assigned_to = ?, updated_at = NOW() WHERE id = ?",
       [assignedTo ? Number(assignedTo) : null, id]
     );
+    emitToCompany(cid(req), 'issue:updated', {
+      id: Number(id),
+      status: 'in_progress',
+      assignedTo: assignedTo ? Number(assignedTo) : null,
+    });
     // Notify the assigned engineer
     if (assignedTo) {
       try {
@@ -2638,6 +2669,9 @@ router.get("/assigned-queries", async (req, res, next) => {
               aq.title, aq.description, aq.status, aq.priority,
               aq.escalation_level AS "escalationLevel",
               aq.resolution_note AS "resolutionNote",
+              aq.parts_replaced AS "partsReplaced",
+              aq.before_photos AS "beforePhotos",
+              aq.after_photos AS "afterPhotos",
               aq.created_at AS "createdAt", aq.resolved_at AS "resolvedAt"
        FROM asset_queries aq
        JOIN assets a ON a.id = aq.asset_id

@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { io } from "socket.io-client";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -611,6 +612,22 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   }, [authToken, filters, statusFilter, page]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Real-time Socket.IO subscription ──────────────────────────────────────
+  // Connect to the backend Socket.IO server and join this company's room so
+  // we receive live updates whenever an issue is created or its status changes.
+  useEffect(() => {
+    if (!companyId) return;
+    const socket = io(BASE, { transports: ["websocket", "polling"], autoConnect: true });
+    socket.on("connect", () => { socket.emit("join-company", companyId); });
+    // Refresh the list when a new issue arrives or any issue status changes
+    socket.on("issue:new",     () => { load(); });
+    socket.on("issue:updated", () => { load(); });
+    return () => {
+      socket.emit("leave-company", companyId);
+      socket.disconnect();
+    };
+  }, [companyId, load]);
 
   // Close status dropdown when clicking outside
   useEffect(() => {

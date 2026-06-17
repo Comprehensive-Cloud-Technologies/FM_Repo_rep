@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, RefreshControl, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -12,9 +12,10 @@ import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:     { bg: '#FEF9C3', text: '#92400E', label: 'Open' },
-  resolved: { bg: '#DCFCE7', text: '#166534', label: 'Resolved' },
-  closed:   { bg: '#F1F5F9', text: '#64748B', label: 'Closed' },
+  open:        { bg: '#FEF9C3', text: '#92400E', label: 'Open' },
+  in_progress: { bg: '#DBEAFE', text: '#1D4ED8', label: 'In Progress' },
+  resolved:    { bg: '#DCFCE7', text: '#166534', label: 'Resolved ✓' },
+  closed:      { bg: '#F1F5F9', text: '#64748B', label: 'Closed' },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -31,11 +32,7 @@ export default function MyRequestsScreen() {
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Close code modal state
-  const [closeModal, setCloseModal] = useState<{ id: number; title: string } | null>(null);
-  const [codeInput, setCodeInput] = useState('');
-  const [closing, setClosing] = useState(false);
+  const [closing, setClosing] = useState<number | null>(null); // id of query being closed
 
   const load = useCallback(async () => {
     try {
@@ -46,23 +43,25 @@ export default function MyRequestsScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleClose = async () => {
-    if (!closeModal || !codeInput.trim()) return;
-    setClosing(true);
+  // Auto-refresh every 30 s so status changes (e.g., Resolved) appear without
+  // the user having to manually pull-to-refresh.
+  useEffect(() => {
+    const id = setInterval(() => { void load(); }, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Close issue (no code required) then go directly to review screen
+  const handleClose = async (queryId: number, queryTitle: string) => {
+    setClosing(queryId);
     try {
-      await closeAssetQuery(closeModal.id, codeInput.trim());
+      await closeAssetQuery(queryId, ''); // empty code = skip verification
       setQueries((prev) =>
-        prev.map((q) => q.id === closeModal.id ? { ...q, status: 'closed' } : q)
+        prev.map((q) => q.id === queryId ? { ...q, status: 'closed' } : q)
       );
-      const closedId    = closeModal.id;
-      const closedTitle = closeModal.title;
-      setCloseModal(null);
-      setCodeInput('');
-      // Navigate to the review screen
-      router.push({ pathname: '/issue-review', params: { queryId: String(closedId), queryTitle: closedTitle } });
+      router.replace({ pathname: '/issue-review', params: { queryId: String(queryId), queryTitle } });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Invalid code. Please try again.');
-    } finally { setClosing(false); }
+      Alert.alert('Error', err?.message || 'Could not close the request. Please try again.');
+    } finally { setClosing(null); }
   };
 
   return (
@@ -110,61 +109,49 @@ export default function MyRequestsScreen() {
                 {new Date(q.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
               </Text>
 
-              {/* Show close button only for resolved requests */}
-              {q.status === 'resolved' ? (
+              {/* Already reviewed — show star badge */}
+              {q.status === 'closed' && q.rating ? (
+                <View style={[styles.hintBox, { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}>
+                  <MaterialCommunityIcons name="star" size={14} color="#F59E0B" />
+                  <Text style={{ fontSize: 12, color: '#92400E' }}>
+                    You rated this {q.rating}/5{q.reviewText ? ` · "${q.reviewText}"` : ''}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Closed but not yet reviewed — prompt to review */}
+              {q.status === 'closed' && !q.rating ? (
                 <TouchableOpacity
-                  style={[styles.closeBtn, { backgroundColor: '#166534' }]}
-                  onPress={() => { setCloseModal({ id: q.id, title: q.title }); setCodeInput(''); }}
+                  style={[styles.closeBtn, { backgroundColor: '#F59E0B' }]}
+                  onPress={() => router.push({ pathname: '/issue-review', params: { queryId: String(q.id), queryTitle: q.title } })}
                   activeOpacity={0.8}
                 >
-                  <MaterialCommunityIcons name="check-circle-outline" size={16} color="#fff" />
-                  <Text style={styles.closeBtnText}>Enter Code to Close</Text>
+                  <MaterialCommunityIcons name="star-outline" size={16} color="#fff" />
+                  <Text style={styles.closeBtnText}>Rate & Review</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {/* Close & Review — for resolved requests */}
+              {q.status === 'resolved' ? (
+                <TouchableOpacity
+                  style={[styles.closeBtn, { backgroundColor: '#166534', opacity: closing === q.id ? 0.7 : 1 }]}
+                  onPress={() => handleClose(q.id, q.title)}
+                  disabled={closing === q.id}
+                  activeOpacity={0.8}
+                >
+                  {closing === q.id
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <>
+                        <MaterialCommunityIcons name="check-circle-outline" size={16} color="#fff" />
+                        <Text style={styles.closeBtnText}>Close &amp; Review</Text>
+                      </>
+                  }
                 </TouchableOpacity>
               ) : null}
             </View>
           ))}
         </ScrollView>
       )}
-
-      {/* Close Code Modal */}
-      <Modal visible={!!closeModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Close Request</Text>
-            <Text style={[styles.modalSub, { color: theme.textSecondary }]} numberOfLines={2}>
-              {closeModal?.title}
-            </Text>
-            <Text style={[styles.modalInstruction, { color: theme.textSecondary }]}>
-              Enter the 6-digit close code from your notification:
-            </Text>
-            <TextInput
-              style={[styles.codeInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.background }]}
-              value={codeInput}
-              onChangeText={setCodeInput}
-              placeholder="e.g. 123456"
-              placeholderTextColor={theme.textMuted}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-            />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.border }]}
-                onPress={() => { setCloseModal(null); setCodeInput(''); }}
-              >
-                <Text style={[styles.modalBtnText, { color: theme.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: '#166534', opacity: closing ? 0.7 : 1 }]}
-                onPress={handleClose}
-                disabled={closing || !codeInput.trim()}
-              >
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{closing ? 'Closing...' : 'Close Request'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -196,17 +183,5 @@ const styles = StyleSheet.create({
 
   closeBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: Radius.md },
   closeBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalBox:     { width: '100%', borderRadius: Radius.xl, padding: 24, gap: Spacing.md },
-  modalTitle:   { fontSize: 17, fontWeight: '700' },
-  modalSub:     { fontSize: 13 },
-  modalInstruction: { fontSize: 13, lineHeight: 18 },
-  codeInput: {
-    borderWidth: 1.5, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 22, fontWeight: '700', letterSpacing: 6, textAlign: 'center',
-  },
-  modalBtns:    { flexDirection: 'row', gap: Spacing.sm },
-  modalBtn:     { flex: 1, paddingVertical: 12, borderRadius: Radius.md, alignItems: 'center' },
-  modalBtnText: { fontSize: 14, fontWeight: '600' },
+  hintBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 6, borderRadius: Radius.md, borderWidth: 1, padding: Spacing.sm },
 });

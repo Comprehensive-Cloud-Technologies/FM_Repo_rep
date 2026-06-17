@@ -1,10 +1,11 @@
-/**
+﻿/**
  * HealthcareDashboard.jsx
  * Professional FM Healthcare Asset Management Dashboard
  * Features: KPI cards, Charts (Pie/Bar/Line), Advanced Filters, Excel export, Records tables
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { io } from "socket.io-client";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -888,87 +889,324 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
 }
 
 /* ─── Reviews & Ratings section ──────────────────────────────────────────── */
-const STAR_COLORS = { 5: '#22C55E', 4: '#84CC16', 3: '#EAB308', 2: '#F97316', 1: '#EF4444' };
+const RR_STAR_COLORS = {
+  5: { text: '#15803D', bg: '#DCFCE7', border: '#86EFAC', fill: '#22C55E', label: 'Excellent' },
+  4: { text: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD', fill: '#3B82F6', label: 'Very Good' },
+  3: { text: '#D97706', bg: '#FEF3C7', border: '#FCD34D', fill: '#EAB308', label: 'Good' },
+  2: { text: '#DC2626', bg: '#FEE2E2', border: '#FCA5A5', fill: '#F97316', label: 'Average' },
+  1: { text: '#9F1239', bg: '#FFE4E6', border: '#FDA4AF', fill: '#EF4444', label: 'Poor' },
+};
 
 function StarDisplay({ rating, size = 16 }) {
+  const r = Math.round(rating) || 1;
+  const fillColor = RR_STAR_COLORS[r]?.fill || '#F59E0B';
   return (
     <span style={{ display: 'inline-flex', gap: 2 }}>
-      {[1,2,3,4,5].map((s) => (
-        <svg key={s} width={size} height={size} viewBox="0 0 24 24" fill={s <= Math.round(rating) ? '#F59E0B' : '#E5E7EB'}>
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <svg key={s} className="rr-star-animated" width={size} height={size} viewBox="0 0 24 24"
+          fill={s <= Math.round(rating) ? fillColor : '#E5E7EB'}>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       ))}
     </span>
   );
 }
 
+function RatingBadge({ rating }) {
+  const r = Math.min(5, Math.max(1, Math.round(rating)));
+  const cfg = RR_STAR_COLORS[r];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '2px 8px', borderRadius: 20,
+      background: cfg.bg, border: `1px solid ${cfg.border}`,
+      fontSize: 10, fontWeight: 700, color: cfg.text, whiteSpace: 'nowrap', flexShrink: 0,
+    }}>
+      <svg width={8} height={8} viewBox="0 0 24 24" fill={cfg.text}>
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+      {cfg.label}
+    </span>
+  );
+}
+
+function SkeletonBlock({ width = '100%', height = 16, style = {} }) {
+  return (
+    <div style={{
+      width, height, borderRadius: 6,
+      background: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
+      backgroundSize: '400% 100%',
+      animation: 'rr-shimmer 1.4s ease-in-out infinite',
+      ...style,
+    }} />
+  );
+}
+
+function ReviewCardSkeleton() {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <SkeletonBlock width={30} height={30} style={{ borderRadius: '50%' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <SkeletonBlock width={100} height={11} />
+            <SkeletonBlock width={70} height={9} />
+          </div>
+        </div>
+        <SkeletonBlock width={50} height={9} />
+      </div>
+      <SkeletonBlock width="90%" height={9} />
+    </div>
+  );
+}
+
+function UserAvatar({ name }) {
+  const initials = (name || 'U').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const palettes = [
+    { bg: '#DBEAFE', text: '#1D4ED8' }, { bg: '#DCFCE7', text: '#15803D' },
+    { bg: '#FEF3C7', text: '#D97706' }, { bg: '#F3E8FF', text: '#7C3AED' },
+    { bg: '#FCE7F3', text: '#BE185D' }, { bg: '#FFEDD5', text: '#C2410C' },
+    { bg: '#E0F2FE', text: '#0369A1' }, { bg: '#F0FDF4', text: '#166534' },
+  ];
+  const { bg, text } = palettes[(name || '').charCodeAt(0) % palettes.length];
+  return (
+    <div style={{
+      width: 32, height: 32, borderRadius: '50%', background: bg,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 11, fontWeight: 800, color: text, flexShrink: 0, letterSpacing: '-0.3px',
+    }}>{initials}</div>
+  );
+}
+
+function ReviewCard({ r }) {
+  const [hovered, setHovered] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const text = (r.reviewText || '').trim();
+
+  const dateStr = r.reviewedAt
+    ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: '#fff',
+        border: `1px solid ${hovered ? '#BFDBFE' : '#E2E8F0'}`,
+        borderRadius: 10,
+        padding: '10px 14px',
+        boxShadow: hovered ? '0 4px 16px rgba(37,99,235,0.09)' : '0 1px 3px rgba(0,0,0,0.04)',
+        transition: 'all 0.2s ease',
+        transform: hovered ? 'translateY(-1px)' : 'none',
+      }}
+    >
+      {/* Header row: Avatar + name/meta + badge + date */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <UserAvatar name={r.reviewerName} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>{r.reviewerName || 'User'}</span>
+              <StarDisplay rating={r.rating} size={12} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, flexWrap: 'wrap' }}>
+              {r.role && <span style={{ fontSize: 10, color: '#64748B', fontWeight: 600 }}>{r.role}</span>}
+              {r.role && r.departmentName && <span style={{ fontSize: 9, color: '#CBD5E1' }}>·</span>}
+              {r.departmentName && <span style={{ fontSize: 10, color: '#64748B' }}>{r.departmentName}</span>}
+              {r.assignedToName && (
+                <>
+                  <span style={{ fontSize: 9, color: '#CBD5E1' }}>·</span>
+                  <span style={{ fontSize: 10, color: '#94A3B8' }}>
+                    <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }}>
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx={12} cy={7} r={4} />
+                    </svg>
+                    {r.assignedToName}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+          <RatingBadge rating={r.rating} />
+          {dateStr && <span style={{ fontSize: 10, color: '#94A3B8', whiteSpace: 'nowrap' }}>{dateStr}</span>}
+        </div>
+      </div>
+
+      {/* Review text with expand/collapse */}
+      {text && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{
+            fontSize: 12, color: '#475569', lineHeight: 1.6,
+            borderLeft: `2px solid ${RR_STAR_COLORS[Math.round(r.rating)]?.border || '#E2E8F0'}`,
+            paddingLeft: 8,
+            display: '-webkit-box',
+            WebkitLineClamp: expanded ? 'unset' : 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: expanded ? 'visible' : 'hidden',
+            transition: 'all 0.25s ease',
+          }}>
+            {text}
+          </div>
+          {text.length > 120 && (
+            <button onClick={() => setExpanded((e) => !e)} style={{
+              marginTop: 4, background: 'none', border: 'none', padding: 0,
+              fontSize: 11, fontWeight: 600, color: '#3B82F6', cursor: 'pointer',
+            }}>
+              {expanded ? 'View Less ↑' : 'View More ↓'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReviewsSection({ token }) {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage]       = useState(1);
-  const [allReviews, setAllReviews] = useState([]);
-  const LIMIT = 10;
+  const [data, setData]               = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage]               = useState(1);
+  const [allReviews, setAllReviews]   = useState([]);
+  const [expanded, setExpanded]       = useState(false); // true once user clicks Load More
+  const INITIAL_LIMIT = 3;
+  const MORE_LIMIT    = 6;
 
   const fetchData = useCallback(async (p = 1, reset = true) => {
-    setLoading(true);
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const res = await fetch(`${BASE}/api/company-portal/asset-queries/reviews?page=${p}&limit=${LIMIT}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${BASE}/api/company-portal/asset-queries/reviews?page=${p}&limit=${p === 1 ? INITIAL_LIMIT : MORE_LIMIT}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      setData(json);
-      setAllReviews((prev) => reset ? (json.reviews || []) : [...prev, ...(json.reviews || [])]);
-    } catch { /* silent */ } finally { setLoading(false); }
+      setData({
+        totalReviews: Number(json.analytics?.total || 0),
+        avgRating:    Number(json.analytics?.avgRating || 0),
+        distribution: json.analytics?.distribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+      });
+      // Only keep reviews that have actual text
+      const withText = (json.reviews || []).filter((r) => (r.reviewText || '').trim());
+      setAllReviews((prev) => reset ? withText : [...prev, ...withText]);
+    } catch { /* silent */ } finally {
+      if (reset) setLoading(false);
+      else setLoadingMore(false);
+    }
   }, [token]);
 
   useEffect(() => { fetchData(1, true); setPage(1); }, [fetchData]);
 
-  const loadMore = () => {
-    const next = page + 1;
-    setPage(next);
-    fetchData(next, false);
-  };
+  useEffect(() => {
+    const socket = io(BASE, { transports: ['websocket', 'polling'], autoConnect: true });
+    socket.on('issue:updated', (payload) => {
+      if (payload?.status === 'closed') { fetchData(1, true); setPage(1); }
+    });
+    return () => socket.disconnect();
+  }, [fetchData]);
 
-  const hasMore = data ? allReviews.length < data.totalReviews : false;
+  const loadMore = () => { setExpanded(true); const next = page + 1; setPage(next); fetchData(next, false); };
+  const collapse  = () => { setExpanded(false); setPage(1); fetchData(1, true); };
 
-  const maxDist = data?.distribution ? Math.max(...Object.values(data.distribution), 1) : 1;
+  const dist         = data?.distribution || {};
+  const totalRatings = data?.totalReviews || 0;   // all ratings (with or without text)
+  const avgRating    = data?.avgRating || 0;
+  const posPct       = totalRatings > 0 ? Math.round(((Number(dist[5] || 0) + Number(dist[4] || 0)) / totalRatings) * 100) : 0;
+  const maxDistVal   = Math.max(...[5, 4, 3, 2, 1].map((s) => Number(dist[s] || 0)), 1);
+  const reviewCount  = allReviews.length;           // only reviews with text
+  const hasMore      = data ? allReviews.length < totalRatings : false; // approximate upper bound
 
   return (
-    <section style={{ margin: '24px 0', padding: '0 4px' }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: '#1E293B' }}>Ratings &amp; Reviews</h2>
-      {loading && !data ? (
-        <p style={{ color: '#94A3B8' }}>Loading reviews…</p>
-      ) : !data || data.totalReviews === 0 ? (
-        <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '40px 24px', textAlign: 'center', color: '#94A3B8', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
-          <p style={{ fontWeight: 600, marginBottom: 4 }}>No reviews yet</p>
-          <p style={{ fontSize: 13 }}>Reviews will appear here once users rate closed issues.</p>
+    <section style={{ margin: '20px 0 0' }}>
+      <style>{`
+        @keyframes rr-shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+        @keyframes rr-star-pop{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+        .rr-star-animated:hover{animation:rr-star-pop .25s ease}
+        .rr-load-more-btn{transition:all .2s ease}
+        .rr-load-more-btn:hover{background:#1D4ED8!important;transform:translateY(-2px);box-shadow:0 6px 20px rgba(37,99,235,.30)!important}
+        .rr-load-more-btn:active{transform:translateY(0)}
+        @media(max-width:860px){.rr-main-grid{grid-template-columns:1fr!important}.rr-summary-panel{position:static!important}}
+        @media(max-width:600px){.rr-main-grid{grid-template-columns:1fr!important}}
+      `}</style>
+
+      {/* Section header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>Ratings &amp; Reviews</h2>
+          <p style={{ fontSize: 11, color: '#94A3B8', margin: '2px 0 0', fontWeight: 500 }}>Customer satisfaction for closed service requests</p>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px,320px) 1fr', gap: 20 }}>
-          {/* ── Summary card ── */}
-          <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0', padding: 24, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingBottom: 16, borderBottom: '1px solid #F1F5F9' }}>
-              <span style={{ fontSize: 56, fontWeight: 800, color: '#1E293B', lineHeight: 1 }}>{Number(data.avgRating).toFixed(1)}</span>
-              <StarDisplay rating={data.avgRating} size={22} />
-              <span style={{ fontSize: 13, color: '#64748B' }}>{data.totalReviews.toLocaleString()} rating{data.totalReviews !== 1 ? 's' : ''}</span>
+        {!loading && totalRatings > 0 && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 20 }}>
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="#16A34A"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>{avgRating.toFixed(1)} · {totalRatings} ratings · {reviewCount} reviews · {posPct}% satisfied</span>
+          </div>
+        )}
+      </div>
+
+      {/* Skeleton */}
+      {loading && (
+        <div className="rr-main-grid" style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14 }}>
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <SkeletonBlock width="55%" height={38} style={{ margin: '0 auto', borderRadius: 8 }} />
+            <SkeletonBlock width="60%" height={12} style={{ margin: '0 auto' }} />
+            {[1, 2, 3, 4, 5].map((i) => <SkeletonBlock key={i} height={7} />)}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3].map((i) => <ReviewCardSkeleton key={i} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && (!data || totalRatings === 0) && (
+        <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '32px 20px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+          <svg width={52} height={52} viewBox="0 0 80 80" fill="none" style={{ marginBottom: 10, opacity: 0.45 }}>
+            <circle cx={40} cy={40} r={39} fill="#F1F5F9" stroke="#E2E8F0" strokeWidth={1.5} />
+            <path d="M40 20l4.5 9.1 10.1 1.47-7.3 7.1 1.72 10.04L40 43.1l-9.02 4.73 1.72-10.04L25.4 30.57l10.1-1.47z" fill="#CBD5E1" />
+          </svg>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#334155', marginBottom: 4 }}>No Reviews Yet</div>
+          <div style={{ fontSize: 12, color: '#94A3B8' }}>Reviews appear after users rate closed service requests.</div>
+        </div>
+      )}
+
+      {/* Main grid */}
+      {!loading && data && totalRatings > 0 && (
+        <div className="rr-main-grid" style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14, alignItems: 'start' }}>
+
+          {/* ── Compact summary panel ── */}
+          <div className="rr-summary-panel" style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 1px 6px rgba(0,0,0,0.05)', position: 'sticky', top: 16 }}>
+
+            {/* Score + stars + badge inline */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                <div style={{ fontSize: 38, fontWeight: 900, color: '#0F172A', lineHeight: 1, letterSpacing: '-1px' }}>{avgRating.toFixed(1)}</div>
+                <StarDisplay rating={avgRating} size={14} />
+              </div>
+              <div>
+                <RatingBadge rating={avgRating} />
+                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>{totalRatings.toLocaleString()} ratings · {reviewCount} reviews</div>
+                <div style={{ fontSize: 10, color: '#64748B', fontWeight: 600, marginTop: 2 }}>{posPct}% positive</div>
+              </div>
             </div>
-            {/* Distribution bars */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[5,4,3,2,1].map((star) => {
-                const count = data.distribution?.[star] || 0;
-                const pct   = Math.round((count / maxDist) * 100);
+
+            {/* Star distribution — ultra compact */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = Number(dist[star] || 0);
+                const pct   = Math.round((count / maxDistVal) * 100);
+                const cfg   = RR_STAR_COLORS[star];
                 return (
-                  <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B', width: 12, textAlign: 'right' }}>{star}</span>
-                    <svg width={16} height={16} viewBox="0 0 24 24" fill="#F59E0B" style={{ flexShrink: 0 }}>
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#64748B', width: 7, textAlign: 'right', flexShrink: 0 }}>{star}</span>
+                    <svg width={10} height={10} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}>
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
-                    <div style={{ flex: 1, background: '#F1F5F9', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: STAR_COLORS[star], borderRadius: 4, transition: 'width .4s' }} />
+                    <div style={{ flex: 1, background: '#F1F5F9', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: cfg.fill, borderRadius: 4, transition: 'width 0.6s ease', opacity: 0.85 }} />
                     </div>
-                    <span style={{ fontSize: 12, color: '#94A3B8', width: 30, textAlign: 'right' }}>{count}</span>
+                    <span style={{ fontSize: 9, color: '#94A3B8', width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
                   </div>
                 );
               })}
@@ -976,30 +1214,70 @@ function ReviewsSection({ token }) {
           </div>
 
           {/* ── Reviews list ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {allReviews.map((r) => (
-              <div key={r.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: '#1E293B' }}>{r.reviewerName || 'User'}</span>
-                    <div style={{ marginTop: 3 }}><StarDisplay rating={r.rating} size={14} /></div>
-                  </div>
-                  <span style={{ fontSize: 11, color: '#94A3B8' }}>
-                    {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
-                  </span>
-                </div>
-                <p style={{ fontSize: 13, color: '#475569', margin: 0, lineHeight: 1.5 }}>{r.reviewText || <em style={{ color: '#94A3B8' }}>No comment provided.</em>}</p>
-                {r.queryTitle && <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0', fontStyle: 'italic' }}>Re: {r.queryTitle}</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Subheader */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#64748B' }}>
+                <strong style={{ color: '#0F172A' }}>{reviewCount}</strong> written {reviewCount === 1 ? 'review' : 'reviews'}
+                <span style={{ color: '#CBD5E1' }}> · </span>
+                <span style={{ color: '#94A3B8' }}>{totalRatings} total ratings</span>
+              </span>
+              <span style={{ fontSize: 10, color: '#94A3B8' }}>Most recent first</span>
+            </div>
+
+            {/* Review cards (text-only) */}
+            {allReviews.length === 0 && (
+              <div style={{ padding: '18px 14px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: '#94A3B8', textAlign: 'center' }}>
+                No written reviews yet — ratings are counted above.
               </div>
-            ))}
-            {hasMore && (
-              <button
-                onClick={loadMore}
-                disabled={loading}
-                style={{ alignSelf: 'center', padding: '8px 28px', borderRadius: 8, background: '#3B82F6', color: '#fff', border: 'none', fontWeight: 600, fontSize: 13, cursor: 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}
-              >
-                {loading ? 'Loading…' : 'Load More'}
-              </button>
+            )}
+            {allReviews.map((r) => <ReviewCard key={r.id} r={r} />)}
+
+            {/* Loading-more skeletons */}
+            {loadingMore && [1, 2, 3].map((i) => <ReviewCardSkeleton key={`sk-more-${i}`} />)}
+
+            {/* Load More / Show Less */}
+            {!loadingMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                {hasMore && (
+                  <button className="rr-load-more-btn" onClick={loadMore} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '8px 22px', borderRadius: 50,
+                    background: '#2563EB', color: '#fff', border: 'none',
+                    fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                    boxShadow: '0 2px 10px rgba(37,99,235,0.22)',
+                  }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5}><polyline points="6 9 12 15 18 9" /></svg>
+                    Load More Reviews
+                  </button>
+                )}
+                {expanded && (
+                  <button onClick={collapse} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '8px 22px', borderRadius: 50,
+                    background: '#fff', color: '#64748B',
+                    border: '1px solid #E2E8F0',
+                    fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                    transition: 'all .2s ease',
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#94A3B8'; e.currentTarget.style.color = '#0F172A'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = '#64748B'; }}
+                  >
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="18 15 12 9 6 15" /></svg>
+                    Show Less
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* All loaded divider (only if not expanded / no more to load) */}
+            {!hasMore && !expanded && allReviews.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+                <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+                <span style={{ fontSize: 10, color: '#94A3B8', whiteSpace: 'nowrap' }}>All {reviewCount} reviews shown</span>
+                <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+              </div>
             )}
           </div>
         </div>

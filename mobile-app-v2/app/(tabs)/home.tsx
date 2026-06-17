@@ -428,7 +428,7 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
         Promise.race([fetchNotificationCount(), timeout(5000)]),
       ]);
       if (prog.status === 'fulfilled') setProgress(prog.value);
-      if (nc.status   === 'fulfilled') setNotifCount((nc.value as any).count ?? 0);
+      if (nc.status   === 'fulfilled') setNotifCount((nc.value as any).unread ?? (nc.value as any).count ?? 0);
     } catch { /* silent */ } finally {
       setLoading(false); setRefreshing(false);
     }

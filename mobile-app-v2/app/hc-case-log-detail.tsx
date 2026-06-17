@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { authenticatedFetch, API_BASE } from '../utils/api';
+import { authenticatedFetch, API_BASE, closeAssetQuery } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, Spacing, Radius } from '../utils/theme';
 
@@ -32,6 +32,7 @@ export default function HCCaseLogDetail() {
   const [remarks, setRemarks] = useState('');
   const [engineers, setEngineers] = useState<any[]>([]);
   const [showAssign, setShowAssign] = useState(false);
+
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
@@ -56,13 +57,27 @@ export default function HCCaseLogDetail() {
       .catch(() => {});
   }, [capabilities.isHCAdmin]);
 
-  // Auto-prompt close if action param
+  // Auto-prompt close if action param — for AQ items close without code then navigate to review
   useEffect(() => {
     if (action === 'close' && wo?.status === 'resolved') {
-      // For AQ items, 'closed' status is now supported; for WO items same logic applies
-      void updateStatus('closed');
+      void handleAQClose();
     }
   }, [action, wo?.status]);
+
+  // Close asset_query without code, then go to review
+  const handleAQClose = async () => {
+    setUpdating(true);
+    try {
+      await closeAssetQuery(Number(id), '');
+      router.replace({
+        pathname: '/issue-review',
+        params: { queryId: String(id), queryTitle: wo?.issue_description || wo?.asset_name || 'Issue' },
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not close the request. Please try again.');
+      setUpdating(false);
+    }
+  };
 
   const updateStatus = async (newStatus: string, extraRemarks?: string) => {
     setUpdating(true);
@@ -199,16 +214,31 @@ export default function HCCaseLogDetail() {
 
           {/* ── HC Staff Actions ── */}
           {capabilities.isHCStaff && wo.status === 'resolved' && (
-            <TouchableOpacity
-              style={[ss.actionBtn, { backgroundColor: '#059669' }]}
-              onPress={() => Alert.alert('Close Case?', 'Mark this case as closed?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Close', onPress: () => updateStatus('closed') },
-              ])}
-              disabled={updating}
-            >
-              {updating ? <ActivityIndicator color="#fff" /> : <Text style={ss.actionBtnText}>Close Case</Text>}
-            </TouchableOpacity>
+            isAQ ? (
+              // Asset query: close directly and go to review (no code required)
+              <TouchableOpacity
+                style={[ss.actionBtn, { backgroundColor: '#059669' }]}
+                onPress={handleAQClose}
+                disabled={updating}
+              >
+                {updating
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={ss.actionBtnText}>Close &amp; Review</Text>
+                }
+              </TouchableOpacity>
+            ) : (
+              // Work order: direct confirmation
+              <TouchableOpacity
+                style={[ss.actionBtn, { backgroundColor: '#059669' }]}
+                onPress={() => Alert.alert('Close Case?', 'Mark this case as closed?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Close', onPress: () => updateStatus('closed') },
+                ])}
+                disabled={updating}
+              >
+                {updating ? <ActivityIndicator color="#fff" /> : <Text style={ss.actionBtnText}>Close Case</Text>}
+              </TouchableOpacity>
+            )
           )}
 
           {/* ── Engineer Actions ── */}
@@ -341,6 +371,7 @@ export default function HCCaseLogDetail() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -369,4 +400,5 @@ const ss = StyleSheet.create({
   engOption:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   engAvatar:     { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   statusBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.md, borderWidth: 1.5 },
+  hintBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: Radius.md, borderWidth: 1, padding: Spacing.sm },
 });
