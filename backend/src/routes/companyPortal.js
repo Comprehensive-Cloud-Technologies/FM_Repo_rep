@@ -133,10 +133,8 @@ router.get("/departments-by-company/:companyId", async (req, res, next) => {
 router.post("/departments-by-company/:companyId", async (req, res, next) => {
   try {
     const { companyId } = req.params;
-    // Security: user must belong to this company
-    if (String(req.companyUser.companyId) !== String(companyId)) {
-      return res.status(403).json({ message: "Access denied: company mismatch" });
-    }
+    // Engineers may register assets for any company, so no company-match guard here.
+    // Authentication is already enforced by requireCompanyAuth above.
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "name is required" });
     const [result] = await pool.query(
