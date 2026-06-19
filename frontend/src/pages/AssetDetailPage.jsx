@@ -15,6 +15,13 @@ const getApiBaseUrl = () => {
 };
 
 const fmt = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "—");
+// Convert any date format (dd/mm/yyyy, dd-mm-yyyy, ISO, etc.) → yyyy-MM-dd for <input type="date">
+const toIsoDate = (d) => {
+  if (!d) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10);
+  if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(d)) { const p = d.split(/[\/\-]/); return `${p[2]}-${p[1]}-${p[0]}`; }
+  const dt = new Date(d); return isNaN(dt) ? "" : dt.toISOString().substring(0, 10);
+};
 
 export default function AssetDetailPage() {
   const { id } = useParams();
@@ -209,7 +216,7 @@ export default function AssetDetailPage() {
       accessories:    m.accessories || "",
       dealer:         m.dealer || m.distributor || "",
       mfgYear:        m.mfgYear || m.manufacturingYear || "",
-      installationDate: m.installationDate || "",
+      installationDate: toIsoDate(m.installationDate),
       invoiceNo:      m.invoiceNo || "",
       purchaseDate:   m.purchaseDate || m.invoiceDate || "",
       purchaseCost:   m.purchaseCost || "",
@@ -232,17 +239,17 @@ export default function AssetDetailPage() {
       mtInHouse:  mt.inHouse,
       mtCatalyst: mt.catalyst,
       mtHighEnd:  mt.highEnd,
-      warrantyStart: m.warrantyStart || m.warranty?.startDate || "",
-      warrantyEnd:   m.warrantyEnd   || m.warranty?.endDate   || "",
-      amcStart:      m.amcStart      || m.amc?.startDate      || "",
-      amcEnd:        m.amcEnd        || m.amc?.endDate        || "",
-      cmcStart:      m.cmcStart      || m.cmc?.startDate      || "",
-      cmcEnd:        m.cmcEnd        || m.cmc?.endDate        || "",
+      warrantyStart: toIsoDate(m.warrantyStart || m.warranty?.startDate),
+      warrantyEnd:   toIsoDate(m.warrantyEnd   || m.warranty?.endDate),
+      amcStart:      toIsoDate(m.amcStart      || m.amc?.startDate),
+      amcEnd:        toIsoDate(m.amcEnd        || m.amc?.endDate),
+      cmcStart:      toIsoDate(m.cmcStart      || m.cmc?.startDate),
+      cmcEnd:        toIsoDate(m.cmcEnd        || m.cmc?.endDate),
       // Calibration
       calibrationRequired:     !!(cal.required || m.calibrationRequired),
       calibrationFrequency:    cal.frequency || m.calibrationFrequency || "",
-      lastCalibrationDate:     cal.lastCalibrationDate || m.lastCalibrationDate || "",
-      nextCalibrationDueDate:  cal.nextCalibrationDueDate || m.nextCalibrationDueDate || "",
+      lastCalibrationDate:     toIsoDate(cal.lastCalibrationDate || m.lastCalibrationDate),
+      nextCalibrationDueDate:  toIsoDate(cal.nextCalibrationDueDate || m.nextCalibrationDueDate),
       calibrationVendorName:   cal.vendorName || m.calibrationVendorName || "",
       calibrationCertNo:       cal.certificateNumber || m.calibrationCertificateNumber || "",
       calibrationStatus:       cal.status || m.calibrationStatus || "Pending",
@@ -582,8 +589,11 @@ export default function AssetDetailPage() {
                       {locBuildings.map(b => <option key={b.id} value={String(b.id)}>{b.buildingName}</option>)}
                     </select>
                   ) : (
-                    <input value={editForm.building || ""} onChange={e => setEditForm(p => ({ ...p, building: e.target.value, buildingId: "", floorId: "", floor: "", roomId: "", room: "" }))} placeholder="e.g. OT Block"
-                      style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+                    <>
+                      <input value={editForm.building || ""} onChange={e => setEditForm(p => ({ ...p, building: e.target.value, buildingId: "", floorId: "", floor: "", roomId: "", room: "" }))} placeholder="e.g. OT Block"
+                        style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+                      <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "3px", display: "block" }}>Set up buildings in Locations to enable dropdowns</span>
+                    </>
                   )}
                 </EField>
                 {/* Floor */}

@@ -6614,15 +6614,15 @@ export default function CompanyEmployeePortal() {
                                     value={combined}
                                     onChange={e => {
                                       const v = e.target.value;
-                                      if (v === "Unverified")       handleHCStatusUpdate(a.id, { status: "Unverified", isVerified: false, workingStatus: null, rber: false });
-                                      else if (v === "Working")     handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
-                                      else if (v === "Inactive")    handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false, rber: false });
-                                      else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working", criticality: "Non_Critical", rber: false });
-                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false, rber: false });
-                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: false });
+                                      if (v === "Unverified")       handleHCStatusUpdate(a.id, { status: "Unverified", isVerified: false });
+                                      else if (v === "Working")     handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", isVerified: false });
+                                      else if (v === "Inactive")    handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false });
+                                      else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working" });
+                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false });
+                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false });
                                       else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: true });
-                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active", isVerified: false, rber: false });
-                                      else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", criticality: "Non_Critical", isVerified: false, rber: false });
+                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active", isVerified: false });
+                                      else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", isVerified: false });
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
                                     <option value="Unverified">⚠ Unverified</option>
