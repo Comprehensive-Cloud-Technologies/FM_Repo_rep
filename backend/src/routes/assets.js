@@ -375,11 +375,13 @@ router.get(
                 d.name            AS departmentName,
                 a.created_by      AS createdBy,
                 a.created_at      AS createdAt,
+                COALESCE(cu_creator.full_name, cu_creator.email, '') AS createdByName,
                 ad.metadata, ad.documents
          FROM assets a
          JOIN  companies c   ON a.company_id = c.id
          LEFT JOIN departments d    ON a.department_id = d.id
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
+         LEFT JOIN company_users cu_creator ON cu_creator.id = a.created_by
          ${where}
          ORDER BY a.created_at DESC
          LIMIT ? OFFSET ?`,
@@ -701,14 +703,14 @@ router.post(
 );
 
 // ── PUT /api/assets/:id ────────────────────────────────────────────────────────
-router.put(
-  "/:id",
+const updateAssetHandler = [
   validate(updateRules),
   async (req, res, next) => {
     const { id } = req.params;
     const {
       assetName, assetType, departmentId, assetUniqueId,
-      building, floor, room, status, qrCode, metadata,
+      building, floor, room, buildingId, floorId, roomId, locationId,
+      status, qrCode, metadata,
       workingStatus, criticality, verified, rber,
     } = req.body;
     const metaObj = metadata && typeof metadata === "object" ? metadata : {};
@@ -734,7 +736,7 @@ router.put(
         if (!atRec) { await conn.rollback(); return res.status(400).json({ message: "Asset type does not exist or is inactive" }); }
       }
 
-      if (departmentId !== undefined) {
+      if (departmentId !== undefined && departmentId !== null) {
         const dept = await verifyDepartment(conn, departmentId, asset.company_id, req.user.id);
         if (!dept) { await conn.rollback(); return res.status(404).json({ message: "Department not found for company" }); }
       }
@@ -748,6 +750,10 @@ router.put(
              building        = COALESCE(?, building),
              floor           = COALESCE(?, floor),
              room            = COALESCE(?, room),
+             building_id     = COALESCE(?, building_id),
+             floor_id        = COALESCE(?, floor_id),
+             room_id         = COALESCE(?, room_id),
+             location_id     = COALESCE(?, location_id),
              status          = COALESCE(?, status),
              qr_code         = COALESCE(?, qr_code),
              working_status  = COALESCE(?, working_status),
@@ -762,6 +768,10 @@ router.put(
           building !== undefined ? building : null,
           floor !== undefined ? floor : null,
           room !== undefined ? room : null,
+          buildingId !== undefined ? buildingId : null,
+          floorId !== undefined ? floorId : null,
+          roomId !== undefined ? roomId : null,
+          locationId !== undefined ? locationId : null,
           status !== undefined ? status : null,
           qrCode !== undefined ? qrCode : null,
           effectiveWorkingStatus !== undefined ? effectiveWorkingStatus : null,
@@ -824,7 +834,9 @@ router.put(
       conn.release();
     }
   }
-);
+];
+router.put("/:id", ...updateAssetHandler);
+router.patch("/:id", ...updateAssetHandler);
 
 // ── PUT /api/assets/bulk-verify ──────────────────────────────────────────────
 // Mark one or more assets as verified (verified = 1) by the admin.

@@ -305,6 +305,8 @@ export const assignCompanyPortalWorkOrder = (token, id, data) =>
   request("PUT", `/api/company-portal/work-orders/${id}/assign`, data, { authToken: token });
 export const updateWorkOrderCutoff = (token, id, expectedCompletionAt) =>
   request("PATCH", `/api/company-portal/work-orders/${id}/cutoff`, { expectedCompletionAt }, { authToken: token });
+export const deleteCompanyPortalWorkOrder = (token, id) =>
+  request("DELETE", `/api/company-portal/work-orders/${id}`, undefined, { authToken: token });
 
 // â”€â”€ Company Portal Admin Flags (dashboard) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const getCompanyPortalAdminFlags = (token, params = "") =>

@@ -432,6 +432,16 @@ const getNextSerialForPrefix = async (conn, prefix) => {
   return Number(row?.maxNum || 0) + 1;
 };
 
+// QR-only serial: only looks at asset_pre_qr so deleting all QRs restarts serial from 1
+const getNextQrSerialForPrefix = async (conn, prefix) => {
+  const [[row]] = await conn.query(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(qr_unique_id, '-', -1) AS UNSIGNED)) AS maxNum
+     FROM asset_pre_qr WHERE qr_unique_id REGEXP CONCAT('^', ?, '-[0-9]+$')`,
+    [prefix]
+  );
+  return Number(row?.maxNum || 0) + 1;
+};
+
 const getNextGeneratedAssetId = async (conn, companyId) => {
   const prefix = await getAssetIdPrefix(conn, companyId);
   const serial = await getNextSerialForPrefix(conn, prefix);
@@ -1368,6 +1378,8 @@ router.get("/assets", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
+              a.location_id AS "locationId", a.company_id AS "companyId",
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
               a.last_calibration_date AS "lastCalibrationDate",
@@ -1379,13 +1391,17 @@ router.get("/assets", async (req, res, next) => {
               a.assigned_to AS "assignedTo",
               a.assigned_at AS "assignedAt",
               a.is_verified AS "isVerified",
+              a.created_by AS "createdBy",
+              a.created_at AS "createdAt",
               cu.full_name AS "assignedToName",
+              COALESCE(creator.full_name, creator.email, '') AS "createdByName",
               d.name AS "departmentName",
               ad.metadata, ad.documents
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
+       LEFT JOIN company_users creator ON creator.id = a.created_by
        WHERE a.company_id = ? ${extraFilters}
        ORDER BY a.asset_name`,
       params
@@ -1755,6 +1771,9 @@ router.get("/assets/:id", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
+              a.location_id AS "locationId", a.company_id AS "companyId",
+              a.department_id AS "departmentId",
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
               a.last_calibration_date AS "lastCalibrationDate",
@@ -1917,12 +1936,13 @@ router.post("/assets", async (req, res, next) => {
       `INSERT INTO assets (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
                     calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
                     calibration_status, calibration_vendor_id, alert_before_days,
-                    building, floor, room, building_id, floor_id, room_id, location_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    building, floor, room, building_id, floor_id, room_id, location_id, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [cid(req), departmentId || null, assetName.trim(), uniqueIdToUse, generatedAssetId, assetType,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
-       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId, status]
+       loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId, status,
+       req.companyUser?.id || null]
     );
     const newId = result.insertId;
     const [[asset]] = await pool.query(
@@ -2062,17 +2082,22 @@ router.patch("/assets/:id", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
-    const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status, criticality, metadata = {} } = req.body;
+    const { assetName, assetUniqueId, assetType, departmentId, building, floor, room,
+            buildingId, floorId, roomId, locationId,
+            status, criticality, workingStatus, metadata = {} } = req.body;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
+
+    // Merge workingStatus into metadata so it is persisted correctly
+    if (workingStatus !== undefined) metadata.workingStatus = workingStatus;
 
     await pool.query(
       `UPDATE assets SET
          asset_name = COALESCE(?, asset_name),
          asset_unique_id = COALESCE(?, asset_unique_id),
          asset_type = COALESCE(?, asset_type),
-         department_id = ?,
+         department_id = COALESCE(?, department_id),
          calibration_required = ?,
          calibration_frequency = ?,
          last_calibration_date = ?,
@@ -2081,19 +2106,26 @@ router.patch("/assets/:id", async (req, res, next) => {
          calibration_vendor_id = ?,
          alert_before_days = ?,
          building = ?, floor = ?, room = ?,
+         building_id = ?, floor_id = ?, room_id = ?, location_id = ?,
          status = COALESCE(?, status),
          criticality = COALESCE(?, criticality),
+         working_status = COALESCE(?, working_status),
          updated_at = NOW()
        WHERE id = ?`,
       [
         assetName || null, assetUniqueId || null, assetType || null, departmentId || null,
         calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate,
         calibration.nextCalibrationDueDate, calibration.status, calibration.vendorId, calibration.alertBeforeDays,
-        building || null, floor || null, room || null, status || null, criticality || null, id,
+        building || null, floor || null, room || null,
+        buildingId || null, floorId || null, roomId || null, locationId || null,
+        status || null, criticality || null,
+        workingStatus || null, id,
       ]
     );
     const [[asset]] = await pool.query(
-      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status, building, floor, room, department_id AS departmentId FROM assets WHERE id = ?`,
+      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status,
+              building, floor, room, building_id AS buildingId, floor_id AS floorId, room_id AS roomId,
+              department_id AS departmentId FROM assets WHERE id = ?`,
       [id]
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
@@ -4570,6 +4602,24 @@ router.patch("/work-orders/:id/cutoff", async (req, res, next) => {
   }
 });
 
+// Delete a work order (admin only)
+router.delete("/work-orders/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor") {
+      return res.status(403).json({ message: "Admin or supervisor access required" });
+    }
+    const [[wo]] = await pool.query(
+      "SELECT id FROM work_orders WHERE id = ? AND company_id = ?",
+      [id, cid(req)]
+    );
+    if (!wo) return res.status(404).json({ message: "Work order not found" });
+    await pool.query("DELETE FROM work_orders WHERE id = ?", [id]);
+    res.json({ success: true, deleted: 1 });
+  } catch (err) { next(err); }
+});
+
 // Delete an assignment (admin: any; supervisor: only ones they created)
 router.delete("/template-user-assignments/:id", async (req, res, next) => {  try {
     const { id } = req.params;
@@ -6150,10 +6200,10 @@ router.get("/locations/rooms", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Helper: next company/state coded UID sequence aligned with generated asset IDs.
+// Helper: next QR UID — only looks at asset_pre_qr so deleting QRs restarts serial from 1.
 async function nextQrUid(conn, companyId) {
   const prefix = await getAssetIdPrefix(conn, companyId);
-  const serial = await getNextSerialForPrefix(conn, prefix);
+  const serial = await getNextQrSerialForPrefix(conn, prefix);
   return `${prefix}-${String(serial).padStart(6, "0")}`;
 }
 

@@ -901,6 +901,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       hcCatalystCost: meta.maintenanceCosts?.catalyst || "",
       hcHighEndCost:  meta.maintenanceCosts?.highEnd  || "",
       hcCategory:  src?.criticality || meta.criticality || "Non_Critical",
+      hcWorkingStatus: meta.workingStatus || src?.working_status || "Working",
       hcWarrantyStart:     meta.warrantyStart     || meta.warranty?.startDate || "",
       hcWarrantyEnd:       meta.warrantyEnd       || meta.warranty?.endDate   || "",
       hcAmcStart:          meta.amcStart          || meta.amc?.startDate      || "",
@@ -1069,6 +1070,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       cmcStart: form.hcCmcStart, cmcEnd: form.hcCmcEnd,
       rber: !!form.hcRber, remarks: form.hcRemarks,
       criticality: form.hcCategory || "Non_Critical",
+      workingStatus: form.hcWorkingStatus || "Working",
       calibration: {
         required: !!form.hcCalibrationRequired,
         frequency: form.hcCalibrationFrequency || null,
@@ -1134,6 +1136,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         floor:         form.floor    || null,
         room:          form.room     || null,
         status:        form.status,
+        ...(isHealthcareLegacy ? { criticality: form.hcCategory || "Non_Critical", workingStatus: form.hcWorkingStatus || "Working" } : {}),
         metadata:      buildMetadata(),
       };
       const saved = isEdit
@@ -1273,6 +1276,15 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
               </select>
             </div>
             <FInput label="Make / Manufacturer" name="hcMake" value={form.hcMake} onChange={handleChange} placeholder="e.g. Philips" error={fieldErrors.hcMake} />
+            <div>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Working Status</label>
+              <select name="hcWorkingStatus" value={form.hcWorkingStatus || "Working"} onChange={handleChange} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px", background: "#fff" }}>
+                <option value="Working">Working</option>
+                <option value="WIP">WIP</option>
+                <option value="Not_Working">Not Working</option>
+                <option value="Condemned">Condemned</option>
+              </select>
+            </div>
             <FInput label="Model" name="hcModel" value={form.hcModel} onChange={handleChange} placeholder="e.g. EPIQ 7G" error={fieldErrors.hcModel} />
             <FInput label="Serial No." name="hcSerialNo" value={form.hcSerialNo} onChange={handleChange} placeholder="Serial number" error={fieldErrors.hcSerialNo} />
             <FInput label="Accessories Included" name="hcAccessories" value={form.hcAccessories} onChange={handleChange} placeholder="e.g. Transducer, cables" error={fieldErrors.hcAccessories} />
@@ -1321,7 +1333,13 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                   { key: "hcHighEnd",  label: "f. High End Equipment" },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13.5px", color: "#374151", fontWeight: 500 }}>
-                    <input type="checkbox" checked={!!form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.checked }))}
+                    <input type="checkbox" checked={!!form[key]} onChange={e => {
+                      if (e.target.checked) {
+                        setForm(p => ({ ...p, hcWarranty: false, hcAmc: false, hcCmc: false, hcInHouse: false, hcCatalyst: false, hcHighEnd: false, [key]: true }));
+                      } else {
+                        setForm(p => ({ ...p, [key]: false }));
+                      }
+                    }}
                       style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#2563eb" }} />
                     {label}
                   </label>
@@ -4288,7 +4306,15 @@ export default function CompanyEmployeePortal() {
   const [showImport, setShowImport] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assetTypeFilter, setAssetTypeFilter] = useState("");
-  const [assetVerifiedFilter, setAssetVerifiedFilter] = useState("");
+  const [assetStatusFilter, setAssetStatusFilter] = useState("");
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [advFilterDept, setAdvFilterDept] = useState("");
+  const [advFilterBuilding, setAdvFilterBuilding] = useState("");
+  const [advFilterCategory, setAdvFilterCategory] = useState("");
+  const [advFilterMaint, setAdvFilterMaint] = useState("");
+  const [advFilterRber, setAdvFilterRber] = useState("");
+  const [advFilterDateFrom, setAdvFilterDateFrom] = useState("");
+  const [advFilterDateTo, setAdvFilterDateTo] = useState("");
   const [deptSearch, setDeptSearch] = useState("");
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editDept, setEditDept] = useState(null);
@@ -4760,18 +4786,44 @@ export default function CompanyEmployeePortal() {
   const filteredAssets = useMemo(() =>
     assets.filter((a) => {
       const term = assetSearch.toLowerCase().trim();
-      const matchSearch = !term ||
-        (a.assetName || "").toLowerCase().includes(term) ||
-        (a.assetUniqueId || a.asset_unique_id || "").toLowerCase().includes(term) ||
-        (a.metadata?.equipmentName || "").toLowerCase().includes(term);
-      const matchType = !assetTypeFilter || (a.assetType || a.asset_type || "") === assetTypeFilter;
-      const matchVerified =
-        !assetVerifiedFilter ||
-        (assetVerifiedFilter === "verified" && a.isVerified) ||
-        (assetVerifiedFilter === "unverified" && a.status === "Unverified");
-      return matchSearch && matchType && matchVerified;
+      const m = a.metadata || {};
+      const maintStr = [m.warranty ? "Warranty" : "", m.amc ? "AMC" : "", m.cmc ? "CMC" : "", m.inHouse ? "In House" : "", m.catalyst ? "Catalyst" : ""].filter(Boolean).join(" ").toLowerCase();
+      const matchSearch = !term || [
+        a.assetName, a.assetUniqueId, a.asset_unique_id, a.generatedAssetId,
+        m.equipmentName, m.make, m.manufacturer, m.model, m.serialNo,
+        m.dealer, m.distributor, m.mfgYear, m.manufacturingYear,
+        m.installationDate, m.invoiceNo, m.purchaseDate, m.purchaseCost,
+        m.accessories, m.remarks, m.workingStatus,
+        a.departmentName, a.building, a.floor, a.room,
+        a.assetType, a.status, a.assignedToName, a.createdByName,
+        a.isVerified ? "Verified" : "",
+        m.rber ? "RBER" : "", m.criticality, a.criticality,
+        maintStr,
+      ].some(v => v && String(v).toLowerCase().includes(term));
+
+      const matchStatus = (() => {
+        if (!assetStatusFilter) return true;
+        const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
+        if (assetStatusFilter === "Verified") return isVerified;
+        if (assetStatusFilter === "Unverified") return !isVerified && (a.status === "Unverified" || !a.status || a.status === "Active");
+        if (assetStatusFilter === "WIP") return (m.workingStatus || "").toLowerCase() === "wip";
+        if (assetStatusFilter === "Not Working") return (m.workingStatus || "").toLowerCase().replace(/[_ ]/g, "") === "notworking";
+        if (assetStatusFilter === "RBER") return !!m.rber;
+        if (assetStatusFilter === "Condemned") return (m.workingStatus || "").toLowerCase() === "condemned";
+        return (a.status || "").toLowerCase() === assetStatusFilter.toLowerCase();
+      })();
+
+      const matchAdvDept = !advFilterDept || String(a.departmentId) === String(advFilterDept);
+      const matchAdvBuilding = !advFilterBuilding || (a.building || "").toLowerCase().includes(advFilterBuilding.toLowerCase());
+      const matchAdvCategory = !advFilterCategory || (m.criticality || a.criticality || "").toLowerCase() === advFilterCategory.toLowerCase();
+      const matchAdvMaint = !advFilterMaint || maintStr.includes(advFilterMaint.toLowerCase());
+      const matchAdvRber = !advFilterRber || (advFilterRber === "yes" ? !!m.rber : !m.rber);
+      const matchAdvDateFrom = !advFilterDateFrom || (a.createdAt && new Date(a.createdAt) >= new Date(advFilterDateFrom));
+      const matchAdvDateTo = !advFilterDateTo || (a.createdAt && new Date(a.createdAt) <= new Date(advFilterDateTo + "T23:59:59"));
+
+      return matchSearch && matchStatus && matchAdvDept && matchAdvBuilding && matchAdvCategory && matchAdvMaint && matchAdvRber && matchAdvDateFrom && matchAdvDateTo;
     }),
-    [assets, assetSearch, assetTypeFilter, assetVerifiedFilter]
+    [assets, assetSearch, assetStatusFilter, advFilterDept, advFilterBuilding, advFilterCategory, advFilterMaint, advFilterRber, advFilterDateFrom, advFilterDateTo]
   );
 
   // Dept filtered
@@ -5425,27 +5477,7 @@ export default function CompanyEmployeePortal() {
 
           /* ── Always show Healthcare Dashboard ─────────────────── */
           const openAssetFromDash = (dashAsset) => {
-            const parsed = typeof dashAsset.metadata === "string"
-              ? (() => { try { return JSON.parse(dashAsset.metadata || "{}"); } catch { return {}; } })()
-              : (dashAsset.metadata || {});
-            setAssetDetailModal({
-              id: dashAsset.id,
-              generatedAssetId: dashAsset.generated_asset_id || dashAsset.asset_unique_id,
-              assetUniqueId: dashAsset.asset_unique_id,
-              assetName: dashAsset.asset_name,
-              status: dashAsset.status || "Active",
-              departmentName: dashAsset.department_name,
-              building: dashAsset.building,
-              floor: dashAsset.floor,
-              room: dashAsset.room,
-              criticality: dashAsset.criticality,
-              working_status: dashAsset.working_status,
-              createdAt: dashAsset.created_at,
-              metadata: parsed,
-            });
-            setAssetDetailTab("overview");
-            setAssetDetailCallLogs(null);
-            setAssetDetailCalibration(null);
+            window.open(`/company/asset/${dashAsset.id}`, '_blank');
           };
           return <HealthcareDashboard token={token} onOpenAsset={openAssetFromDash} />;
 
@@ -5788,11 +5820,7 @@ export default function CompanyEmployeePortal() {
                   ))}
                 </div>
                 {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} onOpenAsset={(dashAsset) => {
-                  const parsed = typeof dashAsset.metadata === "string"
-                    ? (() => { try { return JSON.parse(dashAsset.metadata || "{}"); } catch { return {}; } })()
-                    : (dashAsset.metadata || {});
-                  setAssetDetailModal({ id: dashAsset.id, generatedAssetId: dashAsset.generated_asset_id || dashAsset.asset_unique_id, assetUniqueId: dashAsset.asset_unique_id, assetName: dashAsset.asset_name, status: dashAsset.status || "Active", departmentName: dashAsset.department_name, building: dashAsset.building, floor: dashAsset.floor, room: dashAsset.room, criticality: dashAsset.criticality, working_status: dashAsset.working_status, createdAt: dashAsset.created_at, metadata: parsed });
-                  setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null);
+                  window.open(`/company/asset/${dashAsset.id}`, '_blank');
                 }} /> : null}
                 {dashboardSubNav !== "healthcare" && <div>
                 {/* Header */}
@@ -6359,38 +6387,125 @@ export default function CompanyEmployeePortal() {
                   <p style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px", marginBottom: 0 }}>{filteredAssets.length} assets</p>
                 </div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                  <select value={assetTypeFilter} onChange={(e) => setAssetTypeFilter(e.target.value)}
-                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
-                    <option value="">All Types</option>
-                    <option value="soft">Soft</option>
-                    <option value="technical">Technical</option>
-                    <option value="fleet">Fleet</option>
-                  </select>
-                  <select value={assetVerifiedFilter} onChange={(e) => setAssetVerifiedFilter(e.target.value)}
+                  <select value={assetStatusFilter} onChange={(e) => setAssetStatusFilter(e.target.value)}
                     style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
                     <option value="">All Status</option>
-                    <option value="verified">✓ Verified</option>
-                    <option value="unverified">✗ Unverified</option>
+                    <option value="Active">Active</option>
+                    <option value="Working">Working</option>
+                    <option value="Verified">Verified</option>
+                    <option value="Unverified">Unverified</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="WIP">WIP</option>
+                    <option value="Not Working">Not Working</option>
+                    <option value="RBER">RBER</option>
+                    <option value="Condemned">Condemned</option>
                   </select>
-                  <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search..."
-                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "140px" }} />
+                  <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search anything..."
+                    style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "160px" }} />
+                  <button onClick={() => setShowAdvancedFilter(v => !v)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 11px", borderRadius: "7px", background: showAdvancedFilter ? "#eff6ff" : "#f8fafc", color: showAdvancedFilter ? "#2563eb" : "#475569", border: `1px solid ${showAdvancedFilter ? "#93c5fd" : "#e2e8f0"}`, cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    Advanced Filter
+                  </button>
                   {isAdmin && (
                     <button onClick={() => {
-                      const headers = ["SN","Asset ID","Equipment Name","Make","Model","Serial No","Accessories","Department","Maintenance","Dealer/Distributor","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","RBER","Remarks","Building","Floor","Room","Status","Created At"];
+                      const headers = ["SN","Asset ID","Equipment Name","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
                       const rows = filteredAssets.map((a, i) => {
                         const m = a.metadata || {};
-                        return [i+1, a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"", a.assetName||a.asset_name||"", m.make||"", m.model||"", m.serialNo||"", m.accessories||"", a.departmentName||"", (m.maintenance||[]).join("; "), m.dealer||"", m.mfgYear||"", m.installationDate||"", m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"", m.rber?"Yes":"", m.remarks||"", a.building||"", a.floor||"", a.room||"", a.status||"Active", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : ""].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+                        const maint = [m.warranty?"Warranty":"", m.amc?"AMC":"", m.cmc?"CMC":"", m.inHouse?"In House":"", m.catalyst?"Catalyst":""].filter(Boolean).join("; ");
+                        const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
+                        const workingStatus = m.workingStatus || "";
+                        const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus || a.status || "Active";
+                        return [
+                          i+1,
+                          a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"",
+                          m.equipmentName||a.assetName||a.asset_name||"",
+                          (m.criticality||a.criticality||"Non-Critical"),
+                          m.make||m.manufacturer||"", m.model||"", m.serialNo||"",
+                          m.accessories||"", a.departmentName||"",
+                          a.building||"", a.floor||"", a.room||"",
+                          m.mfgYear||m.manufacturingYear||"", m.installationDate||"",
+                          m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"",
+                          maint, m.rber?"Yes":"No", m.remarks||"",
+                          workingStatus||"Working", verifiedStatus,
+                          a.createdByName||"",
+                          a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "",
+                          a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : "",
+                        ].map(v => `"${String(v==null?"":v).replace(/"/g,'""')}"`).join(",");
                       });
                       const csv = [headers.join(","), ...rows].join("\n");
-                      const blob = new Blob([csv], { type: "text/csv" });
+                      const blob = new Blob(["\uFEFF"+csv], { type: "text/csv;charset=utf-8;" });
                       const url = URL.createObjectURL(blob);
                       const el = document.createElement("a"); el.href = url; el.download = "assets.csv"; el.click(); URL.revokeObjectURL(url);
                     }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "7px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      Export CSV
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      Export Excel
                     </button>
                   )}
                 </div>
               </div>
+              {/* Advanced Filter Panel */}
+              {showAdvancedFilter && (
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Department</label>
+                    <select value={advFilterDept} onChange={e => setAdvFilterDept(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none", minWidth: "140px" }}>
+                      <option value="">All Departments</option>
+                      {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Building</label>
+                    <input value={advFilterBuilding} onChange={e => setAdvFilterBuilding(e.target.value)} placeholder="Building name..."
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "130px" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Category</label>
+                    <select value={advFilterCategory} onChange={e => setAdvFilterCategory(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none" }}>
+                      <option value="">All Categories</option>
+                      <option value="critical">Critical</option>
+                      <option value="non_critical">Non-Critical</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Maintenance</label>
+                    <select value={advFilterMaint} onChange={e => setAdvFilterMaint(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none" }}>
+                      <option value="">All</option>
+                      <option value="warranty">Warranty</option>
+                      <option value="amc">AMC</option>
+                      <option value="cmc">CMC</option>
+                      <option value="in house">In House</option>
+                      <option value="catalyst">Catalyst</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>RBER</label>
+                    <select value={advFilterRber} onChange={e => setAdvFilterRber(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none" }}>
+                      <option value="">All</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Tagged From</label>
+                    <input type="date" value={advFilterDateFrom} onChange={e => setAdvFilterDateFrom(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Tagged To</label>
+                    <input type="date" value={advFilterDateTo} onChange={e => setAdvFilterDateTo(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none" }} />
+                  </div>
+                  <button onClick={() => { setAdvFilterDept(""); setAdvFilterBuilding(""); setAdvFilterCategory(""); setAdvFilterMaint(""); setAdvFilterRber(""); setAdvFilterDateFrom(""); setAdvFilterDateTo(""); }}
+                    style={{ padding: "5px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: "12px", fontWeight: 600, alignSelf: "flex-end" }}>
+                    Clear
+                  </button>
+                </div>
+              )}
               {loading.assets
                 ? <p style={{ padding: "24px", color: "#94a3b8", textAlign: "center" }}>Loading…</p>
                 : (
@@ -6405,14 +6520,14 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
+                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={isAdmin ? 21 : (canAssetAction ? 20 : 19)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? 23 : (canAssetAction ? 22 : 21)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd) };
@@ -6448,6 +6563,8 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—"}</td>
                             <td style={{ padding: "10px 14px" }}>
                               {isAdmin ? (
                                 <select

@@ -783,7 +783,10 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
               <tbody>
                 {assets.map((a, i) => {
                   const imgs = getImages(a);
-                  const wsColor = { Working: { bg: "#dcfce7", c: "#16a34a" }, WIP: { bg: "#fef9c3", c: "#854d0e" }, Not_Working: { bg: "#fee2e2", c: "#dc2626" } }[a.working_status] || { bg: "#f1f5f9", c: "#64748b" };
+                  const isRber = !!(a.metadata?.rber);
+                  const wsColor = isRber
+                    ? { bg: "#fef3c7", c: "#d97706" }
+                    : ({ Working: { bg: "#dcfce7", c: "#16a34a" }, WIP: { bg: "#fef9c3", c: "#854d0e" }, Not_Working: { bg: "#fee2e2", c: "#dc2626" } }[a.working_status] || { bg: "#f1f5f9", c: "#64748b" });
                   const critColor = a.criticality === "Critical" ? { bg: "#fee2e2", c: "#dc2626" } : { bg: "#f0fdfa", c: "#0d9488" };
                   return (
                     <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}
@@ -792,9 +795,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
                       <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px" }}>{(page - 1) * PER_PAGE + i + 1}</td>
                       <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis" }}>{a.asset_name || "—"}</td>
                       <td style={{ padding: "9px 14px" }}>
-                        {onOpenAsset
-                          ? <button onClick={() => onOpenAsset(a)} style={{ background: "none", border: "none", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap", fontWeight: 600 }}>{a.asset_unique_id || "—"}</button>
-                          : <span style={{ color: "#1e40af", fontFamily: "monospace", fontSize: "12px" }}>{a.asset_unique_id || "—"}</span>}
+                        <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", color: "#1e40af", fontFamily: "monospace", fontSize: "12px", cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap", fontWeight: 600 }}>{a.asset_unique_id || "—"}</button>
                       </td>
                       <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.asset_category || "—"}</td>
                       <td style={{ padding: "9px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.department_name || "—"}</td>
@@ -803,7 +804,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
                         <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: critColor.bg, color: critColor.c, whiteSpace: "nowrap" }}>{a.criticality || "—"}</span>
                       </td>
                       <td style={{ padding: "9px 14px" }}>
-                        <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: wsColor.bg, color: wsColor.c, whiteSpace: "nowrap" }}>{(a.working_status || "—").replace("_", " ")}</span>
+                        <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: wsColor.bg, color: wsColor.c, whiteSpace: "nowrap" }}>{isRber ? "RBER" : (a.working_status || "—").replace("_", " ")}</span>
                       </td>
                       <td style={{ padding: "9px 14px" }}>
                         <button
@@ -1693,9 +1694,9 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
                         <td style={{ padding: "10px 14px", color: "#64748b" }}>{meta.model || "—"}</td>
                         <td style={{ padding: "10px 14px" }}>
                           <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700,
-                            background: a.working_status === "Not_Working" ? "#fef2f2" : a.working_status === "WIP" ? "#fef9c3" : "#f0fdf4",
-                            color: a.working_status === "Not_Working" ? "#dc2626" : a.working_status === "WIP" ? "#92400e" : "#16a34a" }}>
-                            {(a.working_status || "Working").replace("_", " ")}
+                            background: meta.rber ? "#fef3c7" : a.working_status === "Not_Working" ? "#fef2f2" : a.working_status === "WIP" ? "#fef9c3" : "#f0fdf4",
+                            color: meta.rber ? "#d97706" : a.working_status === "Not_Working" ? "#dc2626" : a.working_status === "WIP" ? "#92400e" : "#16a34a" }}>
+                            {meta.rber ? "RBER" : (a.working_status || "Working").replace("_", " ")}
                           </span>
                         </td>
                       </tr>

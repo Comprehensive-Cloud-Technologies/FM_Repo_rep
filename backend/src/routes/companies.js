@@ -284,6 +284,8 @@ router.get("/assets/:id", async (req, res, next) => {
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
+              a.location_id AS "locationId", a.department_id AS "departmentId",
               a.created_at AS "createdAt",
               c.id AS "companyId", c.company_name AS "companyName",
               d.name AS "departmentName",
@@ -293,6 +295,7 @@ router.get("/assets/:id", async (req, res, next) => {
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        WHERE a.id = ?`,
+      
       [userId, assetId]
     );
     if (!row) return res.status(404).json({ message: "Asset not found" });

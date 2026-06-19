@@ -950,6 +950,24 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                               Resolve
                             </button>
                           )}
+
+                          {/* DELETE (admin only) */}
+                          {canManage && (
+                            <button onClick={async () => {
+                              if (!window.confirm(`Delete this request (#${wo.work_order_number || wo.id}) permanently? This cannot be undone.`)) return;
+                              try {
+                                if (wo.source_type === 'asset_query') {
+                                  await apiFetch('DELETE', `/api/company-portal/asset-queries/${wo.id}`, undefined, authToken);
+                                } else {
+                                  await apiFetch('DELETE', `/api/company-portal/work-orders/${wo.id}`, undefined, authToken);
+                                }
+                                setRequests(r => r.filter(x => x.id !== wo.id));
+                              } catch(e) { alert(e.message || 'Delete failed'); }
+                            }}
+                              style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', whiteSpace: 'nowrap' }}>
+                              🗑
+                            </button>
+                          )}
                           </div>
                           )}
                         </div>

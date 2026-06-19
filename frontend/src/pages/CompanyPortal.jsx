@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
 
@@ -4477,7 +4477,6 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
     const primaryCompanyId = selCo || formCompanyId;
     if (!form.fullName || !form.email) { setFormErr("Full Name and Email are required."); return; }
     if (!editEmp && !form.password) { setFormErr("Password is required."); return; }
-    if (!editEmp && !primaryCompanyId) { setFormErr("Please select a primary company."); return; }
     setSaving(true);
     try {
       if (editEmp) {
@@ -4493,7 +4492,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
           throw new Error(errBody.message || "Failed to update company access");
         }
       } else {
-        const created = await createAdminEmployee(token, { ...form, companyId: primaryCompanyId });
+        const created = await createAdminEmployee(token, { ...form, companyId: primaryCompanyId || extraCompanyIds[0] || null });
         // Set additional company access for newly created user
         if (created?.id && extraCompanyIds.length > 0) {
           const accessResp2 = await fetch(`/api/company-users/${created.id}/companies`, {
@@ -4671,7 +4670,11 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                               <input type="checkbox"
                                 checked={isChecked}
                                 onChange={ev => {
-                                  if (isPrimary) return;
+                                  if (isPrimary && !ev.target.checked) {
+                                    // Allow unchecking the primary company
+                                    setFormCompanyId(null);
+                                    return;
+                                  }
                                   if (!selCo && !editEmp && !formCompanyId && ev.target.checked) { setFormCompanyId(c.id); return; }
                                   setExtraCompanyIds(prev => ev.target.checked ? [...prev, c.id] : prev.filter(id => Number(id) !== Number(c.id)));
                                 }}
@@ -4700,7 +4703,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                     );
                   })}
                 </div>
-                {!selCo && !editEmp && !formCompanyId && <p style={{ fontSize:"11px", color:"#f59e0b", margin:"4px 0 0" }}>Check the primary company first</p>}
+                {!selCo && !editEmp && !formCompanyId && extraCompanyIds.length === 0 && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>No company assigned — employee can be added and assigned later</p>}
               </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
@@ -6228,18 +6231,21 @@ const CompanyPortal = () => {
 
 
 
-      return matchesType && matchesTerm && (assetStatusFilter === "all" || (assetStatusFilter === "unverified" ? !a.verified : a.status === assetStatusFilter)) && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
-
-
-
-
-
+      const am = a.metadata || {};
+      const matchesTermFull = matchesTerm || (!!term && [am.equipmentName, am.make, am.manufacturer, am.model, am.serialNo, am.dealer, am.distributor, am.mfgYear, am.accessories, am.remarks, am.workingStatus, am.criticality, a.departmentName, a.assignedToName, a.createdByName].some(v => v && String(v).toLowerCase().includes(term)));
+      const matchesStatus = (() => {
+        if (assetStatusFilter === 'all') return true;
+        const isVerified = Number(a.isVerified || a.is_verified) === 1;
+        if (assetStatusFilter === 'Verified') return isVerified;
+        if (assetStatusFilter === 'unverified') return !isVerified;
+        if (assetStatusFilter === 'WIP') return (am.workingStatus || '').toLowerCase() === 'wip';
+        if (assetStatusFilter === 'Not_Working') return (am.workingStatus || '').toLowerCase().replace(/[_ ]/g, '') === 'notworking';
+        if (assetStatusFilter === 'RBER') return !!am.rber;
+        if (assetStatusFilter === 'Condemned') return (am.workingStatus || '').toLowerCase() === 'condemned';
+        return (a.status || '').toLowerCase() === assetStatusFilter.toLowerCase();
+      })();
+      return matchesType && matchesTermFull && matchesStatus && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
     });
-
-
-
-
-
   }, [assets, assetTypeFilter, assetSearch, assetStatusFilter, assetCompanyFilter]);
 
 
@@ -11470,9 +11476,26 @@ const CompanyPortal = () => {
 
     // Load location buildings for cascading dropdowns
     const cId = asset.companyId || selectedCompanyId || companies[0]?.id;
+    setLocFloors([]); setLocRooms([]); setLocDepts([]);
     if (cId) {
       fetch(`/api/locations/buildings?companyId=${cId}`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setLocBuildings(Array.isArray(d) ? d : [])).catch(() => setLocBuildings([]));
+        .then(r => r.json()).then(async d => {
+          setLocBuildings(Array.isArray(d) ? d : []);
+          const bId = asset.buildingId ? String(asset.buildingId) : "";
+          if (bId) {
+            try {
+              const fr = await fetch(`/api/locations/floors?buildingId=${bId}`, { headers: { Authorization: `Bearer ${token}` } });
+              const floors = await fr.json();
+              setLocFloors(Array.isArray(floors) ? floors : []);
+              const fId = asset.floorId ? String(asset.floorId) : "";
+              if (fId) {
+                const rr = await fetch(`/api/locations/rooms?floorId=${fId}`, { headers: { Authorization: `Bearer ${token}` } });
+                const rooms = await rr.json();
+                setLocRooms(Array.isArray(rooms) ? rooms : []);
+              }
+            } catch { /* ignore */ }
+          }
+        }).catch(() => setLocBuildings([]));
     }
 
   };
@@ -20479,10 +20502,15 @@ const CompanyPortal = () => {
                     </select>
                     <select value={assetStatusFilter} onChange={(e) => setAssetStatusFilter(e.target.value)} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
                       <option value="all">All Status</option>
-                      <option value="unverified">Unverified</option>
                       <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
+                      <option value="Working">Working</option>
                       <option value="Verified">Verified</option>
+                      <option value="unverified">Unverified</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="WIP">WIP</option>
+                      <option value="Not_Working">Not Working</option>
+                      <option value="RBER">RBER</option>
+                      <option value="Condemned">Condemned</option>
                     </select>
                     <select value={assetCompanyFilter} onChange={(e) => { setAssetCompanyFilter(e.target.value); }} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none", maxWidth: "180px" }}>
                       <option value="">All Companies</option>
@@ -20490,7 +20518,7 @@ const CompanyPortal = () => {
                         <option key={c.id} value={String(c.id)}>{c.companyName || c.name}</option>
                       ))}
                     </select>
-                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search..." style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "140px" }} />
+                    <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search anything..." style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "160px" }} />
                     {selectedAssetIds.length > 0 && (
                       <>
                         <button type="button" onClick={handleBulkVerifyAssets} style={{ padding: "6px 12px", borderRadius: "7px", border: "none", background: "#22c55e", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Verify ({selectedAssetIds.length})</button>
@@ -20535,7 +20563,7 @@ const CompanyPortal = () => {
                         <th style={{ padding: "10px 8px", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
                           <input type="checkbox" onChange={e => setSelectedAssetIds(e.target.checked ? filteredAssets.map(a => a.id) : [])} checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length} />
                         </th>
-                        {["SN", "Asset ID", "Company", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Status", "Actions"].map((h) => (
+                        {["SN", "Asset ID", "Company", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer / Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Status", "Actions"].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -20597,6 +20625,8 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Rs. ${m.purchaseCost}` : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "-"}</td>
+                              <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
                               <td style={{ padding: "10px 14px" }}>
                                 {!a.verified && <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", background: "#fef9c3", color: "#92400e", fontSize: "10px", fontWeight: 700, marginBottom: "4px" }}>Unverified</span>}
                                 <select
@@ -22005,7 +22035,7 @@ const CompanyPortal = () => {
 
 
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "12px" }}>
 
 
 
@@ -22059,6 +22089,12 @@ const CompanyPortal = () => {
                               <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
                                 <option value="">→ Select Floor →</option>
                                 {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
+                              </select>
+                            </div>
+                            <div className="form-group"><label>Room / Area</label>
+                              <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
+                                <option value="">→ Select Room →</option>
+                                {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                               </select>
                             </div>
                           </>
@@ -28430,19 +28466,31 @@ const CompanyPortal = () => {
             document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
           };
 
-          const ASSET_HEADERS = ["Company","Department","Asset Name","Asset ID","Type","Status","Building","Floor","Room","Make","Model","Serial No","Accessories","Dealer","Mfg Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Remarks","Created At"];
-          const assetRowMapper = a => ({
-            "Company": a.companyName||"", "Department": a.departmentName||"",
-            "Asset Name": a.assetName||"", "Asset ID": a.assetUniqueId||"",
-            "Type": a.assetType||"", "Status": a.status||"",
-            "Building": a.building||"", "Floor": a.floor||"", "Room": a.room||"",
-            "Make": a.make||"", "Model": a.model||"", "Serial No": a.serialNo||"",
-            "Accessories": a.accessories||"", "Dealer": a.dealer||"",
-            "Mfg Year": a.mfgYear||"", "Installation Date": a.installationDate||"",
-            "Invoice No": a.invoiceNo||"", "Purchase Date": a.purchaseDate||"",
-            "Purchase Cost": a.purchaseCost||"", "Remarks": a.remarks||"",
-            "Created At": a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "",
-          });
+          const ASSET_HEADERS = ["SN","Company","Equipment Name","Asset ID","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
+          const assetRowMapper = (a, i) => {
+            const m = a.metadata || {};
+            const maint = [m.warranty?"Warranty":"",m.amc?"AMC":"",m.cmc?"CMC":"",m.inHouse?"In House":"",m.catalyst?"Catalyst":""].filter(Boolean).join("; ");
+            const isVerified = Number(a.isVerified || a.is_verified) === 1;
+            const workingStatus = m.workingStatus || "";
+            const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus === "Not_Working" ? "Not Working" : workingStatus === "WIP" ? "WIP" : workingStatus || a.status || "Active";
+            return {
+              "SN": (i+1).toString(),
+              "Company": a.companyName||"", "Equipment Name": m.equipmentName||a.assetName||"",
+              "Asset ID": a.generatedAssetId||a.assetUniqueId||"",
+              "Category": m.criticality||a.criticality||"Non-Critical",
+              "Make": m.make||m.manufacturer||"", "Model": m.model||"", "Serial No": m.serialNo||"",
+              "Accessories": m.accessories||"", "Department": a.departmentName||"",
+              "Building": a.building||"", "Floor": a.floor||"", "Room": a.room||"",
+              "Mfg Year": m.mfgYear||m.manufacturingYear||"", "Installation Date": m.installationDate||"",
+              "Invoice No": m.invoiceNo||"", "Purchase Date": m.purchaseDate||"",
+              "Purchase Cost": m.purchaseCost||"", "Maintenance": maint,
+              "RBER": m.rber?"Yes":"No", "Remarks": m.remarks||"",
+              "Working Status": workingStatus||"Working", "Verified Status": verifiedStatus,
+              "Tagged By": a.createdByName||"",
+              "Tagged At": a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "",
+              "Created At": a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : "",
+            };
+          };
 
           const handleExport = async (type) => {
             const coParam = dashCompanyFilters.length > 0 ? ("&companyIds=" + dashCompanyFilters.join(",")) : "";
@@ -28452,7 +28500,7 @@ const CompanyPortal = () => {
               const qs = [statusParam, coParam.slice(1)].filter(Boolean).join("&");
               try {
                 const assets = await getClientAssets(token, qs);
-                exportToCSV(assets.map(assetRowMapper), ASSET_HEADERS, (type === "asset_profile" || type === "total_assets" ? "all" : type) + "_assets.csv");
+                exportToCSV(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, (type === "asset_profile" || type === "total_assets" ? "all" : type) + "_assets.csv");
               } catch(e) { alert("Export failed: " + e.message); }
             } else if (type === "complaint_profile" && dashboardStats) {
               const cp = dashboardStats.complaintProfile || {};
@@ -28473,7 +28521,7 @@ const CompanyPortal = () => {
               const qs = coParam ? coParam.slice(1) : "";
               try {
                 const assets = await getClientAssets(token, qs);
-                exportToCSV(assets.map(assetRowMapper), ASSET_HEADERS, "all_assets.csv");
+                exportToCSV(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, "all_assets.csv");
               } catch(e) { alert("Export failed: " + e.message); }
             }
           };
