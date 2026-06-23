@@ -1380,6 +1380,7 @@ router.get("/assets", async (req, res, next) => {
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
               a.location_id AS "locationId", a.company_id AS "companyId",
+              a.criticality, a.working_status AS "workingStatus",
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
               a.last_calibration_date AS "lastCalibrationDate",
@@ -2089,8 +2090,9 @@ router.patch("/assets/:id", async (req, res, next) => {
     if (!check) return res.status(404).json({ message: "Asset not found" });
     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
 
-    // Merge workingStatus into metadata so it is persisted correctly
+    // Merge workingStatus and criticality into metadata so they stay in sync with the DB column
     if (workingStatus !== undefined) metadata.workingStatus = workingStatus;
+    if (criticality !== undefined) metadata.criticality = criticality;
 
     await pool.query(
       `UPDATE assets SET

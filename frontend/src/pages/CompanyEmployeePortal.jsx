@@ -4810,6 +4810,8 @@ export default function CompanyEmployeePortal() {
         if (assetStatusFilter === "Not Working") return (m.workingStatus || "").toLowerCase().replace(/[_ ]/g, "") === "notworking";
         if (assetStatusFilter === "RBER") return !!m.rber;
         if (assetStatusFilter === "Condemned") return (m.workingStatus || "").toLowerCase() === "condemned";
+        if (assetStatusFilter === "Critical") return (a.criticality || m.criticality || "").toLowerCase() === "critical";
+        if (assetStatusFilter === "Non_Critical") return (a.criticality || m.criticality || "non_critical").toLowerCase() !== "critical";
         return (a.status || "").toLowerCase() === assetStatusFilter.toLowerCase();
       })();
 
@@ -6399,6 +6401,8 @@ export default function CompanyEmployeePortal() {
                     <option value="Not Working">Not Working</option>
                     <option value="RBER">RBER</option>
                     <option value="Condemned">Condemned</option>
+                    <option value="Critical">Critical</option>
+                    <option value="Non_Critical">Non-Critical</option>
                   </select>
                   <input value={assetSearch} onChange={(e) => setAssetSearch(e.target.value)} placeholder="Search anything..."
                     style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", outline: "none", width: "160px" }} />

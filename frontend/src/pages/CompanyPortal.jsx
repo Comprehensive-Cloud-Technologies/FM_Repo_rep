@@ -6242,6 +6242,8 @@ const CompanyPortal = () => {
         if (assetStatusFilter === 'Not_Working') return (am.workingStatus || '').toLowerCase().replace(/[_ ]/g, '') === 'notworking';
         if (assetStatusFilter === 'RBER') return !!am.rber;
         if (assetStatusFilter === 'Condemned') return (am.workingStatus || '').toLowerCase() === 'condemned';
+        if (assetStatusFilter === 'Critical') return (a.criticality || am.criticality || '').toLowerCase() === 'critical';
+        if (assetStatusFilter === 'Non_Critical') return (a.criticality || am.criticality || 'non_critical').toLowerCase() !== 'critical';
         return (a.status || '').toLowerCase() === assetStatusFilter.toLowerCase();
       })();
       return matchesType && matchesTermFull && matchesStatus && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
@@ -10467,6 +10469,13 @@ const CompanyPortal = () => {
 
 
 
+  const toIsoDate = (d) => {
+    if (!d) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10);
+    if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(d)) { const p = d.split(/[\/\-]/); return `${p[2]}-${p[1]}-${p[0]}`; }
+    const dt = new Date(d); return isNaN(dt) ? "" : dt.toISOString().substring(0, 10);
+  };
+
   const normalizeAssetFormFromRecord = (asset) => {
 
 
@@ -10559,7 +10568,7 @@ const CompanyPortal = () => {
 
 
 
-        hcInstallationDate: meta.installationDate || "",
+        hcInstallationDate: toIsoDate(meta.installationDate),
 
 
 
@@ -10571,7 +10580,7 @@ const CompanyPortal = () => {
 
 
 
-        invoiceDate: meta.invoiceDate || "",
+        invoiceDate: toIsoDate(meta.invoiceDate),
 
 
 
@@ -10592,37 +10601,37 @@ const CompanyPortal = () => {
 
 
 
-        warrantyStart: meta.warrantyStart || "",
+        warrantyStart: toIsoDate(meta.warrantyStart),
 
 
 
 
 
-        warrantyEnd: meta.warrantyEnd || "",
+        warrantyEnd: toIsoDate(meta.warrantyEnd),
 
 
 
 
 
-        amcStart: meta.amcStart || "",
+        amcStart: toIsoDate(meta.amcStart),
 
 
 
 
 
-        amcEnd: meta.amcEnd || "",
+        amcEnd: toIsoDate(meta.amcEnd),
 
 
 
 
 
-        cmcStart: meta.cmcStart || "",
+        cmcStart: toIsoDate(meta.cmcStart),
 
 
 
 
 
-        cmcEnd: meta.cmcEnd || "",
+        cmcEnd: toIsoDate(meta.cmcEnd),
 
 
 
@@ -10707,6 +10716,7 @@ const CompanyPortal = () => {
 
 
         departmentId: asset.departmentId ? String(asset.departmentId) : "",
+        category: asset.criticality || meta.criticality || "Non_Critical",
 
 
 
@@ -10803,6 +10813,7 @@ const CompanyPortal = () => {
 
 
         departmentId: asset.departmentId ? String(asset.departmentId) : "",
+        category: asset.criticality || meta.criticality || "Non_Critical",
 
 
 
@@ -10832,13 +10843,13 @@ const CompanyPortal = () => {
 
 
 
-        installationDate: meta.installationDate || "",
+        installationDate: toIsoDate(meta.installationDate),
 
 
 
 
 
-        warrantyExpiry: meta.warrantyExpiry || "",
+        warrantyExpiry: toIsoDate(meta.warrantyExpiry),
 
 
 
@@ -10850,13 +10861,13 @@ const CompanyPortal = () => {
 
 
 
-        lastServiceDate: meta.lastServiceDate || "",
+        lastServiceDate: toIsoDate(meta.lastServiceDate),
 
 
 
 
 
-        nextServiceDate: meta.nextServiceDate || "",
+        nextServiceDate: toIsoDate(meta.nextServiceDate),
 
 
 
@@ -10929,6 +10940,7 @@ const CompanyPortal = () => {
 
 
         departmentId: asset.departmentId ? String(asset.departmentId) : "",
+        category: asset.criticality || meta.criticality || "Non_Critical",
 
 
 
@@ -10964,25 +10976,25 @@ const CompanyPortal = () => {
 
 
 
-        insuranceExpiry: meta.insuranceExpiry || "",
+        insuranceExpiry: toIsoDate(meta.insuranceExpiry),
 
 
 
 
 
-        pucExpiry: meta.pucExpiry || "",
+        pucExpiry: toIsoDate(meta.pucExpiry),
 
 
 
 
 
-        serviceDueDate: meta.serviceDueDate || "",
+        serviceDueDate: toIsoDate(meta.serviceDueDate),
 
 
 
 
 
-        purchaseDate: meta.purchaseDate || "",
+        purchaseDate: toIsoDate(meta.purchaseDate),
 
 
 
@@ -11055,6 +11067,7 @@ const CompanyPortal = () => {
 
 
       departmentId: asset.departmentId ? String(asset.departmentId) : "",
+      category: asset.criticality || meta.criticality || "Non_Critical",
 
 
 
@@ -20511,6 +20524,8 @@ const CompanyPortal = () => {
                       <option value="Not_Working">Not Working</option>
                       <option value="RBER">RBER</option>
                       <option value="Condemned">Condemned</option>
+                      <option value="Critical">Critical</option>
+                      <option value="Non_Critical">Non-Critical</option>
                     </select>
                     <select value={assetCompanyFilter} onChange={(e) => { setAssetCompanyFilter(e.target.value); }} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none", maxWidth: "180px" }}>
                       <option value="">All Companies</option>

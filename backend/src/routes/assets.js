@@ -369,6 +369,8 @@ router.get(
                 a.asset_type      AS assetType,
                 a.building, a.floor, a.room,
                 a.status,
+                a.criticality,
+                a.working_status  AS workingStatus,
                 ${verifiedCol}
                 a.qr_code         AS qrCode,
                 a.department_id   AS departmentId,
