@@ -353,8 +353,10 @@ router.post("/floors", async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { buildingId, floorName, floorNumber } = req.body;
-    if (!buildingId || !floorName?.trim()) return res.status(400).json({ message: "buildingId and floorName are required" });
+    const { buildingId, floorNumber } = req.body;
+    let { floorName } = req.body;
+    if (!buildingId) return res.status(400).json({ message: "buildingId is required" });
+    if (!floorName?.trim()) floorName = (floorNumber !== undefined && floorNumber !== "") ? `Floor ${floorNumber}` : "Floor";
     const [[dup]] = await conn.execute(`SELECT id FROM floors WHERE building_id = ? AND LOWER(floor_name) = LOWER(?) AND status != 'Deleted'`, [buildingId, floorName.trim()]);
     if (dup) return res.status(409).json({ message: "Floor already exists in this building." });
     const [[building]] = await conn.execute(`SELECT b.company_id, l.id AS locationId FROM buildings b LEFT JOIN locations l ON l.location_type = 'Building' AND l.reference_id = b.id WHERE b.id = ?`, [buildingId]);

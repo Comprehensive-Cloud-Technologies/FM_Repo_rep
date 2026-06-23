@@ -1291,7 +1291,7 @@ function ReviewsSection({ token }) {
   );
 }
 
-export default function HealthcareDashboard({ token, onOpenAsset }) {
+export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
   const [filters, setFilters]       = useState(EMPTY_FILTERS);
@@ -1345,8 +1345,10 @@ export default function HealthcareDashboard({ token, onOpenAsset }) {
   const handleTileClick = (k) => {
     if (activeKpiKey === k.key) {
       setActiveKpiKey(null);
+      onTileNavigate?.(null, {});
     } else {
       setActiveKpiKey(k.key);
+      onTileNavigate?.(k.key, k.filterData || {});
     }
   };
 

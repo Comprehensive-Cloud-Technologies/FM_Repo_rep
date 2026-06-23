@@ -2639,39 +2639,63 @@ function LocInp({ label, name, value, onChange, placeholder, required, type = "t
     </div>
   );
 }
-function LocSel({ label, name, value, onChange, options, required, placeholder }) {
-  const listId = `loc-sel-${name}`;
-  const selected = (options || []).find((o) => String(o.value) === String(value ?? ""));
-  const [search, setSearch] = useState(selected?.label || "");
+function LocSel({ label, name, value, onChange, options = [], required, placeholder }) {
+  const [inputVal, setInputVal] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
-    const next = (options || []).find((o) => String(o.value) === String(value ?? ""));
-    setSearch(next?.label || "");
+    if (!open) {
+      const o = options.find(o => String(o.value) === String(value ?? ""));
+      setInputVal(o?.label || "");
+    }
+  }, [value, options, open]);
+
+  useEffect(() => {
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+        const o = options.find(o => String(o.value) === String(value ?? ""));
+        setInputVal(o?.label || "");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, [value, options]);
 
-  const handleSearch = (e) => {
-    const typed = e.target.value;
-    setSearch(typed);
-    const match = (options || []).find((o) => o.label === typed);
-    const nextValue = match ? String(match.value) : "";
-    onChange?.({ target: { name, value: nextValue } });
-  };
+  const filtered = options.filter(o => !inputVal || o.label.toLowerCase().includes(inputVal.toLowerCase()));
 
   return (
-    <div style={{ marginBottom: "14px" }}>
-      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>
-      <input
-        list={listId}
-        name={`${name}Label`}
-        value={search}
-        onChange={handleSearch}
-        required={required}
-        placeholder={placeholder || `Search ${label}`}
-        style={{ width: "100%", padding: "8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}
-      />
-      <datalist id={listId}>
-        {(options || []).map((o) => <option key={o.value} value={o.label} />)}
-      </datalist>
+    <div style={{ marginBottom: "14px", position: "relative" }} ref={ref}>
+      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>
+        {label}{required && <span style={{ color: "#ef4444" }}> *</span>}
+      </label>
+      <div style={{ position: "relative" }}>
+        <input
+          type="text"
+          value={inputVal}
+          onChange={e => { setInputVal(e.target.value); setOpen(true); }}
+          onFocus={() => { setInputVal(""); setOpen(true); }}
+          placeholder={placeholder || `Search ${label}...`}
+          style={{ width: "100%", padding: "8px 32px 8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}
+        />
+        <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", fontSize: "11px" }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 9999, maxHeight: "200px", overflowY: "auto" }}>
+          {filtered.length === 0
+            ? <div style={{ padding: "9px 12px", color: "#94a3b8", fontSize: "13px" }}>No results</div>
+            : filtered.map(opt => (
+              <div key={opt.value}
+                onMouseDown={() => { onChange?.({ target: { name, value: String(opt.value) } }); setInputVal(opt.label); setOpen(false); }}
+                style={{ padding: "9px 12px", cursor: "pointer", fontSize: "13px", color: String(opt.value) === String(value ?? "") ? "#2563eb" : "#374151", fontWeight: String(opt.value) === String(value ?? "") ? 700 : 400, borderBottom: "1px solid #f8fafc", background: "#fff" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+              >{opt.label}</div>
+            ))
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -2820,7 +2844,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       let body = { ...form };
 
       if (type === "building") body.companyId = companyId;
-
+      if (type === "floor" && !body.floorName?.trim()) body.floorName = `Floor ${body.floorNumber || "1"}`;
       const method = mode === "edit" ? "PUT" : "POST";
       if (mode === "edit") url += `/${form.id}`;
 
@@ -3086,8 +3110,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <>
                 <LocSel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required
                   options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
-                <LocInp label="Floor Name" name="floorName" value={form.floorName} onChange={e => setForm(p => ({ ...p, floorName: e.target.value }))} required />
-                <LocInp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" placeholder="e.g. 1" />
+                <LocInp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" placeholder="e.g. 1" required />
                 {modal.mode === "edit" && (
                   <LocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
                     options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />

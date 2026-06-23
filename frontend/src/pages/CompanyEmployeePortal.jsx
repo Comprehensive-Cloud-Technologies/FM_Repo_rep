@@ -3668,40 +3668,62 @@ function EmpLocInp({ label, name, value, onChange, placeholder = "", required = 
   );
 }
 function EmpLocSel({ label, name, value, onChange, options = [], required = false, placeholder = "Select…" }) {
-  const listId = `emp-loc-sel-${name}`;
-  const selected = options.find((o) => String(o.value) === String(value ?? ""));
-  const [search, setSearch] = useState(selected?.label || "");
+  const [inputVal, setInputVal] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
-    const next = options.find((o) => String(o.value) === String(value ?? ""));
-    setSearch(next?.label || "");
+    if (!open) {
+      const o = options.find(o => String(o.value) === String(value ?? ""));
+      setInputVal(o?.label || "");
+    }
+  }, [value, options, open]);
+
+  useEffect(() => {
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+        const o = options.find(o => String(o.value) === String(value ?? ""));
+        setInputVal(o?.label || "");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, [value, options]);
 
-  const handleSearch = (e) => {
-    const typed = e.target.value;
-    setSearch(typed);
-    const match = options.find((o) => o.label === typed);
-    const nextValue = match ? String(match.value) : "";
-    onChange?.({ target: { name, value: nextValue } });
-  };
+  const filtered = options.filter(o => !inputVal || o.label.toLowerCase().includes(inputVal.toLowerCase()));
 
   return (
-    <div style={{ marginBottom: "12px" }}>
+    <div style={{ marginBottom: "12px", position: "relative" }} ref={ref}>
       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
         {label}{required && <span style={{ color: "#ef4444" }}> *</span>}
       </label>
-      <input
-        list={listId}
-        name={`${name}Label`}
-        value={search}
-        onChange={handleSearch}
-        required={required}
-        placeholder={placeholder}
-        style={{ width: "100%", padding: "8px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box", background: "#fff" }}
-      />
-      <datalist id={listId}>
-        {options.map((o) => <option key={o.value} value={o.label} />)}
-      </datalist>
+      <div style={{ position: "relative" }}>
+        <input
+          type="text"
+          value={inputVal}
+          onChange={e => { setInputVal(e.target.value); setOpen(true); }}
+          onFocus={() => { setInputVal(""); setOpen(true); }}
+          placeholder={placeholder}
+          style={{ width: "100%", padding: "8px 32px 8px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}
+        />
+        <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", fontSize: "11px" }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 9999, maxHeight: "200px", overflowY: "auto" }}>
+          {filtered.length === 0
+            ? <div style={{ padding: "9px 12px", color: "#94a3b8", fontSize: "13px" }}>No results</div>
+            : filtered.map(opt => (
+              <div key={opt.value}
+                onMouseDown={() => { onChange?.({ target: { name, value: String(opt.value) } }); setInputVal(opt.label); setOpen(false); }}
+                style={{ padding: "9px 12px", cursor: "pointer", fontSize: "13px", color: String(opt.value) === String(value ?? "") ? "#2563eb" : "#374151", fontWeight: String(opt.value) === String(value ?? "") ? 700 : 400, borderBottom: "1px solid #f8fafc", background: "#fff" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+              >{opt.label}</div>
+            ))
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -3816,6 +3838,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       const { type, mode } = modal;
       let url = `${API}/${type}s`;
       let body = { ...form };
+      if (type === "floor" && !body.floorName?.trim()) body.floorName = `Floor ${body.floorNumber || "1"}`;
       if (type === "building") body.companyId = companyId;
       const method = mode === "edit" ? "PUT" : "POST";
       if (mode === "edit") url += `/${form.id}`;
@@ -3979,7 +4002,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
             </div>
             {modal.type === "building" && (<><EmpLocInp label="Building Name" name="buildingName" value={form.buildingName} onChange={e => setForm(p => ({ ...p, buildingName: e.target.value }))} required /><EmpLocInp label="Description" name="description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />{modal.mode === "edit" && <EmpLocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />}</>)}
-            {modal.type === "floor" && (<><EmpLocSel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} /><EmpLocInp label="Floor Name" name="floorName" value={form.floorName} onChange={e => setForm(p => ({ ...p, floorName: e.target.value }))} required /><EmpLocInp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" />{modal.mode === "edit" && <EmpLocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />}</>)}
+            {modal.type === "floor" && (<><EmpLocSel label="Building" name="buildingId" value={form.buildingId} onChange={e => setForm(p => ({ ...p, buildingId: e.target.value }))} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} /><EmpLocInp label="Floor Number" name="floorNumber" value={form.floorNumber} onChange={e => setForm(p => ({ ...p, floorNumber: e.target.value }))} type="number" required />{modal.mode === "edit" && <EmpLocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />}</>)}
             {modal.type === "room" && (<><EmpLocSel label="Building" name="buildingId" value={form.buildingId} onChange={async e => { const bid = e.target.value; setForm(p => ({ ...p, buildingId: bid, floorId: "" })); const r = await fetch(`${API}/floors?buildingId=${bid}`, { headers: H }); setBldFloors(await r.json()); }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} /><EmpLocSel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required options={bldFloors.map(f => ({ value: f.id, label: (f.floorNumber !== null && f.floorNumber !== undefined) ? `Floor ${f.floorNumber}` : f.floorName }))} placeholder="Select Floor" /><EmpLocInp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required /><EmpLocInp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" /><EmpLocInp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />{modal.mode === "edit" && <EmpLocSel label="Status" name="status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} options={[{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }]} />}</>)}
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
               <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
@@ -5481,7 +5504,14 @@ export default function CompanyEmployeePortal() {
           const openAssetFromDash = (dashAsset) => {
             window.open(`/company/asset/${dashAsset.id}`, '_blank');
           };
-          return <HealthcareDashboard token={token} onOpenAsset={openAssetFromDash} />;
+          return <HealthcareDashboard token={token} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
+            if (!key) { setAssetStatusFilter(""); return; }
+            setNav("assets");
+            if (filterData?.criticality) setAssetStatusFilter(filterData.criticality);
+            else if (filterData?.verified) setAssetStatusFilter("Verified");
+            else if (filterData?.rber) setAssetStatusFilter("RBER");
+            else setAssetStatusFilter("");
+          }} />;
 
           const FREQ_LABELS = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", half_yearly: "Half-Yearly", yearly: "Yearly" };
           const FREQ_COLORS = { daily: ["#dcfce7","#16a34a"], weekly: ["#dbeafe","#1d4ed8"], monthly: ["#fef9c3","#ca8a04"], quarterly: ["#ede9fe","#7c3aed"], half_yearly: ["#fce7f3","#be185d"], yearly: ["#ffedd5","#c2410c"] };
@@ -5823,6 +5853,13 @@ export default function CompanyEmployeePortal() {
                 </div>
                 {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} onOpenAsset={(dashAsset) => {
                   window.open(`/company/asset/${dashAsset.id}`, '_blank');
+                }} onTileNavigate={(key, filterData) => {
+                  if (!key) { setAssetStatusFilter(""); return; }
+                  setNav("assets");
+                  if (filterData?.criticality) setAssetStatusFilter(filterData.criticality);
+                  else if (filterData?.verified) setAssetStatusFilter("Verified");
+                  else if (filterData?.rber) setAssetStatusFilter("RBER");
+                  else setAssetStatusFilter("");
                 }} /> : null}
                 {dashboardSubNav !== "healthcare" && <div>
                 {/* Header */}
