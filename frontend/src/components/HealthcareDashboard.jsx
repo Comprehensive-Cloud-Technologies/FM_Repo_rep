@@ -737,9 +737,13 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
   const getImages = (a) => {
     const meta = typeof a.metadata === "string" ? JSON.parse(a.metadata || "{}") : (a.metadata || {});
     const imgs = meta.hcImages || meta.images || meta.imageUrls || [];
+    const toStr = (u) => {
+      const v = typeof u === "string" ? u : (u?.url || u?.src || u?.path || "");
+      return typeof v === "string" ? v : "";
+    };
     if (Array.isArray(imgs) && imgs.length > 0)
-      return imgs.map(u => u.startsWith("http") ? u : `${BASE}${u}`);
-    if (meta.imageUrl) return [meta.imageUrl.startsWith("http") ? meta.imageUrl : `${BASE}${meta.imageUrl}`];
+      return imgs.map(u => { const s = toStr(u); return s && (s.startsWith("http") || s.startsWith("/")) ? s : s ? `${BASE}${s}` : null; }).filter(Boolean);
+    if (meta.imageUrl) { const s = toStr(meta.imageUrl); return s ? [s.startsWith("http") || s.startsWith("/") ? s : `${BASE}${s}`] : []; }
     return [];
   };
 

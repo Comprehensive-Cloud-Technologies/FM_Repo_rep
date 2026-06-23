@@ -8879,10 +8879,11 @@ export default function CompanyEmployeePortal() {
           ? (() => { try { return JSON.parse(a.metadata || "{}"); } catch { return {}; } })()
           : (a.metadata || {});
         const normalizeImgUrl = (img) => {
-          const raw = typeof img === "string"
+          const r0 = typeof img === "string"
             ? img
             : (img && typeof img === "object" ? (img.url || img.src || img.path || "") : "");
-          if (!raw || typeof raw !== "string") return "";
+          const raw = typeof r0 === "string" ? r0 : "";
+          if (!raw) return "";
           if (raw.startsWith("http") || raw.startsWith("/")) return raw;
           return `/${raw}`;
         };

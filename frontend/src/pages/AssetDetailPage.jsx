@@ -115,7 +115,7 @@ export default function AssetDetailPage() {
 
   const normalizeImgUrl = (img) => {
     const raw = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
-    if (!raw) return "";
+    if (!raw || typeof raw !== "string") return "";
     if (raw.startsWith("http") || raw.startsWith("/")) return raw;
     return `/${raw}`;
   };
