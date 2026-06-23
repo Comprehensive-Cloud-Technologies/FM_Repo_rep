@@ -294,9 +294,29 @@ router.delete("/buildings/:id", async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { id } = req.params;
-    await conn.execute(`UPDATE buildings SET status = 'Deleted' WHERE id = ?`, [id]);
-    await conn.execute(`UPDATE locations SET status = 'Deleted' WHERE location_type = 'Building' AND reference_id = ?`, [id]);
-    await conn.commit(); res.json({ success: true });
+    // Get all floors belonging to this building
+    const [floorRows] = await conn.execute(`SELECT id FROM floors WHERE building_id = ?`, [id]);
+    if (floorRows.length > 0) {
+      const fIds = floorRows.map(f => f.id);
+      const fPlaceholders = fIds.map(() => "?").join(",");
+      // Delete room locations for all rooms in these floors
+      await conn.execute(
+        `DELETE l FROM locations l JOIN rooms r ON l.location_type = 'Room' AND l.reference_id = r.id WHERE r.floor_id IN (${fPlaceholders})`,
+        fIds
+      );
+      // Delete rooms in these floors
+      await conn.execute(`DELETE FROM rooms WHERE floor_id IN (${fPlaceholders})`, fIds);
+      // Delete floor locations
+      await conn.execute(`DELETE FROM locations WHERE location_type = 'Floor' AND reference_id IN (${fPlaceholders})`, fIds);
+    }
+    // Delete all floors of this building
+    await conn.execute(`DELETE FROM floors WHERE building_id = ?`, [id]);
+    // Delete building location entry
+    await conn.execute(`DELETE FROM locations WHERE location_type = 'Building' AND reference_id = ?`, [id]);
+    // Hard delete the building itself
+    await conn.execute(`DELETE FROM buildings WHERE id = ?`, [id]);
+    await conn.commit();
+    res.json({ success: true });
   } catch (err) { await conn.rollback(); next(err); } finally { conn.release(); }
 });
 
@@ -366,9 +386,19 @@ router.delete("/floors/:id", async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { id } = req.params;
-    await conn.execute(`UPDATE floors SET status = 'Deleted' WHERE id = ?`, [id]);
-    await conn.execute(`UPDATE locations SET status = 'Deleted' WHERE location_type = 'Floor' AND reference_id = ?`, [id]);
-    await conn.commit(); res.json({ success: true });
+    // Delete room locations for all rooms on this floor
+    await conn.execute(
+      `DELETE l FROM locations l JOIN rooms r ON l.location_type = 'Room' AND l.reference_id = r.id WHERE r.floor_id = ?`,
+      [id]
+    );
+    // Delete rooms on this floor
+    await conn.execute(`DELETE FROM rooms WHERE floor_id = ?`, [id]);
+    // Delete the floor location entry
+    await conn.execute(`DELETE FROM locations WHERE location_type = 'Floor' AND reference_id = ?`, [id]);
+    // Hard delete the floor itself
+    await conn.execute(`DELETE FROM floors WHERE id = ?`, [id]);
+    await conn.commit();
+    res.json({ success: true });
   } catch (err) { await conn.rollback(); next(err); } finally { conn.release(); }
 });
 
@@ -436,9 +466,12 @@ router.delete("/rooms/:id", async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { id } = req.params;
-    await conn.execute(`UPDATE rooms SET status = 'Deleted' WHERE id = ?`, [id]);
-    await conn.execute(`UPDATE locations SET status = 'Deleted' WHERE location_type = 'Room' AND reference_id = ?`, [id]);
-    await conn.commit(); res.json({ success: true });
+    // Delete the room location entry
+    await conn.execute(`DELETE FROM locations WHERE location_type = 'Room' AND reference_id = ?`, [id]);
+    // Hard delete the room itself
+    await conn.execute(`DELETE FROM rooms WHERE id = ?`, [id]);
+    await conn.commit();
+    res.json({ success: true });
   } catch (err) { await conn.rollback(); next(err); } finally { conn.release(); }
 });
 

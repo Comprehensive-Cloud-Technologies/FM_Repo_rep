@@ -3105,7 +3105,7 @@ function AdminLocationsSection({ token, companies = [] }) {
                   setBldFloors(await r.json());
                 }} required options={buildings.map(b => ({ value: b.id, label: b.buildingName }))} />
                 <LocSel label="Floor" name="floorId" value={form.floorId} onChange={e => setForm(p => ({ ...p, floorId: e.target.value }))} required
-                  options={bldFloors.map(f => ({ value: f.id, label: f.floorName }))} placeholder="Select Floor" />
+                  options={bldFloors.map(f => ({ value: f.id, label: (f.floorNumber !== null && f.floorNumber !== undefined) ? `Floor ${f.floorNumber}` : f.floorName }))} placeholder="Select Floor" />
                 <LocInp label="Room Name" name="roomName" value={form.roomName} onChange={e => setForm(p => ({ ...p, roomName: e.target.value }))} required />
                 <LocInp label="Room Type" name="roomType" value={form.roomType} onChange={e => setForm(p => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Ward, OT, ICU" />
                 <LocInp label="Capacity" name="capacity" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: e.target.value }))} type="number" />
