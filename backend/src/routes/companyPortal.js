@@ -161,6 +161,8 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS shift VARCHAR(60) DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(60) DEFAULT 'technical'`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS supervisor_id INT DEFAULT NULL`,
+    // Drop incorrect FK on assets.created_by (it references users but we store company_users.id)
+    `ALTER TABLE assets DROP FOREIGN KEY fk_assets_user`,
     // Asset assignment
     `ALTER TABLE assets ADD COLUMN IF NOT EXISTS assigned_to INT DEFAULT NULL`,
     `ALTER TABLE assets ADD COLUMN IF NOT EXISTS assigned_by INT DEFAULT NULL`,

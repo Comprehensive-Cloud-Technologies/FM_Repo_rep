@@ -6450,10 +6450,14 @@ export default function CompanyEmployeePortal() {
                   </button>
                   {isAdmin && (
                     <button onClick={() => {
-                      const headers = ["SN","Asset ID","Equipment Name","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
+                      const headers = ["SN","Asset ID","Equipment Name","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","Start Date","End Date","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
                       const rows = filteredAssets.map((a, i) => {
                         const m = a.metadata || {};
-                        const maint = [m.warranty?"Warranty":"", m.amc?"AMC":"", m.cmc?"CMC":"", m.inHouse?"In House":"", m.catalyst?"Catalyst":""].filter(Boolean).join("; ");
+                        const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled || m.warranty), amc: !!(m.amc?.enabled || m.amc), cmc: !!(m.cmc?.enabled || m.cmc), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst) };
+                        const maint = [mt.warranty?"Warranty":"", mt.amc?"AMC":"", mt.cmc?"CMC":"", mt.inHouse?"In House":"", mt.catalyst?"Catalyst":""].filter(Boolean).join("; ");
+                        const fmtD = d => d ? d.split("-").reverse().join("/") : "";
+                        const startDate = [mt.warranty&&(m.warrantyStart||m.warranty?.startDate), mt.amc&&(m.amcStart||m.amc?.startDate), mt.cmc&&(m.cmcStart||m.cmc?.startDate)].filter(Boolean).map(fmtD).join(" | ") || "";
+                        const endDate = [mt.warranty&&(m.warrantyEnd||m.warranty?.endDate), mt.amc&&(m.amcEnd||m.amc?.endDate), mt.cmc&&(m.cmcEnd||m.cmc?.endDate)].filter(Boolean).map(fmtD).join(" | ") || "";
                         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
                         const workingStatus = m.workingStatus || "";
                         const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus || a.status || "Active";
@@ -6465,9 +6469,9 @@ export default function CompanyEmployeePortal() {
                           m.make||m.manufacturer||"", m.model||"", m.serialNo||"",
                           m.accessories||"", a.departmentName||"",
                           a.building||"", a.floor||"", a.room||"",
-                          m.mfgYear||m.manufacturingYear||"", m.installationDate||"",
-                          m.invoiceNo||"", m.purchaseDate||"", m.purchaseCost||"",
-                          maint, m.rber?"Yes":"No", m.remarks||"",
+                          m.mfgYear||m.manufacturingYear||"", fmtD(m.installationDate)||"",
+                          m.invoiceNo||"", fmtD(m.purchaseDate)||"", m.purchaseCost||"",
+                          maint, startDate||"", endDate||"", m.rber?"Yes":"No", m.remarks||"",
                           workingStatus||"Working", verifiedStatus,
                           a.createdByName||"",
                           a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "",
@@ -6561,14 +6565,14 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
+                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Start Date", "End Date", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={isAdmin ? 23 : (canAssetAction ? 22 : 21)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? 25 : (canAssetAction ? 24 : 23)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd) };
@@ -6596,6 +6600,8 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.accessories || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.departmentName || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{maint}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{[mt.warranty && (m.warrantyStart || m.warranty?.startDate), mt.amc && (m.amcStart || m.amc?.startDate), mt.cmc && (m.cmcStart || m.cmc?.startDate)].filter(Boolean).map(d => d.split("-").reverse().join("/")).join(" | ") || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{[mt.warranty && (m.warrantyEnd || m.warranty?.endDate), mt.amc && (m.amcEnd || m.amc?.endDate), mt.cmc && (m.cmcEnd || m.cmc?.endDate)].filter(Boolean).map(d => d.split("-").reverse().join("/")).join(" | ") || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.dealer || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.manufacturingYear || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.installationDate || "—"}</td>
