@@ -1688,37 +1688,48 @@ router.post("/assets/bulk-import", (req, res, next) => {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
           if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
-          // Detect Excel date auto-conversion: asset IDs like "002-27-000023" can be misread as
-          // dates (2/27/23 → Feb 27 2023 → serial 44984) when the file is opened and re-saved in Excel.
-          // Serials in the range 35000–60000 cover roughly 1995–2064 — flag these with a clear message.
+
+          // Helper: run a SELECT by generated_asset_id pattern
+          const findByGenId = async (idQuery, idParam) => {
+            const [[row_]] = await pool.query(
+              `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
+                      a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
+                      a.status, a.criticality, a.working_status, ad.metadata
+               FROM assets a
+               LEFT JOIN asset_details ad ON ad.asset_id = a.id
+               WHERE ${idQuery} AND a.company_id = ? LIMIT 1`,
+              [idParam, cid(req)]
+            );
+            return row_ || null;
+          };
+
+          // Detect Excel date auto-conversion: e.g. "002-27-000023" → Excel strips zeros → "2-27-23"
+          // → interpreted as Feb 27 2023 → serial 44984.
+          // Serials 35000–60000 cover ~1995–2064. Reverse automatically by converting serial → date
+          // components and reconstructing the original asset ID format {month_padded3}-{day}-{year_padded6}.
           if (/^\d+$/.test(targetAssetId) && Number(targetAssetId) >= 35000 && Number(targetAssetId) <= 60000) {
-            notFound.push({ row: rowNum, assetId: targetAssetId, assetName,
-              reason: `Asset ID "${targetAssetId}" looks like an Excel date serial (Excel auto-converted your Asset ID to a date). Re-export the asset list from the system and format the "Asset ID" column as Text in Excel before saving.` });
-            continue;
-          }
-          // Match by full ID (e.g. "002-27-036949") or just numeric suffix (e.g. "36949" → padded to "%-036949")
-          let assetIdParam, assetIdQuery;
-          if (/[-]/.test(targetAssetId)) {
-            // Full ID provided — exact match
-            assetIdQuery = `a.generated_asset_id = ?`;
-            assetIdParam = targetAssetId;
+            const serial = Number(targetAssetId);
+            const d = new Date((serial - 25569) * 86400000); // Excel 1900 → Unix epoch conversion
+            const m  = String(d.getUTCMonth() + 1).padStart(3, '0');
+            const dy = d.getUTCDate();
+            const y2 = String(d.getUTCFullYear() % 100).padStart(6, '0');
+            const reversedId = `${m}-${dy}-${y2}`;
+            existing = await findByGenId(`a.generated_asset_id = ?`, reversedId);
+            if (!existing) {
+              notFound.push({ row: rowNum, assetId: targetAssetId, assetName,
+                reason: `Asset ID "${targetAssetId}" looks like an Excel date serial. Re-export the asset list and format the "Asset ID" column as Text in Excel before saving.` });
+              continue;
+            }
+          } else if (/[-]/.test(targetAssetId)) {
+            // Full ID with dashes — exact match
+            existing = await findByGenId(`a.generated_asset_id = ?`, targetAssetId);
+            if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
           } else {
-            // Only the numeric part — pad to 6 digits and match suffix
+            // Numeric-only suffix — pad and LIKE match
             const padded = String(targetAssetId).padStart(6, "0");
-            assetIdQuery = `a.generated_asset_id LIKE ?`;
-            assetIdParam = `%-${padded}`;
-          }
-          [[existing]] = await pool.query(
-            `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
-                    a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
-                    a.status, a.criticality, a.working_status, ad.metadata
-             FROM assets a
-             LEFT JOIN asset_details ad ON ad.asset_id = a.id
-             WHERE ${assetIdQuery} AND a.company_id = ? LIMIT 1`,
-            [assetIdParam, cid(req)]
-          );
-          if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
-        } else {
+            existing = await findByGenId(`a.generated_asset_id LIKE ?`, `%-${padded}`);
+            if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
+          } else {
           // Add mode: if the row contains a full Asset ID, try to match by generated_asset_id first
           // (supports updating existing assets via the exported CSV without a separate update mode)
           const inlineAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
