@@ -1683,15 +1683,26 @@ router.post("/assets/bulk-import", (req, res, next) => {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
           if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
-          // Exact match on full generated_asset_id (e.g. "002-27-036949")
+          // Match by full ID (e.g. "002-27-036949") or just numeric suffix (e.g. "36949" → padded to "%-036949")
+          let assetIdParam, assetIdQuery;
+          if (/[-]/.test(targetAssetId)) {
+            // Full ID provided — exact match
+            assetIdQuery = `a.generated_asset_id = ?`;
+            assetIdParam = targetAssetId;
+          } else {
+            // Only the numeric part — pad to 6 digits and match suffix
+            const padded = String(targetAssetId).padStart(6, "0");
+            assetIdQuery = `a.generated_asset_id LIKE ?`;
+            assetIdParam = `%-${padded}`;
+          }
           [[existing]] = await pool.query(
             `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                     a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
                     a.status, ad.metadata
              FROM assets a
              LEFT JOIN asset_details ad ON ad.asset_id = a.id
-             WHERE a.generated_asset_id = ? AND a.company_id = ? LIMIT 1`,
-            [targetAssetId, cid(req)]
+             WHERE ${assetIdQuery} AND a.company_id = ? LIMIT 1`,
+            [assetIdParam, cid(req)]
           );
           if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
         } else {
