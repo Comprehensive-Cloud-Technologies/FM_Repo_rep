@@ -6634,7 +6634,7 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.invoiceNo || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseDate || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"}</td>
-                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber || "—"}</td>
+                            <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber != null ? (m.rber ? "Yes" : "No") : "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—"}</td>
