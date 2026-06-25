@@ -1470,10 +1470,15 @@ router.get("/assets", async (req, res, next) => {
   }
 });
 
-// Multer instance for Excel uploads (memory, no disk write)
+// Multer instance for Excel uploads (disk storage — avoids holding file buffer in RAM)
+const excelUploadDir = path.join(__dirname, "../../uploads/tmp-excel");
+fs.mkdirSync(excelUploadDir, { recursive: true });
 const excelAssetUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, excelUploadDir),
+    filename: (_req, _file, cb) => cb(null, `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}.xlsx`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max (typical 500-row Excel is < 1MB)
   fileFilter: (_req, file, cb) => {
     /\.(xlsx|xls|csv)$/i.test(file.originalname) ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
   },
@@ -1487,7 +1492,8 @@ const excelAssetUpload = multer({
 router.post("/assets/bulk-import", (req, res, next) => {
   excelAssetUpload.single("file")(req, res, (err) => {
     if (err) {
-      if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Excel file is too large. Maximum allowed size is 50 MB." });
+      if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Excel file is too large. Maximum allowed size is 10 MB." });
       return res.status(400).json({ message: err.message || "File upload failed" });
     }
     next();
@@ -1532,7 +1538,9 @@ router.post("/assets/bulk-import", (req, res, next) => {
     let assetSeq = Number(initialAssetCount || 0);
 
     const { read, utils } = await import("xlsx");
-    const wb = read(req.file.buffer, { type: "buffer" });
+    const wb = read(req.file.path, { type: "file" });
+    // Clean up temp file immediately after parsing — free disk + avoid accumulation
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
 
     // Some files have title rows or multiple sheets; auto-select the best candidate.
     const likelyAssetKey = (key) => [
