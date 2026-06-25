@@ -98,23 +98,23 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
                       OR JSON_EXTRACT(ad.metadata, '$.condemned') = 1 THEN 1 ELSE 0 END) AS condemned,
            SUM(CASE WHEN a.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_addition,
            COALESCE(SUM(
-             CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-                  THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2))
+             CASE WHEN REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+                  THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2))
                   ELSE 0 END
            ), 0) AS total_asset_value,
            /* Per maintenance-type costs: attribute purchaseCost to each selected type */
            COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.highEnd') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.highEnd') = 1)
-             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS high_end_cost,
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS high_end_cost,
            COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.catalyst') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.catalyst') = 1)
-             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS catalyst_cost,
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS catalyst_cost,
            COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = 1)
-             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS warranty_cost,
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS warranty_cost,
            COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = 1) OR (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = 1))
-             AND JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-             THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cmc_cost
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cmc_cost
          FROM assets a
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
          ${where}`,
