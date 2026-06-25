@@ -9404,17 +9404,20 @@ export default function CompanyEmployeePortal() {
         />
       )}
       {showBulkAssetImport && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "20px 16px", overflowY: "auto" }}
           onClick={() => setShowBulkAssetImport(false)}>
-          <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "540px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+          <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "540px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
             onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            {/* Sticky header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 28px 16px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Import Assets from Excel</h2>
                 <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>Upload an .xlsx / .xls / .csv file to register multiple assets at once.</p>
               </div>
               <button onClick={() => setShowBulkAssetImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
             </div>
+            {/* Scrollable body */}
+            <div style={{ padding: "20px 28px 28px", overflowY: "auto", flex: 1 }}
 
             {/* Import Mode Selection */}
             <div style={{ marginBottom: "18px" }}>
@@ -9510,6 +9513,7 @@ export default function CompanyEmployeePortal() {
                 <p style={{ margin: 0, fontSize: "13px", color: "#dc2626", fontWeight: 600 }}>{bulkAssetResult.error}</p>
               </div>
             )}
+            </div>{/* end scrollable body */}
           </div>
         </div>
       )}
