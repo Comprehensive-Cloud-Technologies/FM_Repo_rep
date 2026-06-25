@@ -1495,7 +1495,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: "#3730a3", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Asset Value</div>
-                  <div style={{ fontSize: "22px", fontWeight: 900, color: "#7c3aed", marginTop: "2px" }}>{fmtCurrency(snapshot?.totalAssetValue)}</div>
+                  <div style={{ fontSize: "22px", fontWeight: 900, color: "#7c3aed", marginTop: "2px" }}>{snapLoading ? "—" : `₹${Number(snapshot?.totalAssetValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}</div>
                 </div>
                 <button onClick={() => setShowCostPopup(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
               </div>

@@ -9113,6 +9113,12 @@ export default function CompanyEmployeePortal() {
                     <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
                   </div>
                   <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "—"}</span>
+                  {(m.workingStatus || a.working_status) && (
+                    <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{m.workingStatus || a.working_status}</span>
+                  )}
+                  {(Number(a.isVerified) === 1 || a.isVerified === true) && (
+                    <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>Verified</span>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                   <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); setEditAsset(a); setShowAssetModal(true); }}
