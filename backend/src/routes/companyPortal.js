@@ -1683,15 +1683,18 @@ router.post("/assets/bulk-import", (req, res, next) => {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
           if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
-          // Try exact match first, then match by numeric suffix only (e.g. "41697" matches "002-27-041697")
+          // Match: exact full ID ("004-27-036949"), OR suffix ignoring leading zeros ("36949" → "004-27-036949")
+          // Using REGEXP so "36949" matches the "-0*36949$" pattern even when DB stores "036949"
+          const escapedId = targetAssetId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const suffixRegex = `(^|-)0*${escapedId}$`;
           [[existing]] = await pool.query(
             `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                     a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
                     a.status, ad.metadata
              FROM assets a
              LEFT JOIN asset_details ad ON ad.asset_id = a.id
-             WHERE (a.generated_asset_id = ? OR a.generated_asset_id LIKE ?) AND a.company_id = ? LIMIT 1`,
-            [targetAssetId, `%-${targetAssetId}`, cid(req)]
+             WHERE (a.generated_asset_id = ? OR a.generated_asset_id REGEXP ?) AND a.company_id = ? LIMIT 1`,
+            [targetAssetId, suffixRegex, cid(req)]
           );
           if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
         } else {
