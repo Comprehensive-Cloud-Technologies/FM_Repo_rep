@@ -9469,8 +9469,9 @@ export default function CompanyEmployeePortal() {
                 try {
                   const result = await bulkImportCompanyPortalAssets(token, bulkAssetFile, bulkAssetImportMode);
                   setBulkAssetResult(result);
-                  // Refresh assets
+                  // Refresh assets list AND dashboard stats
                   getCompanyPortalAssets(token).then((list) => list && setAssets(list)).catch(() => {});
+                  getCompanyPortalDashboard(token).then((d) => d && setDashboard(d)).catch(() => {});
                 } catch (err) {
                   setBulkAssetResult({ error: err.message });
                 } finally {
