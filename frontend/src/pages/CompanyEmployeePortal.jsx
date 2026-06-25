@@ -4831,7 +4831,17 @@ export default function CompanyEmployeePortal() {
     assets.filter((a) => {
       const term = assetSearch.toLowerCase().trim();
       const m = a.metadata || {};
-      const maintStr = [m.warranty ? "Warranty" : "", m.amc ? "AMC" : "", m.cmc ? "CMC" : "", m.inHouse ? "In House" : "", m.catalyst ? "Catalyst" : ""].filter(Boolean).join(" ").toLowerCase();
+      const mt = m.maintenanceTypes || {};
+      const legacyMt = (m.maintenanceType || "").toLowerCase();
+      const maintStr = [
+        (mt.warranty || legacyMt === "warranty") ? "Warranty" : "",
+        (mt.amc || legacyMt === "amc") ? "AMC" : "",
+        (mt.cmc || legacyMt === "cmc") ? "CMC" : "",
+        (mt.inHouse || mt.inhouse || legacyMt === "in house") ? "In House" : "",
+        (mt.catalyst || legacyMt === "catalyst") ? "Catalyst" : "",
+        (mt.highEnd || mt.highend || legacyMt === "high end") ? "High End" : "",
+        (mt.rented || legacyMt === "rented") ? "Rented" : "",
+      ].filter(Boolean).join(" ").toLowerCase();
       const matchSearch = !term || [
         a.assetName, a.assetUniqueId, a.asset_unique_id, a.generatedAssetId,
         m.equipmentName, m.make, m.manufacturer, m.model, m.serialNo,
@@ -6550,6 +6560,8 @@ export default function CompanyEmployeePortal() {
                       <option value="cmc">CMC</option>
                       <option value="in house">In House</option>
                       <option value="catalyst">Catalyst</option>
+                      <option value="high end">High End</option>
+                      <option value="rented">Rented</option>
                     </select>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>

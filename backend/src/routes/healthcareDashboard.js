@@ -112,9 +112,12 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
            COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.warranty') = 1)
              AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
              THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS warranty_cost,
-           COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = 1) OR (JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = 1))
+           COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.amc') = 1))
              AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
-             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cmc_cost
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cost,
+           COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = 1))
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS cmc_cost
          FROM assets a
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
          ${where}`,
@@ -179,7 +182,8 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       highEndCost:    Number(snap.high_end_cost   || 0),
       catalystCost:   Number(snap.catalyst_cost   || 0),
       warrantyCost:   Number(snap.warranty_cost   || 0),
-      amcCmcCost:     Number(snap.amc_cmc_cost    || 0),
+      amcCost:        Number(snap.amc_cost       || 0),
+      cmcCost:        Number(snap.cmc_cost       || 0),
       // Complaint / Request Profile
       totalComplaints:  Number(reqStats.total_requests    || 0),
       wipComplaints:    Number(reqStats.wip_requests      || 0),

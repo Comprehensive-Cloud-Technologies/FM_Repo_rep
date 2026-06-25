@@ -1504,7 +1504,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 { label: "High End Equipment", value: snapshot?.highEndCost,  color: "#7c3aed", bg: "#ede9fe" },
                 { label: "Under Catalyst",     value: snapshot?.catalystCost, color: "#0891b2", bg: "#e0f2fe" },
                 { label: "Under Warranty",     value: snapshot?.warrantyCost, color: "#16a34a", bg: "#dcfce7" },
-                { label: "Under AMC/CMC",      value: snapshot?.amcCmcCost,   color: "#dc2626", bg: "#fee2e2" },
+                { label: "Under AMC",          value: snapshot?.amcCost,      color: "#dc2626", bg: "#fee2e2" },
+                { label: "Under CMC",          value: snapshot?.cmcCost,      color: "#ea580c", bg: "#fff7ed" },
               ].map(row => (
                 <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>

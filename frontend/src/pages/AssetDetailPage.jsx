@@ -146,11 +146,11 @@ export default function AssetDetailPage() {
   const failures = closed.length;
   const assetAge = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
   const operatingMs = Math.max(0, assetAge - totalDownMs);
-  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "0";
+  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "00:00:00";
   // MTTR = Total downtime / number of breakdowns
-  const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "0";
+  const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "00:00:00";
 
-  const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "0";
+  const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "00:00:00";
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
@@ -685,6 +685,9 @@ export default function AssetDetailPage() {
           <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: asset.status === "Active" ? "#dcfce7" : "#f1f5f9", color: asset.status === "Active" ? "#16a34a" : "#475569" }}>{asset.status || "—"}</span>
           {(asset.working_status || m.workingStatus) && (
             <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{asset.working_status || m.workingStatus}</span>
+          )}
+          {(Number(asset.isVerified) === 1 || asset.isVerified === true) && (
+            <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>Verified</span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
