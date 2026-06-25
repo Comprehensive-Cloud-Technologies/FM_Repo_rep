@@ -1580,7 +1580,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
 
     // Helper: pick first non-empty value from a list of candidate keys
     const pick = (row, ...keys) => {
-      for (const k of keys) { const v = row[k]; if (v) return v; }
+      for (const k of keys) { const v = row[k]; const s = (v === undefined || v === null) ? "" : String(v).trim(); if (s) return s; }
       return "";
     };
 
@@ -1680,7 +1680,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
         if (mode === "update") {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
-          if (!targetAssetId) { skipped.push({ row: rowNum, reason: 'Column "assetId" (the generated Asset ID, e.g. 004-27-000142) is required in update mode' }); continue; }
+          if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
           [[existing]] = await pool.query(
             `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                     a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
