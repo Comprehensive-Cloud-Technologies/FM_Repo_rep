@@ -1581,6 +1581,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
     const unchanged = [];
     const skipped = [];
 
+    const mode = (req.query.mode || "add").toLowerCase(); // "add" | "update"
+
     for (let i = 0; i < rawRows.length; i++) {
       const row    = normalise(rawRows[i]);
       const rowNum = i + dataStartOffset;
@@ -1665,16 +1667,34 @@ router.post("/assets/bulk-import", (req, res, next) => {
           createdBy: req.companyUser.id || null,
         });
 
-        // Check if asset already exists for this company
-        const [[existing]] = await pool.query(
-          `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
-                  a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
-                  a.status, ad.metadata
-           FROM assets a
-           LEFT JOIN asset_details ad ON ad.asset_id = a.id
-           WHERE a.asset_unique_id = ? AND a.company_id = ? LIMIT 1`,
-          [uniqueIdToUse, cid(req)]
-        );
+        // Resolve which existing asset to match against (mode-dependent)
+        let existing;
+        if (mode === "update") {
+          // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
+          const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
+          if (!targetAssetId) { skipped.push({ row: rowNum, reason: 'Column "assetId" (the generated Asset ID, e.g. 004-27-000142) is required in update mode' }); continue; }
+          [[existing]] = await pool.query(
+            `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
+                    a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
+                    a.status, ad.metadata
+             FROM assets a
+             LEFT JOIN asset_details ad ON ad.asset_id = a.id
+             WHERE a.generated_asset_id = ? AND a.company_id = ? LIMIT 1`,
+            [targetAssetId, cid(req)]
+          );
+          if (!existing) { skipped.push({ row: rowNum, reason: `No asset found with Asset ID "${targetAssetId}"` }); continue; }
+        } else {
+          // Add mode: match by asset_unique_id (upsert — update if collision, else create)
+          [[existing]] = await pool.query(
+            `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
+                    a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
+                    a.status, ad.metadata
+             FROM assets a
+             LEFT JOIN asset_details ad ON ad.asset_id = a.id
+             WHERE a.asset_unique_id = ? AND a.company_id = ? LIMIT 1`,
+            [uniqueIdToUse, cid(req)]
+          );
+        }
         if (existing) {
           // Build incoming metadata from this Excel row
           const incomingMeta = {};
@@ -1773,6 +1793,9 @@ router.post("/assets/bulk-import", (req, res, next) => {
           });
           continue;
         }
+
+        // In update mode: never create new records (should not reach here due to earlier continue, but safety net)
+        if (mode === "update") { skipped.push({ row: rowNum, assetName, reason: "No matching asset found to update" }); continue; }
 
           assetSeq += 1;
           const generatedAssetId = `${cCode}-${sCode}-${String(assetSeq).padStart(6, "0")}`;

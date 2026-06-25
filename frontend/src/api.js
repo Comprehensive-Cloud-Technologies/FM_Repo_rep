@@ -162,11 +162,11 @@ export const assignCompanyPortalAsset = (token, assetId, userId) => request("PAT
 export const getAssetByBarcode = (token, barcode) => request("GET", `/api/company-portal/assets/by-barcode/${encodeURIComponent(barcode)}`, undefined, { authToken: token });
 
 /** Bulk-import assets from Excel/CSV via the company portal endpoint. */
-export const bulkImportCompanyPortalAssets = async (token, file) => {
+export const bulkImportCompanyPortalAssets = async (token, file, mode = "add") => {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(
-    `${BASE}/api/company-portal/assets/bulk-import`,
+    `${BASE}/api/company-portal/assets/bulk-import?mode=${mode}`,
     { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
   );
   const data = await res.json().catch(() => ({}));
@@ -175,7 +175,7 @@ export const bulkImportCompanyPortalAssets = async (token, file) => {
 };
 
 /** Template download URL for company portal bulk import. */
-export const getCompanyPortalImportTemplateUrl = () => `${BASE}/api/company-portal/assets/bulk-import/template`;
+export const getCompanyPortalImportTemplateUrl = (mode = "add") => `${BASE}/api/company-portal/assets/bulk-import/template?mode=${mode}`;
 export const getAssetQueries = (token, params = {}) => {
   const qs = new URLSearchParams(params).toString();
   return request("GET", `/api/company-portal/asset-queries${qs ? "?" + qs : ""}`, undefined, { authToken: token });

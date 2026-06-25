@@ -451,6 +451,7 @@ export default function AddAssetScreen() {
   const [inHouse,  setInHouse]  = useState(false);
   const [catalyst, setCatalyst] = useState(false);
   const [highEnd,  setHighEnd]  = useState(false);
+  const [rented,   setRented]   = useState(false);
   const [category, setCategory] = useState<'Non_Critical' | 'Critical'>('Non_Critical');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
@@ -598,9 +599,10 @@ export default function AddAssetScreen() {
           inHouse: inHouse || undefined,
           catalyst: catalyst || undefined,
           highEnd: highEnd || undefined,
+          rented: rented || undefined,
           maintenanceTypes: {
             warranty: warranty.enabled, amc: amc.enabled, cmc: cmc.enabled,
-            inHouse, catalyst, highEnd,
+            inHouse, catalyst, highEnd, rented,
           },
           calibration: calibrationRequired ? {
             required: true,
@@ -857,6 +859,9 @@ export default function AddAssetScreen() {
           </View>
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={highEnd} label="High End Equipment" onToggle={() => setHighEnd(v => !v)} />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <Checkbox checked={rented} label="Rented" onToggle={() => setRented(v => !v)} />
           </View>
           {/* Per-type purchase cost inputs */}
 

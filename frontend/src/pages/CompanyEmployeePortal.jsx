@@ -4352,6 +4352,7 @@ export default function CompanyEmployeePortal() {
   const [bulkAssetDeptId, setBulkAssetDeptId] = useState("");
   const [bulkAssetImporting, setBulkAssetImporting] = useState(false);
   const [bulkAssetResult, setBulkAssetResult] = useState(null);
+  const [bulkAssetImportMode, setBulkAssetImportMode] = useState("add"); // "add" | "update"
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [editChecklist, setEditChecklist] = useState(null);
   const [checklistSubNav, setChecklistSubNav] = useState("templates");
@@ -6430,7 +6431,7 @@ export default function CompanyEmployeePortal() {
                     </button>
                   )}
                   {/* Import Excel */}
-                  <button onClick={() => { setBulkAssetFile(null); setBulkAssetDeptId(""); setBulkAssetResult(null); setShowBulkAssetImport(true); }}
+                  <button onClick={() => { setBulkAssetFile(null); setBulkAssetDeptId(""); setBulkAssetResult(null); setBulkAssetImportMode("add"); setShowBulkAssetImport(true); }}
                     style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 13px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: "1.5px solid #2563eb", background: "#eff6ff", color: "#2563eb", whiteSpace: "nowrap" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Import Excel
@@ -9415,10 +9416,34 @@ export default function CompanyEmployeePortal() {
               <button onClick={() => setShowBulkAssetImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
             </div>
 
+            {/* Import Mode Selection */}
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "8px" }}>Import Type</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {[
+                  { value: "add", label: "Add New Assets", desc: "Create new assets with new Asset IDs & QR Codes", icon: "+" },
+                  { value: "update", label: "Update Existing Assets", desc: "Update existing assets using Asset ID as the key", icon: "✎" },
+                ].map(({ value, label, desc, icon }) => (
+                  <label key={value} style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "12px", borderRadius: "10px", border: `2px solid ${bulkAssetImportMode === value ? "#2563eb" : "#e2e8f0"}`, background: bulkAssetImportMode === value ? "#eff6ff" : "#f8fafc", cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input type="radio" name="bulkAssetImportMode" value={value} checked={bulkAssetImportMode === value} onChange={() => { setBulkAssetImportMode(value); setBulkAssetResult(null); }} style={{ accentColor: "#2563eb" }} />
+                      <span style={{ fontWeight: 700, fontSize: "13px", color: bulkAssetImportMode === value ? "#1d4ed8" : "#374151" }}>{icon} {label}</span>
+                    </div>
+                    <span style={{ fontSize: "11.5px", color: "#64748b", marginLeft: "20px" }}>{desc}</span>
+                  </label>
+                ))}
+              </div>
+              {bulkAssetImportMode === "update" && (
+                <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 12px" }}>
+                  ⚠️ Update mode uses <strong>Asset ID</strong> (e.g. 004-27-000142) from the Excel column &quot;assetId&quot; to match records. QR Codes and Asset IDs will NOT be changed.
+                </p>
+              )}
+            </div>
+
             {/* Template download */}
             <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 16px", marginBottom: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
               <span style={{ fontSize: "13px", color: "#475569" }}>Download the template to see the required columns.</span>
-              <a href={getCompanyPortalImportTemplateUrl()} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
+              <a href={getCompanyPortalImportTemplateUrl(bulkAssetImportMode)} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Template
               </a>
@@ -9439,7 +9464,7 @@ export default function CompanyEmployeePortal() {
                 if (!bulkAssetFile) return;
                 setBulkAssetImporting(true); setBulkAssetResult(null);
                 try {
-                  const result = await bulkImportCompanyPortalAssets(token, bulkAssetFile);
+                  const result = await bulkImportCompanyPortalAssets(token, bulkAssetFile, bulkAssetImportMode);
                   setBulkAssetResult(result);
                   // Refresh assets
                   getCompanyPortalAssets(token).then((list) => list && setAssets(list)).catch(() => {});
@@ -9450,16 +9475,18 @@ export default function CompanyEmployeePortal() {
                 }
               }}
               style={{ display: "block", width: "100%", padding: "10px", borderRadius: "8px", border: "none", background: bulkAssetImporting || !bulkAssetFile ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: bulkAssetImporting || !bulkAssetFile ? "default" : "pointer" }}>
-              {bulkAssetImporting ? "Uploading…" : "Upload & Register Assets"}
+              {bulkAssetImporting ? "Uploading…" : bulkAssetImportMode === "update" ? "Upload & Update Assets" : "Upload & Register Assets"}
             </button>
 
             {/* Results */}
             {bulkAssetResult && !bulkAssetResult.error && (
               <div style={{ marginTop: "20px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "10px", marginBottom: "14px" }}>
                   {[
                     { label: "Total Rows", value: bulkAssetResult.total, color: "#0f172a" },
-                    { label: "Created", value: bulkAssetResult.created, color: "#16a34a" },
+                    ...(bulkAssetImportMode !== "update" ? [{ label: "Created", value: bulkAssetResult.created ?? 0, color: "#16a34a" }] : []),
+                    { label: "Updated", value: bulkAssetResult.updated ?? 0, color: "#2563eb" },
+                    { label: "Unchanged", value: bulkAssetResult.unchanged ?? 0, color: "#64748b" },
                     { label: "Skipped", value: bulkAssetResult.skipped, color: "#d97706" },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
