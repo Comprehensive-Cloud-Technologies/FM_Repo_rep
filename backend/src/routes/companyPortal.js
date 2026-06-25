@@ -1740,7 +1740,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
             const [[row_]] = await pool.query(
               `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                       a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
-                      a.status, a.criticality, a.working_status, ad.metadata
+                      a.status, a.criticality, a.working_status, a.is_verified, ad.metadata
                FROM assets a
                LEFT JOIN asset_details ad ON ad.asset_id = a.id
                WHERE ${idQuery} AND a.company_id = ? LIMIT 1`,
@@ -1786,7 +1786,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
               [[existing]] = await pool.query(
                 `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                         a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
-                        a.status, a.criticality, a.working_status, ad.metadata
+                        a.status, a.criticality, a.working_status, a.is_verified, ad.metadata
                  FROM assets a
                  LEFT JOIN asset_details ad ON ad.asset_id = a.id
                  WHERE a.generated_asset_id = ? AND a.company_id = ? LIMIT 1`,
@@ -1799,7 +1799,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
             [[existing]] = await pool.query(
               `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                       a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
-                      a.status, a.criticality, a.working_status, ad.metadata
+                      a.status, a.criticality, a.working_status, a.is_verified, ad.metadata
                FROM assets a
                LEFT JOIN asset_details ad ON ad.asset_id = a.id
                WHERE a.asset_unique_id = ? AND a.company_id = ? LIMIT 1`,
@@ -1817,11 +1817,12 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const pd2 = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate"); if (pd2) incomingMeta.purchaseDate = normalizeDate(pd2);
           const id2up = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2up) incomingMeta.installationDate = normalizeDate(id2up);
           const inv2 = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum"); if (inv2) incomingMeta.invoiceNo = inv2;
-          const pc2 = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc2) incomingMeta.purchaseCost = pc2;
+          const pc2 = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc2) incomingMeta.purchaseCost = pc2.replace(/,/g, "");
           const my2 = pick(row, "mfgyear", "mfg_year", "mfg.year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my2) incomingMeta.manufacturingYear = my2;
           const dl2 = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername"); if (dl2) incomingMeta.dealer = dl2;
           const rm2 = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm2) incomingMeta.remarks = rm2;
           const rb2 = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb2) incomingMeta.rber = rb2.toLowerCase() === "yes" || rb2 === "1" || rb2.toLowerCase() === "true";
+          const vs2 = pick(row, "verifiedstatus", "verified_status", "isverified", "verified"); if (vs2) incomingMeta._isVerified = vs2.toLowerCase() === "verified" ? 1 : 0;
           const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category"); if (mn2) {
             incomingMeta.maintenanceType = mn2;
             const mnLower2 = mn2.toLowerCase();
@@ -1851,7 +1852,13 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const mergedMeta = { ...existingMeta };
           let metaChanged = false;
           for (const [k, v] of Object.entries(incomingMeta)) {
-            if (String(mergedMeta[k] ?? "") !== String(v)) {
+            if (k === "_isVerified") continue; // handled separately in assetChanges
+            const cur = mergedMeta[k];
+            const oldStr = (cur !== null && cur !== undefined && typeof cur === "object")
+              ? JSON.stringify(cur) : String(cur ?? "");
+            const newStr = (v !== null && v !== undefined && typeof v === "object")
+              ? JSON.stringify(v) : String(v);
+            if (oldStr !== newStr) {
               mergedMeta[k] = v;
               metaChanged = true;
             }
@@ -1874,6 +1881,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
           if (inCriticality && inCriticality !== existing.criticality)  assetChanges.criticality   = inCriticality;
           const inWorkingStatus = pick(row, "workingstatus", "working_status", "workingcondition", "condition");
           if (inWorkingStatus && inWorkingStatus !== existing.working_status) assetChanges.working_status = inWorkingStatus;
+          if (incomingMeta._isVerified !== undefined && Number(incomingMeta._isVerified) !== Number(existing.is_verified ?? 0)) assetChanges.is_verified = incomingMeta._isVerified;
 
           const hasAssetChanges = Object.keys(assetChanges).length > 0;
 
