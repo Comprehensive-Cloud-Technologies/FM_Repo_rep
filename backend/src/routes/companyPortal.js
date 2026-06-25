@@ -1473,7 +1473,7 @@ router.get("/assets", async (req, res, next) => {
 // Multer instance for Excel uploads (memory, no disk write)
 const excelAssetUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     /\.(xlsx|xls|csv)$/i.test(file.originalname) ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
   },
@@ -1484,7 +1484,15 @@ const excelAssetUpload = multer({
 // Form fields (multipart): file (required)
 // Department is resolved per-row from the "departmentName" column (optional).
 // Each row auto-generates a unique asset ID + QR entry.
-router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, res, next) => {
+router.post("/assets/bulk-import", (req, res, next) => {
+  excelAssetUpload.single("file")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Excel file is too large. Maximum allowed size is 50 MB." });
+      return res.status(400).json({ message: err.message || "File upload failed" });
+    }
+    next();
+  });
+}, async (req, res, next) => {
   try {
     const role = req.companyUser.role;
     if (role !== "admin" && role !== "supervisor")
