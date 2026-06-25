@@ -1589,6 +1589,52 @@ router.post("/assets/bulk-import", (req, res, next) => {
       return "";
     };
 
+    // Helper: normalize any incoming date value to DD/MM/YYYY
+    // Handles: Excel serial numbers, DD-Mon-YY, DD-Mon-YYYY, YYYY-MM-DD, DD/MM/YYYY, MM-DD-YYYY
+    const normalizeDate = (val) => {
+      if (!val) return val;
+      const s = String(val).trim();
+      if (!s) return s;
+      // Excel date serial — pure integer in plausible range (1990-01-01=32874 to 2060-12-31=58037)
+      if (/^\d+$/.test(s)) {
+        const n = Number(s);
+        if (n >= 32874 && n <= 58037) {
+          const d = new Date((n - 25569) * 86400000);
+          const dd = String(d.getUTCDate()).padStart(2, "0");
+          const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+          return `${dd}/${mm}/${d.getUTCFullYear()}`;
+        }
+        return s; // plain number that isn't a date serial
+      }
+      // DD-Mon-YY or DD-Mon-YYYY (e.g. "31-Mar-26", "19-Jul-2026")
+      const monMap = { jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12" };
+      const dmyM = s.match(/^(\d{1,2})[\/\-]([A-Za-z]{3})[\/\-](\d{2,4})$/);
+      if (dmyM) {
+        const day = dmyM[1].padStart(2, "0");
+        const mon = monMap[dmyM[2].toLowerCase()];
+        if (mon) {
+          let yr = dmyM[3];
+          if (yr.length === 2) yr = Number(yr) <= 30 ? `20${yr.padStart(2,"0")}` : `19${yr}`;
+          return `${day}/${mon}/${yr}`;
+        }
+      }
+      // YYYY-MM-DD ISO
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+      // MM/DD/YYYY (US Excel export) — only rearrange if first part can't be a day > 12
+      const usDate = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (usDate) {
+        const p1 = Number(usDate[1]), p2 = Number(usDate[2]);
+        // If first part > 12, it must already be DD/MM/YYYY
+        if (p1 > 12) return s;
+        // If second part > 12, it is MM/DD/YYYY — swap
+        if (p2 > 12) return `${String(p2).padStart(2,"0")}/${String(p1).padStart(2,"0")}/${usDate[3]}`;
+        // Ambiguous — keep as-is (trust user entered DD/MM/YYYY)
+        return s;
+      }
+      return s; // unknown format, keep as-is
+    };
+
     const created = [];
     const updated = [];
     const unchanged = [];
@@ -1768,8 +1814,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const mdl2 = pick(row, "model", "modelno", "model_no", "modelname"); if (mdl2) incomingMeta.model = mdl2;
           const sn2 = pick(row, "serialno", "serial_no", "serialnumber", "srnumber", "srno", "sr_no", "serialnum"); if (sn2) incomingMeta.serialNo = sn2;
           const acc2 = pick(row, "accessories", "accessory", "attachments"); if (acc2) incomingMeta.accessories = acc2;
-          const pd2 = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate"); if (pd2) incomingMeta.purchaseDate = pd2;
-          const id2up = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2up) incomingMeta.installationDate = id2up;
+          const pd2 = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate"); if (pd2) incomingMeta.purchaseDate = normalizeDate(pd2);
+          const id2up = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2up) incomingMeta.installationDate = normalizeDate(id2up);
           const inv2 = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum"); if (inv2) incomingMeta.invoiceNo = inv2;
           const pc2 = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc2) incomingMeta.purchaseCost = pc2;
           const my2 = pick(row, "mfgyear", "mfg_year", "mfg.year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my2) incomingMeta.manufacturingYear = my2;
@@ -1782,15 +1828,15 @@ router.post("/assets/bulk-import", (req, res, next) => {
             incomingMeta.maintenanceTypes = { warranty: mnLower2 === "warranty", amc: mnLower2 === "amc", cmc: mnLower2 === "cmc", inhouse: mnLower2 === "in house" || mnLower2 === "inhouse", catalyst: mnLower2 === "catalyst", highEnd: mnLower2 === "high end" || mnLower2 === "highend", rented: mnLower2 === "rented" };
           }
           // Maintenance date ranges — explicit per-type columns
-          const ws2 = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws2) incomingMeta.warrantyStart = ws2;
-          const we2 = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we2) incomingMeta.warrantyEnd = we2;
-          const as2 = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as2) incomingMeta.amcStart = as2;
-          const ae2 = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae2) incomingMeta.amcEnd = ae2;
-          const cs2 = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs2) incomingMeta.cmcStart = cs2;
-          const ce2 = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce2) incomingMeta.cmcEnd = ce2;
+          const ws2 = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws2) incomingMeta.warrantyStart = normalizeDate(ws2);
+          const we2 = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we2) incomingMeta.warrantyEnd = normalizeDate(we2);
+          const as2 = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as2) incomingMeta.amcStart = normalizeDate(as2);
+          const ae2 = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae2) incomingMeta.amcEnd = normalizeDate(ae2);
+          const cs2 = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs2) incomingMeta.cmcStart = normalizeDate(cs2);
+          const ce2 = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce2) incomingMeta.cmcEnd = normalizeDate(ce2);
           // Generic "Start Date" / "End Date" → map to the maintenance type column value
-          const gs2 = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
-          const ge2 = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+          const gs2 = normalizeDate(pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date"));
+          const ge2 = normalizeDate(pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate"));
           if (gs2 || ge2) {
             const mnL = (incomingMeta.maintenanceType || "").toLowerCase();
             if (mnL === "warranty") { if (gs2 && !incomingMeta.warrantyStart) incomingMeta.warrantyStart = gs2; if (ge2 && !incomingMeta.warrantyEnd) incomingMeta.warrantyEnd = ge2; }
@@ -1904,9 +1950,9 @@ router.post("/assets/bulk-import", (req, res, next) => {
         const acc = pick(row, "accessories", "accessory", "attachments");
         if (acc) meta.accessories = acc;
         const pd = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate");
-        if (pd) meta.purchaseDate = pd;
+        if (pd) meta.purchaseDate = normalizeDate(pd);
         const id2 = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate");
-        if (id2) meta.installationDate = id2;
+        if (id2) meta.installationDate = normalizeDate(id2);
         const inv = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum");
         if (inv) meta.invoiceNo = inv;
         const pc = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue");
@@ -1926,15 +1972,15 @@ router.post("/assets/bulk-import", (req, res, next) => {
           meta.maintenanceTypes = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented" };
         }
         // Maintenance date ranges — explicit per-type columns
-        const ws = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws) meta.warrantyStart = ws;
-        const we = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we) meta.warrantyEnd = we;
-        const as = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as) meta.amcStart = as;
-        const ae = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae) meta.amcEnd = ae;
-        const cs = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs) meta.cmcStart = cs;
-        const ce = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce) meta.cmcEnd = ce;
+        const ws = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws) meta.warrantyStart = normalizeDate(ws);
+        const we = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we) meta.warrantyEnd = normalizeDate(we);
+        const as = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as) meta.amcStart = normalizeDate(as);
+        const ae = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae) meta.amcEnd = normalizeDate(ae);
+        const cs = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs) meta.cmcStart = normalizeDate(cs);
+        const ce = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce) meta.cmcEnd = normalizeDate(ce);
         // Generic "Start Date" / "End Date" → map to the maintenance type column value
-        const gs = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
-        const ge = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+        const gs = normalizeDate(pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date"));
+        const ge = normalizeDate(pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate"));
         if (gs || ge) {
           const mnL = (meta.maintenanceType || "").toLowerCase();
           if (mnL === "warranty") { if (gs && !meta.warrantyStart) meta.warrantyStart = gs; if (ge && !meta.warrantyEnd) meta.warrantyEnd = ge; }
