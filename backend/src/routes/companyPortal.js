@@ -1587,7 +1587,9 @@ router.post("/assets/bulk-import", (req, res, next) => {
     const created = [];
     const updated = [];
     const unchanged = [];
-    const skipped = [];
+    const skipped = [];    // validation errors
+    const notFound = [];  // update mode: asset ID not in DB
+    const auditRecords = []; // field-level audit trail for update mode
 
     const mode = (req.query.mode || "add").toLowerCase(); // "add" | "update"
 
@@ -1691,7 +1693,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
              WHERE (a.generated_asset_id = ? OR a.generated_asset_id LIKE ?) AND a.company_id = ? LIMIT 1`,
             [targetAssetId, `%-${targetAssetId}`, cid(req)]
           );
-          if (!existing) { skipped.push({ row: rowNum, reason: `No asset found with Asset ID "${targetAssetId}"` }); continue; }
+          if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
         } else {
           // Add mode: match by asset_unique_id (upsert — update if collision, else create)
           [[existing]] = await pool.query(
@@ -1800,6 +1802,17 @@ router.post("/assets/bulk-import", (req, res, next) => {
             generatedAssetId: existing.generated_asset_id,
             changedFields: [...Object.keys(assetChanges), ...(metaChanged ? ["metadata"] : [])],
           });
+          // Collect field-level audit record
+          if (mode === "update") {
+            const oldVals = {}; const newVals = {};
+            for (const k of Object.keys(assetChanges)) { oldVals[k] = existing[k] ?? null; newVals[k] = assetChanges[k]; }
+            if (metaChanged) {
+              for (const [k, v] of Object.entries(incomingMeta)) {
+                if (String(existingMeta[k] ?? "") !== String(v)) { oldVals[`meta.${k}`] = existingMeta[k] ?? null; newVals[`meta.${k}`] = v; }
+              }
+            }
+            auditRecords.push({ companyId: cid(req), importedBy: req.companyUser?.id || null, assetId: existing.id, generatedAssetId: existing.generated_asset_id, assetName, oldValues: oldVals, newValues: newVals });
+          }
           continue;
         }
 
@@ -1889,10 +1902,30 @@ router.post("/assets/bulk-import", (req, res, next) => {
       }
     }
 
+    // Persist audit trail (create table on first use)
+    if (mode === "update" && auditRecords.length > 0) {
+      try {
+        await pool.execute(`CREATE TABLE IF NOT EXISTS asset_import_audits (
+          id INT AUTO_INCREMENT PRIMARY KEY, company_id INT NOT NULL, imported_by INT DEFAULT NULL,
+          import_mode VARCHAR(10) DEFAULT 'add', imported_at DATETIME DEFAULT NOW(),
+          asset_id INT DEFAULT NULL, generated_asset_id VARCHAR(100), asset_name VARCHAR(255),
+          changed_fields JSON, old_values JSON, new_values JSON,
+          INDEX idx_aia_company (company_id), INDEX idx_aia_asset (asset_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+        for (const r of auditRecords) {
+          await pool.execute(
+            `INSERT INTO asset_import_audits (company_id, imported_by, import_mode, asset_id, generated_asset_id, asset_name, changed_fields, old_values, new_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [r.companyId, r.importedBy, mode, r.assetId, r.generatedAssetId, r.assetName, JSON.stringify(Object.keys(r.newValues)), JSON.stringify(r.oldValues), JSON.stringify(r.newValues)]
+          );
+        }
+      } catch (_) {} // audit failure must not block import response
+    }
+
     res.status(201).json({
       total: rawRows.length, created: created.length, updated: updated.length,
-      unchanged: unchanged.length, skipped: skipped.length,
-      assets: created, updatedAssets: updated, unchangedAssets: unchanged, errors: skipped,
+      unchanged: unchanged.length, skipped: skipped.length, notFound: notFound.length,
+      assets: created, updatedAssets: updated, unchangedAssets: unchanged,
+      errors: skipped, notFoundRows: notFound,
     });
   } catch (err) { next(err); }
 });

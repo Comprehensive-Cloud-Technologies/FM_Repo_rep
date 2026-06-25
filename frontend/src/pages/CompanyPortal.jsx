@@ -23587,10 +23587,29 @@ const CompanyPortal = () => {
 
 
 
-                      {bulkImportResult.notFoundAssets?.length > 0 && (
+                      {((bulkImportResult.notFoundRows?.length > 0) || (bulkImportResult.errors?.length > 0)) && (
+                        <button
+                          onClick={() => {
+                            const rows = [
+                              ["Row", "Asset ID / Name", "Reason"],
+                              ...(bulkImportResult.notFoundRows || []).map(e => [e.row, e.assetId || e.assetName || "", "Asset ID Not Found"]),
+                              ...(bulkImportResult.errors || []).map(e => [e.row, e.assetName || "", e.reason || ""]),
+                            ];
+                            const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                            const a = document.createElement("a");
+                            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                            a.download = "import-error-report.csv";
+                            a.click();
+                          }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#fff", border: "1px solid #e2e8f0", color: "#475569", fontSize: "12px", fontWeight: 600, cursor: "pointer", marginBottom: "10px" }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Download Error Report
+                        </button>
+                      )}
+                      {bulkImportResult.notFoundRows?.length > 0 && (
                         <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
-                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#7c3aed" }}>Asset IDs not found ({bulkImportResult.notFoundAssets.length}):</p>
-                          {bulkImportResult.notFoundAssets.map((e, i) => (
+                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#7c3aed" }}>Asset IDs not found ({bulkImportResult.notFoundRows.length}):</p>
+                          {bulkImportResult.notFoundRows.map((e, i) => (
                             <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; — not found in this company</p>
                           ))}
                         </div>
@@ -23607,7 +23626,7 @@ const CompanyPortal = () => {
 
 
 
-                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#dc2626" }}>Skipped rows:</p>
+                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#dc2626" }}>Validation errors ({bulkImportResult.errors.length}):</p>
 
 
 
