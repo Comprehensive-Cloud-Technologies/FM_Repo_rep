@@ -6484,9 +6484,12 @@ export default function CompanyEmployeePortal() {
                         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
                         const workingStatus = m.workingStatus || "";
                         const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus || a.status || "Active";
+                        // Wrap asset ID as Excel formula to prevent auto date-conversion
+                        // e.g. "002-27-000023" → Excel strips zeros → "2-27-23" → Feb 27 2023 → serial 44984
+                        const rawAssetId = a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"";
                         return [
                           i+1,
-                          a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"",
+                          rawAssetId ? `="${rawAssetId}"` : "",
                           m.equipmentName||a.assetName||a.asset_name||"",
                           (m.criticality||a.criticality||"Non-Critical"),
                           m.make||m.manufacturer||"", m.model||"", m.serialNo||"",
@@ -9438,7 +9441,8 @@ export default function CompanyEmployeePortal() {
               </div>
               {bulkAssetImportMode === "update" && (
                 <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 12px" }}>
-                  ⚠️ Update mode uses the <strong>full Asset ID</strong> (e.g. 002-27-036949) from the Excel column &quot;Asset ID&quot; to match records. QR Codes and Asset IDs will NOT be changed.
+                  ⚠️ Update mode uses the <strong>full Asset ID</strong> (e.g. 002-27-036949) from the Excel column &quot;Asset ID&quot; to match records. QR Codes and Asset IDs will NOT be changed.<br/>
+                  <strong>Important:</strong> If using the exported asset list, open it in Excel, select the &quot;Asset ID&quot; column, right-click → Format Cells → <strong>Text</strong>, then save — otherwise Excel auto-converts IDs like &quot;002-27-000023&quot; into dates.
                 </p>
               )}
             </div>

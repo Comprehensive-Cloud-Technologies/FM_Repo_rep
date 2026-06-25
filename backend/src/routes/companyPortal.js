@@ -88,6 +88,11 @@ router.get("/assets/bulk-import/template", (req, res) => {
       const example  = ["004-27-000142", "Ventilator", "healthcare", "ICU",   "Block A", "1", "101", "Active", "GE", "R860", "SN001", "", "ABC Supplier", "150000", "2022-01-01", "2022-03-01", "2021", "AMC", "", "", "2023-04-01", "2024-03-31", "", "", "Serviced"];
       const example2 = ["004-27-000149", "ECG Machine", "",          "OPD",   "Block B", "2", "202", "",       "",   "",     "",     "", "",            "",       "",            "",            "",     "Warranty", "2022-06-01", "2024-05-31", "", "", "", "", ""];
       const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
+      // Force column A (assetId) to text type so Excel does not auto-convert
+      // e.g. "004-27-000142" would otherwise be read as a date (Apr 27, 2014 → serial 41756)
+      ["A1", "A2", "A3"].forEach((addr) => {
+        if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
+      });
       ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.replace("*","").length + 2, 18) }));
       XLSX.utils.book_append_sheet(wb, ws, "Update Assets");
 
@@ -1683,6 +1688,14 @@ router.post("/assets/bulk-import", (req, res, next) => {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
           if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
+          // Detect Excel date auto-conversion: asset IDs like "002-27-000023" can be misread as
+          // dates (2/27/23 → Feb 27 2023 → serial 44984) when the file is opened and re-saved in Excel.
+          // Serials in the range 35000–60000 cover roughly 1995–2064 — flag these with a clear message.
+          if (/^\d+$/.test(targetAssetId) && Number(targetAssetId) >= 35000 && Number(targetAssetId) <= 60000) {
+            notFound.push({ row: rowNum, assetId: targetAssetId, assetName,
+              reason: `Asset ID "${targetAssetId}" looks like an Excel date serial (Excel auto-converted your Asset ID to a date). Re-export the asset list from the system and format the "Asset ID" column as Text in Excel before saving.` });
+            continue;
+          }
           // Match by full ID (e.g. "002-27-036949") or just numeric suffix (e.g. "36949" → padded to "%-036949")
           let assetIdParam, assetIdQuery;
           if (/[-]/.test(targetAssetId)) {
