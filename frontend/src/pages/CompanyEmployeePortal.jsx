@@ -9417,7 +9417,7 @@ export default function CompanyEmployeePortal() {
               <button onClick={() => setShowBulkAssetImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
             </div>
             {/* Scrollable body */}
-            <div style={{ padding: "20px 28px 28px", overflowY: "auto", flex: 1 }}
+            <div style={{ padding: "20px 28px 28px", overflowY: "auto", flex: 1 }}>
 
             {/* Import Mode Selection */}
             <div style={{ marginBottom: "18px" }}>
