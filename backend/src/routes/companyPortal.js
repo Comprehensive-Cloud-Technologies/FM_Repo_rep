@@ -1683,17 +1683,15 @@ router.post("/assets/bulk-import", (req, res, next) => {
           // Update mode: match by generated_asset_id from Excel "assetId" column; never create new records
           const targetAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
           if (!targetAssetId) { continue; } // silently skip blank assetId rows in update mode
-          // Match: exact full ID ("002-27-036949"), OR just the numeric suffix ("36949")
-          // LIKE '%36949' matches "002-27-036949" because the string ends with "36949"
-          // This handles leading-zero padded suffixes (036949) correctly
+          // Exact match on full generated_asset_id (e.g. "002-27-036949")
           [[existing]] = await pool.query(
             `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
                     a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
                     a.status, ad.metadata
              FROM assets a
              LEFT JOIN asset_details ad ON ad.asset_id = a.id
-             WHERE (a.generated_asset_id = ? OR a.generated_asset_id LIKE ?) AND a.company_id = ? LIMIT 1`,
-            [targetAssetId, `%${targetAssetId}`, cid(req)]
+             WHERE a.generated_asset_id = ? AND a.company_id = ? LIMIT 1`,
+            [targetAssetId, cid(req)]
           );
           if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
         } else {

@@ -9438,7 +9438,7 @@ export default function CompanyEmployeePortal() {
               </div>
               {bulkAssetImportMode === "update" && (
                 <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 12px" }}>
-                  ⚠️ Update mode uses <strong>Asset ID</strong> (e.g. 004-27-000142) from the Excel column &quot;assetId&quot; to match records. QR Codes and Asset IDs will NOT be changed.
+                  ⚠️ Update mode uses the <strong>full Asset ID</strong> (e.g. 002-27-036949) from the Excel column &quot;Asset ID&quot; to match records. QR Codes and Asset IDs will NOT be changed.
                 </p>
               )}
             </div>
