@@ -89,7 +89,8 @@ router.get("/summary", validate(cqParam), async (req, res, next) => {
       const meta = a.metadata
         ? (typeof a.metadata === "string" ? JSON.parse(a.metadata) : a.metadata)
         : {};
-      const pv = parseFloat(meta.purchaseValue || meta.purchase_value || 0);
+      const rawCost = meta.purchaseValue || meta.purchase_value || meta.purchaseCost || meta.purchase_cost || 0;
+      const pv = parseFloat(String(rawCost).replace(/[,\s₹]/g, '')) || 0;
       const ul = parseFloat(meta.usefulLifeYears || meta.useful_life_years || 10);
       const installDate = meta.installationDate || meta.install_date;
       const ageYears = installDate
