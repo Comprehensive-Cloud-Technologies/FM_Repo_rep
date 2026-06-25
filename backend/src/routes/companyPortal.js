@@ -1729,7 +1729,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
             const padded = String(targetAssetId).padStart(6, "0");
             existing = await findByGenId(`a.generated_asset_id LIKE ?`, `%-${padded}`);
             if (!existing) { notFound.push({ row: rowNum, assetId: targetAssetId, assetName }); continue; }
-          } else {
+          }
+        } else {
           // Add mode: if the row contains a full Asset ID, try to match by generated_asset_id first
           // (supports updating existing assets via the exported CSV without a separate update mode)
           const inlineAssetId = pick(row, "assetid", "asset_id", "generatedassetid", "generated_asset_id");
