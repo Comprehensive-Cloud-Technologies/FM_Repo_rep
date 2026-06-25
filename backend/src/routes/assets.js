@@ -407,10 +407,11 @@ router.get(
 
 // ── POST /api/assets/bulk-import ──────────────────────────────────────────────
 // Upload an Excel/CSV file to register multiple assets (up to 1000) at once.
-// Query params: companyId (required)
+// Query params: companyId (required), mode ("add" | "update", default "add")
 // File field: "file"  (.xlsx / .xls / .csv)
 // Required Excel column: assetName  (case-insensitive, asterisk stripped)
 // Optional columns: assetType, departmentName, building, floor, room, assetUniqueId, status
+// For mode=update: use column "assetId" (generated Asset ID like 004-27-000142) to match records.
 // Auto-generates assetUniqueId + links a QR entry for every created asset.
 router.post(
   "/bulk-import",
@@ -422,6 +423,7 @@ router.post(
     if (!req.file) return res.status(400).json({ message: "Excel file is required" });
 
     const companyId = parseInt(req.query.companyId, 10);
+    const mode = (req.query.mode || "add").toLowerCase(); // "add" or "update"
 
     const conn = await pool.getConnection();
     try {
@@ -484,7 +486,59 @@ router.post(
         return "";
       };
 
+      // Helper to build metadata from a row
+      const buildMeta = (row) => {
+        const meta = {};
+        const mp = pick(row, "make", "manufacturer", "manufacturername", "brand", "mfg", "madeby", "makeby"); if (mp) meta.make = mp;
+        const mdl = pick(row, "model", "modelno", "model_no", "modelname"); if (mdl) meta.model = mdl;
+        const sn = pick(row, "serialno", "serial_no", "serialnumber", "srnumber", "srno", "sr_no", "serialnum"); if (sn) meta.serialNo = sn;
+        const acc = pick(row, "accessories", "accessory", "attachments"); if (acc) meta.accessories = acc;
+        const pd = pick(row, "purchasedate", "purchase_date", "dateofpurchase", "podate"); if (pd) meta.purchaseDate = pd;
+        const id2 = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2) meta.installationDate = id2;
+        const inv = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum"); if (inv) meta.invoiceNo = inv;
+        const pc = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc) meta.purchaseCost = pc;
+        const my = pick(row, "mfgyear", "mfg_year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my) meta.manufacturingYear = my;
+        const dl = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername"); if (dl) meta.dealer = dl;
+        const rm = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm) meta.remarks = rm;
+        const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
+        const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
+        if (mn) {
+          const mnLower = mn.toLowerCase();
+          meta.maintenanceType = mn;
+          // Also set maintenanceTypes map for structured display
+          const mtMap = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented" };
+          if (Object.values(mtMap).some(Boolean)) meta.maintenanceTypes = mtMap;
+        }
+        // Maintenance date ranges — explicit per-type columns
+        const ws = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate", "warrantycommence"); if (ws) meta.warrantyStart = ws;
+        const we = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we) meta.warrantyEnd = we;
+        const as = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate", "amccommence"); if (as) meta.amcStart = as;
+        const ae = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae) meta.amcEnd = ae;
+        const cs = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate", "cmccommence"); if (cs) meta.cmcStart = cs;
+        const ce = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce) meta.cmcEnd = ce;
+        // Generic "Start Date" / "End Date" → map to whichever maintenance type is set
+        const genericStart = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
+        const genericEnd   = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+        if (genericStart || genericEnd) {
+          const mnLower = (meta.maintenanceType || "").toLowerCase();
+          if (mnLower === "warranty") {
+            if (genericStart && !meta.warrantyStart) meta.warrantyStart = genericStart;
+            if (genericEnd   && !meta.warrantyEnd)   meta.warrantyEnd   = genericEnd;
+          } else if (mnLower === "amc") {
+            if (genericStart && !meta.amcStart) meta.amcStart = genericStart;
+            if (genericEnd   && !meta.amcEnd)   meta.amcEnd   = genericEnd;
+          } else if (mnLower === "cmc") {
+            if (genericStart && !meta.cmcStart) meta.cmcStart = genericStart;
+            if (genericEnd   && !meta.cmcEnd)   meta.cmcEnd   = genericEnd;
+          }
+        }
+        return meta;
+      };
+
       const created = [];
+      const updated = [];
+      const unchanged = [];
+      const notFound = [];
       const skipped = [];
 
       // Fetch company code and state code for generating asset IDs
@@ -510,6 +564,103 @@ router.post(
         // Ignore empty tail rows (common in user-managed Excel files with formatting).
         if (isEffectivelyEmptyRow(row)) continue;
 
+        // ── UPDATE MODE ──────────────────────────────────────────────────────────
+        if (mode === "update") {
+          // Require assetId column (generated_asset_id like 004-27-000142)
+          const providedAssetId = pick(row,
+            "assetid", "asset_id", "generatedassetid", "generated_asset_id",
+            "assetcode", "asset_code", "tagid", "tag_id"
+          );
+          if (!providedAssetId) { skipped.push({ row: rowNum, reason: "Missing assetId column (required for update mode)" }); continue; }
+
+          try {
+            const [[existing]] = await conn.query(
+              `SELECT a.id, a.generated_asset_id, a.asset_name, a.department_id, a.asset_type,
+                      a.building, a.floor, a.room, a.building_id, a.floor_id, a.room_id, a.location_id,
+                      a.status, ad.metadata
+               FROM assets a
+               LEFT JOIN asset_details ad ON ad.asset_id = a.id
+               WHERE a.generated_asset_id = ? AND a.company_id = ? LIMIT 1`,
+              [providedAssetId.trim(), companyId]
+            );
+
+            if (!existing) {
+              notFound.push({ row: rowNum, assetId: providedAssetId, reason: "Asset ID not found" });
+              continue;
+            }
+
+            // Build incoming metadata from this row
+            const incomingMeta = buildMeta(row);
+            const existingMeta = existing.metadata
+              ? (typeof existing.metadata === "string" ? JSON.parse(existing.metadata) : existing.metadata)
+              : {};
+            const mergedMeta = { ...existingMeta };
+            let metaChanged = false;
+            for (const [k, v] of Object.entries(incomingMeta)) {
+              if (String(mergedMeta[k] ?? "") !== String(v)) { mergedMeta[k] = v; metaChanged = true; }
+            }
+
+            // Core field changes
+            const assetName = pick(row, "assetname", "asset_name", "name", "equipmentname", "equipment_name", "itemname", "item_name", "description", "machinename", "devicename", "equipment", "asset");
+            const assetType = pick(row, "assettype", "asset_type", "type", "category", "equipmenttype", "equipment_type", "itemtype", "assetcategory");
+            const rawStatus = pick(row, "status", "condition", "state");
+            const status = rawStatus ? (rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active") : null;
+            const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
+            const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
+            const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
+            const deptNameRaw = pick(row, "departmentname", "department_name", "department", "dept", "ward", "unit", "section", "division");
+            const departmentId = deptNameRaw ? (deptByName.get(deptNameRaw.toLowerCase().trim()) ?? null) : null;
+
+            const loc = (building || floor || room)
+              ? await upsertLocationHierarchy(conn, { companyId, buildingName: building, floorName: floor, roomName: room, createdBy: req.user.id })
+              : {};
+
+            const assetChanges = {};
+            if (assetName && assetName !== existing.asset_name) assetChanges.asset_name = assetName;
+            if (departmentId != null && departmentId !== existing.department_id) assetChanges.department_id = departmentId;
+            if (assetType && assetType !== existing.asset_type) assetChanges.asset_type = assetType;
+            if (status && status !== existing.status) assetChanges.status = status;
+            if (loc.building && loc.building !== existing.building) assetChanges.building = loc.building;
+            if (loc.floor    && loc.floor    !== existing.floor)    assetChanges.floor    = loc.floor;
+            if (loc.room     && loc.room     !== existing.room)     assetChanges.room     = loc.room;
+            if (loc.buildingId && loc.buildingId !== existing.building_id) assetChanges.building_id = loc.buildingId;
+            if (loc.floorId  && loc.floorId  !== existing.floor_id) assetChanges.floor_id  = loc.floorId;
+            if (loc.roomId   && loc.roomId   !== existing.room_id)  assetChanges.room_id   = loc.roomId;
+            if (loc.locationId && loc.locationId !== existing.location_id) assetChanges.location_id = loc.locationId;
+
+            const hasAssetChanges = Object.keys(assetChanges).length > 0;
+
+            if (!hasAssetChanges && !metaChanged) {
+              unchanged.push({ row: rowNum, assetId: providedAssetId, assetName: existing.asset_name });
+              continue;
+            }
+
+            if (hasAssetChanges) {
+              const setClauses = Object.keys(assetChanges).map(k => `${k} = ?`).join(", ");
+              await conn.execute(
+                `UPDATE assets SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
+                [...Object.values(assetChanges), existing.id]
+              );
+            }
+            if (metaChanged) {
+              await conn.execute(
+                `INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE metadata = VALUES(metadata)`,
+                [existing.id, JSON.stringify(mergedMeta)]
+              );
+            }
+            // Audit log
+            await logHistory(conn, existing.id, "updated",
+              { source: "bulk-import-update", changedFields: [...Object.keys(assetChanges), ...(metaChanged ? ["metadata"] : [])], updatedBy: req.user.id }, req.user.id);
+
+            updated.push({ row: rowNum, id: existing.id, assetId: providedAssetId, assetName: assetName || existing.asset_name, generatedAssetId: existing.generated_asset_id, changedFields: [...Object.keys(assetChanges), ...(metaChanged ? ["metadata"] : [])] });
+          } catch (rowErr) {
+            skipped.push({ row: rowNum, assetId: providedAssetId, reason: rowErr.message });
+          }
+          continue;
+        }
+
+        // ── ADD MODE (default) ───────────────────────────────────────────────────
         const assetName = pick(row,
           "assetname", "asset_name", "name", "equipmentname", "equipment_name",
           "itemname", "item_name", "description", "equipmentdescription",
@@ -567,9 +718,10 @@ router.post(
           );
           const assetId = result.insertId;
 
+          const meta = buildMeta(row);
           await conn.execute(
-            "INSERT INTO asset_details (asset_id, metadata) VALUES (?, '{}')",
-            [assetId]
+            "INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?)",
+            [assetId, JSON.stringify(meta)]
           );
 
           // Auto-link a QR entry (already-generated unique ID acts as the QR code)
@@ -596,8 +748,17 @@ router.post(
 
       await conn.commit();
       res.status(201).json({
-        total: rawRows.length, created: created.length, skipped: skipped.length,
-        assets: created, errors: skipped,
+        total: rawRows.length,
+        created: created.length,
+        updated: updated.length,
+        unchanged: unchanged.length,
+        notFound: notFound.length,
+        skipped: skipped.length,
+        assets: created,
+        updatedAssets: updated,
+        unchangedAssets: unchanged,
+        notFoundAssets: notFound,
+        errors: skipped,
       });
     } catch (err) {
       await conn.rollback();

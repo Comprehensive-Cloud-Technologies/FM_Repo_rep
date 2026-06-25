@@ -64,11 +64,11 @@ export const bulkVerifyAssets = (token, ids, verified = 1) => request("PUT", "/a
 export const verifyAsset = (token, id, verified = 1) => request("PUT", `/api/assets/${id}/verify`, { verified }, { authToken: token });
 
 /** Bulk-import assets from an Excel/CSV file (multipart upload). */
-export const bulkImportAssets = async (token, file, companyId) => {
+export const bulkImportAssets = async (token, file, companyId, mode = "add") => {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(
-    `${BASE}/api/assets/bulk-import?companyId=${companyId}`,
+    `${BASE}/api/assets/bulk-import?companyId=${companyId}&mode=${mode}`,
     { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
   );
   const data = await res.json().catch(() => ({}));
@@ -77,7 +77,7 @@ export const bulkImportAssets = async (token, file, companyId) => {
 };
 
 /** Download the Excel template for bulk asset import. */
-export const getAssetImportTemplateUrl = () => `${BASE}/api/assets/bulk-import/template`;
+export const getAssetImportTemplateUrl = (mode = "add") => `${BASE}/api/assets/bulk-import/template?mode=${mode}`;
 
 // Asset Queries (public scan-page submissions)
 export const updateAssetQuery = (token, id, data) => request("PATCH", `/api/asset-queries/${id}`, data, { authToken: token });

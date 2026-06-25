@@ -447,7 +447,7 @@ const TOKEN_KEY = "company_portal_token";
 
 
 
-/* ××××××××× Photo thumbnail + full-screen lightbox ××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */
+/* ��������� Photo thumbnail + full-screen lightbox ��������������������������������������������������������� */
 
 
 
@@ -693,7 +693,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-              ×
+              �
 
 
 
@@ -1396,7 +1396,7 @@ const emptyAsset = {
 
 
 
-  // ×××××× Healthcare-specific fields (stored in metadata) ××××××
+  // ������ Healthcare-specific fields (stored in metadata) ������
 
 
 
@@ -1469,8 +1469,8 @@ const emptyAsset = {
 
 
   maintenanceType: "",  // legacy single-select (backward compat)
-  maintenanceTypes: { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false },
-  maintenanceCosts: { warranty: "", amc: "", cmc: "", catalyst: "", highEnd: "" },
+  maintenanceTypes: { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false, rented: false },
+  maintenanceCosts: { warranty: "", amc: "", cmc: "", catalyst: "", highEnd: "", rented: "" },
   category: "Non_Critical",
 
 
@@ -1639,7 +1639,7 @@ const assetTypeLabels = {
 
 
 
-/* ××××××××× Admin OJT Section ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */
+/* ��������� Admin OJT Section ������������������������������������������������������������������������������������������������������������������������������������ */
 
 
 
@@ -2353,7 +2353,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>✓ Issued</span>
+                        <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>? Issued</span>
 
 
 
@@ -2437,7 +2437,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-/* ××××××××× Admin Work Orders Section ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */
+/* ��������� Admin Work Orders Section ������������������������������������������������������������������������������������������������������������������������������������ */
 
 
 
@@ -2472,9 +2472,9 @@ const WO_PRI_COLORS    = { critical: { bg:"#fee2e2",color:"#991b1b" }, high: { b
 
 
 
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
-// AdminStatesSection  →  State Management
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
+// ?????????????????????????????????????????????????????????????????????????????
+// AdminStatesSection  ?  State Management
+// ?????????????????????????????????????????????????????????????????????????????
 function AdminStatesSection({ token }) {
   const [states, setStates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2545,12 +2545,12 @@ function AdminStatesSection({ token }) {
       </div>
 
       {loading ? (
-        <p style={{ color: "#94a3b8", textAlign: "center", padding: "40px" }}>LoadingGǪ</p>
+        <p style={{ color: "#94a3b8", textAlign: "center", padding: "40px" }}>LoadingGO</p>
       ) : (
         <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
           {states.length === 0 ? (
             <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
-              <div style={{ fontSize: "28px", marginBottom: "8px" }}>🏢n×</div>
+              <div style={{ fontSize: "28px", marginBottom: "8px" }}>??n�</div>
               <div style={{ fontWeight: 600 }}>No states yet</div>
               <div style={{ fontSize: "13px" }}>Add states so companies can be linked to a state for asset ID generation.</div>
             </div>
@@ -2591,7 +2591,7 @@ function AdminStatesSection({ token }) {
           <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>{modal.mode === "edit" ? "Edit" : "Add"} State</h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>�</button>
             </div>
             <div style={{ marginBottom: "14px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>State Name <span style={{ color: "#ef4444" }}>*</span></label>
@@ -2607,7 +2607,7 @@ function AdminStatesSection({ token }) {
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
               <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "SavingGǪ" : (modal.mode === "edit" ? "Update" : "Create")}
+                {saving ? "SavingGO" : (modal.mode === "edit" ? "Update" : "Create")}
               </button>
             </div>
           </div>
@@ -2617,10 +2617,10 @@ function AdminStatesSection({ token }) {
   );
 }
 
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
+// ?????????????????????????????????????????????????????????????????????????????
 // Shared UI primitives for Location sections (defined at module scope so React
-// doesn't unmount/remount inputs on every re-render → typing works correctly)
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
+// doesn't unmount/remount inputs on every re-render ? typing works correctly)
+// ?????????????????????????????????????????????????????????????????????????????
 function LocBtn({ onClick, children, color = "#2563eb", small }) {
   return <button onClick={onClick} style={{ padding: small ? "5px 10px" : "7px 14px", borderRadius: "7px", border: "none", cursor: "pointer", background: color, color: "#fff", fontSize: small ? "11px" : "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>{children}</button>;
 }
@@ -2679,7 +2679,7 @@ function LocSel({ label, name, value, onChange, options = [], required, placehol
           placeholder={placeholder || `Search ${label}...`}
           style={{ width: "100%", padding: "8px 32px 8px 11px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box" }}
         />
-        <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", fontSize: "11px" }}>▾</span>
+        <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", fontSize: "11px" }}>?</span>
       </div>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 9999, maxHeight: "200px", overflowY: "auto" }}>
@@ -2701,16 +2701,16 @@ function LocSel({ label, name, value, onChange, options = [], required, placehol
 }
 function LocTreeNode({ node, depth = 0 }) {
   const [open, setOpen] = useState(true);
-  const icons = { Building: "🏢", Floor: "🏢", Room: "🚪" };
+  const icons = { Building: "??", Floor: "??", Room: "??" };
   const colors = { Building: "#2563eb", Floor: "#7c3aed", Room: "#16a34a" };
   const children = node.floors || node.rooms || [];
   return (
     <div style={{ marginLeft: depth * 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 8px", borderRadius: "6px", cursor: children.length ? "pointer" : "default" }}
         onClick={() => children.length && setOpen(!open)}>
-        {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "▸" : "▾"}</span>}
+        {children.length > 0 && <span style={{ color: "#94a3b8", fontSize: "10px", width: "10px" }}>{open ? "?" : "?"}</span>}
         {!children.length && <span style={{ width: "10px" }} />}
-        <span style={{ fontSize: "14px" }}>{icons[node.type] || "🏢"}</span>
+        <span style={{ fontSize: "14px" }}>{icons[node.type] || "??"}</span>
         <span style={{ fontSize: "13px", fontWeight: 600, color: colors[node.type] || "#374151" }}>{node.name}</span>
         {node.code && <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>({node.code})</span>}
         <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "9px", background: node.status === "Active" ? "#f0fdf4" : "#fef2f2", color: node.status === "Active" ? "#16a34a" : "#dc2626" }}>{node.type}</span>
@@ -2722,10 +2722,10 @@ function LocTreeNode({ node, depth = 0 }) {
   );
 }
 
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
-// AdminLocationsSection  →  Location Management (Building → Floor → Room)
+// ?????????????????????????????????????????????????????????????????????????????
+// AdminLocationsSection  ?  Location Management (Building ? Floor ? Room)
 // Departments are managed separately via AdminDepartmentsSection
-// →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
+// ?????????????????????????????????????????????????????????????????????????????
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
   const [tab, setTab] = useState("buildings"); // buildings | floors | rooms
@@ -2918,13 +2918,13 @@ function AdminLocationsSection({ token, companies = [] }) {
     }
   };
 
-  // →→ Styles →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→
+  // ?? Styles ????????????????????????????????????????????????
   const tabBtn = (key) => ({
     padding: "7px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
     background: tab === key ? "#2563eb" : "#f1f5f9", color: tab === key ? "#fff" : "#475569",
   });
 
-  // →→ Table for a specific level →→→→→→→→→→→→→→→→→→→→→→→→→→→→
+  // ?? Table for a specific level ????????????????????????????
   const renderTable = (rows, type, cols) => {
     const safeRows = Array.isArray(rows) ? rows : [];
     return (
@@ -2942,7 +2942,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             <tbody>
               {safeRows.map((row, i) => (
                 <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "▾"}</td>)}
+                  {cols.map(c => <td key={c.key} style={{ padding: "10px 14px", color: "#374151" }}>{row[c.key] ?? "?"}</td>)}
                   <td style={{ padding: "10px 14px", display: "flex", gap: "6px" }}>
                     <LocEditBtn onClick={() => openModal(type, "edit", row)} />
                     <LocDelBtn onClick={() => handleDelete(type, row.id)} />
@@ -2971,7 +2971,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>Location Management</h1>
-        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building → Floor → Room. Departments are managed separately.</p>
+        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building ? Floor ? Room. Departments are managed separately.</p>
       </div>
 
       {/* Company picker */}
@@ -2985,7 +2985,7 @@ function AdminLocationsSection({ token, companies = [] }) {
 
       {!companyId ? (
         <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "32px", marginBottom: "12px" }}>🏢</div>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>??</div>
           <div style={{ fontWeight: 700, marginBottom: "4px" }}>Select a Company to Manage Locations</div>
           <div style={{ fontSize: "13px" }}>Choose a company from the dropdown above to view and manage its location hierarchy.</div>
         </div>
@@ -2994,9 +2994,9 @@ function AdminLocationsSection({ token, companies = [] }) {
           {/* Tab bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>🏢 Buildings</button>
-              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>🏢 Floors</button>
-              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>🚪 Rooms</button>
+              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>?? Buildings</button>
+              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>?? Floors</button>
+              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>?? Rooms</button>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={downloadTemplate} style={{ padding: "7px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Download Template</button>
@@ -3014,7 +3014,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           </div>
 
-          {/* →→ Buildings →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→ */}
+          {/* ?? Buildings ??????????????????????????????? */}
           {tab === "buildings" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -3029,7 +3029,7 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           )}
 
-          {/* →→ Floors →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→ */}
+          {/* ?? Floors ?????????????????????????????????? */}
           {tab === "floors" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
@@ -3052,9 +3052,9 @@ function AdminLocationsSection({ token, companies = [] }) {
             </div>
           )}
 
-          {/* →→ Departments →→→→→→→→→→→→→→→→→→→→→→→→→→→→→ */}
+          {/* ?? Departments ????????????????????????????? */}
 
-          {/* →→ Rooms →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→ */}
+          {/* ?? Rooms ??????????????????????????????????? */}
           {tab === "rooms" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
@@ -3080,7 +3080,7 @@ function AdminLocationsSection({ token, companies = [] }) {
         </>
       )}
 
-      {/* →→ Modal →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→ */}
+      {/* ?? Modal ???????????????????????????????????????? */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
           onClick={closeModal}>
@@ -3090,7 +3090,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
                 {modal.mode === "edit" ? "Edit" : "Add"} {modal.type.charAt(0).toUpperCase() + modal.type.slice(1)}
               </h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>×</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>�</button>
             </div>
 
             {/* Building form */}
@@ -3143,7 +3143,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <button onClick={closeModal} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving}
                 style={{ padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "SavingGǪ" : (modal.mode === "edit" ? "Update" : "Create")}
+                {saving ? "SavingGO" : (modal.mode === "edit" ? "Update" : "Create")}
               </button>
             </div>
           </div>
@@ -3262,7 +3262,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
           {companies.map(co => <option key={co.id} value={co.id}>{co.companyName || co.name}</option>)}
         </select>
         <label title="Upload company logo for QR cards" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", borderRadius: "8px", background: companyLogoUrl ? "#f0fdf4" : "#f8fafc", color: companyLogoUrl ? "#16a34a" : "#64748b", border: `1px solid ${companyLogoUrl ? "#bbf7d0" : "#e2e8f0"}`, cursor: selectedCompanyId ? "pointer" : "not-allowed", fontSize: "12px", fontWeight: 600, opacity: selectedCompanyId ? 1 : 0.6 }}>
-          {companyLogoUrl ? "Company Logo ✓" : "Upload Logo"}
+          {companyLogoUrl ? "Company Logo ?" : "Upload Logo"}
           <input type="file" accept="image/*" disabled={!selectedCompanyId} style={{ display: "none" }} onChange={async (e) => {
             const file = e.target.files?.[0];
             if (!file || !selectedCompanyId) return;
@@ -3291,7 +3291,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
             } catch (err) {
               setMsg(err.message || "Failed to remove logo");
             }
-          }} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>×</button>
+          }} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>�</button>
         )}
         <input type="number" min={0} value={generateCount} onChange={e => {
           const raw = Number(e.target.value);
@@ -3323,7 +3323,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
       <div style={{ marginBottom: 12 }}>
         <input
           type="text"
-          placeholder="Search by QR ID, asset name or asset IDGǪ"
+          placeholder="Search by QR ID, asset name or asset IDGO"
           value={qrSearch}
           onChange={e => setQrSearch(e.target.value)}
           style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
@@ -3392,7 +3392,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
   );
 }
 
-/* ─── Asset Queries (Issue Lifecycle) Section ─────────────────────────────── */
+/* --- Asset Queries (Issue Lifecycle) Section ------------------------------- */
 const QUERY_STATUS_STYLES = {
   open:     { background: '#FEF9C3', color: '#92400E', label: 'Open' },
   resolved: { background: '#DCFCE7', color: '#166534', label: 'Resolved' },
@@ -3457,7 +3457,7 @@ function AssetQueriesSection({ token }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1E293B", margin: 0 }}>Asset Issues</h2>
         <button onClick={load} style={{ padding: "6px 14px", borderRadius: 8, background: "#F1F5F9", border: "1px solid #E2E8F0", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-          ↻ Refresh
+          ? Refresh
         </button>
       </div>
 
@@ -3473,7 +3473,7 @@ function AssetQueriesSection({ token }) {
       </div>
 
       {loading ? (
-        <p style={{ color: "#94A3B8" }}>Loading…</p>
+        <p style={{ color: "#94A3B8" }}>Loading�</p>
       ) : filtered.length === 0 ? (
         <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "40px 24px", textAlign: "center", color: "#94A3B8", border: "1px solid #E2E8F0" }}>
           <p style={{ fontWeight: 600, marginBottom: 4 }}>No issues found</p>
@@ -3494,11 +3494,11 @@ function AssetQueriesSection({ token }) {
                 return (
                   <tr key={q.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
                     <td style={{ padding: "10px 12px", color: "#94A3B8" }}>{idx + 1}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1E293B" }}>{q.assetName || "—"}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1E293B" }}>{q.assetName || "�"}</td>
                     <td style={{ padding: "10px 12px", maxWidth: 200 }}>
                       <span title={q.title} style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1E293B" }}>{q.title}</span>
                     </td>
-                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.raisedByName || "—"}</td>
+                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.raisedByName || "�"}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, textTransform: "capitalize", color: PRIORITY_DOT[q.priority] || "#64748B" }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_DOT[q.priority] || "#94A3B8", display: "inline-block" }} />
@@ -3510,7 +3510,7 @@ function AssetQueriesSection({ token }) {
                     </td>
                     <td style={{ padding: "10px 12px", color: "#475569" }}>{q.assignedToName || q.assignedName || <em style={{ color: "#CBD5E1" }}>Unassigned</em>}</td>
                     <td style={{ padding: "10px 12px", color: "#94A3B8", whiteSpace: "nowrap" }}>
-                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "�"}
                     </td>
                     <td style={{ padding: "10px 12px" }}>
                       {q.status !== "closed" ? (
@@ -3521,12 +3521,12 @@ function AssetQueriesSection({ token }) {
                             disabled={assigning[q.id]}
                             style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 12, cursor: "pointer", maxWidth: 160 }}
                           >
-                            <option value="">— Select engineer —</option>
+                            <option value="">� Select engineer �</option>
                             {employees.map((e) => (
                               <option key={e.id} value={e.id}>{e.fullName}</option>
                             ))}
                           </select>
-                          {assigning[q.id] && <span style={{ fontSize: 11, color: "#94A3B8" }}>Saving…</span>}
+                          {assigning[q.id] && <span style={{ fontSize: 11, color: "#94A3B8" }}>Saving�</span>}
                         </div>
                       ) : (
                         <span style={{ color: "#CBD5E1", fontSize: 12 }}>Closed</span>
@@ -3783,7 +3783,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
 
 
 
-/* ××××××××× Admin Shifts Section ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */
+/* ��������� Admin Shifts Section ��������������������������������������������������������������������������������������������������������������������������������������������������� */
 
 
 
@@ -4341,7 +4341,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} → {fmt12(s.endTime)}</p>
+                  <p style={{ fontSize:"13px", color:"#64748b", margin:"3px 0 0" }}>{fmt12(s.startTime)} ? {fmt12(s.endTime)}</p>
 
 
 
@@ -4449,7 +4449,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-/* ××××××××× Admin Employees Section ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */
+/* ��������� Admin Employees Section ������������������������������������������������������������������������������������������������������������������������������������������ */
 
 
 
@@ -4645,7 +4645,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" type="password" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
                 </div>
               </div>
-              {/* Company Access — unified primary + additional */}
+              {/* Company Access � unified primary + additional */}
               <div>
                 <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"4px" }}>
                   Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(search and select companies this user should access)</span>
@@ -4714,7 +4714,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"6px" }}>
                   {(selCo || formCompanyId) && (
                     <span style={{ fontSize:"11px", color:"#2563eb", background:"#eff6ff", border:"1px solid #bfdbfe", padding:"2px 7px", borderRadius:"999px", fontWeight:700 }}>
-                      Primary: {allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || allCos.find(c=>c.id===(selCo||formCompanyId))?.name || "—"}
+                      Primary: {allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || allCos.find(c=>c.id===(selCo||formCompanyId))?.name || "�"}
                     </span>
                   )}
                   {extraCompanyIds.map(id => {
@@ -4726,7 +4726,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                     );
                   })}
                 </div>
-                {!selCo && !editEmp && !formCompanyId && extraCompanyIds.length === 0 && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>No company assigned — employee can be added and assigned later</p>}
+                {!selCo && !editEmp && !formCompanyId && extraCompanyIds.length === 0 && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>No company assigned � employee can be added and assigned later</p>}
               </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
@@ -5028,7 +5028,7 @@ const CompanyPortal = () => {
 
   const [showAssetModal, setShowAssetModal] = useState(false);
 
-  // Location cascade state for asset registration form
+  const [assetSaveToast, setAssetSaveToast] = useState(null); // null | "added" | "updated"
   const [locBuildings, setLocBuildings] = useState([]);
   const [locFloors,    setLocFloors]    = useState([]);
   const [locDepts,     setLocDepts]     = useState([]);
@@ -5179,12 +5179,12 @@ const CompanyPortal = () => {
 
 
   const [tableSearch, setTableSearch] = useState("");
-  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings) – applied
+  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings) � applied
   const [dashCompanyPending, setDashCompanyPending] = useState([]); // pending selection before Apply
   const [dashCompanyFilter, setDashCompanyFilter] = useState(""); // legacy single (for export)
   const [dashFilterOpen, setDashFilterOpen] = useState(false);
   const [dashView, setDashView] = useState("company"); // "company" | "user"
-  const [dashUserFilters, setDashUserFilters] = useState([]); // array of composite user-company keys (strings) – applied in User View
+  const [dashUserFilters, setDashUserFilters] = useState([]); // array of composite user-company keys (strings) � applied in User View
   const [dashUserFilterOpen, setDashUserFilterOpen] = useState(false);
   const [dashCompanySearch, setDashCompanySearch] = useState("");
   const [dashUserSearch, setDashUserSearch] = useState("");
@@ -5513,7 +5513,7 @@ const CompanyPortal = () => {
 
 
 
-        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" →→ ") || null,
+        location: [assetRecord?.building, assetRecord?.floor, assetRecord?.room].filter(Boolean).join(" ?? ") || null,
 
 
 
@@ -6030,6 +6030,8 @@ const CompanyPortal = () => {
 
 
   const [bulkImportResult, setBulkImportResult] = useState(null);
+
+  const [bulkImportMode, setBulkImportMode] = useState("add"); // "add" | "update"
 
 
 
@@ -7327,6 +7329,23 @@ const CompanyPortal = () => {
 
   }, [token, nav, selectedCompanyId]);
 
+  // Sync asset edits made from AssetDetailPage (new tab) back into portal state
+  useEffect(() => {
+    if (!token) return;
+    const bc = new BroadcastChannel("asset-updates");
+    bc.onmessage = (e) => {
+      if (e.data?.type !== "asset-updated") return;
+      const assetId = e.data.assetId;
+      fetch(`${getApiBaseUrl()}/api/companies/assets/${assetId}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(updated => {
+          if (updated) setAssets(prev => prev.map(a => String(a.id) === String(assetId) ? { ...a, ...updated, metadata: updated.metadata || a.metadata } : a));
+        })
+        .catch(() => {});
+    };
+    return () => bc.close();
+  }, [token]);
+
 
 
 
@@ -7643,7 +7662,7 @@ const CompanyPortal = () => {
 
 
 
-  // ×××××× Poll for new flags every 30 s - show toast when count increases ×××××××××××××××××××××××××××
+  // ������ Poll for new flags every 30 s - show toast when count increases ���������������������������
 
 
 
@@ -7775,7 +7794,7 @@ const CompanyPortal = () => {
 
 
 
-            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} → ${newest.assetName || "unknown asset"}`
+            ? `${diff} new warning${diff > 1 ? "s" : ""}: ${newest.severity?.toUpperCase()} ? ${newest.assetName || "unknown asset"}`
 
 
 
@@ -7847,7 +7866,7 @@ const CompanyPortal = () => {
 
 
 
-  // ×××××× Initial data load on login ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××
+  // ������ Initial data load on login ������������������������������������������������������������������������������������������������������������������������������������
 
 
 
@@ -10616,8 +10635,8 @@ const CompanyPortal = () => {
 
 
         maintenanceType: meta.maintenanceType || "",
-        maintenanceTypes: meta.maintenanceTypes || { warranty: !!(meta.maintenanceType === 'warranty' || meta.warranty?.enabled), amc: !!(meta.maintenanceType === 'amc' || meta.amc?.enabled), cmc: !!(meta.maintenanceType === 'cmc' || meta.cmc?.enabled), inhouse: !!(meta.maintenanceType === 'inhouse' || meta.inHouse), catalyst: !!(meta.maintenanceType === 'catalyst' || meta.catalyst), highEnd: !!(meta.maintenanceTypes?.highEnd || meta.highEnd) },
-        maintenanceCosts: meta.maintenanceCosts || { warranty: meta.warrantyCost || "", amc: meta.amcCost || "", cmc: meta.cmcCost || "", catalyst: meta.catalystCost || "", highEnd: meta.highEndCost || "" },
+        maintenanceTypes: meta.maintenanceTypes || { warranty: !!(meta.maintenanceType === 'warranty' || meta.warranty?.enabled), amc: !!(meta.maintenanceType === 'amc' || meta.amc?.enabled), cmc: !!(meta.maintenanceType === 'cmc' || meta.cmc?.enabled), inhouse: !!(meta.maintenanceType === 'inhouse' || meta.inHouse), catalyst: !!(meta.maintenanceType === 'catalyst' || meta.catalyst), highEnd: !!(meta.maintenanceTypes?.highEnd || meta.highEnd), rented: !!(meta.maintenanceType === 'rented' || meta.maintenanceTypes?.rented || meta.rented) },
+        maintenanceCosts: meta.maintenanceCosts || { warranty: meta.warrantyCost || "", amc: meta.amcCost || "", cmc: meta.cmcCost || "", catalyst: meta.catalystCost || "", highEnd: meta.highEndCost || "", rented: meta.rentedCost || "" },
         category: asset.criticality || meta.criticality || "Non_Critical",
 
 
@@ -11491,6 +11510,9 @@ const CompanyPortal = () => {
 
       setShowAssetModal(false);
 
+      setAssetSaveToast(editingAssetId ? "updated" : "added");
+      setTimeout(() => setAssetSaveToast(null), 4000);
+
     } catch (err) {
 
       setAssetError(err.message || "Could not save asset");
@@ -11643,7 +11665,7 @@ const CompanyPortal = () => {
 
 
 
-      `×▸××→-+→→× WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
+      `�?��?-+??� WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
 
 
 
@@ -11679,7 +11701,7 @@ const CompanyPortal = () => {
 
 
 
-      alert(`✓ ${result?.deleted ?? 0} assets deleted successfully.`);
+      alert(`? ${result?.deleted ?? 0} assets deleted successfully.`);
 
 
 
@@ -12350,7 +12372,7 @@ const CompanyPortal = () => {
 
 
 
-  // ×××××× Company Users (Admin) ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××
+  // ������ Company Users (Admin) ���������������������������������������������������������������������������������������������������������������������������������������������������
 
 
 
@@ -13911,7 +13933,7 @@ const CompanyPortal = () => {
 
 
 
-      {/* ×××××× Submission Detail Modal ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××× */}
+      {/* ������ Submission Detail Modal ��������������������������������������������������������������������������������������������������������������������������� */}
 
 
 
@@ -14025,7 +14047,7 @@ const CompanyPortal = () => {
 
 
 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>�</button>
 
 
 
@@ -14061,7 +14083,7 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>→n× {detailModal.error}</div>}
+              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>?n� {detailModal.error}</div>}
 
 
 
@@ -14121,7 +14143,7 @@ const CompanyPortal = () => {
 
 
 
-                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` →→ Shift ${d.shift}` : ""}` },
+                        { label: "Period", value: `${MONAMES[(d.month || 1) - 1]} ${d.year}${d.shift ? ` ?? Shift ${d.shift}` : ""}` },
 
 
 
@@ -14847,7 +14869,7 @@ const CompanyPortal = () => {
 
 
 
-                                  {isIssue && <span style={{ marginRight: "4px" }}>→n×</span>}
+                                  {isIssue && <span style={{ marginRight: "4px" }}>?n�</span>}
 
 
 
@@ -15048,8 +15070,8 @@ const CompanyPortal = () => {
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
-                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">→n×</button>
-                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "🏢 On" : "🏢 Off"}</button>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">?n�</button>
+                    <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "?? On" : "?? Off"}</button>
                   </div>
                 </div>
                 {alarmSettingsOpen && (
@@ -15064,7 +15086,7 @@ const CompanyPortal = () => {
                         <div key={key} className="fm-sev-row">
                           <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
                           <div className="fm-sev-actions">
-                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>×++→ Test</button>
+                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>�++? Test</button>
                             <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>{isOn ? "ON" : "OFF"}</button>
                           </div>
                         </div>
@@ -15350,7 +15372,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "▾" : "▲") : "▾"}</span>}
+              {children}{sortable && <span style={{ color: userSortField === field ? "#7c3aed" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{userSortField === field ? (userSortDir === "asc" ? "?" : "?") : "?"}</span>}
 
 
 
@@ -15512,13 +15534,13 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Users", value: userStats.active, sub: "✓ Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Users", value: userStats.active, sub: "? Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
 
 
-                  { label: "Inactive Users", value: userStats.inactive, sub: "××→ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+                  { label: "Inactive Users", value: userStats.inactive, sub: "��? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
 
 
 
@@ -15596,7 +15618,7 @@ const CompanyPortal = () => {
 
 
 
-              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>×▸××→-+→→× {companyUsersError}</div>}
+              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>�?��?-+??� {companyUsersError}</div>}
 
 
 
@@ -16212,7 +16234,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -16224,7 +16246,7 @@ const CompanyPortal = () => {
 
 
 
-                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>×▸××→-+→→× {userFormError}</div>}
+                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>�?��?-+??� {userFormError}</div>}
 
 
 
@@ -16602,7 +16624,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Company Data Overview ×××××× */}
+              {/* ������ Company Data Overview ������ */}
 
 
 
@@ -17664,7 +17686,7 @@ const CompanyPortal = () => {
 
 
 
-              {sortField === field ? (sortDir === "asc" ? "▾" : "▲") : "▾"}
+              {sortField === field ? (sortDir === "asc" ? "?" : "?") : "?"}
 
 
 
@@ -17730,7 +17752,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Header ×××××× */}
+              {/* ������ Header ������ */}
 
 
 
@@ -17802,7 +17824,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Stat Cards ×××××× */}
+              {/* ������ Stat Cards ������ */}
 
 
 
@@ -17826,7 +17848,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Active Companies", value: companyStats.active, sub: "✓ Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+                  { label: "Active Companies", value: companyStats.active, sub: "? Active", subColor: "#22c55e", iconBg: "#f0fdf4", iconColor: "#22c55e", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
 
 
 
@@ -17838,7 +17860,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Companies", value: companyStats.inactive, sub: "××→ Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+                  { label: "Inactive Companies", value: companyStats.inactive, sub: "��? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
 
 
 
@@ -17916,7 +17938,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Companies Table Card ×××××× */}
+              {/* ������ Companies Table Card ������ */}
 
 
 
@@ -18840,7 +18862,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× View Company Modal ×××××× */}
+              {/* ������ View Company Modal ������ */}
 
 
 
@@ -18930,7 +18952,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -19068,7 +19090,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Edit Company Modal ×××××× */}
+              {/* ������ Edit Company Modal ������ */}
 
 
 
@@ -19104,7 +19126,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -19116,7 +19138,7 @@ const CompanyPortal = () => {
 
 
 
-                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>×▸××→-+→→× {editCompanyError}</div>}
+                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>�?��?-+??� {editCompanyError}</div>}
 
 
 
@@ -19569,7 +19591,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Module Access Modal ×××××× */}
+              {/* ������ Module Access Modal ������ */}
 
 
 
@@ -19605,7 +19627,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -19719,7 +19741,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ×××××× Role Permissions Modal ×××××× */}
+              {/* ������ Role Permissions Modal ������ */}
 
 
 
@@ -19755,7 +19777,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -20085,7 +20107,7 @@ const CompanyPortal = () => {
 
 
 
-            ×▸××→-+→→× {companyError}
+            �?��?-+??� {companyError}
 
 
 
@@ -20121,7 +20143,7 @@ const CompanyPortal = () => {
 
 
 
-            ×▸××→-+→→× {assetError}
+            �?��?-+??� {assetError}
 
 
 
@@ -20289,7 +20311,7 @@ const CompanyPortal = () => {
 
 
 
-              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "▾" : "▸") : "▾"}</span>}
+              {children}{sortable && <span style={{ color: assetSortField === field ? "#2563eb" : "#94a3b8", fontSize: "11px", marginLeft: "4px" }}>{assetSortField === field ? (assetSortDir === "asc" ? "?" : "?") : "?"}</span>}
 
 
 
@@ -20403,7 +20425,7 @@ const CompanyPortal = () => {
 
 
 
-                  onClick={() => { setBulkImportFile(null); setBulkImportDeptId(""); setBulkImportResult(null); setShowBulkImport(true); }}
+                  onClick={() => { setBulkImportFile(null); setBulkImportDeptId(""); setBulkImportResult(null); setBulkImportMode("add"); setShowBulkImport(true); }}
 
 
 
@@ -20617,6 +20639,7 @@ const CompanyPortal = () => {
                             (m.cmc?.enabled || m.maintenanceTypes?.cmc) && "CMC",
                             (m.inHouse || m.maintenanceTypes?.inHouse) && "In House",
                             (m.catalyst || m.maintenanceTypes?.catalyst) && "Catalyst",
+                            (m.rented || m.maintenanceTypes?.rented) && "Rented",
                           ].filter(Boolean).join(", ") || m.maintenanceType || "-";
                           const ws   = a.workingStatus || a.working_status || m.workingStatus || "Working";
                           const crit = a.criticality || m.criticality || "Non_Critical";
@@ -20663,8 +20686,8 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Rs. ${m.purchaseCost}` : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "-"}</td>
-                              <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "—"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                              <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "�"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "�"}</td>
                               <td style={{ padding: "10px 14px" }}>
                                 {!a.verified && <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", background: "#fef9c3", color: "#92400e", fontSize: "10px", fontWeight: 700, marginBottom: "4px" }}>Unverified</span>}
                                 <select
@@ -20734,6 +20757,14 @@ const CompanyPortal = () => {
 
 
 
+            {/* Asset save success toast */}
+            {assetSaveToast && (
+              <div style={{ position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#16a34a", color: "#fff", padding: "12px 24px", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 700 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                {assetSaveToast === "added" ? "Asset registered successfully!" : "Asset updated successfully!"}
+              </div>
+            )}
+
             {showAssetModal && (
 
 
@@ -20782,7 +20813,7 @@ const CompanyPortal = () => {
 
 
 
-                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -20800,7 +20831,7 @@ const CompanyPortal = () => {
 
 
 
-                  {/* ×××××× Asset Type - filtered by company sector ×××××× */}
+                  {/* ������ Asset Type - filtered by company sector ������ */}
 
 
 
@@ -20842,7 +20873,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span style={{ fontSize: "18px" }}>🏢</span>
+                          <span style={{ fontSize: "18px" }}>??</span>
 
 
 
@@ -21228,7 +21259,7 @@ const CompanyPortal = () => {
 
 
 
-                          <span>🏢</span> Healthcare equipment registration - barcode will be auto-generated.
+                          <span>??</span> Healthcare equipment registration - barcode will be auto-generated.
 
 
 
@@ -21306,7 +21337,7 @@ const CompanyPortal = () => {
 
 
 
-                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>→×</button>
+                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>?�</button>
 
 
 
@@ -21760,7 +21791,7 @@ const CompanyPortal = () => {
 
 
 
-                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>🏢 View Invoice</a>
+                                  <a href={assetForm.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", display: "flex", alignItems: "center", gap: "4px" }}>?? View Invoice</a>
 
 
 
@@ -21790,7 +21821,7 @@ const CompanyPortal = () => {
 
 
 
-                                  🏢 Upload Invoice
+                                  ?? Upload Invoice
 
 
 
@@ -21910,7 +21941,7 @@ const CompanyPortal = () => {
 
 
 
-                            <label>Purchase Cost (₹)</label>
+                            <label>Purchase Cost (?)</label>
 
                             <input type="number" name="purchaseCost" value={assetForm.purchaseCost} onChange={handleAssetChange} className="form-input" placeholder="0.00" min="0" step="0.01" />
 
@@ -21937,7 +21968,7 @@ const CompanyPortal = () => {
                         <div style={{ background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", padding: "14px 16px", marginBottom: "12px" }}>
                           <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "10px", display: "block" }}>Maintenance Under</label>
                           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-                            {[["warranty","a. Warranty"],["amc","b. AMC (Annual Maintenance Contract)"],["cmc","c. CMC (Comprehensive Maintenance Contract)"],["inhouse","d. In House"],["catalyst","e. Catalyst"],["highEnd","f. High End Equipment"]].map(([v, l]) => (
+                            {[["warranty","a. Warranty"],["amc","b. AMC (Annual Maintenance Contract)"],["cmc","c. CMC (Comprehensive Maintenance Contract)"],["inhouse","d. In House"],["catalyst","e. Catalyst"],["highEnd","f. High End Equipment"],["rented","g. Rented"]].map(([v, l]) => (
                               <label key={v} style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12.5px", fontWeight: 600, color: assetForm.maintenanceTypes?.[v] ? "#1d4ed8" : "#64748b", padding: "5px 10px", borderRadius: "20px", border: `2px solid ${assetForm.maintenanceTypes?.[v] ? "#2563eb" : "#e2e8f0"}`, background: assetForm.maintenanceTypes?.[v] ? "#eff6ff" : "#fff" }}>
                                 <input type="checkbox" checked={!!assetForm.maintenanceTypes?.[v]} onChange={e => setAssetForm(p => ({ ...p, maintenanceTypes: { ...p.maintenanceTypes, [v]: e.target.checked } }))} style={{ accentColor: "#2563eb" }} />
                                 {l}
@@ -22119,19 +22150,19 @@ const CompanyPortal = () => {
                           <>
                             <div className="form-group"><label>Building / Ward</label>
                               <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                <option value="">→ Select Building →</option>
+                                <option value="">? Select Building ?</option>
                                 {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                               </select>
                             </div>
                             <div className="form-group"><label>Floor</label>
                               <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                <option value="">→ Select Floor →</option>
+                                <option value="">? Select Floor ?</option>
                                 {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                               </select>
                             </div>
                             <div className="form-group"><label>Room / Area</label>
                               <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                <option value="">→ Select Room →</option>
+                                <option value="">? Select Room ?</option>
                                 {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                               </select>
                             </div>
@@ -22238,25 +22269,25 @@ const CompanyPortal = () => {
                               <>
                                 <div className="form-group"><label>Building</label>
                                   <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                    <option value="">→ Select Building →</option>
+                                    <option value="">? Select Building ?</option>
                                     {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Floor</label>
                                   <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                    <option value="">→ Select Floor →</option>
+                                    <option value="">? Select Floor ?</option>
                                     {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Department</label>
                                   <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                    <option value="">→ Select Department →</option>
+                                    <option value="">? Select Department ?</option>
                                     {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group"><label>Room / Area</label>
                                   <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                    <option value="">→ Select Room →</option>
+                                    <option value="">? Select Room ?</option>
                                     {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                                   </select>
                                 </div>
@@ -22495,25 +22526,25 @@ const CompanyPortal = () => {
                                 <>
                                   <div className="form-group"><label>Building</label>
                                     <select name="buildingId" value={assetForm.buildingId} className="form-select" onChange={async e => { const bid = e.target.value; const bld = locBuildings.find(b => String(b.id) === bid); setAssetForm(p => ({ ...p, buildingId: bid, building: bld?.buildingName || "", floorId: "", floor: "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocFloors([]); setLocDepts([]); setLocRooms([]); if (bid) { const r = await fetch(`/api/locations/floors?buildingId=${bid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocFloors(await r.json()); } }}>
-                                      <option value="">→ Select Building →</option>
+                                      <option value="">? Select Building ?</option>
                                       {locBuildings.map(b => <option key={b.id} value={b.id}>{b.buildingName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Floor</label>
                                     <select name="floorId" value={assetForm.floorId} className="form-select" onChange={async e => { const fid = e.target.value; const flr = locFloors.find(f => String(f.id) === fid); setAssetForm(p => ({ ...p, floorId: fid, floor: flr?.floorName || "", locDeptId: "", roomId: "", room: "", locationId: "" })); setLocDepts([]); setLocRooms([]); if (fid) { const r = await fetch(`/api/locations/rooms?floorId=${fid}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                      <option value="">→ Select Floor →</option>
+                                      <option value="">? Select Floor ?</option>
                                       {locFloors.map(f => <option key={f.id} value={f.id}>{f.floorName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Department</label>
                                     <select name="locDeptId" value={assetForm.locDeptId} className="form-select" onChange={async e => { const did = e.target.value; setAssetForm(p => ({ ...p, locDeptId: did, roomId: "", room: "", locationId: "" })); if (assetForm.floorId) { const r = await fetch(`/api/locations/rooms?floorId=${assetForm.floorId}`, { headers: { Authorization: `Bearer ${token}` } }); setLocRooms(await r.json()); } }}>
-                                      <option value="">→ Select Department →</option>
+                                      <option value="">? Select Department ?</option>
                                       {locDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                                     </select>
                                   </div>
                                   <div className="form-group"><label>Room/Area</label>
                                     <select name="roomId" value={assetForm.roomId} className="form-select" onChange={e => { const rid = e.target.value; const rm = locRooms.find(r => String(r.id) === rid); setAssetForm(p => ({ ...p, roomId: rid, room: rm?.roomName || "", locationId: rm?.locationId ? String(rm.locationId) : "" })); }}>
-                                      <option value="">→ Select Room →</option>
+                                      <option value="">? Select Room ?</option>
                                       {locRooms.map(r => <option key={r.id} value={r.id}>{r.roomName}</option>)}
                                     </select>
                                   </div>
@@ -23200,7 +23231,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>×</button>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
 
 
 
@@ -23218,7 +23249,32 @@ const CompanyPortal = () => {
 
 
 
-                  {/* Template download */}
+                  
+                  {/* Import Mode Selection */}
+                  <div style={{ marginBottom: "18px" }}>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "8px" }}>Import Type</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      {[
+                        { value: "add", label: "Add New Assets", desc: "Create new assets with new Asset IDs & QR Codes", icon: "+" },
+                        { value: "update", label: "Update Existing Assets", desc: "Update existing assets using Asset ID as the key", icon: "✎" },
+                      ].map(({ value, label, desc, icon }) => (
+                        <label key={value} style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "12px", borderRadius: "10px", border: `2px solid ${bulkImportMode === value ? "#2563eb" : "#e2e8f0"}`, background: bulkImportMode === value ? "#eff6ff" : "#f8fafc", cursor: "pointer" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <input type="radio" name="bulkImportMode" value={value} checked={bulkImportMode === value} onChange={() => { setBulkImportMode(value); setBulkImportResult(null); }} style={{ accentColor: "#2563eb" }} />
+                            <span style={{ fontWeight: 700, fontSize: "13px", color: bulkImportMode === value ? "#1d4ed8" : "#374151" }}>{icon} {label}</span>
+                          </div>
+                          <span style={{ fontSize: "11.5px", color: "#64748b", marginLeft: "20px" }}>{desc}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {bulkImportMode === "update" && (
+                      <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 12px" }}>
+                        ⚠️ Update mode uses <strong>Asset ID</strong> (e.g. 004-27-000142) from the Excel column &quot;assetId&quot; to match records. QR Codes and Asset IDs will NOT be changed.
+                      </p>
+                    )}
+                  </div>
+
+{/* Template download */}
 
 
 
@@ -23236,7 +23292,7 @@ const CompanyPortal = () => {
 
 
 
-                    <a href={getAssetImportTemplateUrl()} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
+                    <a href={getAssetImportTemplateUrl(bulkImportMode)} download style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "7px", background: "#eff6ff", color: "#2563eb", fontWeight: 600, fontSize: "13px", border: "1px solid #bfdbfe", textDecoration: "none" }}>
 
 
 
@@ -23368,7 +23424,7 @@ const CompanyPortal = () => {
 
 
 
-                        const result = await bulkImportAssets(token, bulkImportFile, companyId);
+                        const result = await bulkImportAssets(token, bulkImportFile, companyId, bulkImportMode);
 
 
 
@@ -23434,7 +23490,7 @@ const CompanyPortal = () => {
 
 
 
-                    {bulkImporting ? "Uploading..." : "Upload & Register Assets"}
+                    {bulkImporting ? "Uploading..." : bulkImportMode === "update" ? "Upload & Update Assets" : "Upload & Register Assets"}
 
 
 
@@ -23483,10 +23539,10 @@ const CompanyPortal = () => {
 
 
                           { label: "Total Rows", value: bulkImportResult.total, color: "#0f172a" },
-                          { label: "Created", value: bulkImportResult.created, color: "#16a34a" },
-                          { label: "Updated", value: bulkImportResult.updated ?? 0, color: "#2563eb" },
+                          { label: bulkImportMode === "update" ? "Updated" : "Created", value: bulkImportMode === "update" ? (bulkImportResult.updated ?? 0) : bulkImportResult.created, color: "#16a34a" },
                           { label: "Unchanged", value: bulkImportResult.unchanged ?? 0, color: "#64748b" },
-                          { label: "Errors", value: bulkImportResult.skipped, color: "#d97706" },
+                          ...(bulkImportMode === "update" ? [{ label: "Not Found", value: bulkImportResult.notFound ?? 0, color: "#9333ea" }] : [{ label: "Also Updated", value: bulkImportResult.updated ?? 0, color: "#2563eb" }]),
+                          { label: "Errors / Skipped", value: bulkImportResult.skipped, color: "#d97706" },
                         ].map(({ label, value, color }) => (
 
 
@@ -23529,6 +23585,14 @@ const CompanyPortal = () => {
 
 
 
+                      {bulkImportResult.notFoundAssets?.length > 0 && (
+                        <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
+                          <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#7c3aed" }}>Asset IDs not found ({bulkImportResult.notFoundAssets.length}):</p>
+                          {bulkImportResult.notFoundAssets.map((e, i) => (
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; — not found in this company</p>
+                          ))}
+                        </div>
+                      )}
                       {bulkImportResult.errors?.length > 0 && (
 
 
@@ -23667,7 +23731,7 @@ const CompanyPortal = () => {
 
 
 
-                    /* ×××××× Barcode label preview (industry standard 3.5" x 2" ratio) ×××××× */
+                    /* ������ Barcode label preview (industry standard 3.5" x 2" ratio) ������ */
 
 
 
@@ -23775,7 +23839,7 @@ const CompanyPortal = () => {
 
 
 
-                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>🏢 {assetQrModal.location}</div>}
+                          {assetQrModal.location && <div style={{ fontSize: "10.5px", color: "#64748b" }}>?? {assetQrModal.location}</div>}
 
 
 
@@ -23805,7 +23869,7 @@ const CompanyPortal = () => {
 
 
 
-                        Scan QR to view details &amp; raise queries →→ {new Date().getFullYear()}
+                        Scan QR to view details &amp; raise queries ?? {new Date().getFullYear()}
 
 
 
@@ -24035,7 +24099,7 @@ const CompanyPortal = () => {
 
 
 
-            {/* Asset Detail — Full-width page with tabs */}
+            {/* Asset Detail � Full-width page with tabs */}
             {viewingAsset && (() => {
               const a = viewingAsset;
               const m = typeof a.metadata === "string"
@@ -24051,6 +24115,8 @@ const CompanyPortal = () => {
                 cmc: !!(m.cmc?.enabled),
                 inHouse: !!(m.inHouse),
                 catalyst: !!(m.catalyst),
+                highEnd: !!(m.highEnd),
+                rented: !!(m.rented),
               };
               const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
               const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
@@ -24058,7 +24124,7 @@ const CompanyPortal = () => {
               const amcEnd        = m.amcEnd        || m.amc?.endDate        || "";
               const cmcStart      = m.cmcStart      || m.cmc?.startDate      || "";
               const cmcEnd        = m.cmcEnd        || m.cmc?.endDate        || "";
-              const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+              const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst", maintenanceTypes.highEnd && "High End", maintenanceTypes.rented && "Rented"].filter(Boolean).join(", ") || m.maintenanceType || "\u2014";
               const normalizeImg = (img) => {
                 const raw = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
                 if (!raw || typeof raw !== "string") return "";
@@ -24128,7 +24194,7 @@ const CompanyPortal = () => {
                 ["Installation Date",  dateField(m.installationDate)],
                 ["Invoice No.",        m.invoiceNo],
                 ["Purchase Date",      dateField(m.purchaseDate)],
-                ["Purchase Cost",      m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+                ["Purchase Cost",      m.purchaseCost ? `? ${m.purchaseCost}` : null],
                 ["Maintenance",        maint],
                 ["RBER",               m.rber ? "Yes" : null],
                 ["Remarks",            m.remarks],
@@ -24153,14 +24219,14 @@ const CompanyPortal = () => {
                           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
                           <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
                         </div>
-                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "—"}</span>
+                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "�"}</span>
                         {a.companyName && <span style={{ fontSize: "12px", color: "#64748b", background: "#f1f5f9", padding: "4px 10px", borderRadius: "8px" }}>{a.companyName}</span>}
                       </div>
                       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                         <button onClick={() => { closeDetail(); setEditingAssetId(a.id); setAssetForm({ ...emptyAsset, ...a, metadata: m, companyId: a.companyId || "" }); setShowAssetModal(true); }}
                           style={{ padding: "8px 16px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
                         <button onClick={closeDetail}
-                          style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                          style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>�</button>
                       </div>
                     </div>
                     {/* Tabs */}
@@ -24170,7 +24236,7 @@ const CompanyPortal = () => {
                     {/* Content */}
                     <div style={{ flex: 1, overflowY: "auto", background: "#f8fafc", padding: "24px" }}>
 
-                      {/* ── Overview ── */}
+                      {/* -- Overview -- */}
                       {viewingAssetTab === "overview" && (
                         <>
                           {hcImages.length > 0 && (
@@ -24187,10 +24253,10 @@ const CompanyPortal = () => {
                           )}
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px" }}>
                             {[
-                              ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
-                              ["Total Down Time", "—"],
-                              ["MTBF", "—"],
-                              ["MTTR", "—"],
+                              ["Cost of Asset", m.purchaseCost ? `? ${m.purchaseCost}` : "�"],
+                              ["Total Down Time", "�"],
+                              ["MTBF", "�"],
+                              ["MTTR", "�"],
                             ].map(([lbl, val]) => (
                               <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
                                 <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
@@ -24209,9 +24275,9 @@ const CompanyPortal = () => {
                         </>
                       )}
 
-                      {/* ── Call Log History ── */}
+                      {/* -- Call Log History -- */}
                       {viewingAssetTab === "calllogs" && (
-                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs…" /> :
+                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs�" /> :
                         viewingAssetCallLogs.length === 0 ? <EmptyMsg msg="No call log history" /> :
                         <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -24223,20 +24289,20 @@ const CompanyPortal = () => {
                             <tbody>{viewingAssetCallLogs.map((w, i) => (
                               <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                 <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "—"}</td>
-                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "—"}</span></td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "—"}</td>
+                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "�"}</td>
+                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "�"}</span></td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "�"}</td>
                               </tr>
                             ))}</tbody>
                           </table>
                         </div>
                       )}
 
-                      {/* ── Calibration History ── */}
+                      {/* -- Calibration History -- */}
                       {viewingAssetTab === "calibration" && (
-                        viewingAssetCalibration === null ? <EmptyMsg msg="Loading calibration records…" /> :
+                        viewingAssetCalibration === null ? <EmptyMsg msg="Loading calibration records�" /> :
                         viewingAssetCalibration.length === 0 ? <EmptyMsg msg="No calibration records" /> :
                         <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -24248,27 +24314,27 @@ const CompanyPortal = () => {
                             <tbody>{viewingAssetCalibration.map((c, i) => (
                               <tr key={c.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                 <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                <td style={{ padding: "10px 14px", color: "#0f172a" }}>{c.calibrationDate || "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.doneBy || "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.nextDueDate || "—"}</td>
-                                <td style={{ padding: "10px 14px" }}>{c.certificateUrl ? <a href={c.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>View</a> : "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.notes || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: "#0f172a" }}>{c.calibrationDate || "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.doneBy || "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.nextDueDate || "�"}</td>
+                                <td style={{ padding: "10px 14px" }}>{c.certificateUrl ? <a href={c.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>View</a> : "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.notes || "�"}</td>
                               </tr>
                             ))}</tbody>
                           </table>
                         </div>
                       )}
 
-                      {/* ── Purchase History ── */}
+                      {/* -- Purchase History -- */}
                       {viewingAssetTab === "purchase" && (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
                           {[
                             ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
-                            ["Purchase Cost", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
+                            ["Purchase Cost", m.purchaseCost ? `? ${m.purchaseCost}` : null],
                             ["Dealer / Distributor", m.dealer],
-                            ["Warranty", maintenanceTypes.warranty ? `${warrantyStart || "—"} → ${warrantyEnd || "—"}` : null],
-                            ["AMC", maintenanceTypes.amc ? `${amcStart || "—"} → ${amcEnd || "—"}` : null],
-                            ["CMC", maintenanceTypes.cmc ? `${cmcStart || "—"} → ${cmcEnd || "—"}` : null],
+                            ["Warranty", maintenanceTypes.warranty ? `${warrantyStart || "�"} ? ${warrantyEnd || "�"}` : null],
+                            ["AMC", maintenanceTypes.amc ? `${amcStart || "�"} ? ${amcEnd || "�"}` : null],
+                            ["CMC", maintenanceTypes.cmc ? `${cmcStart || "�"} ? ${cmcEnd || "�"}` : null],
                             ["Remarks", m.remarks],
                           ].filter(([, v]) => v).map(([label, val]) => (
                             <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
@@ -24280,7 +24346,7 @@ const CompanyPortal = () => {
                         </div>
                       )}
 
-                      {/* ── Indent Details ── */}
+                      {/* -- Indent Details -- */}
                       {viewingAssetTab === "indent" && (
                         <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
@@ -24293,8 +24359,8 @@ const CompanyPortal = () => {
                               ["PO Number", m.poNumber],
                               ["PO Date", m.poDate ? dateField(m.poDate) : null],
                               ["Quantity", m.quantity],
-                              ["Unit Price", m.unitPrice ? `₹ ${m.unitPrice}` : null],
-                              ["Total Cost", m.totalCost ? `₹ ${m.totalCost}` : (m.purchaseCost ? `₹ ${m.purchaseCost}` : null)],
+                              ["Unit Price", m.unitPrice ? `? ${m.unitPrice}` : null],
+                              ["Total Cost", m.totalCost ? `? ${m.totalCost}` : (m.purchaseCost ? `? ${m.purchaseCost}` : null)],
                               ["GRN Number", m.grnNumber],
                               ["GRN Date", m.grnDate ? dateField(m.grnDate) : null],
                               ["Remarks", m.indentRemarks || m.remarks],
@@ -25905,7 +25971,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ×××××× Toast notifications (fixed overlay on every page) ×××××× */}
+        {/* ������ Toast notifications (fixed overlay on every page) ������ */}
 
 
 
@@ -25941,7 +26007,7 @@ const CompanyPortal = () => {
 
 
 
-            const icon  = { critical: "🚨", high: "⚠", medium: "▾", low: "🏢", info: "ℹ" }[t.severity] || "⚠";
+            const icon  = { critical: "??", high: "?", medium: "?", low: "??", info: "?" }[t.severity] || "?";
 
 
 
@@ -26484,7 +26550,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>🏢</span>
+                  <span style={{ fontSize: "18px" }}>??</span>
 
 
 
@@ -26838,7 +26904,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>🏢</span>
+                  <span style={{ fontSize: "18px" }}>??</span>
 
 
 
@@ -27022,7 +27088,7 @@ const CompanyPortal = () => {
 
 
 
-                  <span style={{ fontSize: "18px" }}>📄P</span>
+                  <span style={{ fontSize: "18px" }}>??P</span>
 
 
 
@@ -28507,7 +28573,7 @@ const CompanyPortal = () => {
           const ASSET_HEADERS = ["SN","Company","Equipment Name","Asset ID","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
           const assetRowMapper = (a, i) => {
             const m = a.metadata || {};
-            const maint = [m.warranty?"Warranty":"",m.amc?"AMC":"",m.cmc?"CMC":"",m.inHouse?"In House":"",m.catalyst?"Catalyst":""].filter(Boolean).join("; ");
+            const maint = [m.warranty?"Warranty":"",m.amc?"AMC":"",m.cmc?"CMC":"",m.inHouse?"In House":"",m.catalyst?"Catalyst":"",m.rented?"Rented":""].filter(Boolean).join("; ");
             const isVerified = Number(a.isVerified || a.is_verified) === 1;
             const workingStatus = m.workingStatus || "";
             const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus === "Not_Working" ? "Not Working" : workingStatus === "WIP" ? "WIP" : workingStatus || a.status || "Active";
@@ -28611,7 +28677,7 @@ const CompanyPortal = () => {
             total_assets:      { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
             critical:          { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
             non_critical:      { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
-            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `₹${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `₹${(v/100000).toFixed(2)}L` : v >= 1000 ? `₹{(v/1000).toFixed(1)}K` : `₹${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
+            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `?${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `?${(v/100000).toFixed(2)}L` : v >= 1000 ? `?{(v/1000).toFixed(1)}K` : `?${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
             rber:              { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
             new_addition:      { label: "Verified",       value: dashboardStats ? (assetProfile.verified ?? 0) : null, col: "#0d9488" },
             total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
@@ -28702,7 +28768,7 @@ const CompanyPortal = () => {
           return (
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
-              {/* ×××××× Header ×××××× */}
+              {/* ������ Header ������ */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
@@ -28796,7 +28862,7 @@ const CompanyPortal = () => {
                       </div>
                     )}
                   </div>
-                  {/* Multi-user filter — show each user once; selecting picks ALL their company composite keys */}
+                  {/* Multi-user filter � show each user once; selecting picks ALL their company composite keys */}
                   <div style={{ position: "relative" }}>
                     {(() => {
                       // Deduplicated user list (one entry per unique user ID)
@@ -28923,7 +28989,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ═══ USER-WISE VIEW ═══ */}
+              {/* --- USER-WISE VIEW --- */}
               {dashView === "user" && (
                 <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -28978,10 +29044,10 @@ const CompanyPortal = () => {
                 </div>
               )}
 
-              {/* ═══ COMPANY-WISE VIEW ═══ */}
+              {/* --- COMPANY-WISE VIEW --- */}
               {dashView === "company" && (<>
 
-              {/* ×××××× ASSET PROFILE ×××××× */}
+              {/* ������ ASSET PROFILE ������ */}
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ marginBottom: "10px" }}>
                   <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Asset Profile</h2>
@@ -28995,7 +29061,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ×××××× COMPLAINT PROFILE ×××××× */}
+              {/* ������ COMPLAINT PROFILE ������ */}
               <div style={{ marginBottom: "24px" }}>
                 <div style={{ marginBottom: "10px" }}>
                   <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Complaint Profile</h2>
@@ -29009,7 +29075,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ×××××× CALIBRATION PROFILE ×××××× */}
+              {/* ������ CALIBRATION PROFILE ������ */}
               {dashboardStats?.calibrationProfile && (() => {
                 const cp = dashboardStats.calibrationProfile;
                 const calTiles = [
@@ -29041,7 +29107,7 @@ const CompanyPortal = () => {
                 );
               })()}
 
-              {/* ×××××× Drill-down panel (when tile clicked) ×××××× */}
+              {/* ������ Drill-down panel (when tile clicked) ������ */}
               {activeTile && (
                 <div ref={drillDownRef} style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -29049,7 +29115,7 @@ const CompanyPortal = () => {
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
                       <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
                         {tileConfig[activeTile]?.label}
-                        {ASSET_TILES.includes(activeTile) ? " — Asset List" : " — Company Breakdown"}
+                        {ASSET_TILES.includes(activeTile) ? " � Asset List" : " � Company Breakdown"}
                       </span>
                       <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "..."}</strong></span>
                     </div>
@@ -29067,7 +29133,7 @@ const CompanyPortal = () => {
                   <div style={{ padding: "0", maxHeight: "420px", overflowY: "auto" }}>
                     {ASSET_TILES.includes(activeTile) ? (
                       tileAssetsLoading ? (
-                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>Loading assets…</div>
+                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>Loading assets�</div>
                       ) : !tileAssets || tileAssets.length === 0 ? (
                         <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>No assets found for this filter.</div>
                       ) : (
@@ -29083,17 +29149,17 @@ const CompanyPortal = () => {
                             {tileAssets.map((a, i) => (
                               <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                 <td style={{ padding: "9px 12px", color: "#94a3b8", fontSize: "11px" }}>{i + 1}</td>
-                                <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "—"}</td>
-                                <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "—"}</td>
+                                <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "�"}</td>
+                                <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "�"}</td>
                                 <td style={{ padding: "9px 12px" }}>
-                                  <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "—"}</button>
+                                  <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "�"}</button>
                                 </td>
-                                <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "—"}</td>
+                                <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "�"}</td>
                                 <td style={{ padding: "9px 12px" }}>
-                                  <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: tileConfig[activeTile]?.col + "22", color: tileConfig[activeTile]?.col }}>{a.status || "—"}</span>
+                                  <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: tileConfig[activeTile]?.col + "22", color: tileConfig[activeTile]?.col }}>{a.status || "�"}</span>
                                 </td>
-                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.departmentName || "—"}</td>
-                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.building || "—"}</td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.departmentName || "�"}</td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.building || "�"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -29132,7 +29198,7 @@ const CompanyPortal = () => {
                 </div>
               )}
 
-              {/* ×××××× Charts Row ×××××× */}
+              {/* ������ Charts Row ������ */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
 
                 {/* Asset Status Pie */}
@@ -29164,7 +29230,7 @@ const CompanyPortal = () => {
 
               </div>
 
-              {/* ×××××× Summary Stats Row ×××××× */}
+              {/* ������ Summary Stats Row ������ */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
                 {[
                   { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },

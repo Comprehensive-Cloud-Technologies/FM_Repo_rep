@@ -40,6 +40,7 @@ export default function AssetDetailPage() {
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [locBuildings, setLocBuildings] = useState([]);
   const [locFloors, setLocFloors] = useState([]);
   const [locRooms, setLocRooms] = useState([]);
@@ -97,6 +98,8 @@ export default function AssetDetailPage() {
     cmc: !!(m.cmc?.enabled),
     inHouse: !!(m.inHouse),
     catalyst: !!(m.catalyst),
+    highEnd: !!(m.highEnd),
+    rented: !!(m.rented),
   };
   const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
   const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
@@ -111,6 +114,8 @@ export default function AssetDetailPage() {
     maintenanceTypes.cmc && "CMC",
     maintenanceTypes.inHouse && "In House",
     maintenanceTypes.catalyst && "Catalyst",
+    maintenanceTypes.highEnd && "High End",
+    maintenanceTypes.rented && "Rented",
   ].filter(Boolean).join(", ") || m.maintenanceType || "—";
 
   const normalizeImgUrl = (img) => {
@@ -205,6 +210,7 @@ export default function AssetDetailPage() {
       inHouse:  !!(m.inHouse           || maintenanceTypes?.inHouse),
       catalyst: !!(m.catalyst          || maintenanceTypes?.catalyst),
       highEnd:  !!(m.highEnd           || maintenanceTypes?.highEnd),
+      rented:   !!(m.rented            || maintenanceTypes?.rented),
     };
     const cal = m.calibration || {};
     setEditForm({
@@ -238,6 +244,7 @@ export default function AssetDetailPage() {
       mtInHouse:  mt.inHouse,
       mtCatalyst: mt.catalyst,
       mtHighEnd:  mt.highEnd,
+      mtRented:   mt.rented,
       warrantyStart: toIsoDate(m.warrantyStart || m.warranty?.startDate),
       warrantyEnd:   toIsoDate(m.warrantyEnd   || m.warranty?.endDate),
       amcStart:      toIsoDate(m.amcStart      || m.amc?.startDate),
@@ -326,6 +333,7 @@ export default function AssetDetailPage() {
           inHouse:  editForm.mtInHouse,
           catalyst: editForm.mtCatalyst,
           highEnd:  editForm.mtHighEnd,
+          rented:   editForm.mtRented,
         },
         warrantyStart: editForm.warrantyStart,
         warrantyEnd:   editForm.warrantyEnd,
@@ -395,6 +403,14 @@ export default function AssetDetailPage() {
       const updated = await fetch(assetUrl, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
       setAsset(updated);
       setShowEditModal(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 4000);
+      // Notify any open portal tabs to refresh this asset
+      try {
+        const bc = new BroadcastChannel("asset-updates");
+        bc.postMessage({ type: "asset-updated", assetId: id, isAdmin });
+        bc.close();
+      } catch (_) {}
     } catch (e) {
       setEditError(e.message || "Save failed");
     } finally {
@@ -423,6 +439,13 @@ export default function AssetDetailPage() {
 
   return (
     <div style={{ fontFamily: "'Inter', -apple-system, sans-serif", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Success toast */}
+      {saveSuccess && (
+        <div style={{ position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 2000, background: "#16a34a", color: "#fff", padding: "12px 24px", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 700, animation: "fadeIn 0.2s ease" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          Asset details updated successfully!
+        </div>
+      )}
       {/* Full Edit Modal */}
       {showEditModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
@@ -493,11 +516,12 @@ export default function AssetDetailPage() {
                     ["mtInHouse",  "d. In House"],
                     ["mtCatalyst", "e. Catalyst"],
                     ["mtHighEnd",  "f. High End Equipment"],
+                    ["mtRented",   "g. Rented"],
                   ].map(([key, label]) => (
                     <label key={key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13.5px", color: "#374151", fontWeight: 500 }}>
                       <input type="checkbox" checked={!!editForm[key]} onChange={e => {
                         if (e.target.checked) {
-                          setEditForm(p => ({ ...p, mtWarranty: false, mtAmc: false, mtCmc: false, mtInHouse: false, mtCatalyst: false, mtHighEnd: false, [key]: true }));
+                          setEditForm(p => ({ ...p, mtWarranty: false, mtAmc: false, mtCmc: false, mtInHouse: false, mtCatalyst: false, mtHighEnd: false, mtRented: false, [key]: true }));
                         } else {
                           setEditForm(p => ({ ...p, [key]: false }));
                         }

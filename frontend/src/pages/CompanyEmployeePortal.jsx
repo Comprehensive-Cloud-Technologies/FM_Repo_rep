@@ -895,6 +895,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       hcInHouse:   !!(hcMt.inHouse  || meta.inHouse),
       hcCatalyst:  !!(hcMt.catalyst || meta.catalyst),
       hcHighEnd:   !!(hcMt.highEnd || meta.highEnd || meta.maintenanceTypes?.highEnd),
+      hcRented:    !!(hcMt.rented || meta.rented || meta.maintenanceTypes?.rented),
       hcWarrantyCost: meta.maintenanceCosts?.warranty || "",
       hcAmcCost:      meta.maintenanceCosts?.amc      || "",
       hcCmcCost:      meta.maintenanceCosts?.cmc      || "",
@@ -1059,7 +1060,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       invoiceNo: form.hcInvoiceNo, invoiceDate: form.hcInvoiceDate, purchaseCost: form.hcPurchaseCost,
       maintenanceTypes: {
         warranty: !!form.hcWarranty, amc: !!form.hcAmc, cmc: !!form.hcCmc,
-        inHouse: !!form.hcInHouse, catalyst: !!form.hcCatalyst, highEnd: !!form.hcHighEnd,
+        inHouse: !!form.hcInHouse, catalyst: !!form.hcCatalyst, highEnd: !!form.hcHighEnd, rented: !!form.hcRented,
       },
       maintenanceCosts: {
         warranty: form.hcWarrantyCost || "", amc: form.hcAmcCost || "", cmc: form.hcCmcCost || "",
@@ -1331,11 +1332,12 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                   { key: "hcInHouse",  label: "d. In House" },
                   { key: "hcCatalyst", label: "e. Catalyst" },
                   { key: "hcHighEnd",  label: "f. High End Equipment" },
+                  { key: "hcRented",   label: "g. Rented" },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontSize: "13.5px", color: "#374151", fontWeight: 500 }}>
                     <input type="checkbox" checked={!!form[key]} onChange={e => {
                       if (e.target.checked) {
-                        setForm(p => ({ ...p, hcWarranty: false, hcAmc: false, hcCmc: false, hcInHouse: false, hcCatalyst: false, hcHighEnd: false, [key]: true }));
+                        setForm(p => ({ ...p, hcWarranty: false, hcAmc: false, hcCmc: false, hcInHouse: false, hcCatalyst: false, hcHighEnd: false, hcRented: false, [key]: true }));
                       } else {
                         setForm(p => ({ ...p, [key]: false }));
                       }
@@ -4343,6 +4345,7 @@ export default function CompanyEmployeePortal() {
   const [editDept, setEditDept] = useState(null);
   const [showAssetModal, setShowAssetModal] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
+  const [assetSaveToast, setAssetSaveToast] = useState(null); // null | "added" | "updated"
   // Bulk asset import
   const [showBulkAssetImport, setShowBulkAssetImport] = useState(false);
   const [bulkAssetFile, setBulkAssetFile] = useState(null);
@@ -4719,6 +4722,23 @@ export default function CompanyEmployeePortal() {
     return () => clearInterval(id);
   }, [token, pushToast, playAlertSound]);
 
+  // Sync asset edits made from AssetDetailPage (new tab) back into portal state
+  useEffect(() => {
+    if (!token) return;
+    const bc = new BroadcastChannel("asset-updates");
+    bc.onmessage = (e) => {
+      if (e.data?.type !== "asset-updated") return;
+      const assetId = e.data.assetId;
+      fetch(`${getApiBaseUrl()}/api/company-portal/assets/${assetId}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(updated => {
+          if (updated) setAssets(prev => prev.map(a => String(a.id) === String(assetId) ? { ...a, ...updated, metadata: updated.metadata || a.metadata } : a));
+        })
+        .catch(() => {});
+    };
+    return () => bc.close();
+  }, [token]);
+
   useEffect(() => {
     if (!token || nav === "dashboard") return;
     if (nav === "departments") load("departments", () => getCompanyPortalDepartments(token)).then((d) => d && setDepartments(d));
@@ -4874,6 +4894,8 @@ export default function CompanyEmployeePortal() {
     if (isEdit) setAssets(p => p.map(a => a.id === norm.id ? norm : a));
     else setAssets(p => [norm, ...p]);
     setShowAssetModal(false); setEditAsset(null);
+    setAssetSaveToast(isEdit ? "updated" : "added");
+    setTimeout(() => setAssetSaveToast(null), 4000);
     // Auto-open QR card (not barcode image) for new healthcare asset registrations
     if (!isEdit && (norm.assetType === "healthcare" || companySectors.includes("healthcare"))) {
       setAssetViewQrModal(norm);
@@ -6575,8 +6597,8 @@ export default function CompanyEmployeePortal() {
                         ? <tr><td colSpan={isAdmin ? 25 : (canAssetAction ? 24 : 23)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
-                          const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd) };
-                          const maint = [mt.warranty && "Warranty", mt.amc && "AMC", mt.cmc && "CMC", mt.inHouse && "In House", mt.catalyst && "Catalyst", mt.highEnd && "High End"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+                          const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd), rented: !!(m.rented) };
+                          const maint = [mt.warranty && "Warranty", mt.amc && "AMC", mt.cmc && "CMC", mt.inHouse && "In House", mt.catalyst && "Catalyst", mt.highEnd && "High End", mt.rented && "Rented"].filter(Boolean).join(", ") || m.maintenanceType || "—";
                           return (
                           <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedQrIds.has(a.id) ? "#f0fdf4" : undefined }}>
                             {isAdmin && (
@@ -8945,6 +8967,8 @@ export default function CompanyEmployeePortal() {
           cmc: !!(m.cmc?.enabled),
           inHouse: !!(m.inHouse),
           catalyst: !!(m.catalyst),
+          highEnd: !!(m.highEnd),
+          rented: !!(m.rented),
         };
         const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
         const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
@@ -8952,7 +8976,7 @@ export default function CompanyEmployeePortal() {
         const amcEnd        = m.amcEnd        || m.amc?.endDate        || "";
         const cmcStart      = m.cmcStart      || m.cmc?.startDate      || "";
         const cmcEnd        = m.cmcEnd        || m.cmc?.endDate        || "";
-        const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst"].filter(Boolean).join(", ") || m.maintenanceType || "—";
+        const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst", maintenanceTypes.highEnd && "High End", maintenanceTypes.rented && "Rented"].filter(Boolean).join(", ") || m.maintenanceType || "—";
         const fields = [
           ["Asset ID", a.generatedAssetId || a.assetUniqueId],
           ["Equipment Name", m.equipmentName || a.assetName],
@@ -9358,6 +9382,13 @@ export default function CompanyEmployeePortal() {
           </div>
         );
       })()}
+      {/* Asset save success toast */}
+      {assetSaveToast && (
+        <div style={{ position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#16a34a", color: "#fff", padding: "12px 24px", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 700 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          {assetSaveToast === "added" ? "Asset registered successfully!" : "Asset updated successfully!"}
+        </div>
+      )}
       {showAssetModal && (
         <AssetModal
           token={token}

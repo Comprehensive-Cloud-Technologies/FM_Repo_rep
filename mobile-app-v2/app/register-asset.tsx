@@ -448,6 +448,7 @@ export default function RegisterAssetScreen() {
   const [inHouse,  setInHouse]  = useState(false);
   const [catalyst, setCatalyst] = useState(false);
   const [highEnd,  setHighEnd]  = useState(false);
+  const [rented,   setRented]   = useState(false);
   const [category, setCategory] = useState<'Non_Critical' | 'Critical'>('Non_Critical');
   const [rber,     setRber]     = useState(false);
   const [remarks,  setRemarks]  = useState('');
@@ -612,7 +613,8 @@ export default function RegisterAssetScreen() {
         inHouse: inHouse || undefined,
         catalyst: catalyst || undefined,
         highEnd: highEnd || undefined,
-        maintenanceTypes: { warranty: warranty.enabled, amc: amc.enabled, cmc: cmc.enabled, inHouse, catalyst, highEnd },
+        rented: rented || undefined,
+        maintenanceTypes: { warranty: warranty.enabled, amc: amc.enabled, cmc: cmc.enabled, inHouse, catalyst, highEnd, rented },
         calibrationRequired,
         calibrationFrequency: calibrationFrequency || undefined,
         lastCalibrationDate: lastCalibrationDate || undefined,
@@ -854,6 +856,9 @@ export default function RegisterAssetScreen() {
           </View>
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={highEnd} label="High End Equipment" onToggle={() => setHighEnd(v => !v)} />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <Checkbox checked={rented} label="Rented" onToggle={() => setRented(v => !v)} />
           </View>
 
           <View style={{ marginTop: 8 }}>

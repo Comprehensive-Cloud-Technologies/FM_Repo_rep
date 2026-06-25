@@ -68,38 +68,88 @@ const router = Router();
 
 // ── GET /assets/bulk-import/template  (public — no auth needed) ──────────────
 // This route MUST be before router.use(requireCompanyAuth).
-router.get("/assets/bulk-import/template", (_req, res) => {
+// Query param: mode=update → returns update template with assetId column instead of add template
+router.get("/assets/bulk-import/template", (req, res) => {
+  const mode = (req.query.mode || "add").toLowerCase();
   import("xlsx").then((XLSX) => {
     const wb = XLSX.utils.book_new();
-    const headers = [
-      "assetName*", "assetType", "departmentName",
-      "building", "floor", "room", "assetUniqueId", "status",
-    ];
-    const example  = ["Machine A",   "general",    "ICU",   "Block A", "1", "101", "", "Active"];
-    const example2 = ["Ventilator B", "healthcare", "OPD",   "Block B", "2", "202", "", "Active"];
-    const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
-    ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 2, 20) }));
-    XLSX.utils.book_append_sheet(wb, ws, "Assets");
 
-    const notes = [
-      ["Column",         "Required?", "Notes"],
-      ["assetName",      "Yes",       "Name / Equipment Name / Item Name"],
-      ["assetType",      "No",        "e.g. general, healthcare, fleet — defaults to 'general'"],
-      ["departmentName", "No",        "Exact department name. Leave blank if unknown."],
-      ["building",       "No",        "Building / Location label"],
-      ["floor",          "No",        "Floor number or label"],
-      ["room",           "No",        "Room / Ward number"],
-      ["assetUniqueId",  "No",        "Leave blank to auto-generate a unique QR code ID"],
-      ["status",         "No",        "Active or Inactive — defaults to Active"],
-    ];
-    const wsNotes = XLSX.utils.aoa_to_sheet(notes);
-    wsNotes["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 55 }];
-    XLSX.utils.book_append_sheet(wb, wsNotes, "Instructions");
+    if (mode === "update") {
+      // Update template: assetId is required, assetName is optional
+      const headers = [
+        "assetId*", "assetName", "assetType", "departmentName",
+        "building", "floor", "room", "status",
+        "make", "model", "serialNo", "accessories", "dealer",
+        "purchaseCost", "purchaseDate", "installationDate", "mfgYear",
+        "maintenanceType", "warrantyStart", "warrantyEnd",
+        "amcStart", "amcEnd", "cmcStart", "cmcEnd",
+        "remarks",
+      ];
+      const example  = ["004-27-000142", "Ventilator", "healthcare", "ICU",   "Block A", "1", "101", "Active", "GE", "R860", "SN001", "", "ABC Supplier", "150000", "2022-01-01", "2022-03-01", "2021", "AMC", "", "", "2023-04-01", "2024-03-31", "", "", "Serviced"];
+      const example2 = ["004-27-000149", "ECG Machine", "",          "OPD",   "Block B", "2", "202", "",       "",   "",     "",     "", "",            "",       "",            "",            "",     "Warranty", "2022-06-01", "2024-05-31", "", "", "", "", ""];
+      const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
+      ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.replace("*","").length + 2, 18) }));
+      XLSX.utils.book_append_sheet(wb, ws, "Update Assets");
 
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Disposition", 'attachment; filename="asset-import-template.xlsx"');
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.send(buf);
+      const notes = [
+        ["Column",           "Required?", "Notes"],
+        ["assetId",          "YES",       "Asset ID (e.g. 004-27-000142) — used to find the existing record"],
+        ["assetName",        "No",        "Leave blank to keep existing name"],
+        ["assetType",        "No",        "Leave blank to keep existing type"],
+        ["departmentName",   "No",        "Exact department name. Leave blank to keep existing."],
+        ["building/floor/room","No",      "Leave blank to keep existing location"],
+        ["status",           "No",        "Active or Inactive. Leave blank to keep existing."],
+        ["make/model/...",   "No",        "Any blank cell keeps the existing value"],
+        ["maintenanceType",  "No",        "Warranty, AMC, CMC, In House, Catalyst, High End, Rented"],
+        ["warrantyStart",    "No",        "Warranty start date (YYYY-MM-DD). Fill only if maintenanceType = Warranty"],
+        ["warrantyEnd",      "No",        "Warranty end/expiry date (YYYY-MM-DD)"],
+        ["amcStart",         "No",        "AMC start date (YYYY-MM-DD). Fill only if maintenanceType = AMC"],
+        ["amcEnd",           "No",        "AMC end/expiry date (YYYY-MM-DD)"],
+        ["cmcStart",         "No",        "CMC start date (YYYY-MM-DD). Fill only if maintenanceType = CMC"],
+        ["cmcEnd",           "No",        "CMC end/expiry date (YYYY-MM-DD)"],
+        ["IMPORTANT",        "—",         "QR Code, Asset ID, and all historical records remain unchanged"],
+        ["TIP",              "—",         "You can also use 'startDate' and 'endDate' columns — they auto-map to the maintenance type"],
+      ];
+      const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+      wsNotes["!cols"] = [{ wch: 22 }, { wch: 12 }, { wch: 65 }];
+      XLSX.utils.book_append_sheet(wb, wsNotes, "Instructions");
+
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", 'attachment; filename="asset-update-template.xlsx"');
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    } else {
+      // Add template (default)
+      const headers = [
+        "assetName*", "assetType", "departmentName",
+        "building", "floor", "room", "assetUniqueId", "status",
+      ];
+      const example  = ["Machine A",   "general",    "ICU",   "Block A", "1", "101", "", "Active"];
+      const example2 = ["Ventilator B", "healthcare", "OPD",   "Block B", "2", "202", "", "Active"];
+      const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
+      ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 2, 20) }));
+      XLSX.utils.book_append_sheet(wb, ws, "Assets");
+
+      const notes = [
+        ["Column",         "Required?", "Notes"],
+        ["assetName",      "Yes",       "Name / Equipment Name / Item Name"],
+        ["assetType",      "No",        "e.g. general, healthcare, fleet — defaults to 'general'"],
+        ["departmentName", "No",        "Exact department name. Leave blank if unknown."],
+        ["building",       "No",        "Building / Location label"],
+        ["floor",          "No",        "Floor number or label"],
+        ["room",           "No",        "Room / Ward number"],
+        ["assetUniqueId",  "No",        "Leave blank to auto-generate a unique QR code ID"],
+        ["status",         "No",        "Active or Inactive — defaults to Active"],
+      ];
+      const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+      wsNotes["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 55 }];
+      XLSX.utils.book_append_sheet(wb, wsNotes, "Instructions");
+
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", 'attachment; filename="asset-import-template.xlsx"');
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    }
   }).catch((err) => {
     console.error("Template generation error:", err);
     res.status(500).json({ message: "Failed to generate template" });
@@ -1632,7 +1682,27 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
           const dl2 = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername"); if (dl2) incomingMeta.dealer = dl2;
           const rm2 = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm2) incomingMeta.remarks = rm2;
           const rb2 = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb2) incomingMeta.rber = rb2.toLowerCase() === "yes" || rb2 === "1" || rb2.toLowerCase() === "true";
-          const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract"); if (mn2) incomingMeta.maintenanceType = mn2;
+          const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category"); if (mn2) {
+            incomingMeta.maintenanceType = mn2;
+            const mnLower2 = mn2.toLowerCase();
+            incomingMeta.maintenanceTypes = { warranty: mnLower2 === "warranty", amc: mnLower2 === "amc", cmc: mnLower2 === "cmc", inhouse: mnLower2 === "in house" || mnLower2 === "inhouse", catalyst: mnLower2 === "catalyst", highEnd: mnLower2 === "high end" || mnLower2 === "highend", rented: mnLower2 === "rented" };
+          }
+          // Maintenance date ranges — explicit per-type columns
+          const ws2 = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws2) incomingMeta.warrantyStart = ws2;
+          const we2 = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we2) incomingMeta.warrantyEnd = we2;
+          const as2 = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as2) incomingMeta.amcStart = as2;
+          const ae2 = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae2) incomingMeta.amcEnd = ae2;
+          const cs2 = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs2) incomingMeta.cmcStart = cs2;
+          const ce2 = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce2) incomingMeta.cmcEnd = ce2;
+          // Generic "Start Date" / "End Date" → map to the maintenance type column value
+          const gs2 = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
+          const ge2 = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+          if (gs2 || ge2) {
+            const mnL = (incomingMeta.maintenanceType || "").toLowerCase();
+            if (mnL === "warranty") { if (gs2 && !incomingMeta.warrantyStart) incomingMeta.warrantyStart = gs2; if (ge2 && !incomingMeta.warrantyEnd) incomingMeta.warrantyEnd = ge2; }
+            else if (mnL === "amc") { if (gs2 && !incomingMeta.amcStart) incomingMeta.amcStart = gs2; if (ge2 && !incomingMeta.amcEnd) incomingMeta.amcEnd = ge2; }
+            else if (mnL === "cmc") { if (gs2 && !incomingMeta.cmcStart) incomingMeta.cmcStart = gs2; if (ge2 && !incomingMeta.cmcEnd) incomingMeta.cmcEnd = ge2; }
+          }
 
           // Existing metadata (merge: only overwrite keys that appear in Excel row)
           const existingMeta = existing.metadata
@@ -1737,8 +1807,28 @@ router.post("/assets/bulk-import", excelAssetUpload.single("file"), async (req, 
         if (rm) meta.remarks = rm;
         const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport");
         if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
-        const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract");
-        if (mn) meta.maintenanceType = mn;
+        const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
+        if (mn) {
+          meta.maintenanceType = mn;
+          const mnLower = mn.toLowerCase();
+          meta.maintenanceTypes = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented" };
+        }
+        // Maintenance date ranges — explicit per-type columns
+        const ws = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws) meta.warrantyStart = ws;
+        const we = pick(row, "warrantyend", "warranty_end", "warrantyexpiry", "warrantyexpiration", "warrantyenddate"); if (we) meta.warrantyEnd = we;
+        const as = pick(row, "amcstart", "amc_start", "amcbegin", "amcbegindate"); if (as) meta.amcStart = as;
+        const ae = pick(row, "amcend", "amc_end", "amcexpiry", "amcexpiration", "amcenddate"); if (ae) meta.amcEnd = ae;
+        const cs = pick(row, "cmcstart", "cmc_start", "cmcbegin", "cmcbegindate"); if (cs) meta.cmcStart = cs;
+        const ce = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce) meta.cmcEnd = ce;
+        // Generic "Start Date" / "End Date" → map to the maintenance type column value
+        const gs = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
+        const ge = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+        if (gs || ge) {
+          const mnL = (meta.maintenanceType || "").toLowerCase();
+          if (mnL === "warranty") { if (gs && !meta.warrantyStart) meta.warrantyStart = gs; if (ge && !meta.warrantyEnd) meta.warrantyEnd = ge; }
+          else if (mnL === "amc") { if (gs && !meta.amcStart) meta.amcStart = gs; if (ge && !meta.amcEnd) meta.amcEnd = ge; }
+          else if (mnL === "cmc") { if (gs && !meta.cmcStart) meta.cmcStart = gs; if (ge && !meta.cmcEnd) meta.cmcEnd = ge; }
+        }
         await pool.execute("INSERT INTO asset_details (asset_id, metadata) VALUES (?, ?)", [assetId, JSON.stringify(meta)]);
 
         await pool.execute(
