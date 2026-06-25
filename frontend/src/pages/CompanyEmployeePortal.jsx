@@ -9422,6 +9422,39 @@ export default function CompanyEmployeePortal() {
             {/* Scrollable body */}
             <div style={{ padding: "20px 28px 28px", overflowY: "auto", flex: 1 }}>
 
+            {/* Import Type Selection */}
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#374151", marginBottom: "8px" }}>Import Type</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {[
+                  { value: "add", label: "Add New Assets", desc: "Create new assets with new Asset IDs & QR Codes", icon: "+" },
+                  { value: "update", label: "Update Existing Assets", desc: "Update existing assets using Asset ID as the key", icon: "✎" },
+                ].map(({ value, label, desc, icon }) => (
+                  <label key={value} style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "12px", borderRadius: "10px", border: `2px solid ${bulkAssetImportMode === value ? "#2563eb" : "#e2e8f0"}`, background: bulkAssetImportMode === value ? "#eff6ff" : "#f8fafc", cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input type="radio" name="bulkAssetImportMode" value={value} checked={bulkAssetImportMode === value} onChange={() => { setBulkAssetImportMode(value); setBulkAssetResult(null); }} style={{ accentColor: "#2563eb" }} />
+                      <span style={{ fontWeight: 700, fontSize: "13px", color: bulkAssetImportMode === value ? "#1d4ed8" : "#374151" }}>{icon} {label}</span>
+                    </div>
+                    <span style={{ fontSize: "11.5px", color: "#64748b", marginLeft: "20px" }}>{desc}</span>
+                  </label>
+                ))}
+              </div>
+              {bulkAssetImportMode === "update" && (
+                <div style={{ marginTop: "10px", fontSize: "12px", color: "#1e3a5f", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "6px", padding: "10px 12px", lineHeight: 1.6 }}>
+                  <strong>How to update:</strong>
+                  <ol style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
+                    <li>Click <strong>Export Excel</strong> from the asset list to download your current asset data.</li>
+                    <li>Edit the values you want to change (make, model, department, maintenance dates, etc.).</li>
+                    <li>Keep the <strong>Asset ID</strong> column unchanged — it is used to identify each record.</li>
+                    <li>Upload the file here.</li>
+                  </ol>
+                  <p style={{ margin: "8px 0 0", color: "#92400e", background: "#fffbeb", borderRadius: "4px", padding: "6px 8px", border: "1px solid #fde68a", fontSize: "11.5px" }}>
+                    ⚠️ <strong>Excel warning:</strong> Asset IDs like "002-27-000023" may be auto-converted to dates by Excel. To prevent this, select the "Asset ID" column → right-click → Format Cells → <strong>Text</strong> before saving.
+                  </p>
+                </div>
+              )}
+            </div>
+
 
 
             {/* Template download */}
@@ -9460,7 +9493,7 @@ export default function CompanyEmployeePortal() {
                 }
               }}
               style={{ display: "block", width: "100%", padding: "10px", borderRadius: "8px", border: "none", background: bulkAssetImporting || !bulkAssetFile ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: bulkAssetImporting || !bulkAssetFile ? "default" : "pointer" }}>
-              {bulkAssetImporting ? "Uploading…" : "Upload & Register Assets"}
+              {bulkAssetImporting ? "Uploading…" : bulkAssetImportMode === "update" ? "Upload & Update Assets" : "Upload & Register Assets"}
             </button>
 
             {/* Results */}
@@ -9469,9 +9502,10 @@ export default function CompanyEmployeePortal() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "10px", marginBottom: "14px" }}>
                   {[
                     { label: "Total Rows", value: bulkAssetResult.total, color: "#0f172a" },
-                    { label: "Created", value: bulkAssetResult.created ?? 0, color: "#16a34a" },
+                    ...(bulkAssetImportMode !== "update" ? [{ label: "Created", value: bulkAssetResult.created ?? 0, color: "#16a34a" }] : []),
                     { label: "Updated", value: bulkAssetResult.updated ?? 0, color: "#2563eb" },
                     { label: "Unchanged", value: bulkAssetResult.unchanged ?? 0, color: "#64748b" },
+                    ...(bulkAssetImportMode === "update" ? [{ label: "Not Found", value: bulkAssetResult.notFound ?? 0, color: "#dc2626" }] : []),
                     { label: "Errors", value: bulkAssetResult.skipped, color: "#d97706" },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 14px", textAlign: "center", border: "1px solid #e2e8f0" }}>
