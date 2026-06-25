@@ -3898,6 +3898,14 @@ router.get("/me", async (req, res, next) => {
     row.sectors = row.sectors
       ? (typeof row.sectors === "string" ? JSON.parse(row.sectors) : row.sectors)
       : (row.sector ? [row.sector] : []);
+
+    // Validate logo file exists on disk — clear it if not to avoid 404s
+    if (row.logoUrl && String(row.logoUrl).startsWith("/uploads/logos/")) {
+      const filename = path.basename(String(row.logoUrl));
+      const absPath = path.join(logosDir, filename);
+      if (!fs.existsSync(absPath)) row.logoUrl = null;
+    }
+
     res.json(row);
   } catch (err) {
     next(err);
