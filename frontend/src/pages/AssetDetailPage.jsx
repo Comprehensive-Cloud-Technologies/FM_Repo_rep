@@ -724,7 +724,6 @@ export default function AssetDetailPage() {
 
             {/* Metrics row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-              <FieldCard label="Cost of Asset" value={m.purchaseCost ? `₹ ${m.purchaseCost}` : "0"} />
               <FieldCard label="Total Down Time" value={totalDownLabel} />
               <FieldCard label="MTBF (hh:mm:ss)" value={mtbfLabel} />
               <FieldCard label="MTTR (hh:mm:ss)" value={mttrLabel} />
