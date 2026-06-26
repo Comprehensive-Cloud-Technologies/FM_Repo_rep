@@ -283,9 +283,12 @@ router.get("/assets/:id", async (req, res, next) => {
     const [[row]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
-              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.asset_type AS "assetType", a.status, a.criticality, a.working_status,
+              a.is_verified AS "isVerified",
+              a.building, a.floor, a.room,
               a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
               a.location_id AS "locationId", a.department_id AS "departmentId",
+              a.assigned_to AS "assignedTo",
               a.created_at AS "createdAt",
               c.id AS "companyId", c.company_name AS "companyName",
               d.name AS "departmentName",
