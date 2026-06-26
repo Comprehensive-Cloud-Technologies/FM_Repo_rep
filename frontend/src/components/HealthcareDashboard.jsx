@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { io } from "socket.io-client";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -1103,14 +1102,6 @@ function ReviewsSection({ token }) {
   }, [token]);
 
   useEffect(() => { fetchData(1, true); setPage(1); }, [fetchData]);
-
-  useEffect(() => {
-    const socket = io(BASE, { transports: ['websocket', 'polling'], autoConnect: true });
-    socket.on('issue:updated', (payload) => {
-      if (payload?.status === 'closed') { fetchData(1, true); setPage(1); }
-    });
-    return () => socket.disconnect();
-  }, [fetchData]);
 
   const loadMore = () => { setExpanded(true); const next = page + 1; setPage(next); fetchData(next, false); };
   const collapse  = () => { setExpanded(false); setPage(1); fetchData(1, true); };
