@@ -4302,6 +4302,7 @@ export default function CompanyEmployeePortal() {
   const [customRoles, setCustomRoles] = useState([]);
   const [showRolesModal, setShowRolesModal] = useState(false);
   const [roleRefreshKey, setRoleRefreshKey] = useState(0);
+  const [hcDashRefreshKey, setHcDashRefreshKey] = useState(0);
   const [assignments, setAssignments] = useState([]);
   const [myAssignments, setMyAssignments] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -4964,6 +4965,7 @@ export default function CompanyEmployeePortal() {
         throw new Error(data.message || "Failed to update asset status");
       }
       // Merge all payload fields into local asset state
+      setHcDashRefreshKey(k => k + 1);
       setAssets(p => p.map(a => a.id === assetId ? {
         ...a, ...payload,
         isVerified: payload.isVerified ?? a.isVerified,
@@ -5538,7 +5540,7 @@ export default function CompanyEmployeePortal() {
           const openAssetFromDash = (dashAsset) => {
             window.open(`/company/asset/${dashAsset.id}`, '_blank');
           };
-          return <HealthcareDashboard token={token} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
+          return <HealthcareDashboard token={token} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
             if (!key) { setAssetStatusFilter(""); return; }
             setNav("assets");
             if (filterData?.criticality) setAssetStatusFilter(filterData.criticality);
@@ -5885,7 +5887,7 @@ export default function CompanyEmployeePortal() {
                     </button>
                   ))}
                 </div>
-                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} onOpenAsset={(dashAsset) => {
+                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
                   window.open(`/company/asset/${dashAsset.id}`, '_blank');
                 }} onTileNavigate={(key, filterData) => {
                   if (!key) { setAssetStatusFilter(""); return; }
@@ -6637,7 +6639,7 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
                               title="Click to view asset details"
                               onClick={() => setAssetDetailModal(a)}>{m.equipmentName || a.assetName || "—"}</td>
-                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}><span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: (a.criticality || m.criticality) === "Critical" ? "#fce7f3" : "#f0fdf4", color: (a.criticality || m.criticality) === "Critical" ? "#9d174d" : "#16a34a" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</span></td>
+                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: "#475569", fontSize: "13px" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.serialNo || "—"}</td>

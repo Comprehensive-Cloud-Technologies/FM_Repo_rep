@@ -1291,7 +1291,7 @@ function ReviewsSection({ token }) {
   );
 }
 
-export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate }) {
+export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, externalRefreshKey }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
   const [filters, setFilters]       = useState(EMPTY_FILTERS);
@@ -1328,7 +1328,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     setChartL(false);
   }, [token, appliedFilters]);
 
-  useEffect(() => { loadSnapshot(); }, [loadSnapshot, refreshKey]);
+  useEffect(() => { loadSnapshot(); }, [loadSnapshot, refreshKey, externalRefreshKey]);
 
   const handleApply = () => { setApplied({ ...filters }); };
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
@@ -1621,9 +1621,9 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
 
           {/* Pie: Working Status */}
-          <ChartCard title="Working Status Distribution" subtitle="Working vs WIP">
+          <ChartCard title="Working Status Distribution" subtitle="Working / WIP / Not Working / Condemned">
             {chartLoading ? <Spinner /> : charts?.statusDistribution ?
-              <PieChart data={charts.statusDistribution.filter(d => d.name !== "Not_Working").map(d => ({ name: d.name, value: d.value }))} /> :
+              <PieChart data={charts.statusDistribution.map(d => ({ name: d.name || "Unknown", value: d.value }))} /> :
               <EmptyState small />
             }
           </ChartCard>

@@ -214,9 +214,9 @@ router.get("/charts", validate([
 
     // Pie: Working vs WIP vs Not_Working
     const [statusDist] = await pool.query(
-      `SELECT working_status AS name, COUNT(*) AS value
+      `SELECT COALESCE(a.working_status, 'Working') AS name, COUNT(*) AS value
        FROM assets a ${where}
-       GROUP BY a.working_status`,
+       GROUP BY COALESCE(a.working_status, 'Working')`,
       p
     );
 
@@ -690,17 +690,22 @@ router.patch("/assets/:id", validate([
       );
     }
 
-    // Update rber flag in asset_details metadata if provided
-    if (rber !== undefined) {
+    // Sync metadata fields so detail page and list are consistent after refresh
+    const metaUpdates = [];
+    if (workingStatus !== undefined) metaUpdates.push(`'$.workingStatus', '${workingStatus}'`);
+    if (rber !== undefined)          metaUpdates.push(`'$.rber', ${rber ? 1 : 0}`);
+
+    if (metaUpdates.length > 0) {
+      const jsonSetArgs = metaUpdates.join(", ");
       await pool.query(
         `INSERT INTO asset_details (asset_id, metadata)
-         VALUES (?, JSON_OBJECT('rber', ?))
-         ON DUPLICATE KEY UPDATE metadata = JSON_SET(COALESCE(metadata, '{}'), '$.rber', ?)`,
-        [assetId, rber ? 1 : 0, rber ? 1 : 0]
+         VALUES (?, JSON_OBJECT())
+         ON DUPLICATE KEY UPDATE metadata = JSON_SET(COALESCE(metadata, '{}'), ${jsonSetArgs})`,
+        [assetId]
       );
     }
 
-    if (sets.length === 0 && rber === undefined) return res.json({ message: "No fields to update." });
+    if (sets.length === 0 && metaUpdates.length === 0) return res.json({ message: "No fields to update." });
     res.json({ message: "Asset updated." });
   } catch (err) { next(err); }
 });
