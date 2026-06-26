@@ -6,7 +6,7 @@
  * Auth: reads cp_token from sessionStorage (company employee) OR
  *       company_portal_token from localStorage (admin portal).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext, createContext } from "react";
 import { useParams } from "react-router-dom";
 
 const getApiBaseUrl = () => {
@@ -22,6 +22,39 @@ const toIsoDate = (d) => {
   if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(d)) { const p = d.split(/[\/\-]/); return `${p[2]}-${p[1]}-${p[0]}`; }
   const dt = new Date(d); return isNaN(dt) ? "" : dt.toISOString().substring(0, 10);
 };
+
+// ─── Edit-form helpers (defined at module level so they are stable component
+// types across renders — prevents inputs losing focus on every keystroke) ──────
+const EditCtx = createContext(null);
+
+function EField({ label, children, full }) {
+  return (
+    <div style={full ? { gridColumn: "1 / -1" } : {}}>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function EInput({ label, fkey, type = "text", full, placeholder }) {
+  const { editForm, setEditForm } = useContext(EditCtx);
+  return (
+    <EField label={label} full={full}>
+      <input type={type} value={editForm[fkey] || ""} onChange={e => setEditForm(p => ({ ...p, [fkey]: e.target.value }))}
+        placeholder={placeholder || ""}
+        style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+    </EField>
+  );
+}
+
+function ESec({ title }) {
+  return (
+    <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
+      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</p>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AssetDetailPage() {
   const { id } = useParams();
@@ -174,7 +207,7 @@ export default function AssetDetailPage() {
     ["Building", asset.building],
     ["Floor", asset.floor],
     ["Room / Area", asset.room],
-    ["Working Status", asset.working_status || m.workingStatus],
+    ["Working Status", (asset.working_status || m.workingStatus || "").replace(/_/g, " ")],
     ["Status", asset.status],
     ["Registered On", asset.createdAt ? new Date(asset.createdAt).toLocaleDateString("en-IN") : null],
   ].filter(([, v]) => v && v !== "—");
@@ -418,24 +451,7 @@ export default function AssetDetailPage() {
     }
   };
 
-  const EField = ({ label, children, full }) => (
-    <div style={full ? { gridColumn: "1 / -1" } : {}}>
-      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
-      {children}
-    </div>
-  );
-  const EInput = ({ label, fkey, type = "text", full, placeholder }) => (
-    <EField label={label} full={full}>
-      <input type={type} value={editForm[fkey] || ""} onChange={e => setEditForm(p => ({ ...p, [fkey]: e.target.value }))}
-        placeholder={placeholder || ""}
-        style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
-    </EField>
-  );
-  const ESec = ({ title }) => (
-    <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
-      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</p>
-    </div>
-  );
+  // EField, EInput, ESec are defined at module level (above) to keep stable component references.
 
   return (
     <div style={{ fontFamily: "'Inter', -apple-system, sans-serif", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -460,6 +476,7 @@ export default function AssetDetailPage() {
               <button onClick={() => setShowEditModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "32px", height: "32px", fontSize: "18px", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
             </div>
             {/* Scrollable body */}
+            <EditCtx.Provider value={{ editForm, setEditForm }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
               {editError && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", marginBottom: "16px", fontSize: "13px" }}>{editError}</div>}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
@@ -665,6 +682,7 @@ export default function AssetDetailPage() {
 
               </div>
             </div>
+            </EditCtx.Provider>
             {/* Footer */}
             <div style={{ padding: "16px 28px", borderTop: "1px solid #e2e8f0", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
               <button onClick={() => setShowEditModal(false)} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", fontWeight: 600, cursor: "pointer", fontSize: "13.5px" }}>Cancel</button>
@@ -682,12 +700,12 @@ export default function AssetDetailPage() {
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || asset.assetName}</h3>
             <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{asset.generatedAssetId || asset.assetUniqueId}</span>
           </div>
-          <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: asset.status === "Active" ? "#dcfce7" : "#f1f5f9", color: asset.status === "Active" ? "#16a34a" : "#475569" }}>{asset.status || "—"}</span>
+          {(Number(asset.isVerified) === 1 || asset.isVerified === true)
+            ? <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>Verified</span>
+            : <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#f1f5f9", color: "#64748b" }}>Unverified</span>
+          }
           {(asset.working_status || m.workingStatus) && (
-            <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{asset.working_status || m.workingStatus}</span>
-          )}
-          {(Number(asset.isVerified) === 1 || asset.isVerified === true) && (
-            <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>Verified</span>
+            <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{(asset.working_status || m.workingStatus).replace(/_/g, " ")}</span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
