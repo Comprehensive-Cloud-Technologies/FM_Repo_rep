@@ -421,10 +421,20 @@ export const updateFleetMaintenanceStatus  = (token, id, status)=> request("PATC
 export const deleteFleetMaintenance        = (token, id)        => request("DELETE",`${cp}/fleet/maintenance/${id}`,                   undefined, { authToken: token });
 export const getFleetSubmissions           = (token)            => request("GET",   `${cp}/fleet/submissions`,                         undefined, { authToken: token });
 export const getFleetSubmissionDetail      = (token, type, id)  => request("GET",   `${cp}/fleet/submissions/detail/${type}/${id}`,    undefined, { authToken: token });
-export const downloadFleetSubmissionsCSV   = (token)            => {
-  return fetch(buildApiUrl("/api/company-portal/fleet/submissions/export-csv"), {
+export const downloadFleetSubmissionsXLSX  = async (token)      => {
+  const res = await fetch(buildApiUrl("/api/company-portal/fleet/submissions/export-csv"), {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "fleet-submissions.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 // â”€â”€ Soft Service Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

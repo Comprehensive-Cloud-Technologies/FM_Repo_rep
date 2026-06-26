@@ -1589,6 +1589,13 @@ router.post("/assets/bulk-import", (req, res, next) => {
       return "";
     };
 
+    // ── Valid value sets for import validation ───────────────────────────────
+    const VALID_MAINTENANCE     = new Set(["warranty","amc","cmc","in house","inhouse","catalyst","high end","highend","rented"]);
+    const VALID_CRITICALITY     = new Set(["critical","non_critical","non-critical","noncritical"]);
+    const VALID_ASSET_TYPES     = new Set(["general","healthcare","fleet"]);
+    const VALID_STATUSES        = new Set(["active","inactive","unverified"]);
+    const VALID_WORKING_STATUSES = new Set(["working","not_working","not working","wip","condemned","critical","unverified","verified"]);
+
     // Helper: normalize any incoming date value to DD/MM/YYYY
     // Handles: Excel serial numbers, DD-Mon-YY, DD-Mon-YYYY, YYYY-MM-DD, DD/MM/YYYY, MM-DD-YYYY
     const normalizeDate = (val) => {
@@ -1664,12 +1671,19 @@ router.post("/assets/bulk-import", (req, res, next) => {
       );
       if (!assetName) { skipped.push({ row: rowNum, reason: "Asset name column is empty" }); continue; }
 
-      // Asset type
-      const assetType = pick(row,
-        "assettype", "asset_type", "type", "category", "equipmenttype",
-        "equipment_type", "itemtype", "assetcategory", "subgroup", "sub_group",
+      // Asset type — "category" is intentionally excluded here because in the exported
+      // asset list "Category" holds the criticality value (Critical / Non_Critical),
+      // not the asset type.  Validating ensures typos surface immediately.
+      const assetTypeRaw = pick(row,
+        "assettype", "asset_type", "type", "equipmenttype",
+        "equipment_type", "itemtype", "subgroup", "sub_group",
         "group", "equipmentcategory"
-      ) || "general";
+      );
+      if (assetTypeRaw && !VALID_ASSET_TYPES.has(assetTypeRaw.toLowerCase())) {
+        skipped.push({ row: rowNum, assetName, reason: `Invalid Asset Type "${assetTypeRaw}" in column "assetType". Accepted values: general, healthcare, fleet` });
+        continue;
+      }
+      const assetType = assetTypeRaw || "general";
 
       // Location fields
       const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
@@ -1678,6 +1692,10 @@ router.post("/assets/bulk-import", (req, res, next) => {
 
       // Status
       const rawStatus = pick(row, "status", "condition", "state");
+      if (rawStatus && !VALID_STATUSES.has(rawStatus.toLowerCase())) {
+        skipped.push({ row: rowNum, assetName, reason: `Invalid Status "${rawStatus}" in column "status". Accepted values: Active, Inactive` });
+        continue;
+      }
       const status = rawStatus && rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active";
 
       // Unique ID / QR
@@ -1750,11 +1768,11 @@ router.post("/assets/bulk-import", (req, res, next) => {
           };
 
           // Detect Excel date auto-conversion: e.g. "002-27-000023" → Excel strips zeros → "2-27-23"
-          // → interpreted as Feb 27 2023 → serial 44984.
+          // → interpreted as Feb 27 2023 → serial 44984 (integer) or 44984.000115… (datetime with time).
           // Serials 35000–60000 cover ~1995–2064. Reverse automatically by converting serial → date
           // components and reconstructing the original asset ID format {month_padded3}-{day}-{year_padded6}.
-          if (/^\d+$/.test(targetAssetId) && Number(targetAssetId) >= 35000 && Number(targetAssetId) <= 60000) {
-            const serial = Number(targetAssetId);
+          if (/^\d+(\.\d+)?$/.test(targetAssetId) && Number(targetAssetId) >= 35000 && Number(targetAssetId) <= 60000) {
+            const serial = Math.round(Number(targetAssetId)); // strip time fraction before conversion
             const d = new Date((serial - 25569) * 86400000); // Excel 1900 → Unix epoch conversion
             const m  = String(d.getUTCMonth() + 1).padStart(3, '0');
             const dy = d.getUTCDate();
@@ -1823,7 +1841,12 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const rm2 = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm2) incomingMeta.remarks = rm2;
           const rb2 = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb2) incomingMeta.rber = rb2.toLowerCase() === "yes" || rb2 === "1" || rb2.toLowerCase() === "true";
           const vs2 = pick(row, "verifiedstatus", "verified_status", "isverified", "verified"); if (vs2) incomingMeta._isVerified = vs2.toLowerCase() === "verified" ? 1 : 0;
-          const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category"); if (mn2) {
+          const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
+          if (mn2 && !VALID_MAINTENANCE.has(mn2.toLowerCase())) {
+            skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mn2}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+            continue;
+          }
+          if (mn2) {
             incomingMeta.maintenanceType = mn2;
             const mnLower2 = mn2.toLowerCase();
             incomingMeta.maintenanceTypes = { warranty: mnLower2 === "warranty", amc: mnLower2 === "amc", cmc: mnLower2 === "cmc", inhouse: mnLower2 === "in house" || mnLower2 === "inhouse", catalyst: mnLower2 === "catalyst", highEnd: mnLower2 === "high end" || mnLower2 === "highend", rented: mnLower2 === "rented" };
@@ -1878,8 +1901,16 @@ router.post("/assets/bulk-import", (req, res, next) => {
           if (loc.locationId && loc.locationId !== existing.location_id) assetChanges.location_id  = loc.locationId;
           if (status && status !== existing.status)                     assetChanges.status        = status;
           const inCriticality = pick(row, "category", "criticality", "assetcategory", "asset_category");
+          if (inCriticality && !VALID_CRITICALITY.has(inCriticality.toLowerCase())) {
+            skipped.push({ row: rowNum, assetName, reason: `Invalid Category "${inCriticality}" in column "category". Accepted values: Critical, Non_Critical` });
+            continue;
+          }
           if (inCriticality && inCriticality !== existing.criticality)  assetChanges.criticality   = inCriticality;
-          const inWorkingStatus = pick(row, "workingstatus", "working_status", "workingcondition", "condition");
+          const inWorkingStatus = pick(row, "workingstatus", "working_status", "workingcondition");
+          if (inWorkingStatus && !VALID_WORKING_STATUSES.has(inWorkingStatus.toLowerCase())) {
+            skipped.push({ row: rowNum, assetName, reason: `Invalid Working Status "${inWorkingStatus}" in column "workingStatus". Accepted values: Working, Not_Working, WIP, Condemned, Critical, Unverified, Verified` });
+            continue;
+          }
           if (inWorkingStatus && inWorkingStatus !== existing.working_status) assetChanges.working_status = inWorkingStatus;
           if (incomingMeta._isVerified !== undefined && Number(incomingMeta._isVerified) !== Number(existing.is_verified ?? 0)) assetChanges.is_verified = incomingMeta._isVerified;
 
@@ -1974,6 +2005,10 @@ router.post("/assets/bulk-import", (req, res, next) => {
         const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport");
         if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
         const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
+        if (mn && !VALID_MAINTENANCE.has(mn.toLowerCase())) {
+          skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mn}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+          continue;
+        }
         if (mn) {
           meta.maintenanceType = mn;
           const mnLower = mn.toLowerCase();
@@ -2699,10 +2734,10 @@ router.post("/asset-queries", async (req, res, next) => {
   try {
     const { assetId, title, description, images, priority = "normal", cutoffHours = 24 } = req.body;
     if (!assetId || !title?.trim()) return res.status(400).json({ message: "assetId and title required" });
-    // Find the asset and its current assigned_to (routes query to that person)
+    // Find the asset and its current assigned_to (no company filter so engineers can raise issues for any hospital)
     const [[asset]] = await pool.query(
-      "SELECT id, assigned_to FROM assets WHERE id = ? AND company_id = ?",
-      [assetId, cid(req)]
+      "SELECT id, company_id, assigned_to FROM assets WHERE id = ?",
+      [assetId]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     // Fetch requester's name for the requester_name column
@@ -2715,7 +2750,7 @@ router.post("/asset-queries", async (req, res, next) => {
       `INSERT INTO asset_queries
          (company_id, asset_id, raised_by, assigned_to, title, description, images, priority, cutoff_hours, requester_name)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cid(req), assetId, req.companyUser.id, asset.assigned_to || null,
+      [asset.company_id, assetId, req.companyUser.id, asset.assigned_to || null,
        title.trim(), description || null,
        images?.length ? JSON.stringify(images) : null,
        priority, cutoffHours, requesterName]
@@ -2735,7 +2770,7 @@ router.post("/asset-queries", async (req, res, next) => {
     );
     res.status(201).json({ ...query, images: query.images ? (typeof query.images === "string" ? JSON.parse(query.images) : query.images) : [] });
     // Notify all admin/portal clients watching this company's issue list
-    emitToCompany(cid(req), 'issue:new', {
+    emitToCompany(asset.company_id, 'issue:new', {
       id: result.insertId,
       title: title.trim(),
       status: 'open',
@@ -5551,19 +5586,29 @@ router.get("/fleet/submissions/detail/:type/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /fleet/submissions/export-csv – export fleet submissions as CSV */
+/* GET /fleet/submissions/export-csv – export fleet submissions as XLSX */
 router.get("/fleet/submissions/export-csv", async (req, res, next) => {
   try {
     const companyId = cid(req);
+    const XLSX = await import("xlsx");
+
     const [fleetAssets] = await pool.query(
       `SELECT id FROM assets WHERE company_id = ? AND asset_type = 'fleet'`,
       [companyId]
     );
+
+    const headers = ["Type", "Template", "Asset", "Submitted By", "Date & Time", "Status", "GPS Location"];
+
     if (fleetAssets.length === 0) {
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", `attachment; filename="fleet-submissions.csv"`);
-      return res.send("Type,Template,Asset,Submitted By,Date,Status,Location\n");
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+      XLSX.utils.book_append_sheet(wb, ws, "Fleet Submissions");
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="fleet-submissions.xlsx"`);
+      return res.send(buf);
     }
+
     const fleetIds = fleetAssets.map(a => a.id);
     const ph = fleetIds.map(() => "?").join(",");
 
@@ -5596,21 +5641,29 @@ router.get("/fleet/submissions/export-csv", async (req, res, next) => {
     );
 
     const rows = [...chkRows, ...lsRows].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-    const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = "Type,Template,Asset,Submitted By,Date & Time,Status,GPS Location\n";
-    const body = rows.map(r => [
-      esc(r.type),
-      esc(r.name),
-      esc(r.asset),
-      esc(r.submittedBy),
-      esc(r.submittedAt ? new Date(r.submittedAt).toLocaleString() : ""),
-      esc(r.status),
-      esc(r.lat && r.lng ? `${r.lat}, ${r.lng}` : ""),
-    ].join(",")).join("\n");
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="fleet-submissions.csv"`);
-    res.send(header + body);
+    const data = [
+      headers,
+      ...rows.map(r => [
+        r.type ?? "",
+        r.name ?? "",
+        r.asset ?? "",
+        r.submittedBy ?? "",
+        r.submittedAt ? new Date(r.submittedAt).toLocaleString() : "",
+        r.status ?? "",
+        r.lat && r.lng ? `${r.lat}, ${r.lng}` : "",
+      ]),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws["!cols"] = headers.map(h => ({ wch: Math.max(h.length + 2, 18) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Fleet Submissions");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="fleet-submissions.xlsx"`);
+    res.send(buf);
   } catch (err) { next(err); }
 });
 
@@ -6617,14 +6670,18 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
 
     const [[qr]] = await pool.query(
-      "SELECT id, asset_id, qr_unique_id AS qrUniqueId FROM asset_pre_qr WHERE id = ? AND company_id = ?",
-      [req.params.id, cid(req)]
+      // Look up QR by ID only — no company_id filter so engineers from any company can scan and register
+      "SELECT id, asset_id, qr_unique_id AS qrUniqueId, company_id AS companyId FROM asset_pre_qr WHERE id = ?",
+      [req.params.id]
     );
     if (!qr) return res.status(404).json({ message: "QR not found" });
     if (qr.asset_id) return res.status(409).json({ message: "This QR code is already linked to an asset" });
 
+    // Use the QR's own company, NOT the engineer's company, so cross-company registration works
+    const targetCompanyId = qr.companyId;
+
     const loc = await upsertLocationHierarchyForCompany(pool, {
-      companyId: cid(req),
+      companyId: targetCompanyId,
       buildingName: location,
       floorName: floor,
       roomName: room,
@@ -6632,7 +6689,7 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
     });
     const generatedAssetId = /^([A-Z0-9]+)-([A-Z0-9]+)-([0-9]+)$/.test(qr.qrUniqueId || "")
       ? qr.qrUniqueId
-      : await getNextGeneratedAssetId(pool, cid(req));
+      : await getNextGeneratedAssetId(pool, targetCompanyId);
 
      const calibration = await deriveCalibrationFromInput(pool, {
       calibrationRequired,
@@ -6651,13 +6708,13 @@ router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
          (company_id, department_id, asset_name, asset_type, generated_asset_id,
          calibration_required, calibration_frequency, last_calibration_date, next_calibration_due_date,
          calibration_status, calibration_vendor_id, alert_before_days,
-          building, floor, room, building_id, floor_id, room_id, location_id, working_status, criticality, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
-      [cid(req), departmentId || null, assetName.trim(), assetType, generatedAssetId,
+          building, floor, room, building_id, floor_id, room_id, location_id, working_status, criticality, created_by, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Unverified')`,
+      [targetCompanyId, departmentId || null, assetName.trim(), assetType, generatedAssetId,
        calibration.required ? 1 : 0, calibration.frequency, calibration.lastCalibrationDate, calibration.nextCalibrationDueDate,
        calibration.status, calibration.vendorId, calibration.alertBeforeDays,
        loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-       workingStatus || null, criticality || 'Non_Critical']
+       workingStatus || null, criticality || 'Non_Critical', req.companyUser?.id || null]
     );
     const newAssetId = result.insertId;
 

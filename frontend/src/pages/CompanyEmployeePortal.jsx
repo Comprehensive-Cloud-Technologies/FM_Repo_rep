@@ -1,5 +1,6 @@
 import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
 import logo from "../images/image.png";
@@ -85,7 +86,7 @@ import {
   getFleetAssets, getFleetAssetDetails, getFleetInspections, createFleetInspection, updateFleetInspection, deleteFleetInspection,
   getFleetFuelLogs, createFleetFuelLog, updateFleetFuelLog, deleteFleetFuelLog,
   getFleetMaintenance, createFleetMaintenance, updateFleetMaintenance, updateFleetMaintenanceStatus, deleteFleetMaintenance,
-  getFleetSubmissions, getFleetSubmissionDetail, downloadFleetSubmissionsCSV,
+  getFleetSubmissions, getFleetSubmissionDetail, downloadFleetSubmissionsXLSX,
   getSoftServiceRequestsAll, getSoftServiceRequestsMy,
   // Pre-generated QR codes
   getPreQrCodes, generatePreQrCodes, linkPreQrCode, registerPreQrAsset, deletePreQrCode,
@@ -6484,7 +6485,7 @@ export default function CompanyEmployeePortal() {
                   {isAdmin && (
                     <button onClick={() => {
                       const headers = ["SN","Asset ID","Equipment Name","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg. Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","Start Date","End Date","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
-                      const rows = filteredAssets.map((a, i) => {
+                      const dataRows = filteredAssets.map((a, i) => {
                         const m = a.metadata || {};
                         const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled || m.warranty), amc: !!(m.amc?.enabled || m.amc), cmc: !!(m.cmc?.enabled || m.cmc), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst) };
                         const maint = [mt.warranty?"Warranty":"", mt.amc?"AMC":"", mt.cmc?"CMC":"", mt.inHouse?"In House":"", mt.catalyst?"Catalyst":""].filter(Boolean).join("; ");
@@ -6494,12 +6495,9 @@ export default function CompanyEmployeePortal() {
                         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
                         const workingStatus = m.workingStatus || "";
                         const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus || a.status || "Active";
-                        // Wrap asset ID as Excel formula to prevent auto date-conversion
-                        // e.g. "002-27-000023" → Excel strips zeros → "2-27-23" → Feb 27 2023 → serial 44984
                         const rawAssetId = a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"";
                         return [
-                          i+1,
-                          rawAssetId ? `="${rawAssetId}"` : "",
+                          i+1, rawAssetId,
                           m.equipmentName||a.assetName||a.asset_name||"",
                           (m.criticality||a.criticality||"Non-Critical"),
                           m.make||m.manufacturer||"", m.model||"", m.serialNo||"",
@@ -6512,12 +6510,20 @@ export default function CompanyEmployeePortal() {
                           a.createdByName||"",
                           a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "",
                           a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : "",
-                        ].map(v => `"${String(v==null?"":v).replace(/"/g,'""')}"`).join(",");
+                        ];
                       });
-                      const csv = [headers.join(","), ...rows].join("\n");
-                      const blob = new Blob(["\uFEFF"+csv], { type: "text/csv;charset=utf-8;" });
-                      const url = URL.createObjectURL(blob);
-                      const el = document.createElement("a"); el.href = url; el.download = "assets.csv"; el.click(); URL.revokeObjectURL(url);
+                      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+                      // Force Asset ID column (column B = index 1) to text so Excel never auto-converts
+                      // e.g. "002-27-000001" would otherwise become the date serial 36949
+                      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+                      for (let r = 1; r <= range.e.r; r++) {
+                        const addr = XLSX.utils.encode_cell({ r, c: 1 });
+                        if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
+                      }
+                      ws["!cols"] = headers.map(h => ({ wch: Math.max(h.length + 2, 14) }));
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Assets");
+                      XLSX.writeFile(wb, `assets-${new Date().toISOString().slice(0,10)}.xlsx`);
                     }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "7px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       Export Excel
@@ -8617,9 +8623,9 @@ export default function CompanyEmployeePortal() {
               <Card>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "14px" }}>Submission History ({fleetHistory.length})</span>
-                  <button onClick={async () => { try { await downloadFleetSubmissionsCSV(token); } catch (e) { alert("CSV export failed"); } }}
+                  <button onClick={async () => { try { await downloadFleetSubmissionsXLSX(token); } catch (e) { alert("Excel export failed"); } }}
                     style={{ padding: "6px 14px", borderRadius: "8px", background: "#16a34a", color: "#fff", border: "none", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-                    ⬇ Export CSV
+                    ⬇ Export Excel
                   </button>
                 </div>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>

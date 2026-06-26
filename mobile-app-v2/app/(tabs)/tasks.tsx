@@ -172,6 +172,11 @@ function HCTasksScreen() {
   const [page, setPage]         = useState(1);
   const [hasMore, setHasMore]   = useState(false);
 
+  // Sync filter when navigating to this tab from a home-screen tile with a status param
+  useEffect(() => {
+    setStatusFilter(params.status || '');
+  }, [params.status]);
+
   const load = useCallback(async (reset = false) => {
     const p = reset ? 1 : page;
     try {
