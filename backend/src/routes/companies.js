@@ -105,13 +105,6 @@ router.get("/stats", async (req, res, next) => {
       compArgs = [userId, ...companyIds];
     }
 
-    const [[{ totalCompanies }]] = await pool.query(
-      `SELECT COUNT(*) AS totalCompanies ${compBase}`, compArgs
-    );
-    const [[{ activeCompanies }]] = await pool.query(
-      `SELECT COUNT(*) AS activeCompanies ${compBase} AND c.status = 'Active'`, compArgs
-    );
-
     // Build asset + work-order JOIN clauses
     let assetJoin, woJoin;
     if (companyIds.length === 0) {
@@ -125,68 +118,50 @@ router.get("/stats", async (req, res, next) => {
       assetJoin = `FROM assets a JOIN companies c ON c.id = a.company_id LEFT JOIN asset_details ad ON ad.asset_id = a.id WHERE c.user_id = ? AND c.id IN (${ph})`;
       woJoin    = `FROM work_orders wo JOIN companies c ON c.id = wo.company_id WHERE c.user_id = ? AND c.id IN (${ph})`;
     }
-    const [[{ totalAssets }]] = await pool.query(`SELECT COUNT(*) AS totalAssets ${assetJoin}`, compArgs);
-    const [[{ criticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS criticalAssets ${assetJoin}
-       AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) = 'critical'`,
-      compArgs
-    );
-    const [[{ nonCriticalAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS nonCriticalAssets ${assetJoin}
-       AND LOWER(COALESCE(NULLIF(a.criticality, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.criticality')), 'non_critical')) IN ('non_critical','non-critical','noncritical')`,
-      compArgs
-    );
-    const [[{ condemnedAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS condemnedAssets ${assetJoin}
-       AND (
-         LOWER(COALESCE(NULLIF(a.working_status, ''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.workingStatus')), '')) = 'condemned'
-         OR LOWER(a.status) = 'condemned'
-         OR LOWER(COALESCE(a.condemned, '0')) = '1'
-       )`,
-      compArgs
-    ).catch(async () => {
-      const [[r]] = await pool.query(`SELECT COUNT(*) AS condemnedAssets ${assetJoin} AND LOWER(a.status) = 'condemned'`, compArgs).catch(() => [[{ condemnedAssets: 0 }]]);
-      return [[r]];
-    });
-    const [[{ rberAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS rberAssets ${assetJoin}
-       AND (
-         LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.rber')), 'false')) IN ('1','true','yes')
-         OR LOWER(a.status) = 'rber'
-         OR LOWER(COALESCE(a.rber, '0')) = '1'
-       )`,
-      compArgs
-    ).catch(async () => {
-      const [[r]] = await pool.query(`SELECT COUNT(*) AS rberAssets ${assetJoin} AND LOWER(a.status) = 'rber'`, compArgs).catch(() => [[{ rberAssets: 0 }]]);
-      return [[r]];
-    });
-    // Verified assets
-    const [[{ verifiedAssets }]] = await pool.query(
-      `SELECT COUNT(*) AS verifiedAssets ${assetJoin} AND COALESCE(a.is_verified, a.verified, 0) = 1`,
-      compArgs
-    ).catch(() => [[{ verifiedAssets: 0 }]]);
 
-    // Complaint profile (work orders) — woJoin already built above
-    const [[{ totalComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS totalComplaints ${woJoin}`, compArgs
-    ).catch(() => [[{ totalComplaints: 0 }]]);
-    const [[{ wipComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS wipComplaints ${woJoin} AND wo.status = 'in_progress'`, compArgs
-    ).catch(() => [[{ wipComplaints: 0 }]]);
-    const [[{ resolvedComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS resolvedComplaints ${woJoin} AND wo.status = 'completed'`, compArgs
-    ).catch(() => [[{ resolvedComplaints: 0 }]]);
-    const [[{ closedComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS closedComplaints ${woJoin} AND wo.status = 'closed'`, compArgs
-    ).catch(() => [[{ closedComplaints: 0 }]]);
-    // < 7 days old (open/in_progress)
-    const [[{ lt7dComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS lt7dComplaints ${woJoin} AND wo.status IN ('open','in_progress') AND wo.created_at >= NOW() - INTERVAL 7 DAY`, compArgs
-    ).catch(() => [[{ lt7dComplaints: 0 }]]);
-    // > 7 days old (open/in_progress)
-    const [[{ gt7dComplaints }]] = await pool.query(
-      `SELECT COUNT(*) AS gt7dComplaints ${woJoin} AND wo.status IN ('open','in_progress') AND wo.created_at < NOW() - INTERVAL 7 DAY`, compArgs
-    ).catch(() => [[{ gt7dComplaints: 0 }]]);
+    // Batch 1: company counts (2 → 1 query)
+    const [[{ totalCompanies, activeCompanies }]] = await pool.query(
+      `SELECT COUNT(*) AS totalCompanies,
+              SUM(CASE WHEN c.status = 'Active' THEN 1 ELSE 0 END) AS activeCompanies
+       ${compBase}`, compArgs
+    );
+
+    // Batch 2: asset profile + calibration metrics (9 separate queries → 1)
+    const [[assetRow]] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalAssets,
+         SUM(CASE WHEN LOWER(COALESCE(NULLIF(a.criticality,''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.criticality')),'non_critical')) = 'critical' THEN 1 ELSE 0 END) AS criticalAssets,
+         SUM(CASE WHEN LOWER(COALESCE(NULLIF(a.criticality,''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.criticality')),'non_critical')) IN ('non_critical','non-critical','noncritical') THEN 1 ELSE 0 END) AS nonCriticalAssets,
+         SUM(CASE WHEN LOWER(COALESCE(NULLIF(a.working_status,''), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.workingStatus')),'')) = 'condemned' OR LOWER(a.status) = 'condemned' THEN 1 ELSE 0 END) AS condemnedAssets,
+         SUM(CASE WHEN LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.rber')),'false')) IN ('1','true','yes') OR LOWER(a.status) = 'rber' THEN 1 ELSE 0 END) AS rberAssets,
+         SUM(CASE WHEN COALESCE(a.is_verified, 0) = 1 THEN 1 ELSE 0 END) AS verifiedAssets,
+         COALESCE(SUM(
+           CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
+                THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')) AS DECIMAL(15,2))
+                ELSE 0 END
+         ), 0) AS totalAssetValue,
+         SUM(CASE WHEN a.calibration_required = 1 THEN 1 ELSE 0 END) AS calTotal,
+         SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date BETWEEN CURDATE() AND LAST_DAY(CURDATE()) THEN 1 ELSE 0 END) AS calDueThisMonth,
+         SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date < CURDATE() THEN 1 ELSE 0 END) AS calOverdue,
+         SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS calUpcoming30d,
+         SUM(CASE WHEN a.calibration_required = 1 AND a.last_calibration_date BETWEEN DATE_FORMAT(CURDATE(),'%Y-%m-01') AND CURDATE() THEN 1 ELSE 0 END) AS calCompletedThisMonth
+       ${assetJoin}`, compArgs
+    );
+    const { totalAssets, criticalAssets, nonCriticalAssets, condemnedAssets, rberAssets, verifiedAssets, totalAssetValue,
+            calTotal, calDueThisMonth, calOverdue, calUpcoming30d, calCompletedThisMonth } = assetRow;
+
+    // Batch 3: work order / complaint profile (6 separate queries → 1)
+    const [[woRow]] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalComplaints,
+         SUM(CASE WHEN wo.status = 'in_progress' THEN 1 ELSE 0 END) AS wipComplaints,
+         SUM(CASE WHEN wo.status = 'completed'   THEN 1 ELSE 0 END) AS resolvedComplaints,
+         SUM(CASE WHEN wo.status = 'closed'       THEN 1 ELSE 0 END) AS closedComplaints,
+         SUM(CASE WHEN wo.status IN ('open','in_progress') AND wo.created_at >= NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS lt7dComplaints,
+         SUM(CASE WHEN wo.status IN ('open','in_progress') AND wo.created_at < NOW()  - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS gt7dComplaints
+       ${woJoin}`, compArgs
+    ).catch(() => [[{ totalComplaints: 0, wipComplaints: 0, resolvedComplaints: 0, closedComplaints: 0, lt7dComplaints: 0, gt7dComplaints: 0 }]]);
+    const { totalComplaints, wipComplaints, resolvedComplaints, closedComplaints, lt7dComplaints, gt7dComplaints } = woRow;
 
     const [[{ totalEmployees }]] = await pool.query(
       `SELECT COUNT(*) AS totalEmployees ${compBase.replace("FROM companies c", "FROM company_users u JOIN companies c ON c.id = u.company_id")}`,
@@ -232,38 +207,6 @@ router.get("/stats", async (req, res, next) => {
        ORDER BY c.company_name, u.full_name`,
       byUserArgs
     ).catch(() => [[]]);
-
-    // Calibration profile
-    const calJoinBase = assetJoin; // reuse asset join (calibration_required assets only)
-    const [[{ calTotal }]] = await pool.query(
-      `SELECT COUNT(*) AS calTotal ${calJoinBase} AND a.calibration_required = 1`, compArgs
-    ).catch(() => [[{ calTotal: 0 }]]);
-    const [[{ calDueThisMonth }]] = await pool.query(
-      `SELECT COUNT(*) AS calDueThisMonth ${calJoinBase} AND a.calibration_required = 1
-       AND a.next_calibration_due_date BETWEEN CURDATE() AND LAST_DAY(CURDATE())`, compArgs
-    ).catch(() => [[{ calDueThisMonth: 0 }]]);
-    const [[{ calOverdue }]] = await pool.query(
-      `SELECT COUNT(*) AS calOverdue ${calJoinBase} AND a.calibration_required = 1
-       AND a.next_calibration_due_date < CURDATE()`, compArgs
-    ).catch(() => [[{ calOverdue: 0 }]]);
-    const [[{ calUpcoming30d }]] = await pool.query(
-      `SELECT COUNT(*) AS calUpcoming30d ${calJoinBase} AND a.calibration_required = 1
-       AND a.next_calibration_due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`, compArgs
-    ).catch(() => [[{ calUpcoming30d: 0 }]]);
-    const [[{ calCompletedThisMonth }]] = await pool.query(
-      `SELECT COUNT(*) AS calCompletedThisMonth ${calJoinBase} AND a.calibration_required = 1
-       AND a.last_calibration_date BETWEEN DATE_FORMAT(CURDATE(), '%Y-%m-01') AND CURDATE()`, compArgs
-    ).catch(() => [[{ calCompletedThisMonth: 0 }]]);
-
-    // Total asset value (sum of purchaseCost from metadata JSON)
-    const [[{ totalAssetValue }]] = await pool.query(
-      `SELECT COALESCE(SUM(
-         CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) REGEXP '^[0-9]+(\.[0-9]+)?$'
-              THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')) AS DECIMAL(15,2))
-              ELSE 0 END
-       ), 0) AS totalAssetValue ${assetJoin}`,
-      compArgs
-    ).catch(() => [[{ totalAssetValue: 0 }]]);
 
     res.json({
       totalCompanies, activeCompanies, totalAssets, totalEmployees,

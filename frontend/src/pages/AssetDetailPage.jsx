@@ -429,11 +429,8 @@ export default function AssetDetailPage() {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.message || `HTTP ${resp.status}`);
       }
-      // Re-fetch asset to get updated data
-      const assetUrl = isAdmin
-        ? `${base}/api/companies/assets/${id}`
-        : `${base}/api/company-portal/assets/${id}`;
-      const updated = await fetch(assetUrl, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
+      // Use the full asset returned by PATCH directly — no second round-trip needed
+      const updated = await resp.json();
       setAsset(updated);
       setShowEditModal(false);
       setSaveSuccess(true);

@@ -9,6 +9,10 @@ import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
 
+// Module-level cache: survives tab-switch remounts
+let _hcLastFetch = 0;
+const HC_STALE_MS = 60_000;
+
 /* ─── API helpers ─────────────────────────────────────────────────────────── */
 async function hcFetch(path, token) {
   const res = await fetch(`${BASE}/api/company-portal/healthcare${path}`, {
@@ -1304,7 +1308,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const complaintPanelRef = useRef(null);
 
   /* Load snapshot KPIs */
-  const loadSnapshot = useCallback(async () => {
+  const loadSnapshot = useCallback(async (force = false) => {
+    // Skip if data is fresh (< 60 s) unless forced or no data yet
+    if (!force && snapshot && Date.now() - _hcLastFetch < HC_STALE_MS) return;
+    _hcLastFetch = Date.now();
     setSnapL(true); setSnapE(null);
     try {
       const qs = buildQS(appliedFilters);
@@ -1319,7 +1326,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     setChartL(false);
   }, [token, appliedFilters]);
 
-  useEffect(() => { loadSnapshot(); }, [loadSnapshot, refreshKey, externalRefreshKey]);
+  useEffect(() => { loadSnapshot(true); }, [loadSnapshot, refreshKey, externalRefreshKey]);
 
   const handleApply = () => { setApplied({ ...filters }); };
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };

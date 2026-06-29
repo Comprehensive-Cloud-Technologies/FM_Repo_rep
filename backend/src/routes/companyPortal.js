@@ -2442,9 +2442,28 @@ router.patch("/assets/:id", async (req, res, next) => {
       ]
     );
     const [[asset]] = await pool.query(
-      `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, asset_type AS assetType, status,
-              building, floor, room, building_id AS buildingId, floor_id AS floorId, room_id AS roomId,
-              department_id AS departmentId FROM assets WHERE id = ?`,
+      `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
+              a.generated_asset_id AS "generatedAssetId",
+              a.asset_type AS "assetType", a.status, a.criticality, a.working_status,
+              a.is_verified AS "isVerified",
+              a.building, a.floor, a.room,
+              a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
+              a.location_id AS "locationId", a.company_id AS "companyId",
+              a.department_id AS "departmentId",
+              a.assigned_to AS "assignedTo",
+              a.created_by AS "createdBy",
+              a.calibration_required AS "calibrationRequired",
+              a.calibration_frequency AS "calibrationFrequency",
+              a.last_calibration_date AS "lastCalibrationDate",
+              a.next_calibration_due_date AS "nextCalibrationDueDate",
+              a.calibration_status AS "calibrationStatus",
+              a.calibration_vendor_id AS "calibrationVendorId",
+              a.alert_before_days AS "alertBeforeDays",
+              a.created_at AS "createdAt",
+              d.name AS "departmentName"
+       FROM assets a
+       LEFT JOIN departments d ON d.id = a.department_id
+       WHERE a.id = ?`,
       [id]
     );
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
