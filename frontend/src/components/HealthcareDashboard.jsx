@@ -1153,8 +1153,7 @@ function ReviewsSection({ token, compact = false }) {
         {loading && <div style={{ color: '#94a3b8', fontSize: '12px' }}>Loading…</div>}
         {!loading && (!data || totalRatings === 0) && (
           <>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', textAlign: 'center' }}>Sample Preview</div>
-            {[{s:5,w:'75%'},{s:4,w:'50%'},{s:3,w:'30%'},{s:2,w:'15%'},{s:1,w:'8%'}].map(({s,w}) => {
+            {[{s:5,w:'75%'},{s:4,w:'50%'}].map(({s,w}) => {
               const cfg = RR_STAR_COLORS[s];
               return (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', opacity: 0.45 }}>
@@ -1166,7 +1165,6 @@ function ReviewsSection({ token, compact = false }) {
                 </div>
               );
             })}
-            <div style={{ fontSize: '10px', color: '#cbd5e1', textAlign: 'center', marginTop: '8px' }}>No reviews yet</div>
           </>
         )}
         {!loading && data && totalRatings > 0 && (
@@ -1946,12 +1944,27 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
           >
             {/* Header */}
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
-              <div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
-                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
+                </div>
+                <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
               </div>
-              <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+              {/* Totals strip */}
+              <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+                {[
+                  { label: "Total Assets", value: charts?.criticalityByDept?.reduce((s, d) => s + (d.critical||0) + (d.nonCritical||0), 0), color: "#1e3a5f", bg: "#eff6ff" },
+                  { label: "Critical",     value: charts?.criticalityByDept?.reduce((s, d) => s + (d.critical||0), 0),    color: "#dc2626", bg: "#fee2e2" },
+                  { label: "Non Critical", value: charts?.criticalityByDept?.reduce((s, d) => s + (d.nonCritical||0), 0), color: "#1d4ed8", bg: "#dbeafe" },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} style={{ flex: 1, background: bg, borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "3px" }}>{label}</div>
+                    <div style={{ fontSize: "20px", fontWeight: 900, color, lineHeight: 1 }}>{value ?? "—"}</div>
+                  </div>
+                ))}
+              </div>
             </div>
             {/* Table */}
             <div style={{ overflowY: "auto", flex: 1 }}>
