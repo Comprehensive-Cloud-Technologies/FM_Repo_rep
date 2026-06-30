@@ -426,7 +426,11 @@ export default function AddAssetScreen() {
 
   // Working Status
   const [workingStatus, setWorkingStatus] = useState('Working');
-  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['Working', 'Not_Working', 'WIP', 'Unverified', 'Verified']);
+  const [workingStatuses, setWorkingStatuses] = useState<string[]>(['HNF', 'Working', 'Not_Working', 'WIP', 'RBER', 'Condemned']);
+
+  // Approved Status
+  const [approvedStatus, setApprovedStatus] = useState<string>('Unverified');
+  const [showApprovedStatusPicker, setShowApprovedStatusPicker] = useState(false);
 
   // Equipment Details
   const [assetName,        setAssetName]        = useState('');
@@ -581,6 +585,7 @@ export default function AddAssetScreen() {
         floor: floor.trim() || undefined,
         room: room.trim() || undefined,
         workingStatus: workingStatus || undefined,
+        is_verified: approvedStatus === 'Verified' ? 1 : 0,
         criticality: category,
         metadata: {
           make: make.trim() || undefined,
@@ -758,6 +763,14 @@ export default function AddAssetScreen() {
               style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
               onPress={() => setShowWorkingStatusPicker(true)}>
               <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{workingStatus}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          </Field>
+          <Field label="Approved Status">
+            <TouchableOpacity
+              style={[ss.input, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowApprovedStatusPicker(true)}>
+              <Text style={{ color: theme.textPrimary, fontSize: 14 }}>{approvedStatus}</Text>
               <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
             </TouchableOpacity>
           </Field>
@@ -1067,6 +1080,13 @@ export default function AddAssetScreen() {
         items={workingStatuses.map((s, i) => ({ id: i + 1, label: s }))}
         onSelect={(id, label) => setWorkingStatus(label)}
         onClose={() => setShowWorkingStatusPicker(false)}
+      />
+      <PickerModal
+        visible={showApprovedStatusPicker}
+        title="Approved Status"
+        items={['Verified', 'Unverified'].map((s, i) => ({ id: i + 1, label: s }))}
+        onSelect={(id, label) => setApprovedStatus(label)}
+        onClose={() => setShowApprovedStatusPicker(false)}
       />
       <PickerModal
         visible={showBuildingPicker}

@@ -143,7 +143,8 @@ export const getCompanyPortalChartStats = (token, params = {}) => {
   return request("GET", `/api/company-portal/dashboard/chart-stats${q ? "?" + q : ""}`, null, { authToken: token });
 };
 export const getCompanyPortalDashboard = (token) => request("GET", "/api/company-portal/dashboard", undefined, { authToken: token });
-export const getCompanyPortalDepartments = (token) => request("GET", "/api/company-portal/departments", undefined, { authToken: token });
+export const getCompanyPortalDepartments = (token, allCompanies = false) =>
+  request("GET", `/api/company-portal/departments${allCompanies ? "?allCompanies=true" : ""}`, undefined, { authToken: token });
 export const createCompanyPortalDepartment = (token, data) => request("POST", "/api/company-portal/departments", data, { authToken: token });
 export const updateCompanyPortalDepartment = (token, id, data) => request("PUT", `/api/company-portal/departments/${id}`, data, { authToken: token });
 export const deleteCompanyPortalDepartment = (token, id) => request("DELETE", `/api/company-portal/departments/${id}`, undefined, { authToken: token });

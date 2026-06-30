@@ -11,6 +11,7 @@ const BASE = getApiBaseUrl();
 
 // Module-level cache: survives tab-switch remounts
 let _hcLastFetch = 0;
+let _hcReqId    = 0; // incremented on every fetch; stale responses are discarded
 const HC_STALE_MS = 60_000;
 
 /* ─── API helpers ─────────────────────────────────────────────────────────── */
@@ -75,7 +76,7 @@ const COLORS = {
 };
 
 /* ─── Simple chart components (no external library needed) ───────────────── */
-function PieChart({ data, size = 200 }) {
+function PieChart({ data, size = 200, compact = false }) {
   const filtered = (data || []).filter(d => d.value > 0);
   const total = filtered.reduce((s, d) => s + d.value, 0);
   if (!total || filtered.length === 0) return <EmptyState small />;
@@ -87,7 +88,7 @@ function PieChart({ data, size = 200 }) {
   // Build slices; if single slice, draw full circle
   let slices = [];
   if (filtered.length === 1) {
-    slices = [{ path: null, fullCircle: true, color: PIE_COLORS[0], label: filtered[0].name, value: filtered[0].value, pct: 1 }];
+    slices = [{ path: null, fullCircle: true, color: filtered[0].color || PIE_COLORS[0], label: filtered[0].name, value: filtered[0].value, pct: 1 }];
   } else {
     let cumulative = 0;
     slices = filtered.map((d, i) => {
@@ -98,8 +99,34 @@ function PieChart({ data, size = 200 }) {
       const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
       const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
       const large = pct > 0.5 ? 1 : 0;
-      return { path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`, color: PIE_COLORS[i % PIE_COLORS.length], label: d.name, value: d.value, pct };
+      return { path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`, color: d.color || PIE_COLORS[i % PIE_COLORS.length], label: d.name, value: d.value, pct };
     });
+  }
+
+  if (compact) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          {slices.map((s, i) =>
+            s.fullCircle
+              ? <circle key={i} cx={cx} cy={cy} r={r} fill={s.color} stroke="#fff" strokeWidth="2"><title>{s.label}: {s.value} (100%)</title></circle>
+              : <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"><title>{s.label}: {s.value} ({(s.pct * 100).toFixed(1)}%)</title></path>
+          )}
+          <circle cx={cx} cy={cy} r={r * 0.52} fill="#fff" />
+          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0f172a">{total.toLocaleString()}</text>
+          <text x={cx} y={cy + 8} textAnchor="middle" fontSize="8" fill="#94a3b8">Total</text>
+        </svg>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px", width: "100%" }}>
+          {slices.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px" }}>
+              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+              <span style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.label}</span>
+              <span style={{ fontWeight: 700, color: "#0f172a", marginLeft: "auto" }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -298,13 +325,13 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
         background: isActive ? c.bg : "#fff",
         borderRadius: "10px",
         border: isActive ? `2px solid ${c.icon}` : `1px solid ${c.border}`,
-        padding: "10px 10px 8px",
+        padding: "6px 8px 5px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "5px",
-        minHeight: "80px",
+        gap: "3px",
+        minHeight: "54px",
         boxShadow: isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s ease",
@@ -315,7 +342,7 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
       onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } : undefined}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-        <div style={{ width: "22px", height: "22px", background: c.bg, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
+        <div style={{ width: "16px", height: "16px", background: c.bg, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
           <IconComp />
         </div>
         <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
@@ -324,7 +351,7 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
         {loading ? (
           <div style={{ width: "40px", height: "22px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite", margin: "0 auto" }} />
         ) : (
-          <p style={{ fontSize: "22px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
+          <p style={{ fontSize: "20px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
         )}
       </div>
       {isActive && (
@@ -1071,7 +1098,7 @@ function ReviewCard({ r }) {
   );
 }
 
-function ReviewsSection({ token }) {
+function ReviewsSection({ token, compact = false }) {
   const [data, setData]               = useState(null);
   const [loading, setLoading]         = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1117,6 +1144,47 @@ function ReviewsSection({ token }) {
   const maxDistVal   = Math.max(...[5, 4, 3, 2, 1].map((s) => Number(dist[s] || 0)), 1);
   const reviewCount  = allReviews.length;           // only reviews with text
   const hasMore      = data ? allReviews.length < totalRatings : false; // approximate upper bound
+
+  // ── Compact mode: just rating summary card ──────────────────────────────
+  if (compact) {
+    return (
+      <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '14px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <p style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Ratings &amp; Reviews</p>
+        {loading && <div style={{ color: '#94a3b8', fontSize: '12px' }}>Loading…</div>}
+        {!loading && (!data || totalRatings === 0) && (
+          <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '10px 0' }}>No reviews yet</div>
+        )}
+        {!loading && data && totalRatings > 0 && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: '30px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
+              <div>
+                <StarDisplay rating={avgRating} size={13} />
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{totalRatings} ratings · {posPct}% positive</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {[5,4,3,2,1].map(star => {
+                const count = Number(dist[star] || 0);
+                const pct   = Math.round((count / maxDistVal) * 100);
+                const cfg   = RR_STAR_COLORS[star];
+                return (
+                  <div key={star} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 7, textAlign: 'right' }}>{star}</span>
+                    <svg width={9} height={9} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: cfg.fill, borderRadius: 4 }} />
+                    </div>
+                    <span style={{ fontSize: '9px', color: '#94a3b8', width: 16, textAlign: 'right' }}>{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <section style={{ margin: '20px 0 0' }}>
@@ -1286,13 +1354,14 @@ function ReviewsSection({ token }) {
   );
 }
 
-export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, externalRefreshKey }) {
+export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, externalRefreshKey, allCompaniesMode = false }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
   const [filters, setFilters]       = useState(EMPTY_FILTERS);
   const [appliedFilters, setApplied]= useState(EMPTY_FILTERS);
   const [snapshot, setSnapshot]     = useState(null);
   const [charts, setCharts]         = useState(null);
+  const [filterOptions, setFilterOptions] = useState({ departments: [], categories: [], locations: [] });
   const [snapLoading, setSnapL]     = useState(false);
   const [showCostPopup, setShowCostPopup] = useState(false);  // cost breakdown popup
   const [chartLoading, setChartL]   = useState(false);
@@ -1311,22 +1380,59 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const loadSnapshot = useCallback(async (force = false) => {
     // Skip if data is fresh (< 60 s) unless forced or no data yet
     if (!force && snapshot && Date.now() - _hcLastFetch < HC_STALE_MS) return;
+    // Claim this request slot — any older in-flight fetch will see its reqId !== _hcReqId and bail out
+    const reqId = ++_hcReqId;
     _hcLastFetch = Date.now();
+    // Clear stale data immediately so old company's numbers never linger
+    setSnapshot(null); setCharts(null);
     setSnapL(true); setSnapE(null);
     try {
-      const qs = buildQS(appliedFilters);
-      const [snap, ch] = await Promise.all([
-        hcFetch(`/snapshot${qs}`, token),
-        hcFetch(`/charts${qs}`, token),
-      ]);
-      setSnapshot(snap);
-      setCharts(ch);
-    } catch (e) { setSnapE(e.message); }
+      if (allCompaniesMode) {
+        const snap = await hcFetch('/aggregate-snapshot', token);
+        if (reqId !== _hcReqId) return; // superseded — discard
+        setSnapshot(snap);
+        setCharts(null);
+      } else {
+        const qs = buildQS(appliedFilters);
+        const [snap, ch] = await Promise.all([
+          hcFetch(`/snapshot${qs}`, token),
+          hcFetch(`/charts${qs}`, token),
+        ]);
+        if (reqId !== _hcReqId) return; // superseded — discard
+        setSnapshot(snap);
+        setCharts(ch);
+      }
+    } catch (e) {
+      if (reqId !== _hcReqId) return;
+      setSnapE(e.message);
+    }
     setSnapL(false);
     setChartL(false);
-  }, [token, appliedFilters]);
+  }, [token, appliedFilters, allCompaniesMode]);
 
-  useEffect(() => { loadSnapshot(true); }, [loadSnapshot, refreshKey, externalRefreshKey]);
+  useEffect(() => { loadSnapshot(true); }, [loadSnapshot, refreshKey, externalRefreshKey, allCompaniesMode]);
+
+  // When company scope changes, reset all filters, drilldowns and active tile states
+  useEffect(() => {
+    setFilters(EMPTY_FILTERS);
+    setApplied(EMPTY_FILTERS);
+    setActiveKpiKey(null);
+    setActiveComplaintKey(null);
+    setComplaintRequests([]);
+    setChartDrilldown(null);
+    _hcLastFetch = 0; // force fresh fetch regardless of cache age
+    // NOTE: do NOT reset _hcReqId here — resetting would allow the old in-flight fetch
+    // to share the same reqId as the new one, defeating the stale-response guard.
+    // The counter must only ever increment so old reqIds are always < current.
+  }, [allCompaniesMode, token]);
+
+  // Load filter options (departments, categories, locations) for the filter panel
+  useEffect(() => {
+    if (!token || allCompaniesMode) return;
+    hcFetch('/filter-options', token)
+      .then(d => { if (d) setFilterOptions(d); })
+      .catch(() => {});
+  }, [token, allCompaniesMode]);
 
   const handleApply = () => { setApplied({ ...filters }); };
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
@@ -1423,61 +1529,97 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       {/* Error state */}
       {snapError && <ErrorState message={snapError} onRetry={loadSnapshot} />}
 
+      {/* All Companies banner */}
+      {allCompaniesMode && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 14px", background: "#ede9fe", border: "1px solid #ddd6fe", borderRadius: "10px", marginBottom: "12px" }}>
+          <span style={{ fontSize: "15px" }}>🌐</span>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "#3730a3" }}>All Hospitals View</span>
+          <span style={{ fontSize: "11px", color: "#6d28d9", marginLeft: "4px" }}>— aggregated data across all your accessible hospitals</span>
+        </div>
+      )}
+
+      {/* Advanced Filters — only shown in single-hospital mode */}
+      {false && !allCompaniesMode && (
+        <FiltersPanel
+          filters={filters}
+          setFilters={setFilters}
+          filterOptions={filterOptions}
+          onApply={handleApply}
+          onReset={handleReset}
+        />
+      )}
+
       {/* ── ASSET SNAPSHOT KPI CARDS ── */}
       <section style={{ marginBottom: "16px" }}>
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>
           Asset Profile
           <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {KPI_LIST.slice(0, 3).map(k => (
-            <KpiCard
-              key={k.key}
-              label={k.label}
-              value={snapshot?.[k.key]}
-              icon={k.icon}
-              color={k.color}
-              loading={snapLoading}
-              isActive={activeKpiKey === k.key}
-              onClick={() => handleTileClick(k)}
-            />
-          ))}
-          {/* Total Asset Value tile — 4th position, clickable, opens cost breakdown popup */}
-          <div
-            onClick={() => setShowCostPopup(true)}
-            style={{
-              background: "#fff", borderRadius: "10px", border: "1px solid #ddd6fe",
-              padding: "10px 10px 8px", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: "5px",
-              minHeight: "80px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", textAlign: "center",
-              cursor: "pointer", transition: "all 0.15s ease", position: "relative",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px #ddd6fe"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-              <div style={{ width: "22px", height: "22px", background: "#ede9fe", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        {/* 2-col: tiles (left, 2fr) + working-status pie chart (right, 1fr — wider panel) */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "8px", alignItems: "stretch" }}>
+          {/* LEFT: tile grid — direct child of outer grid so tiles stretch to match panel height */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+              {KPI_LIST.slice(0, 3).map(k => (
+                <KpiCard
+                  key={k.key}
+                  label={k.label}
+                  value={snapshot?.[k.key]}
+                  icon={k.icon}
+                  color={k.color}
+                  loading={snapLoading}
+                  isActive={activeKpiKey === k.key}
+                  onClick={() => handleTileClick(k)}
+                />
+              ))}
+              {/* Total Asset Value tile — 4th position, clickable, opens cost breakdown popup */}
+              <div
+                onClick={() => setShowCostPopup(true)}
+                style={{
+                  background: "#fff", borderRadius: "10px", border: "1px solid #ddd6fe",
+                  padding: "6px 8px 5px", display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: "3px",
+                  minHeight: "54px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", textAlign: "center",
+                  cursor: "pointer", transition: "all 0.15s ease", position: "relative",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px #ddd6fe"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+                  <div style={{ width: "16px", height: "16px", background: "#ede9fe", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  </div>
+                  <p style={{ fontSize: "8px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
+                </div>
+                <p style={{ fontSize: "16px", fontWeight: 900, color: "#7c3aed", margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>
+                  {snapLoading ? "—" : fmtCurrency(snapshot?.totalAssetValue)}
+                </p>
+                <span style={{ fontSize: "8px", color: "#a78bfa", marginTop: "1px" }}>tap for breakdown ▼</span>
               </div>
-              <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
+              {KPI_LIST.slice(3).map(k => (
+                <KpiCard
+                  key={k.key}
+                  label={k.label}
+                  value={snapshot?.[k.key]}
+                  icon={k.icon}
+                  color={k.color}
+                  loading={snapLoading}
+                  isActive={activeKpiKey === k.key}
+                  onClick={() => handleTileClick(k)}
+                />
+              ))}
             </div>
-            <p style={{ fontSize: "18px", fontWeight: 900, color: "#7c3aed", margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>
-              {snapLoading ? "—" : fmtCurrency(snapshot?.totalAssetValue)}
-            </p>
-            <span style={{ fontSize: "9px", color: "#a78bfa", marginTop: "2px" }}>tap for breakdown ▼</span>
+          {/* RIGHT: working-status pie chart — same card style as compact R&R */}
+          <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>Working Status</p>
+            <PieChart compact size={110} data={[
+              { name: "HNF",         value: snapshot?.hnf        || 0, color: "#0d9488" },
+              { name: "Working",     value: snapshot?.working    || 0, color: "#16a34a" },
+              { name: "WIP",         value: snapshot?.wip        || 0, color: "#ca8a04" },
+              { name: "Not Working", value: snapshot?.notWorking || 0, color: "#dc2626" },
+              { name: "RBER",        value: snapshot?.rber       || 0, color: "#ea580c" },
+              { name: "Condemned",   value: snapshot?.condemned  || 0, color: "#7c3aed" },
+            ]} />
           </div>
-          {KPI_LIST.slice(3).map(k => (
-            <KpiCard
-              key={k.key}
-              label={k.label}
-              value={snapshot?.[k.key]}
-              icon={k.icon}
-              color={k.color}
-              loading={snapLoading}
-              isActive={activeKpiKey === k.key}
-              onClick={() => handleTileClick(k)}
-            />
-          ))}
         </div>
 
         {/* Cost Breakdown Popup */}
@@ -1517,29 +1659,45 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           </div>
         )}
 
-        {/* Complaint Profile row */}
+        {/* Complaint Profile row — 2-col with compact reviews panel */}
         <div style={{ marginTop: "14px" }}>
           <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Complaint Profile</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-            {[
-              { key: "totalComplaints",    label: "Total Complaint",  icon: ComplaintIcon.Total,    color: "blue",   value: snapshot?.totalComplaints },
-              { key: "wipComplaints",      label: "Work in Progress", icon: ComplaintIcon.Wip,      color: "yellow", value: snapshot?.wipComplaints },
-              { key: "wipLt7",             label: "< 7 Days",         icon: ComplaintIcon.Lt7,      color: "green",  value: snapshot?.wipLt7 },
-              { key: "wipGt7",             label: "> 7 Days",         icon: ComplaintIcon.Gt7,      color: "red",    value: snapshot?.wipGt7 },
-              { key: "resolvedComplaints", label: "Resolved",         icon: ComplaintIcon.Resolved, color: "teal",   value: snapshot?.resolvedComplaints },
-              { key: "closedComplaints",   label: "Closed",           icon: ComplaintIcon.Closed,   color: "purple", value: snapshot?.closedComplaints },
-            ].map(k => (
-              <KpiCard
-                key={k.key}
-                label={k.label}
-                value={k.value}
-                icon={k.icon}
-                color={k.color}
-                loading={snapLoading}
-                isActive={activeComplaintKey === k.key}
-                onClick={() => handleComplaintTileClick(k.key)}
-              />
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "8px", alignItems: "stretch" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+              {[
+                { key: "totalComplaints",    label: "Total Complaint",  icon: ComplaintIcon.Total,    color: "blue",   value: snapshot?.totalComplaints },
+                { key: "wipComplaints",      label: "Work in Progress", icon: ComplaintIcon.Wip,      color: "yellow", value: snapshot?.wipComplaints },
+                { key: "wipLt7",             label: "< 7 Days",         icon: ComplaintIcon.Lt7,      color: "green",  value: snapshot?.wipLt7 },
+                { key: "wipGt7",             label: "> 7 Days",         icon: ComplaintIcon.Gt7,      color: "red",    value: snapshot?.wipGt7 },
+                { key: "resolvedComplaints", label: "Resolved",         icon: ComplaintIcon.Resolved, color: "teal",   value: snapshot?.resolvedComplaints },
+                { key: "closedComplaints",   label: "Closed",           icon: ComplaintIcon.Closed,   color: "purple", value: snapshot?.closedComplaints },
+              ].map(k => (
+                <KpiCard
+                  key={k.key}
+                  label={k.label}
+                  value={k.value}
+                  icon={k.icon}
+                  color={k.color}
+                  loading={snapLoading}
+                  isActive={activeComplaintKey === k.key}
+                  onClick={() => handleComplaintTileClick(k.key)}
+                />
+              ))}
+            </div>
+            {/* Compact Ratings & Reviews panel */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {allCompaniesMode ? (
+                <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
+                  <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px", alignSelf: "flex-start" }}>Ratings &amp; Reviews</p>
+                  <span style={{ fontSize: "22px", marginBottom: "8px" }}>🏥</span>
+                  <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", margin: 0, lineHeight: 1.5 }}>
+                    Ratings are per‑hospital.<br />Select a hospital to view.
+                  </p>
+                </div>
+              ) : (
+                <ReviewsSection token={token} compact />
+              )}
+            </div>
           </div>
         </div>
 
@@ -1618,17 +1776,17 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 14px" }}>Analytics & Charts</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
 
-          {/* Pie: Working Status */}
-          <ChartCard title="Working Status Distribution" subtitle="Working / WIP / Not Working / Condemned">
-            {chartLoading ? <Spinner /> : charts?.statusDistribution ?
-              <PieChart data={charts.statusDistribution.map(d => ({ name: d.name || "Unknown", value: d.value }))} /> :
-              <EmptyState small />
-            }
-          </ChartCard>
+          {/* Pie: Working Status — now shown inline above, removed from here */}
 
           {/* Bar: Criticality by Dept */}
           <ChartCard title="Criticality by Department" subtitle="Click a bar to view those assets">
-            {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
+            {chartLoading ? <Spinner /> : allCompaniesMode ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "120px", gap: "6px", color: "#6d28d9" }}>
+                <span style={{ fontSize: "22px" }}>🏥</span>
+                <span style={{ fontSize: "12px", fontWeight: 600 }}>Select a specific hospital</span>
+                <span style={{ fontSize: "11px", color: "#94a3b8" }}>to view department-level charts</span>
+              </div>
+            ) : charts?.criticalityByDept ?
               <BarChart data={charts.criticalityByDept} onBarClick={openChartDrilldown} /> :
               <EmptyState small />
             }
@@ -1750,8 +1908,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <RecordsTable key={`${activeRecord}-${JSON.stringify(appliedFilters)}`} type={activeRecord} token={token} globalFilters={appliedFilters} />
       </section>
 
-      {/* ── RATINGS & REVIEWS ── */}
-      <ReviewsSection token={token} />
+      {/* ── RATINGS & REVIEWS removed — shown inline beside Complaint Profile above ── */}
     </div>
   );
 }

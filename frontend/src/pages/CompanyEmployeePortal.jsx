@@ -1282,6 +1282,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
               <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "5px" }}>Working Status</label>
               <select name="hcWorkingStatus" value={form.hcWorkingStatus || "Working"} onChange={handleChange} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px", background: "#fff" }}>
                 <option value="Working">Working</option>
+                <option value="HNF">HNF</option>
                 <option value="WIP">WIP</option>
                 <option value="Not_Working">Not Working</option>
                 <option value="Condemned">Condemned</option>
@@ -4152,6 +4153,7 @@ export default function CompanyEmployeePortal() {
   const [switchingCompany, setSwitchingCompany] = useState(false);
   const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
   const [companySwitcherSearch, setCompanySwitcherSearch] = useState("");
+  const [allCompaniesMode, setAllCompaniesMode] = useState(false);
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -4744,28 +4746,30 @@ export default function CompanyEmployeePortal() {
 
   useEffect(() => {
     if (!token || nav === "dashboard") return;
-    if (nav === "departments") load("departments", () => getCompanyPortalDepartments(token)).then((d) => d && setDepartments(d));
+    const acParam = allCompaniesMode ? { allCompanies: "true" } : {};
+    if (nav === "departments") load("departments", () => getCompanyPortalDepartments(token, allCompaniesMode)).then((d) => d && setDepartments(d));
     if (nav === "assets") {
-      load("assets", () => getCompanyPortalAssets(token)).then((d) => d && setAssets(d));
-      if (!departments.length) getCompanyPortalDepartments(token).then((d) => d && setDepartments(d)).catch(() => {});
+      load("assets", () => getCompanyPortalAssets(token, acParam)).then((d) => d && setAssets(d));
+      // Always reload departments when allCompaniesMode changes (company scope differs)
+      getCompanyPortalDepartments(token, allCompaniesMode).then((d) => d && setDepartments(d)).catch(() => {});
       // Load employees for assignment dropdown
       if (!employees.length) getCompanyPortalEmployees(token).then((d) => d && setEmployees(d)).catch(() => {});
       // Load asset queries for the requests sub-tab
       setAssetQueriesLoading(true);
-      getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
+      getAssetQueries(token, acParam).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
     }
     if (nav === "requests") {
       setAssetQueriesLoading(true);
-      getAssetQueries(token).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
+      getAssetQueries(token, acParam).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
     }
     if (nav === "qrcodes") {
       setPreQrLoading(true);
       getPreQrCodes(token).then((d) => { setPreQrCodes(d || []); setPreQrLoading(false); }).catch(() => setPreQrLoading(false));
-      if (!assets.length) getCompanyPortalAssets(token).then((d) => d && setAssets(d)).catch(() => {});
+      if (!assets.length) getCompanyPortalAssets(token, acParam).then((d) => d && setAssets(d)).catch(() => {});
     }
     if (nav === "checklists") {
       load("checklists", () => getCompanyPortalChecklists(token)).then((d) => d && setChecklists(d));
-      if (!assets.length) getCompanyPortalAssets(token).then((d) => d && setAssets(d)).catch(() => {});
+      if (!assets.length) getCompanyPortalAssets(token, acParam).then((d) => d && setAssets(d)).catch(() => {});
     }
     if (nav === "employees") {
       load("employees", () => getCompanyPortalEmployees(token)).then((d) => d && setEmployees(d));
@@ -4791,13 +4795,13 @@ export default function CompanyEmployeePortal() {
         getTemplateUserAssignments(token).then((d) => d && setAssignments(d)).catch(() => {});
       }
     }
-    if (nav === "logsheets" && !assets.length) load("assets", () => getCompanyPortalAssets(token)).then((d) => d && setAssets(d));
+    if (nav === "logsheets" && !assets.length) load("assets", () => getCompanyPortalAssets(token, acParam)).then((d) => d && setAssets(d));
     if (nav === "ojt") {
       load("ojt", () => getOjtTrainings(token)).then((d) => d && setOjtTrainings(d));
-      if (!assets.length) getCompanyPortalAssets(token).then((d) => d && setAssets(d)).catch(() => {});
+      if (!assets.length) getCompanyPortalAssets(token, acParam).then((d) => d && setAssets(d)).catch(() => {});
     }
     if (nav === "fleet") {
-      if (!assets.length) load("assets", () => getCompanyPortalAssets(token)).then((d) => d && setAssets(d));
+      if (!assets.length) load("assets", () => getCompanyPortalAssets(token, acParam)).then((d) => d && setAssets(d));
       load("fleet_history", () => getFleetSubmissions(token)).then((d) => d && setFleetHistory(d));
       if (!checklists.length) getCompanyPortalChecklists(token).then((d) => d && setChecklists(d)).catch(() => {});
       if (!logsheetTemplatesList.length) getCompanyPortalLogsheetTemplates(token).then((d) => d && setLogsheetTemplatesList(d)).catch(() => {});
@@ -4809,10 +4813,11 @@ export default function CompanyEmployeePortal() {
         headers: { Authorization: `Bearer ${token}` }
       }).then(r => r.json()).then(d => setSettingsPublicToken(d.publicToken || "")).catch(() => setSettingsPublicToken(""));
     }
-  }, [nav, token, load, assets.length]);
+  }, [nav, token, load, assets.length, allCompaniesMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
     sessionStorage.removeItem("cp_token");
+    sessionStorage.removeItem("cp_token_base");
     sessionStorage.removeItem("cp_user");
     navigate("/company");
   };
@@ -4862,6 +4867,7 @@ export default function CompanyEmployeePortal() {
         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
         if (assetStatusFilter === "Verified") return isVerified;
         if (assetStatusFilter === "Unverified") return !isVerified && (a.status === "Unverified" || !a.status || a.status === "Active");
+        if (assetStatusFilter === "HNF") return (m.workingStatus || "").toLowerCase() === "hnf";
         if (assetStatusFilter === "WIP") return (m.workingStatus || "").toLowerCase() === "wip";
         if (assetStatusFilter === "Not Working") return (m.workingStatus || "").toLowerCase().replace(/[_ ]/g, "") === "notworking";
         if (assetStatusFilter === "RBER") return !!m.rber;
@@ -5316,7 +5322,7 @@ export default function CompanyEmployeePortal() {
         {/* Company name label only (no switcher here) */}
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
           <p style={{ fontSize: "14px", fontWeight: 700, color: "#334155", margin: 0 }}>
-            {companyDisplayName || currentUser.companyName || "Client"}
+            {allCompaniesMode ? "All Hospitals" : (companyDisplayName || currentUser.companyName || "Client")}
           </p>
         </div>
 
@@ -5464,8 +5470,10 @@ export default function CompanyEmployeePortal() {
                 onClick={() => { setCompanySwitcherSearch(""); setCompanySwitcherOpen(o => !o); }}
                 style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 700, minWidth: "200px", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.companyName || "Select Company"}
-                  {accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.primary ? " ★" : ""}
+                  {allCompaniesMode
+                    ? "🌐 All Hospitals"
+                    : (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.companyName || "Select Company") +
+                      (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.primary ? " ★" : "")}
                 </span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
@@ -5481,6 +5489,36 @@ export default function CompanyEmployeePortal() {
                     />
                   </div>
                   <div style={{ maxHeight: "260px", overflowY: "auto", padding: "4px 6px 8px" }}>
+                    {/* All Companies option — only if user has access to multiple companies */}
+                    {accessibleCompanies.length > 1 && (
+                      <button
+                        onClick={() => {
+            // Restore the original login token so backend aggregate-snapshot
+            // uses the admin's full company scope, not the last switched-to company.
+            const baseToken = sessionStorage.getItem("cp_token_base");
+            if (baseToken) sessionStorage.setItem("cp_token", baseToken);
+            setCompanySwitcherOpen(false);
+            setAllCompaniesMode(true);
+            setAssets([]);
+            setDepartments([]);
+            setHcDashRefreshKey(k => k + 1);
+          }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                          padding: "9px 10px", borderRadius: "7px", border: allCompaniesMode ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
+                          background: allCompaniesMode ? "#ede9fe" : "#f8fafc", color: allCompaniesMode ? "#3730a3" : "#374151",
+                          cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: allCompaniesMode ? 700 : 500,
+                          marginBottom: "4px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px" }}>🌐</span>
+                        <div style={{ flex: 1 }}>
+                          <div>All Hospitals</div>
+                          <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 400 }}>Aggregate — {accessibleCompanies.length} hospitals</div>
+                        </div>
+                        {allCompaniesMode && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </button>
+                    )}
                     {accessibleCompanies
                       .filter(c => {
                         const q = (companySwitcherSearch || "").toLowerCase().trim();
@@ -5488,11 +5526,12 @@ export default function CompanyEmployeePortal() {
                         return (c.companyName || "").toLowerCase().includes(q);
                       })
                       .map(c => {
-                        const isActive = c.companyId === currentUser?.companyId;
+                        const isActive = !allCompaniesMode && c.companyId === currentUser?.companyId;
                         return (
                           <button key={c.companyId}
                             onClick={async () => {
                               setCompanySwitcherOpen(false);
+                              setAllCompaniesMode(false);
                               if (c.companyId === currentUser?.companyId) return;
                               const selected = accessibleCompanies.find(x => x.companyId === c.companyId);
                               if (selected) setCompanyDisplayName(selected.companyName);
@@ -5540,7 +5579,7 @@ export default function CompanyEmployeePortal() {
           const openAssetFromDash = (dashAsset) => {
             window.open(`/company/asset/${dashAsset.id}`, '_blank');
           };
-          return <HealthcareDashboard token={token} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
+          return <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
             if (!key) { setAssetStatusFilter(""); return; }
             setNav("assets");
             if (filterData?.criticality) setAssetStatusFilter(filterData.criticality);
@@ -5887,7 +5926,7 @@ export default function CompanyEmployeePortal() {
                     </button>
                   ))}
                 </div>
-                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
+                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
                   window.open(`/company/asset/${dashAsset.id}`, '_blank');
                 }} onTileNavigate={(key, filterData) => {
                   if (!key) { setAssetStatusFilter(""); return; }
@@ -6467,8 +6506,7 @@ export default function CompanyEmployeePortal() {
                     <option value="">All Status</option>
                     <option value="Active">Active</option>
                     <option value="Working">Working</option>
-                    <option value="Verified">Verified</option>
-                    <option value="Unverified">Unverified</option>
+                    <option value="HNF">HNF</option>
                     <option value="Inactive">Inactive</option>
                     <option value="WIP">WIP</option>
                     <option value="Not Working">Not Working</option>
@@ -6611,14 +6649,14 @@ export default function CompanyEmployeePortal() {
                               title="Select all" style={{ cursor: "pointer" }} />
                           </th>
                         )}
-                        {["SN", "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Start Date", "End Date", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Assigned To", "Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
+                        {["SN", ...(allCompaniesMode ? ["Hospital"] : []), "Asset ID", "Equipment Name", "Category", "Make", "Model", "Sr. No.", "Accessories", "Department", "Maintenance", "Start Date", "End Date", "Dealer/Distributor", "Mfg. Year", "Installation Date", "Invoice No.", "Purchase Date", "Purchase Cost", "RBER", "Remarks", "Tagged By", "Tagged At", "Assigned To", "Status", "Approved Status", ...(canAssetAction ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", background: "#f1f5f9", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAssets.length === 0
-                        ? <tr><td colSpan={isAdmin ? 25 : (canAssetAction ? 24 : 23)} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? (allCompaniesMode ? 26 : 25) : (canAssetAction ? (allCompaniesMode ? 25 : 24) : (allCompaniesMode ? 24 : 23))} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found</td></tr>
                         : filteredAssets.map((a, i) => {
                           const m = a.metadata || {};
                           const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled), amc: !!(m.amc?.enabled), cmc: !!(m.cmc?.enabled), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst), highEnd: !!(m.highEnd), rented: !!(m.rented) };
@@ -6633,6 +6671,7 @@ export default function CompanyEmployeePortal() {
                               </td>
                             )}
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
+                            {allCompaniesMode && <td style={{ padding: "10px 14px", color: "#7c3aed", fontSize: "12px", whiteSpace: "nowrap", fontWeight: 600 }}>{a.companyName || "—"}</td>}
                             <td style={{ padding: "10px 14px", color: (a.isVerified || Number(a.verified) === 1) ? "#16a34a" : "#dc2626", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
                               title="Click to open asset details in new window"
                               onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
@@ -6675,22 +6714,21 @@ export default function CompanyEmployeePortal() {
                               {(() => {
                                 const meta = a.metadata || {};
                                 const ws = a.workingStatus || a.working_status || meta.workingStatus || "Working";
-                                const crit = a.criticality || meta.criticality || "Non_Critical";
-                                const st = a.status || "Active";
-                                // Derive combined display value
-                                const combined = st === "Inactive" ? "Inactive"
-                                  : st === "Unverified" ? "Unverified"
-                                  : (a.isVerified || st === "Verified") ? "Verified"
-                                  : ws === "Condemned" ? "Condemned"
+                                // STATUS column is purely from working_status — independent of approved status
+                                const combined = ws === "Condemned" ? "Condemned"
+                                  : ws === "RBER" ? "RBER"
                                   : meta.rber ? "RBER"
                                   : ws === "Not_Working" ? "Not_Working"
                                   : ws === "WIP" ? "WIP"
-                                  : crit === "Critical" ? "Critical"
+                                  : ws === "HNF" ? "HNF"
+                                  : ws === "Inactive" ? "Inactive"
+                                  : ws === "Active" ? "Active"
                                   : ws === "Working" ? "Working"
-                                  : "Active";
+                                  : "Working";
                                 const COLOR_MAP = {
                                   Active:       { bg: "#f0fdf4", color: "#16a34a" },
                                   Working:      { bg: "#f0fdf4", color: "#16a34a" },
+                                  HNF:          { bg: "#f0f9ff", color: "#0284c7" },
                                   Unverified:   { bg: "#fff7ed", color: "#ea580c" },
                                   Inactive:     { bg: "#f8fafc", color: "#94a3b8" },
                                   Verified:     { bg: "#dbeafe", color: "#1d4ed8" },
@@ -6707,26 +6745,53 @@ export default function CompanyEmployeePortal() {
                                     value={combined}
                                     onChange={e => {
                                       const v = e.target.value;
-                                      if (v === "Unverified")       handleHCStatusUpdate(a.id, { status: "Unverified", isVerified: false });
-                                      else if (v === "Working")     handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", isVerified: false });
-                                      else if (v === "Inactive")    handleHCStatusUpdate(a.id, { status: "Inactive", isVerified: false });
-                                      else if (v === "Verified")    handleHCStatusUpdate(a.id, { status: "Active", isVerified: true, workingStatus: "Working" });
-                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP", status: "Active", isVerified: false });
-                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false });
-                                      else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "Not_Working", status: "Active", isVerified: false, rber: true });
-                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned", status: "Active", isVerified: false });
-                                      else                           handleHCStatusUpdate(a.id, { status: "Active", workingStatus: "Working", isVerified: false });
+                                      if (v === "Working")         handleHCStatusUpdate(a.id, { workingStatus: "Working" });
+                                      else if (v === "HNF")         handleHCStatusUpdate(a.id, { workingStatus: "HNF" });
+                                      else if (v === "Active")      handleHCStatusUpdate(a.id, { workingStatus: "Active" });
+                                      else if (v === "Inactive")    handleHCStatusUpdate(a.id, { workingStatus: "Inactive" });
+                                      else if (v === "WIP")         handleHCStatusUpdate(a.id, { workingStatus: "WIP" });
+                                      else if (v === "Not_Working") handleHCStatusUpdate(a.id, { workingStatus: "Not_Working" });
+                                      else if (v === "RBER")        handleHCStatusUpdate(a.id, { workingStatus: "RBER" });
+                                      else if (v === "Condemned")   handleHCStatusUpdate(a.id, { workingStatus: "Condemned" });
+                                      else                           handleHCStatusUpdate(a.id, { workingStatus: "Working" });
                                     }}
                                     style={{ padding: "4px 8px", border: `1px solid ${cm.color}40`, borderRadius: "8px", fontSize: "12px", fontWeight: 700, background: cm.bg, color: cm.color, cursor: "pointer", outline: "none" }}>
-                                    <option value="Unverified">⚠ Unverified</option>
                                     <option value="Working">Working</option>
+                                    <option value="HNF">HNF</option>
                                     <option value="Active">Active</option>
-                                    <option value="Verified">Verified</option>
                                     <option value="Inactive">Inactive</option>
                                     <option value="WIP">WIP</option>
                                     <option value="Not_Working">Not Working</option>
                                     <option value="RBER">RBER</option>
                                     <option value="Condemned">Condemned</option>
+                                  </select>
+                                );
+                              })()}
+                            </td>
+                            {/* Approved Status column */}
+                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
+                              {(() => {
+                                const isVer = Number(a.isVerified || a.is_verified) === 1;
+                                if (!canAssetUpdate) return (
+                                  <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
+                                    background: isVer ? "#dbeafe" : "#fff7ed", color: isVer ? "#1d4ed8" : "#ea580c" }}>
+                                    {isVer ? "Verified" : "Unverified"}
+                                  </span>
+                                );
+                                return (
+                                  <select
+                                    value={isVer ? "Verified" : "Unverified"}
+                                    onChange={e => {
+                                      if (e.target.value === "Verified")
+                                        handleHCStatusUpdate(a.id, { isVerified: true });
+                                      else
+                                        handleHCStatusUpdate(a.id, { isVerified: false });
+                                    }}
+                                    style={{ padding: "4px 8px", border: `1px solid ${isVer ? "#93c5fd" : "#fdba74"}`, borderRadius: "8px",
+                                      fontSize: "12px", fontWeight: 700, background: isVer ? "#dbeafe" : "#fff7ed",
+                                      color: isVer ? "#1d4ed8" : "#ea580c", cursor: "pointer", outline: "none" }}>
+                                    <option value="Verified">✓ Verified</option>
+                                    <option value="Unverified">⚠ Unverified</option>
                                   </select>
                                 );
                               })()}
@@ -6879,6 +6944,7 @@ export default function CompanyEmployeePortal() {
               departments={departments}
               isAdmin={isAdmin && canRequestManage}
               isSupervisor={currentUser.role === "supervisor" && canRequestManage}
+              allCompaniesMode={allCompaniesMode}
             />
           );
         })()}
@@ -7029,7 +7095,11 @@ export default function CompanyEmployeePortal() {
         {/* ── Locations ─────────────────────────────────────────── */}
         {nav === "locations" && currentUser?.role === "admin" && (
           <main style={{ flex: 1, overflowY: "auto", padding: "28px 32px", background: "#f8fafc" }}>
-            <AdminLocationsSection token={token} companies={[{ id: currentUser.companyId, companyName: currentUser.companyName }]} />
+            <AdminLocationsSection token={token} companies={
+              allCompaniesMode && accessibleCompanies.length > 1
+                ? accessibleCompanies.map(c => ({ id: c.companyId, companyName: c.companyName }))
+                : [{ id: currentUser.companyId, companyName: currentUser.companyName }]
+            } />
           </main>
         )}
 

@@ -250,6 +250,7 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal'`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS escalation_level INT DEFAULT 0`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_hours INT DEFAULT 24`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_time DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolved_by INT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
@@ -453,6 +454,17 @@ router.delete('/asset-statuses/:id', async (req, res, next) => {
 });
 
 const cid = (req) => req.companyUser.companyId;
+
+// Helper: returns all company IDs accessible to a user (primary + user_company_access rows)
+async function getAccessibleCompanyIds(userId, primaryCompanyId) {
+  const [extra] = await pool.query(
+    `SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?`,
+    [userId]
+  ).catch(() => [[]]);
+  const ids = new Set([Number(primaryCompanyId)]);
+  extra.forEach((r) => ids.add(Number(r.companyId)));
+  return [...ids];
+}
 
 const sanitizeAssetIdPart = (value, fallback) => {
   const cleaned = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -1267,17 +1279,29 @@ const ensureDepartmentLocationColumns = async () => {
 router.get("/departments", async (req, res, next) => {
   try {
     await ensureDepartmentLocationColumns();
+    let queryParams;
+    let whereClause;
+    if (req.query.allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      whereClause = `d.company_id IN (${ids.map(() => "?").join(",")})`;
+      queryParams = ids;
+    } else {
+      whereClause = `d.company_id = ?`;
+      queryParams = [cid(req)];
+    }
     const [rows] = await pool.query(
       `SELECT d.id, d.name AS "departmentName", d.description,
+              d.company_id AS "companyId", co.company_name AS "companyName",
               d.building_id AS "buildingId", d.floor_id AS "floorId", d.room_id AS "roomId",
               b.building_name AS "buildingName", f.floor_name AS "floorName", r.room_name AS "roomName",
               d.created_at AS "createdAt"
        FROM departments d
+       LEFT JOIN companies co ON co.id = d.company_id
        LEFT JOIN buildings b ON b.id = d.building_id
        LEFT JOIN floors f ON f.id = d.floor_id
        LEFT JOIN rooms r ON r.id = d.room_id
-       WHERE d.company_id = ? ORDER BY d.name`,
-      [cid(req)]
+       WHERE ${whereClause} ORDER BY d.name`,
+      queryParams
     );
     res.json(rows);
   } catch (err) {
@@ -1404,7 +1428,19 @@ router.get("/assets", async (req, res, next) => {
     // 'both' domain or admin role → no filter
 
     const { search, type, assignedOnly, assignedToMe, verified } = req.query;
-    const params = [cid(req)];
+
+    // Determine company filter: single company or all accessible companies
+    let companyWhereClause;
+    let params;
+    if (req.query.allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhereClause = `a.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      companyWhereClause = `a.company_id = ?`;
+      params = [cid(req)];
+    }
+
     let extraFilters = softFilter;
     if (type) { extraFilters += ` AND a.asset_type = ?`; params.push(type); }
     if (verified === "true")  { extraFilters += ` AND a.is_verified = 1`; }
@@ -1437,6 +1473,7 @@ router.get("/assets", async (req, res, next) => {
               a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
               a.building_id AS "buildingId", a.floor_id AS "floorId", a.room_id AS "roomId",
               a.location_id AS "locationId", a.company_id AS "companyId",
+              co.company_name AS "companyName",
               a.criticality, a.working_status AS "workingStatus",
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
@@ -1456,11 +1493,12 @@ router.get("/assets", async (req, res, next) => {
               d.name AS "departmentName",
               ad.metadata, ad.documents
        FROM assets a
+       LEFT JOIN companies co ON co.id = a.company_id
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
        LEFT JOIN company_users creator ON creator.id = a.created_by
-       WHERE a.company_id = ? ${extraFilters}
+       WHERE ${companyWhereClause} ${extraFilters}
        ORDER BY a.asset_name`,
       params
     );
@@ -2705,8 +2743,16 @@ router.get("/calibration/dashboard", async (req, res, next) => {
 router.get("/asset-queries", async (req, res, next) => {
   try {
     const { assetId, status, assignedTo, limit } = req.query;
-    const params = [cid(req)];
-    let where = "WHERE aq.company_id = ?";
+    let params;
+    let where;
+    if (req.query.allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      where = `WHERE aq.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      params = [cid(req)];
+      where = "WHERE aq.company_id = ?";
+    }
     if (assetId)    { where += " AND aq.asset_id = ?";    params.push(Number(assetId)); }
     if (status) {
       const statuses = status.split(",").map(s => s.trim()).filter(Boolean);
@@ -2728,6 +2774,7 @@ router.get("/asset-queries", async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT aq.id, aq.asset_id AS "assetId", a.asset_name AS "assetName",
               a.asset_unique_id AS "assetUniqueId",
+              co.company_name AS "companyName",
               aq.raised_by AS "raisedBy", cu_r.full_name AS "raisedByName",
               aq.assigned_to AS "assignedTo", cu_a.full_name AS "assignedToName",
               aq.title, aq.description, aq.images, aq.status, aq.priority,
@@ -2738,6 +2785,7 @@ router.get("/asset-queries", async (req, res, next) => {
               aq.created_at AS "createdAt", aq.updated_at AS "updatedAt"
        FROM asset_queries aq
        JOIN assets a ON a.id = aq.asset_id
+       LEFT JOIN companies co ON co.id = aq.company_id
        LEFT JOIN company_users cu_r   ON cu_r.id  = aq.raised_by
        LEFT JOIN company_users cu_a   ON cu_a.id  = aq.assigned_to
        LEFT JOIN company_users cu_res ON cu_res.id = aq.resolved_by
@@ -4778,15 +4826,17 @@ router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    // Store cutoff as computed hours from now, or just track in a note
-    // Since asset_queries has cutoff_hours (INT), compute hours from now
-    let hoursFromNow = null;
+    // Store the absolute cutoff datetime directly
+    let deadline = null;
     if (cutoffTime) {
-      const diff = new Date(cutoffTime).getTime() - Date.now();
-      hoursFromNow = Math.max(1, Math.round(diff / 3600000));
+      const d = new Date(cutoffTime);
+      if (!isNaN(d.getTime())) deadline = d;
     }
-    await pool.execute("UPDATE asset_queries SET cutoff_hours = ?, updated_at = NOW() WHERE id = ?", [hoursFromNow, aqId]);
-    res.json({ message: "Cutoff updated", cutoffTime });
+    await pool.execute(
+      "UPDATE asset_queries SET cutoff_time = ?, updated_at = NOW() WHERE id = ?",
+      [deadline, aqId]
+    );
+    res.json({ message: "Cutoff updated", cutoffTime: deadline });
   } catch (err) { next(err); }
 });
 
@@ -4808,7 +4858,7 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
 
     const { status, remark } = req.body;
 
-    const VALID = ["open", "in_progress", "completed", "closed"];
+    const VALID = ["open", "assigned", "in_progress", "on_hold", "completed", "closed"];
     if (!VALID.includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
@@ -4860,7 +4910,7 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
     }
 
     const { status, remark } = req.body;
-    const VALID = ["open", "in_progress", "completed", "closed"];
+    const VALID = ["open", "assigned", "in_progress", "on_hold", "completed", "closed"];
     if (!VALID.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
     const [[wo]] = await pool.query(

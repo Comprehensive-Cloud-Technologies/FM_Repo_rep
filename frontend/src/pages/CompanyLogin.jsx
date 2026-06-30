@@ -17,6 +17,7 @@ export default function CompanyLogin() {
     try {
       const res = await companyLogin(form);
       sessionStorage.setItem("cp_token", res.token);
+      sessionStorage.setItem("cp_token_base", res.token); // preserved for All Hospitals mode
       sessionStorage.setItem("cp_user", JSON.stringify(res.user));
       navigate("/company/portal", { replace: true });
     } catch (err) {

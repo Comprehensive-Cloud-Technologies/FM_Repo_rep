@@ -573,7 +573,7 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function RequestTrackingPanel({ token, companyPortalToken, companyId, employees = [], departments = [], isAdmin = false, isSupervisor = false }) {
+export default function RequestTrackingPanel({ token, companyPortalToken, companyId, employees = [], departments = [], isAdmin = false, isSupervisor = false, allCompaniesMode = false }) {
   const canManage = isAdmin || isSupervisor;
   const authToken = companyPortalToken || token;
 
@@ -602,6 +602,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         else if (statusFilter === "overdue") ef.overdue = true;
         else ef.status = statusFilter;
       }
+      if (allCompaniesMode) ef.allCompanies = true;
       const qs = buildQS({ ...ef, page, limit: LIMIT });
       const data = await apiFetch("GET", `/api/company-portal/healthcare/requests${qs}`, undefined, authToken);
       setRequests(Array.isArray(data.data) ? data.data : []);
@@ -609,7 +610,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       setPagination(data.pagination || { page: 1, total: 0, pages: 1 });
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [authToken, filters, statusFilter, page]);
+  }, [authToken, filters, statusFilter, page, allCompaniesMode]);
 
   useEffect(() => { load(); }, [load]);
 

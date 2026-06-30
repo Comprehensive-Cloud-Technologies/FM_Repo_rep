@@ -934,6 +934,7 @@ export interface ManualAssetPayload {
   floor?: string;
   room?: string;
   workingStatus?: string;
+  is_verified?: 0 | 1;
   criticality?: string;
   calibrationRequired?: boolean;
   calibrationFrequency?: string;

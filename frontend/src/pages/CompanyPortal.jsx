@@ -5045,6 +5045,7 @@ const CompanyPortal = () => {
   const [assetSearch, setAssetSearch] = useState("");
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [assetStatusFilter, setAssetStatusFilter] = useState("all");
+  const [approvedStatusFilter, setApprovedStatusFilter] = useState("");
   const [assetCompanyFilter, setAssetCompanyFilter] = useState(""); // "" = all companies
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
 
@@ -6260,20 +6261,24 @@ const CompanyPortal = () => {
       const matchesTermFull = matchesTerm || (!!term && [am.equipmentName, am.make, am.manufacturer, am.model, am.serialNo, am.dealer, am.distributor, am.mfgYear, am.accessories, am.remarks, am.workingStatus, am.criticality, a.departmentName, a.assignedToName, a.createdByName].some(v => v && String(v).toLowerCase().includes(term)));
       const matchesStatus = (() => {
         if (assetStatusFilter === 'all') return true;
-        const isVerified = Number(a.isVerified || a.is_verified) === 1;
-        if (assetStatusFilter === 'Verified') return isVerified;
-        if (assetStatusFilter === 'unverified') return !isVerified;
-        if (assetStatusFilter === 'WIP') return (am.workingStatus || '').toLowerCase() === 'wip';
-        if (assetStatusFilter === 'Not_Working') return (am.workingStatus || '').toLowerCase().replace(/[_ ]/g, '') === 'notworking';
+        if (assetStatusFilter === 'HNF') return (a.working_status || am.workingStatus || '').toLowerCase() === 'hnf';
+        if (assetStatusFilter === 'Working') return (am.workingStatus || a.working_status || '').toLowerCase() === 'working';
+        if (assetStatusFilter === 'WIP') return (am.workingStatus || a.working_status || '').toLowerCase() === 'wip';
+        if (assetStatusFilter === 'Not_Working') return (am.workingStatus || a.working_status || '').toLowerCase().replace(/[_ ]/g, '') === 'notworking';
         if (assetStatusFilter === 'RBER') return !!am.rber;
-        if (assetStatusFilter === 'Condemned') return (am.workingStatus || '').toLowerCase() === 'condemned';
-        if (assetStatusFilter === 'Critical') return (a.criticality || am.criticality || '').toLowerCase() === 'critical';
-        if (assetStatusFilter === 'Non_Critical') return (a.criticality || am.criticality || 'non_critical').toLowerCase() !== 'critical';
+        if (assetStatusFilter === 'Condemned') return (am.workingStatus || a.working_status || '').toLowerCase() === 'condemned';
         return (a.status || '').toLowerCase() === assetStatusFilter.toLowerCase();
       })();
-      return matchesType && matchesTermFull && matchesStatus && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
+      const matchesApproved = (() => {
+        if (!approvedStatusFilter) return true;
+        const isVer = Number(a.isVerified || a.is_verified) === 1;
+        if (approvedStatusFilter === 'Verified') return isVer;
+        if (approvedStatusFilter === 'Unverified') return !isVer;
+        return true;
+      })();
+      return matchesType && matchesTermFull && matchesStatus && matchesApproved && (assetCompanyFilter === "" || String(a.companyId) === String(assetCompanyFilter));
     });
-  }, [assets, assetTypeFilter, assetSearch, assetStatusFilter, assetCompanyFilter]);
+  }, [assets, assetTypeFilter, assetSearch, assetStatusFilter, approvedStatusFilter, assetCompanyFilter]);
 
 
 
@@ -20560,17 +20565,17 @@ const CompanyPortal = () => {
                     </select>
                     <select value={assetStatusFilter} onChange={(e) => setAssetStatusFilter(e.target.value)} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
                       <option value="all">All Status</option>
-                      <option value="Active">Active</option>
+                      <option value="HNF">HNF</option>
                       <option value="Working">Working</option>
-                      <option value="Verified">Verified</option>
-                      <option value="unverified">Unverified</option>
-                      <option value="Inactive">Inactive</option>
                       <option value="WIP">WIP</option>
                       <option value="Not_Working">Not Working</option>
                       <option value="RBER">RBER</option>
                       <option value="Condemned">Condemned</option>
-                      <option value="Critical">Critical</option>
-                      <option value="Non_Critical">Non-Critical</option>
+                    </select>
+                    <select value={approvedStatusFilter} onChange={(e) => setApprovedStatusFilter(e.target.value)} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none" }}>
+                      <option value="">All Approval</option>
+                      <option value="Verified">Verified</option>
+                      <option value="Unverified">Unverified</option>
                     </select>
                     <select value={assetCompanyFilter} onChange={(e) => { setAssetCompanyFilter(e.target.value); }} style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12.5px", background: "#fff", outline: "none", maxWidth: "180px" }}>
                       <option value="">All Companies</option>
