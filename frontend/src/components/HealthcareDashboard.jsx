@@ -158,34 +158,34 @@ function PieChart({ data, size = 200, compact = false }) {
 
 function BarChart({ data, height = 200, onBarClick }) {
   if (!data || data.length === 0) return <EmptyState small />;
-  const maxVal = Math.max(...data.flatMap(d => [d.critical, d.nonCritical]), 1);
+  const maxVal = Math.max(...data.map(d => (d.critical || 0) + (d.nonCritical || 0)), 1);
 
   return (
     <div style={{ overflowX: "auto" }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", minWidth: `${data.length * 70}px`, height: `${height}px`, padding: "8px 0" }}>
         {data.map((d, i) => {
-          const critH = (d.critical / maxVal) * (height - 50);
-          const nonCritH = (d.nonCritical / maxVal) * (height - 50);
+          const total = (d.critical || 0) + (d.nonCritical || 0);
+          const totalH = (total / maxVal) * (height - 50);
+          const critH  = (( d.critical || 0) / maxVal) * (height - 50);
           return (
             <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
               <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 50}px` }}>
+                {/* Bar 1: Total Qty */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-                  {d.critical > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#ef4444", marginBottom: "2px" }}>{d.critical}</span>}
+                  {total > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#2563eb", marginBottom: "2px" }}>{total}</span>}
                   <div
-                    title={`Critical: ${d.critical} — click to view assets`}
-                    onClick={() => onBarClick && d.critical > 0 && onBarClick(d.dept, "Critical", d.deptId)}
-                    style={{ width: "14px", background: "linear-gradient(180deg,#f87171,#ef4444)", borderRadius: "3px 3px 0 0", height: `${critH}px`, minHeight: d.critical ? "3px" : "0", cursor: onBarClick && d.critical > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
-                    onMouseEnter={e => { if (onBarClick && d.critical > 0) e.target.style.opacity = "0.7"; }}
-                    onMouseLeave={e => { e.target.style.opacity = "1"; }}
+                    title={`Total: ${total}`}
+                    style={{ width: "14px", background: "linear-gradient(180deg,#60a5fa,#2563eb)", borderRadius: "3px 3px 0 0", height: `${totalH}px`, minHeight: total ? "3px" : "0", cursor: "default" }}
                   />
                 </div>
+                {/* Bar 2: Critical */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-                  {d.nonCritical > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#3b82f6", marginBottom: "2px" }}>{d.nonCritical}</span>}
+                  {(d.critical || 0) > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#ef4444", marginBottom: "2px" }}>{d.critical}</span>}
                   <div
-                    title={`Non-Critical: ${d.nonCritical} — click to view assets`}
-                    onClick={() => onBarClick && d.nonCritical > 0 && onBarClick(d.dept, "Non_Critical", d.deptId)}
-                    style={{ width: "14px", background: "linear-gradient(180deg,#60a5fa,#3b82f6)", borderRadius: "3px 3px 0 0", height: `${nonCritH}px`, minHeight: d.nonCritical ? "3px" : "0", cursor: onBarClick && d.nonCritical > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
-                    onMouseEnter={e => { if (onBarClick && d.nonCritical > 0) e.target.style.opacity = "0.7"; }}
+                    title={`Critical: ${d.critical || 0} — click to view assets`}
+                    onClick={() => onBarClick && (d.critical || 0) > 0 && onBarClick(d.dept, "Critical", d.deptId)}
+                    style={{ width: "14px", background: "linear-gradient(180deg,#f87171,#ef4444)", borderRadius: "3px 3px 0 0", height: `${critH}px`, minHeight: (d.critical || 0) ? "3px" : "0", cursor: onBarClick && (d.critical || 0) > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
+                    onMouseEnter={e => { if (onBarClick && (d.critical || 0) > 0) e.target.style.opacity = "0.7"; }}
                     onMouseLeave={e => { e.target.style.opacity = "1"; }}
                   />
                 </div>
@@ -196,7 +196,7 @@ function BarChart({ data, height = 200, onBarClick }) {
         })}
       </div>
       <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "8px" }}>
-        {[["linear-gradient(180deg,#f87171,#ef4444)","Critical (click to drill down)"],["linear-gradient(180deg,#60a5fa,#3b82f6)","Non-Critical (click to drill down)"]].map(([grad, lbl]) => (
+        {[["linear-gradient(180deg,#60a5fa,#2563eb)","Total Assets"],["linear-gradient(180deg,#f87171,#ef4444)","Critical (click to drill down)"]].map(([grad, lbl]) => (
           <div key={lbl} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#374151" }}>
             <div style={{ width: "12px", height: "12px", background: grad, borderRadius: "2px" }} />
             {lbl}
@@ -1958,9 +1958,11 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead style={{ position: "sticky", top: 0, background: "#1e3a5f", zIndex: 1 }}>
                   <tr>
-                    {["SN", "Department", "Qty", "Critical", "Non Critical"].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", textAlign: h === "SN" ? "center" : h === "Department" ? "left" : "center", color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
+                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>SN</th>
+                    <th style={{ padding: "10px 14px", textAlign: "left",    color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Department</th>
+                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Qty</th>
+                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Critical</th>
+                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Non Critical</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1975,12 +1977,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                           <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px", textAlign: "center" }}>{i + 1}</td>
                           <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
                           <td style={{ padding: "9px 14px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
-                          <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                            <span style={{ background: "#fee2e2", color: "#dc2626", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>{d.critical || 0}</span>
-                          </td>
-                          <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                            <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>{d.nonCritical || 0}</span>
-                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.critical || 0}</td>
+                          <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.nonCritical || 0}</td>
                         </tr>
                       );
                     })}
@@ -1991,15 +1989,11 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                     <td style={{ padding: "10px 14px", fontWeight: 900, color: "#fff", fontSize: "14px", textAlign: "center" }}>
                       {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
                     </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                      <span style={{ background: "#fee2e2", color: "#dc2626", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 800 }}>
-                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
-                      </span>
+                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#fff", fontSize: "14px" }}>
+                      {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
                     </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                      <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 800 }}>
-                        {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
-                      </span>
+                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#fff", fontSize: "14px" }}>
+                      {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
                     </td>
                   </tr>
                 </tfoot>
