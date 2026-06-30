@@ -1405,7 +1405,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         const snap = await hcFetch('/aggregate-snapshot', token);
         if (reqId !== _hcReqId) return; // superseded — discard
         setSnapshot(snap);
-        setCharts(null);
+        // Populate charts with dept criticality from the aggregate response
+        setCharts(snap.criticalityByDept?.length ? { criticalityByDept: snap.criticalityByDept } : null);
       } else {
         const qs = buildQS(appliedFilters);
         const [snap, ch] = await Promise.all([
@@ -1796,21 +1797,15 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           <ChartCard
             title="Criticality by Department"
             subtitle="Click a bar to view those assets"
-            action={!allCompaniesMode && charts?.criticalityByDept?.length > 0 ? (
+            action={charts?.criticalityByDept?.length > 0 ? (
               <button onClick={() => setShowDeptSummary(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="3"/></svg>
                 View Summary
               </button>
             ) : null}
           >
-            {chartLoading ? <Spinner /> : allCompaniesMode ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "120px", gap: "6px", color: "#6d28d9" }}>
-                <span style={{ fontSize: "22px" }}>🏥</span>
-                <span style={{ fontSize: "12px", fontWeight: 600 }}>Select a specific hospital</span>
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>to view department-level charts</span>
-              </div>
-            ) : charts?.criticalityByDept ?
-              <BarChart data={charts.criticalityByDept} onBarClick={openChartDrilldown} /> :
+            {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
+              <BarChart data={charts.criticalityByDept} onBarClick={allCompaniesMode ? null : openChartDrilldown} /> :
               <EmptyState small />
             }
           </ChartCard>

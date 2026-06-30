@@ -230,7 +230,7 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
     const companyIds = [...new Set([primaryId, ...extra.map(r => r.company_id)])];
     const placeholders = companyIds.map(() => '?').join(',');
 
-    const [[assetRow], [[reqStats]], [[calibStats]]] = await Promise.all([
+    const [[assetRow], [[reqStats]], [[calibStats]], [deptRows]] = await Promise.all([
       pool.query(
         `SELECT
            COUNT(*)                                                             AS total,
@@ -297,6 +297,17 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
          FROM assets a WHERE a.company_id IN (${placeholders})`,
         [...companyIds, ...companyIds]
       ),
+      pool.query(
+        `SELECT d.id AS dept_id, COALESCE(d.name,'Unknown') AS dept,
+                SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END)     AS critical,
+                SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END) AS non_critical
+         FROM assets a
+         LEFT JOIN departments d ON d.id = a.department_id
+         WHERE a.company_id IN (${placeholders})
+         GROUP BY d.id, d.name
+         ORDER BY (SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END) + SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END)) DESC`,
+        companyIds
+      ),
     ]);
 
     const snap = assetRow[0];
@@ -327,6 +338,12 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
       calibrationOverdue:            Number(calibStats.overdue              || 0),
       calibrationUpcoming:           Number(calibStats.upcoming             || 0),
       calibrationCompletedThisMonth: Number(calibStats.completed_this_month || 0),
+      criticalityByDept: deptRows.map(r => ({
+        deptId:      r.dept_id,
+        dept:        r.dept,
+        critical:    Number(r.critical    || 0),
+        nonCritical: Number(r.non_critical || 0),
+      })),
       companies: companyIds,
     });
   } catch (err) { next(err); }
