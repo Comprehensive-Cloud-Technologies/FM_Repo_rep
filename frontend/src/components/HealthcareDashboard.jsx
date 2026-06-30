@@ -1153,14 +1153,14 @@ function ReviewsSection({ token, compact = false }) {
         {loading && <div style={{ color: '#94a3b8', fontSize: '12px' }}>Loading…</div>}
         {!loading && (!data || totalRatings === 0) && (
           <>
-            {[{s:5,w:'75%'},{s:4,w:'50%'}].map(({s,w}) => {
+            {[{s:5,w:'75%',filled:true},{s:4,w:'50%',filled:true},{s:3,w:'0%',filled:false},{s:2,w:'0%',filled:false},{s:1,w:'0%',filled:false}].map(({s,w,filled}) => {
               const cfg = RR_STAR_COLORS[s];
               return (
-                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', opacity: 0.45 }}>
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', opacity: filled ? 0.55 : 0.25 }}>
                   <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 7, textAlign: 'right' }}>{s}</span>
-                  <svg width={9} height={9} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <svg width={9} height={9} viewBox="0 0 24 24" fill={filled ? cfg.fill : '#cbd5e1'} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                   <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: w, background: cfg.fill, borderRadius: 4 }} />
+                    {filled && <div style={{ height: '100%', width: w, background: cfg.fill, borderRadius: 4 }} />}
                   </div>
                 </div>
               );
@@ -1944,38 +1944,23 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
           >
             {/* Header */}
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
-                  <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
-                </div>
-                <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
               </div>
-              {/* Totals strip */}
-              <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
-                {[
-                  { label: "Total Assets", value: charts?.criticalityByDept?.reduce((s, d) => s + (d.critical||0) + (d.nonCritical||0), 0), color: "#1e3a5f", bg: "#eff6ff" },
-                  { label: "Critical",     value: charts?.criticalityByDept?.reduce((s, d) => s + (d.critical||0), 0),    color: "#dc2626", bg: "#fee2e2" },
-                  { label: "Non Critical", value: charts?.criticalityByDept?.reduce((s, d) => s + (d.nonCritical||0), 0), color: "#1d4ed8", bg: "#dbeafe" },
-                ].map(({ label, value, color, bg }) => (
-                  <div key={label} style={{ flex: 1, background: bg, borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "3px" }}>{label}</div>
-                    <div style={{ fontSize: "20px", fontWeight: 900, color, lineHeight: 1 }}>{value ?? "—"}</div>
-                  </div>
-                ))}
-              </div>
+              <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
             </div>
             {/* Table */}
             <div style={{ overflowY: "auto", flex: 1 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead style={{ position: "sticky", top: 0, background: "#1e3a5f", zIndex: 1 }}>
-                  <tr>
-                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>SN</th>
-                    <th style={{ padding: "10px 14px", textAlign: "left",    color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Department</th>
-                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Qty</th>
-                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Critical</th>
-                    <th style={{ padding: "10px 14px", textAlign: "center",  color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Non Critical</th>
+                <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                  <tr style={{ background: "#bfdbfe" }}>
+                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
+                    <th style={{ padding: "9px 14px", textAlign: "left",    color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
+                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
+                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
+                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1997,15 +1982,15 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                     })}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: "#1e3a5f" }}>
-                    <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#fff", fontSize: "13px" }}>Grand Total</td>
-                    <td style={{ padding: "10px 14px", fontWeight: 900, color: "#fff", fontSize: "14px", textAlign: "center" }}>
+                  <tr style={{ background: "#bfdbfe" }}>
+                    <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
+                    <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
                       {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
                     </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#fff", fontSize: "14px" }}>
+                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
                       {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
                     </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#fff", fontSize: "14px" }}>
+                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
                       {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
                     </td>
                   </tr>
