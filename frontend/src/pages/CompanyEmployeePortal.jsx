@@ -4153,7 +4153,10 @@ export default function CompanyEmployeePortal() {
   const [switchingCompany, setSwitchingCompany] = useState(false);
   const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
   const [companySwitcherSearch, setCompanySwitcherSearch] = useState("");
-  const [allCompaniesMode, setAllCompaniesMode] = useState(false);
+  // Default to All Hospitals on fresh login; persist choice across refreshes
+  const [allCompaniesMode, setAllCompaniesMode] = useState(() =>
+    sessionStorage.getItem("cp_all_companies_mode") !== "false"
+  );
 
   // URL-driven navigation: /company/portal/dashboard — enables browser back/forward
   const [nav, setNavState] = useState(() => {
@@ -5497,6 +5500,7 @@ export default function CompanyEmployeePortal() {
             // uses the admin's full company scope, not the last switched-to company.
             const baseToken = sessionStorage.getItem("cp_token_base");
             if (baseToken) sessionStorage.setItem("cp_token", baseToken);
+            sessionStorage.setItem("cp_all_companies_mode", "true");
             setCompanySwitcherOpen(false);
             setAllCompaniesMode(true);
             setAssets([]);
@@ -5532,7 +5536,8 @@ export default function CompanyEmployeePortal() {
                             onClick={async () => {
                               setCompanySwitcherOpen(false);
                               setAllCompaniesMode(false);
-                              if (c.companyId === currentUser?.companyId) return;
+                              sessionStorage.setItem("cp_all_companies_mode", "false");
+                              if (!allCompaniesMode && c.companyId === currentUser?.companyId) return;
                               const selected = accessibleCompanies.find(x => x.companyId === c.companyId);
                               if (selected) setCompanyDisplayName(selected.companyName);
                               setSwitchingCompany(true);

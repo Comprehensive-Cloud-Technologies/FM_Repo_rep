@@ -1152,7 +1152,22 @@ function ReviewsSection({ token, compact = false }) {
         <p style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Ratings &amp; Reviews</p>
         {loading && <div style={{ color: '#94a3b8', fontSize: '12px' }}>Loading…</div>}
         {!loading && (!data || totalRatings === 0) && (
-          <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '10px 0' }}>No reviews yet</div>
+          <>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', textAlign: 'center' }}>Sample Preview</div>
+            {[{s:5,w:'75%'},{s:4,w:'50%'},{s:3,w:'30%'},{s:2,w:'15%'},{s:1,w:'8%'}].map(({s,w}) => {
+              const cfg = RR_STAR_COLORS[s];
+              return (
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', opacity: 0.45 }}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 7, textAlign: 'right' }}>{s}</span>
+                  <svg width={9} height={9} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: w, background: cfg.fill, borderRadius: 4 }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ fontSize: '10px', color: '#cbd5e1', textAlign: 'center', marginTop: '8px' }}>No reviews yet</div>
+          </>
         )}
         {!loading && data && totalRatings > 0 && (
           <>
@@ -1374,6 +1389,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [complaintRequests, setComplaintRequests] = useState([]);
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [exportDDOpen, setExportDDOpen] = useState(false);
+  const [showDeptSummary, setShowDeptSummary] = useState(false);
   const complaintPanelRef = useRef(null);
 
   /* Load snapshot KPIs */
@@ -1779,7 +1795,16 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           {/* Pie: Working Status — now shown inline above, removed from here */}
 
           {/* Bar: Criticality by Dept */}
-          <ChartCard title="Criticality by Department" subtitle="Click a bar to view those assets">
+          <ChartCard
+            title="Criticality by Department"
+            subtitle="Click a bar to view those assets"
+            action={!allCompaniesMode && charts?.criticalityByDept?.length > 0 ? (
+              <button onClick={() => setShowDeptSummary(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="3"/></svg>
+                View Summary
+              </button>
+            ) : null}
+          >
             {chartLoading ? <Spinner /> : allCompaniesMode ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "120px", gap: "6px", color: "#6d28d9" }}>
                 <span style={{ fontSize: "22px" }}>🏥</span>
@@ -1909,6 +1934,80 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       </section>
 
       {/* ── RATINGS & REVIEWS removed — shown inline beside Complaint Profile above ── */}
+
+      {/* ── DEPARTMENT SUMMARY MODAL ── */}
+      {showDeptSummary && charts?.criticalityByDept && (
+        <div
+          onClick={() => setShowDeptSummary(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
+          >
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
+              </div>
+              <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+            </div>
+            {/* Table */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead style={{ position: "sticky", top: 0, background: "#1e3a5f", zIndex: 1 }}>
+                  <tr>
+                    {["SN", "Department", "Qty", "Critical", "Non Critical"].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: h === "SN" ? "center" : h === "Department" ? "left" : "center", color: "#fff", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...charts.criticalityByDept]
+                    .sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical))
+                    .map((d, i) => {
+                      const qty = (d.critical || 0) + (d.nonCritical || 0);
+                      return (
+                        <tr key={d.deptId || i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
+                          <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px", textAlign: "center" }}>{i + 1}</td>
+                          <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
+                          <td style={{ padding: "9px 14px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
+                          <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                            <span style={{ background: "#fee2e2", color: "#dc2626", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>{d.critical || 0}</span>
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "center" }}>
+                            <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>{d.nonCritical || 0}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: "#1e3a5f" }}>
+                    <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#fff", fontSize: "13px" }}>Grand Total</td>
+                    <td style={{ padding: "10px 14px", fontWeight: 900, color: "#fff", fontSize: "14px", textAlign: "center" }}>
+                      {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
+                    </td>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                      <span style={{ background: "#fee2e2", color: "#dc2626", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 800 }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                      <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "2px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 800 }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
