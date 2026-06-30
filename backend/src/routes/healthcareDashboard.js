@@ -370,7 +370,7 @@ router.get("/charts", validate([
       p
     );
 
-    // Bar: Critical vs Non_Critical by department
+    // Bar: Critical vs Non_Critical by department — all departments, no limit
     const [critByDept] = await pool.query(
       `SELECT d.id AS dept_id, COALESCE(d.name,'Unknown') AS dept,
               SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END)     AS critical,
@@ -379,8 +379,7 @@ router.get("/charts", validate([
        LEFT JOIN departments d ON d.id = a.department_id
        ${where}
        GROUP BY d.id, d.name
-       ORDER BY (critical + non_critical) DESC
-       LIMIT 10`,
+       ORDER BY (critical + non_critical) DESC`,
       p
     );
 
