@@ -156,45 +156,77 @@ function PieChart({ data, size = 200, compact = false }) {
   );
 }
 
-function BarChart({ data, height = 200, onBarClick }) {
+function BarChart({ data, height = 200, onBarClick, groupByHospital = false }) {
   if (!data || data.length === 0) return <EmptyState small />;
   const maxVal = Math.max(...data.map(d => (d.critical || 0) + (d.nonCritical || 0)), 1);
 
+  // Group data by hospital when requested
+  const groups = groupByHospital
+    ? data.reduce((acc, d) => {
+        const key = d.hospital || 'Unknown Hospital';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(d);
+        return acc;
+      }, {})
+    : null;
+
+  const renderBar = (d, i) => {
+    const total = (d.critical || 0) + (d.nonCritical || 0);
+    const totalH = (total / maxVal) * (height - 50);
+    const critH  = ((d.critical || 0) / maxVal) * (height - 50);
+    return (
+      <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 50}px` }}>
+          {/* Bar 1: Total Qty */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+            {total > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#2563eb", marginBottom: "2px" }}>{total}</span>}
+            <div
+              title={`Total: ${total}`}
+              style={{ width: "14px", background: "linear-gradient(180deg,#60a5fa,#2563eb)", borderRadius: "3px 3px 0 0", height: `${totalH}px`, minHeight: total ? "3px" : "0", cursor: "default" }}
+            />
+          </div>
+          {/* Bar 2: Critical */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+            {(d.critical || 0) > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#ef4444", marginBottom: "2px" }}>{d.critical}</span>}
+            <div
+              title={`Critical: ${d.critical || 0} — click to view assets`}
+              onClick={() => onBarClick && (d.critical || 0) > 0 && onBarClick(d.dept, "Critical", d.deptId)}
+              style={{ width: "14px", background: "linear-gradient(180deg,#f87171,#ef4444)", borderRadius: "3px 3px 0 0", height: `${critH}px`, minHeight: (d.critical || 0) ? "3px" : "0", cursor: onBarClick && (d.critical || 0) > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
+              onMouseEnter={e => { if (onBarClick && (d.critical || 0) > 0) e.target.style.opacity = "0.7"; }}
+              onMouseLeave={e => { e.target.style.opacity = "1"; }}
+            />
+          </div>
+        </div>
+        <div style={{ fontSize: "10px", color: "#64748b", textAlign: "center", wordBreak: "break-all", lineHeight: 1.2, maxWidth: "56px" }}>{d.dept}</div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ overflowX: "auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", minWidth: `${data.length * 70}px`, height: `${height}px`, padding: "8px 0" }}>
-        {data.map((d, i) => {
-          const total = (d.critical || 0) + (d.nonCritical || 0);
-          const totalH = (total / maxVal) * (height - 50);
-          const critH  = (( d.critical || 0) / maxVal) * (height - 50);
-          return (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 50}px` }}>
-                {/* Bar 1: Total Qty */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-                  {total > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#2563eb", marginBottom: "2px" }}>{total}</span>}
-                  <div
-                    title={`Total: ${total}`}
-                    style={{ width: "14px", background: "linear-gradient(180deg,#60a5fa,#2563eb)", borderRadius: "3px 3px 0 0", height: `${totalH}px`, minHeight: total ? "3px" : "0", cursor: "default" }}
-                  />
-                </div>
-                {/* Bar 2: Critical */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-                  {(d.critical || 0) > 0 && <span style={{ fontSize: "9px", fontWeight: 700, color: "#ef4444", marginBottom: "2px" }}>{d.critical}</span>}
-                  <div
-                    title={`Critical: ${d.critical || 0} — click to view assets`}
-                    onClick={() => onBarClick && (d.critical || 0) > 0 && onBarClick(d.dept, "Critical", d.deptId)}
-                    style={{ width: "14px", background: "linear-gradient(180deg,#f87171,#ef4444)", borderRadius: "3px 3px 0 0", height: `${critH}px`, minHeight: (d.critical || 0) ? "3px" : "0", cursor: onBarClick && (d.critical || 0) > 0 ? "pointer" : "default", transition: "opacity 0.12s" }}
-                    onMouseEnter={e => { if (onBarClick && (d.critical || 0) > 0) e.target.style.opacity = "0.7"; }}
-                    onMouseLeave={e => { e.target.style.opacity = "1"; }}
-                  />
-                </div>
+      {groupByHospital && groups ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {Object.entries(groups).map(([hospital, depts]) => (
+            <div key={hospital}>
+              {/* Hospital header band */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", padding: "5px 10px", background: "linear-gradient(90deg,#eff6ff,#f8fafc)", borderRadius: "6px", borderLeft: "3px solid #2563eb" }}>
+                <span style={{ fontSize: "11px", fontWeight: 800, color: "#1e40af", textTransform: "uppercase", letterSpacing: "0.05em" }}>🏥 {hospital}</span>
+                <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 500 }}>
+                  {depts.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)} assets · {depts.reduce((s, d) => s + (d.critical || 0), 0)} critical
+                </span>
               </div>
-              <div style={{ fontSize: "10px", color: "#64748b", textAlign: "center", wordBreak: "break-all", lineHeight: 1.2, maxWidth: "56px" }}>{d.dept}</div>
+              {/* Bars for this hospital */}
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", minWidth: `${depts.length * 70}px`, height: `${height}px`, padding: "8px 0" }}>
+                {depts.map((d, i) => renderBar(d, i))}
+              </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", minWidth: `${data.length * 70}px`, height: `${height}px`, padding: "8px 0" }}>
+          {data.map((d, i) => renderBar(d, i))}
+        </div>
+      )}
       <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "8px" }}>
         {[["linear-gradient(180deg,#60a5fa,#2563eb)","Total Assets"],["linear-gradient(180deg,#f87171,#ef4444)","Critical (click to drill down)"]].map(([grad, lbl]) => (
           <div key={lbl} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#374151" }}>
@@ -1805,7 +1837,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             ) : null}
           >
             {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
-              <BarChart data={charts.criticalityByDept} onBarClick={allCompaniesMode ? null : openChartDrilldown} /> :
+              <BarChart data={charts.criticalityByDept} onBarClick={allCompaniesMode ? null : openChartDrilldown} groupByHospital={allCompaniesMode} /> :
               <EmptyState small />
             }
           </ChartCard>
@@ -1936,61 +1968,138 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
+            style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: allCompaniesMode ? "820px" : "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
           >
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
               <div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>Department-wise Asset Summary</div>
-                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Critical &amp; Non-Critical breakdown by department</div>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>{allCompaniesMode ? "Hospital-wise Department Asset Summary" : "Department-wise Asset Summary"}</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{allCompaniesMode ? "Critical & Non-Critical breakdown across all hospitals" : "Critical & Non-Critical breakdown by department"}</div>
               </div>
               <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
             </div>
             {/* Table */}
             <div style={{ overflowY: "auto", flex: 1 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                  <tr style={{ background: "#bfdbfe" }}>
-                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
-                    <th style={{ padding: "9px 14px", textAlign: "left",    color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
-                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
-                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
-                    <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...charts.criticalityByDept]
-                    .sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical))
-                    .map((d, i) => {
-                      const qty = (d.critical || 0) + (d.nonCritical || 0);
-                      return (
-                        <tr key={d.deptId || i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
-                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
-                          <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px", textAlign: "center" }}>{i + 1}</td>
-                          <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
-                          <td style={{ padding: "9px 14px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
-                          <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.critical || 0}</td>
-                          <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.nonCritical || 0}</td>
+              {allCompaniesMode ? (
+                /* ── Hospital-wise grouped view ── */
+                (() => {
+                  const groups = charts.criticalityByDept.reduce((acc, d) => {
+                    const h = d.hospital || 'Unknown Hospital';
+                    if (!acc[h]) acc[h] = [];
+                    acc[h].push(d);
+                    return acc;
+                  }, {});
+                  let globalSn = 0;
+                  return (
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                        <tr style={{ background: "#bfdbfe" }}>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
+                          <th style={{ padding: "9px 14px", textAlign: "left", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Hospital</th>
+                          <th style={{ padding: "9px 14px", textAlign: "left", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
                         </tr>
-                      );
-                    })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: "#bfdbfe" }}>
-                    <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
-                    <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
-                      {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
-                    </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
-                      {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
-                    </td>
-                    <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
-                      {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                      </thead>
+                      <tbody>
+                        {Object.entries(groups).map(([hospital, depts], hIdx) => {
+                          const hospTotal     = depts.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0);
+                          const hospCritical  = depts.reduce((s, d) => s + (d.critical || 0), 0);
+                          const hospNonCrit   = depts.reduce((s, d) => s + (d.nonCritical || 0), 0);
+                          const sortedDepts   = [...depts].sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical));
+                          return [
+                            /* Hospital subtotal row */
+                            <tr key={`h-${hIdx}`} style={{ background: "#dbeafe", borderTop: hIdx > 0 ? "2px solid #93c5fd" : undefined }}>
+                              <td colSpan={2} style={{ padding: "8px 14px", fontWeight: 800, color: "#1e40af", fontSize: "12px" }}>🏥 {hospital}</td>
+                              <td style={{ padding: "8px 14px", fontWeight: 800, color: "#1e40af", fontSize: "12px" }}>— {sortedDepts.length} depts</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#1e40af", fontSize: "13px", textAlign: "center" }}>{hospTotal}</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#dc2626", fontSize: "13px", textAlign: "center" }}>{hospCritical}</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#0f172a", fontSize: "13px", textAlign: "center" }}>{hospNonCrit}</td>
+                            </tr>,
+                            /* Department rows under this hospital */
+                            ...sortedDepts.map((d, i) => {
+                              globalSn++;
+                              const qty = (d.critical || 0) + (d.nonCritical || 0);
+                              return (
+                                <tr key={`${hIdx}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
+                                  <td style={{ padding: "8px 10px", color: "#94a3b8", fontSize: "11px", textAlign: "center" }}>{globalSn}</td>
+                                  <td style={{ padding: "8px 14px", fontSize: "11px", color: "#64748b" }}>{hospital}</td>
+                                  <td style={{ padding: "8px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
+                                  <td style={{ padding: "8px 10px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
+                                  <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 700, color: qty > 0 && (d.critical || 0) === qty ? "#dc2626" : "#0f172a", fontSize: "12px" }}>{d.critical || 0}</td>
+                                  <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "12px" }}>{d.nonCritical || 0}</td>
+                                </tr>
+                              );
+                            }),
+                          ];
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: "#bfdbfe" }}>
+                          <td colSpan={3} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
+                          <td style={{ padding: "10px 10px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
+                          </td>
+                          <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 900, color: "#dc2626", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
+                          </td>
+                          <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()
+              ) : (
+                /* ── Single-hospital view (original) ── */
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                    <tr style={{ background: "#bfdbfe" }}>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
+                      <th style={{ padding: "9px 14px", textAlign: "left",    color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...charts.criticalityByDept]
+                      .sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical))
+                      .map((d, i) => {
+                        const qty = (d.critical || 0) + (d.nonCritical || 0);
+                        return (
+                          <tr key={d.deptId || i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                            onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
+                            <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px", textAlign: "center" }}>{i + 1}</td>
+                            <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
+                            <td style={{ padding: "9px 14px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.critical || 0}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.nonCritical || 0}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#bfdbfe" }}>
+                      <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
             </div>
           </div>
         </div>

@@ -570,6 +570,79 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
   );
 }
 
+/* ─── Set Cutoff Modal ────────────────────────────────────────────────────── */
+function SetCutoffModal({ wo, authToken, onClose, onSave }) {
+  const [dateVal, setDateVal] = useState(
+    wo.cutoff_time ? new Date(wo.cutoff_time).toISOString().slice(0, 16) : ''
+  );
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]       = useState(null);
+
+  const inpSt = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', background: '#fff' };
+
+  const save = async () => {
+    setSaving(true); setErr(null);
+    try {
+      if (wo.source_type === 'asset_query') {
+        await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/cutoff`, { cutoffTime: dateVal || null }, authToken);
+      } else {
+        await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/cutoff`, { expectedCompletionAt: dateVal || null }, authToken);
+      }
+      onSave(dateVal || null);
+    } catch (e) { setErr(e.message); setSaving(false); }
+  };
+
+  const clear = async () => {
+    setSaving(true); setErr(null);
+    try {
+      if (wo.source_type === 'asset_query') {
+        await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/cutoff`, { cutoffTime: null }, authToken);
+      } else {
+        await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/cutoff`, { expectedCompletionAt: null }, authToken);
+      }
+      onSave(null);
+    } catch (e) { setErr(e.message); setSaving(false); }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Set Cutoff Deadline" width="420px">
+      {err && (
+        <div style={{ background: '#fef2f2', color: '#dc2626', padding: '9px 12px', borderRadius: '7px', marginBottom: '14px', fontSize: '13px' }}>{err}</div>
+      )}
+      <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
+        Request: <strong style={{ color: '#0f172a' }}>{wo.work_order_number || `REQ-${wo.id}`}</strong>
+      </p>
+      {wo.cutoff_time && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '8px 12px', marginBottom: '14px', fontSize: '12.5px', color: '#854d0e' }}>
+          ⏰ Current deadline: <strong>{new Date(wo.cutoff_time).toLocaleString()}</strong>
+        </div>
+      )}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>New Deadline Date &amp; Time *</label>
+        <input
+          type="datetime-local"
+          value={dateVal}
+          onChange={e => setDateVal(e.target.value)}
+          style={inpSt}
+        />
+        <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: '#94a3b8' }}>When this deadline passes without resolution, the request will be auto-escalated to the supervisor.</p>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {wo.cutoff_time ? (
+          <button onClick={clear} disabled={saving}
+            style={{ padding: '7px 13px', borderRadius: '7px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            ✕ Remove Deadline
+          </button>
+        ) : <span />}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Btn variant="ghost" onClick={onClose} disabled={saving}>Cancel</Btn>
+          <Btn onClick={save} disabled={saving || !dateVal}>{saving ? 'Saving…' : 'Set Deadline'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -588,6 +661,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const [error, setError]         = useState(null);
   const [selectedWO, setSelectedWO] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cutoffWO, setCutoffWO]     = useState(null);  // request whose cutoff modal is open
   const [page, setPage]           = useState(1);
   const [openStatusMenu, setOpenStatusMenu] = useState(null); // row id with open status dropdown
   const LIMIT = 30;
@@ -845,37 +919,23 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                           {/* Row 2: Cutoff + Status/Acknowledge/Resolve */}
                           {canManage && (
                           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap' }}>
-                          {/* CUTOFF — compact clock button that opens hidden datetime picker */}
-                          {!['completed','closed'].includes(wo.status) && (
-                            <label title="Set cutoff time" style={{ position: 'relative', display: 'inline-flex', cursor: 'pointer' }}>
-                              <span style={{
+                          {/* CUTOFF — opens a proper deadline modal */}
+                          {!['completed','closed','resolved'].includes(wo.status) && (
+                            <button
+                              title={wo.cutoff_time ? `Deadline: ${new Date(wo.cutoff_time).toLocaleString()}` : 'Set cutoff deadline'}
+                              onClick={() => setCutoffWO(wo)}
+                              style={{
                                 padding: '4px 9px', borderRadius: '6px',
                                 border: `1.5px solid ${overdueFlag ? '#fca5a5' : '#e5e7eb'}`,
                                 background: overdueFlag ? '#fee2e2' : '#f8fafc',
                                 cursor: 'pointer', fontSize: '11.5px', fontWeight: 700,
                                 color: overdueFlag ? '#dc2626' : '#6b7280',
                                 whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                userSelect: 'none',
                               }}>
-                                🕐 {wo.cutoff_time
-                                  ? new Date(wo.cutoff_time).toLocaleDateString([], { month: 'short', day: 'numeric' })
-                                  : 'Cutoff'}
-                              </span>
-                              <input type="datetime-local"
-                                defaultValue={wo.cutoff_time ? new Date(wo.cutoff_time).toISOString().slice(0,16) : ''}
-                                onChange={async e => {
-                                  const val = e.target.value;
-                                  try {
-                                    if (wo.source_type === 'asset_query') {
-                                      await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/cutoff`, { cutoffTime: val || null }, authToken);
-                                    } else {
-                                      await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/cutoff`, { expectedCompletionAt: val || null }, authToken);
-                                    }
-                                    setRequests(r => r.map(x => x.id === wo.id ? { ...x, cutoff_time: val || null } : x));
-                                  } catch(_) {}
-                                }}
-                                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }} />
-                            </label>
+                              🕐 {wo.cutoff_time
+                                ? new Date(wo.cutoff_time).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                : 'Cutoff'}
+                            </button>
                           )}
 
                           {/* STATUS DROPDOWN */}
@@ -1031,6 +1091,19 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
           companyId={companyId}
           onClose={() => setShowCreate(false)}
           onCreated={load}
+        />
+      )}
+
+      {/* Set Cutoff Modal */}
+      {cutoffWO && (
+        <SetCutoffModal
+          wo={cutoffWO}
+          authToken={authToken}
+          onClose={() => setCutoffWO(null)}
+          onSave={(newTime) => {
+            setRequests(r => r.map(x => x.id === cutoffWO.id && x.source_type === cutoffWO.source_type ? { ...x, cutoff_time: newTime } : x));
+            setCutoffWO(null);
+          }}
         />
       )}
     </div>

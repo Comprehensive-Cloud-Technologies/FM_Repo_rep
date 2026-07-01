@@ -298,14 +298,16 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
         [...companyIds, ...companyIds]
       ),
       pool.query(
-        `SELECT d.id AS dept_id, COALESCE(d.name,'Unknown') AS dept,
+        `SELECT c.id AS company_id, COALESCE(c.company_name,'Unknown Hospital') AS hospital,
+                d.id AS dept_id, COALESCE(d.name,'Unknown') AS dept,
                 SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END)     AS critical,
                 SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END) AS non_critical
          FROM assets a
          LEFT JOIN departments d ON d.id = a.department_id
+         LEFT JOIN companies c ON c.id = a.company_id
          WHERE a.company_id IN (${placeholders})
-         GROUP BY d.id, d.name
-         ORDER BY (SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END) + SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END)) DESC`,
+         GROUP BY c.id, c.company_name, d.id, d.name
+         ORDER BY c.company_name, (SUM(CASE WHEN a.criticality='Critical' THEN 1 ELSE 0 END) + SUM(CASE WHEN a.criticality='Non_Critical' THEN 1 ELSE 0 END)) DESC`,
         companyIds
       ),
     ]);
@@ -341,6 +343,8 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
       criticalityByDept: deptRows.map(r => ({
         deptId:      r.dept_id,
         dept:        r.dept,
+        companyId:   r.company_id,
+        hospital:    r.hospital,
         critical:    Number(r.critical    || 0),
         nonCritical: Number(r.non_critical || 0),
       })),

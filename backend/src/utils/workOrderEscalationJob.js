@@ -180,12 +180,147 @@ async function runWorkOrderEscalationCheck() {
 }
 
 /**
+ * runAssetQueryCutoffEscalation
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Scans asset_queries whose cutoff_time has passed and status is still
+ * open/in_progress.  For each:
+ *   1. Increment escalation_level
+ *   2. Re-assign to the assigned employee's supervisor (or company admin fallback)
+ *   3. Notify both the previous assignee and the new supervisor
+ */
+async function runAssetQueryCutoffEscalation() {
+  try {
+    const [overdueAQs] = await pool.query(
+      `SELECT aq.id,
+              aq.company_id        AS companyId,
+              aq.assigned_to       AS assignedTo,
+              aq.title,
+              aq.escalation_level  AS escalationLevel,
+              cu.full_name         AS assignedToName,
+              cu.supervisor_id     AS supervisorId
+       FROM asset_queries aq
+       LEFT JOIN company_users cu ON cu.id = aq.assigned_to
+       WHERE aq.status NOT IN ('resolved','closed')
+         AND aq.cutoff_time IS NOT NULL
+         AND aq.cutoff_time < NOW()
+         AND aq.escalation_level < ?`,
+      [MAX_ESCALATION_LEVEL]
+    );
+
+    if (!overdueAQs.length) return;
+
+    const escalated = [];
+
+    for (const aq of overdueAQs) {
+      try {
+        const newLevel        = Number(aq.escalationLevel) + 1;
+        const prevAssigneeId  = aq.assignedTo;
+        const prevAssigneeName = aq.assignedToName || null;
+
+        // Walk up supervisor chain
+        let newAssigneeId   = null;
+        let newAssigneeName = null;
+
+        if (aq.supervisorId) {
+          const [[sup]] = await pool.query(
+            `SELECT id, full_name AS fullName FROM company_users WHERE id = ? AND company_id = ?`,
+            [aq.supervisorId, aq.companyId]
+          );
+          if (sup) { newAssigneeId = sup.id; newAssigneeName = sup.fullName; }
+        }
+
+        // Fallback to admin/technical_lead if no supervisor
+        if (!newAssigneeId) {
+          const [[fallback]] = await pool.query(
+            `SELECT id, full_name AS fullName
+             FROM company_users
+             WHERE company_id = ? AND role IN ('admin','technical_lead')
+             ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'technical_lead' THEN 2 ELSE 3 END
+             LIMIT 1`,
+            [aq.companyId]
+          ).catch(() => [[]]);
+          if (fallback) { newAssigneeId = fallback.id; newAssigneeName = fallback.fullName; }
+        }
+
+        const reason = newAssigneeId
+          ? `Auto-escalated (level ${newLevel}) — cutoff deadline passed. Re-assigned from ${prevAssigneeName || 'unassigned'} to ${newAssigneeName}.`
+          : `Auto-escalated (level ${newLevel}) — cutoff deadline passed. No supervisor found; assignee unchanged.`;
+
+        // Update asset_query
+        await pool.execute(
+          `UPDATE asset_queries
+           SET escalation_level = ?,
+               assigned_to      = COALESCE(?, assigned_to),
+               updated_at       = NOW()
+           WHERE id = ?`,
+          [newLevel, newAssigneeId, aq.id]
+        );
+
+        // Notify previous assignee
+        if (prevAssigneeId) {
+          await createNotification({
+            companyId:   aq.companyId,
+            recipientId: prevAssigneeId,
+            type:        'request_escalated',
+            title:       `⏫ Request Escalated — ${aq.title?.slice(0, 60) || `REQ-${aq.id}`}`,
+            message:     `Request "${aq.title?.slice(0, 80) || aq.id}" has been escalated (Level ${newLevel}) because the cutoff deadline passed without resolution.`,
+          }).catch(() => {});
+        }
+
+        // Notify new assignee (supervisor)
+        if (newAssigneeId && newAssigneeId !== prevAssigneeId) {
+          await createNotification({
+            companyId:   aq.companyId,
+            recipientId: newAssigneeId,
+            type:        'request_escalated_to_you',
+            title:       `🔔 Escalated Request Assigned to You — ${aq.title?.slice(0, 60) || `REQ-${aq.id}`}`,
+            message:     `An unresolved request (Level ${newLevel}) has been escalated to you: "${aq.title?.slice(0, 80) || aq.id}". The cutoff deadline was missed.`,
+          }).catch(() => {});
+        }
+
+        // Notify all company admins if escalation is level 3+
+        if (newLevel >= 3) {
+          const [admins] = await pool.query(
+            `SELECT id FROM company_users WHERE company_id = ? AND role = 'admin' LIMIT 10`,
+            [aq.companyId]
+          ).catch(() => [[]]);
+          for (const admin of admins) {
+            if (admin.id === newAssigneeId) continue;
+            await createNotification({
+              companyId:   aq.companyId,
+              recipientId: admin.id,
+              type:        'request_high_escalation',
+              title:       `🚨 High Escalation Alert — ${aq.title?.slice(0, 60) || `REQ-${aq.id}`}`,
+              message:     `Request has reached escalation level ${newLevel}. Immediate attention required.`,
+            }).catch(() => {});
+          }
+        }
+
+        escalated.push(aq.id);
+      } catch (aqErr) {
+        console.error(`[AQEscalationJob] Error escalating asset_query ${aq.id}:`, aqErr.message);
+      }
+    }
+
+    if (escalated.length) {
+      console.log(`[AQEscalationJob] Escalated ${escalated.length} asset query request(s): ${escalated.join(', ')}`);
+    }
+  } catch (err) {
+    console.error('[AQEscalationJob] Error during check:', err.message);
+  }
+}
+
+/**
  * Start the work-order escalation background job.
  * Call once from server startup.
  */
 export function startWorkOrderEscalationJob() {
-  setTimeout(runWorkOrderEscalationCheck, 15_000); // initial run 15s after startup
-  setInterval(runWorkOrderEscalationCheck, RUN_INTERVAL_MS);
+  const runBoth = () => {
+    runWorkOrderEscalationCheck();
+    runAssetQueryCutoffEscalation();
+  };
+  setTimeout(runBoth, 15_000); // initial run 15s after startup
+  setInterval(runBoth, RUN_INTERVAL_MS);
   console.log(
     `[WOEscalationJob] Started — runs every ${RUN_INTERVAL_MS / 60_000} min, max level ${MAX_ESCALATION_LEVEL}.`
   );
