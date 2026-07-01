@@ -78,8 +78,6 @@ export default function AssetDetailPage() {
   const [locFloors, setLocFloors] = useState([]);
   const [locRooms, setLocRooms] = useState([]);
   const [locDepts, setLocDepts] = useState([]);
-  const [editImages, setEditImages] = useState([]);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (!token || !id) { setError("Not authenticated or asset not found."); setLoading(false); return; }
@@ -334,7 +332,6 @@ export default function AssetDetailPage() {
         } catch { /* ignore */ }
       }
     }).catch(() => setLocBuildings([]));
-    setEditImages(Array.isArray(m.hcImages) ? [...m.hcImages] : []);
     setShowEditModal(true);
   };
 
@@ -395,7 +392,6 @@ export default function AssetDetailPage() {
           status:                editForm.calibrationStatus || null,
           alertBeforeDays:       editForm.alertBeforeDays ? Number(editForm.alertBeforeDays) : null,
         },
-        hcImages: editImages,
       };
 
       const fullPayload = {
@@ -681,50 +677,6 @@ export default function AssetDetailPage() {
                   )}
                 </EField>
 
-                {/* Equipment Photos */}
-                <ESec title="Equipment Photos" />
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "10px" }}>
-                    {editImages.map((img, i) => {
-                      const src = typeof img === "string" ? img : (img?.url || "");
-                      return (
-                        <div key={i} style={{ position: "relative", width: "90px", height: "90px", borderRadius: "8px", overflow: "hidden", border: "1.5px solid #e2e8f0", flexShrink: 0 }}>
-                          <img src={src} alt={`photo-${i+1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                            onError={e => { e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23f1f5f9'/%3E%3Crect x='22' y='27' width='46' height='36' rx='3' fill='none' stroke='%23cbd5e1' stroke-width='1.5'/%3E%3Ccircle cx='45' cy='45' r='9' fill='none' stroke='%23cbd5e1' stroke-width='1.5'/%3E%3C/svg%3E"; e.currentTarget.style.objectFit = "fill"; }} />
-                          <button onClick={() => setEditImages(p => p.filter((_, j) => j !== i))}
-                            style={{ position: "absolute", top: "3px", right: "3px", width: "20px", height: "20px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.55)", color: "#fff", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }}>×</button>
-                        </div>
-                      );
-                    })}
-                    {editImages.length < 10 && (
-                      <label style={{ width: "90px", height: "90px", borderRadius: "8px", border: "1.5px dashed #cbd5e1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: uploadingImage ? "not-allowed" : "pointer", background: "#f8fafc", flexShrink: 0, gap: "4px" }}>
-                        <input type="file" accept="image/*" multiple style={{ display: "none" }} disabled={uploadingImage}
-                          onChange={async e => {
-                            const files = Array.from(e.target.files || []);
-                            if (!files.length) return;
-                            setUploadingImage(true);
-                            try {
-                              const base = getApiBaseUrl();
-                              for (const file of files.slice(0, 10 - editImages.length)) {
-                                const fd = new FormData();
-                                fd.append("image", file);
-                                const r = await fetch(`${base}/api/company-portal/upload-query-image`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
-                                if (r.ok) {
-                                  const d = await r.json();
-                                  setEditImages(p => [...p, d.url]);
-                                }
-                              }
-                            } finally { setUploadingImage(false); e.target.value = ""; }
-                          }} />
-                        {uploadingImage
-                          ? <span style={{ fontSize: "11px", color: "#94a3b8" }}>Uploading…</span>
-                          : <><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span style={{ fontSize: "10px", color: "#94a3b8", textAlign: "center" }}>Add Photo</span></>}
-                      </label>
-                    )}
-                  </div>
-                  <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8" }}>Up to 10 photos. Click × to remove. Old broken photos are automatically replaced when you save.</p>
-                </div>
-
               </div>
             </div>
             </EditCtx.Provider>
@@ -780,11 +732,10 @@ export default function AssetDetailPage() {
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   {images.map((img, i) => (
                     <a key={i} href={img} target="_blank" rel="noreferrer"
-                      style={{ display:"block", width:"120px", height:"120px", borderRadius:"10px", border:"1.5px solid #e2e8f0", overflow:"hidden", flexShrink:0 }}>
-                      <img src={img} alt={`img-${i+1}`}
-                        style={{ width:"120px", height:"120px", objectFit:"cover", display:"block" }}
+                      style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
+                      <img src={img} alt={`img-${i+1}`} style={{ width: "120px", height: "120px", objectFit: "cover", display: "block" }}
                         onError={e => {
-                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23f1f5f9'/%3E%3Crect x='30' y='35' width='60' height='50' rx='4' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3Ccircle cx='60' cy='60' r='12' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3Crect x='50' y='31' width='20' height='8' rx='2' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3C/svg%3E";
+                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none'%3E%3Crect width='120' height='120' fill='%23f1f5f9'/%3E%3Cpath d='M48 54a6 6 0 1 0 12 0 6 6 0 0 0-12 0Zm-8 24h40l-12-16-6 8-4-4-10 12h-8Z' fill='%2394a3b8'/%3E%3Crect x='32' y='40' width='56' height='40' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";
                           e.currentTarget.style.objectFit = "fill";
                           e.currentTarget.parentElement.style.pointerEvents = "none";
                         }} />
