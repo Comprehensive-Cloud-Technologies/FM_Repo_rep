@@ -7056,7 +7056,11 @@ export default function CompanyEmployeePortal() {
                                           <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", flexShrink: 0 }}>
                                             <img src={src} alt={`img-${i+1}`}
                                               style={{ width: "90px", height: "90px", objectFit: "cover", borderRadius: "10px", border: "1.5px solid #e2e8f0", cursor: "pointer" }}
-                                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                              onError={e => {
+                                                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' fill='none'%3E%3Crect width='90' height='90' fill='%23f1f5f9'/%3E%3Cpath d='M36 40a4.5 4.5 0 1 0 9 0 4.5 4.5 0 0 0-9 0Zm-6 18h30l-9-12-4.5 6-3-3-7.5 9h-6Z' fill='%2394a3b8'/%3E%3Crect x='24' y='30' width='42' height='30' rx='3' stroke='%2394a3b8' stroke-width='1.5' fill='none'/%3E%3C/svg%3E";
+                                                e.currentTarget.style.objectFit = "fill";
+                                                e.currentTarget.parentElement.style.pointerEvents = "none";
+                                              }}
                                             />
                                           </a>
                                         );
@@ -9233,8 +9237,7 @@ export default function CompanyEmployeePortal() {
                           {hcImages.map((img, i) => {
                             const src = img;
                             return (
-                              <a key={i} href={src} target="_blank" rel="noreferrer"
-                                style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
+                              <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
                                 <img src={src} alt={`img-${i+1}`} style={{ width: "120px", height: "120px", objectFit: "cover", display: "block" }}
                                   onError={e => {
                                     e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none'%3E%3Crect width='120' height='120' fill='%23f1f5f9'/%3E%3Cpath d='M48 54a6 6 0 1 0 12 0 6 6 0 0 0-12 0Zm-8 24h40l-12-16-6 8-4-4-10 12h-8Z' fill='%2394a3b8'/%3E%3Crect x='32' y='40' width='56' height='40' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";

@@ -24272,12 +24272,11 @@ const CompanyPortal = () => {
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                                 {hcImages.map((src, i) => (
                                   <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", width: "140px", height: "140px" }}>
-                                    <img src={src} alt={`img-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                      onError={e => {
-                                        e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' fill='none'%3E%3Crect width='140' height='140' fill='%23f1f5f9'/%3E%3Cpath d='M56 63a7 7 0 1 0 14 0 7 7 0 0 0-14 0Zm-9 28h46l-14-18-7 9-5-5-11 14h-9Z' fill='%2394a3b8'/%3E%3Crect x='37' y='46' width='66' height='48' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";
-                                        e.currentTarget.style.objectFit = "fill";
-                                        e.currentTarget.parentElement.style.pointerEvents = "none";
-                                      }} />
+                                    <img src={src} alt={`img-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => {
+                                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' fill='none'%3E%3Crect width='140' height='140' fill='%23f1f5f9'/%3E%3Cpath d='M56 63a7 7 0 1 0 14 0 7 7 0 0 0-14 0Zm-9 28h46l-14-18-7 9-5-5-11 14h-9Z' fill='%2394a3b8'/%3E%3Crect x='37' y='46' width='66' height='48' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";
+                                      e.target.style.objectFit = "fill";
+                                      e.target.parentElement.style.pointerEvents = "none";
+                                    }} />
                                   </a>
                                 ))}
                               </div>

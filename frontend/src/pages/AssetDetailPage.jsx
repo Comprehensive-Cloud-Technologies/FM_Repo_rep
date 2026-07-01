@@ -731,8 +731,7 @@ export default function AssetDetailPage() {
                 <h4 style={{ fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Images</h4>
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   {images.map((img, i) => (
-                    <a key={i} href={img} target="_blank" rel="noreferrer"
-                      style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
+                    <a key={i} href={img} target="_blank" rel="noreferrer" style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
                       <img src={img} alt={`img-${i+1}`} style={{ width: "120px", height: "120px", objectFit: "cover", display: "block" }}
                         onError={e => {
                           e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none'%3E%3Crect width='120' height='120' fill='%23f1f5f9'/%3E%3Cpath d='M48 54a6 6 0 1 0 12 0 6 6 0 0 0-12 0Zm-8 24h40l-12-16-6 8-4-4-10 12h-8Z' fill='%2394a3b8'/%3E%3Crect x='32' y='40' width='56' height='40' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";
