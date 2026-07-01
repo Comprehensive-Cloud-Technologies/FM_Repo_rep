@@ -24271,8 +24271,13 @@ const CompanyPortal = () => {
                               <p style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 10px" }}>IMAGES</p>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                                 {hcImages.map((src, i) => (
-                                  <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", width: "140px", height: "140px" }}>
-                                    <img src={src} alt={`img-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.target.parentElement.style.display = "none"; }} />
+                                  <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", width: "140px", height: "140px", flexShrink: 0 }}>
+                                    <img src={src} alt={`img-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                      onError={e => {
+                                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Crect width='140' height='140' fill='%23f1f5f9'/%3E%3Crect x='35' y='42' width='70' height='56' rx='4' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3Ccircle cx='70' cy='70' r='14' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3Crect x='58' y='37' width='24' height='9' rx='2' fill='none' stroke='%23cbd5e1' stroke-width='2'/%3E%3C/svg%3E";
+                                        e.target.style.objectFit = "fill";
+                                        e.target.parentElement.style.pointerEvents = "none";
+                                      }} />
                                   </a>
                                 ))}
                               </div>
