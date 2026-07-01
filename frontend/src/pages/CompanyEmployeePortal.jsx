@@ -9052,8 +9052,11 @@ export default function CompanyEmployeePortal() {
             : (img && typeof img === "object" ? (img.url || img.src || img.path || "") : "");
           const raw = typeof r0 === "string" ? r0 : "";
           if (!raw) return "";
-          if (raw.startsWith("http") || raw.startsWith("/")) return raw;
-          return `/${raw}`;
+          if (raw.startsWith("http")) return raw;
+          // Relative path — prefix with the backend API base URL so the browser
+          // resolves to the correct server, not the frontend origin.
+          const apiBase = getApiBaseUrl().replace(/\/$/, "");
+          return raw.startsWith("/") ? `${apiBase}${raw}` : `${apiBase}/${raw}`;
         };
         const hcImages = [
           ...(Array.isArray(m.hcImages) ? m.hcImages : []),

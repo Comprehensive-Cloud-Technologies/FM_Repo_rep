@@ -151,11 +151,15 @@ export default function AssetDetailPage() {
     maintenanceTypes.rented && "Rented",
   ].filter(Boolean).join(", ") || m.maintenanceType || "—";
 
+  const apiBase = getApiBaseUrl();
   const normalizeImgUrl = (img) => {
     const raw = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
     if (!raw || typeof raw !== "string") return "";
-    if (raw.startsWith("http") || raw.startsWith("/")) return raw;
-    return `/${raw}`;
+    if (raw.startsWith("http")) return raw;
+    // Relative path — prefix with the backend API base URL so the browser
+    // resolves to the correct server, not the frontend origin.
+    const base = apiBase.replace(/\/$/, "");
+    return raw.startsWith("/") ? `${base}${raw}` : `${base}/${raw}`;
   };
 
   const images = [

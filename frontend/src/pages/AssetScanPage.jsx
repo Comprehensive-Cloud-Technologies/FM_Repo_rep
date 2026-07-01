@@ -164,11 +164,16 @@ export default function AssetScanPage() {
                   {Array.isArray(meta.hcImages) && meta.hcImages.length > 0 && (
                     <Section title="Equipment Photos">
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {meta.hcImages.map((img, i) => (
-                          <a key={i} href={img.url} target="_blank" rel="noreferrer">
-                            <img src={img.url} alt={img.name || `photo-${i+1}`} style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0", cursor: "pointer" }} />
-                          </a>
-                        ))}
+                        {meta.hcImages.map((img, i) => {
+                          const rawUrl = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
+                          const src = rawUrl.startsWith("http") ? rawUrl : `${BASE.replace(/\/$/, "")}${rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`}`;
+                          const label = typeof img === "object" ? (img?.name || `photo-${i+1}`) : `photo-${i+1}`;
+                          return (
+                            <a key={i} href={src} target="_blank" rel="noreferrer">
+                              <img src={src} alt={label} style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0", cursor: "pointer" }} />
+                            </a>
+                          );
+                        })}
                       </div>
                     </Section>
                   )}
