@@ -108,6 +108,25 @@ app.use("/uploads", (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "../uploads")));
 
+// Gallery image-to-asset mapping endpoint
+app.post("/api/gallery/assign", express.json(), async (req, res) => {
+  const { assetId, files } = req.body;
+  if (!assetId || !Array.isArray(files) || !files.length)
+    return res.status(400).json({ ok: false, error: "assetId and files required" });
+  try {
+    const [[row]] = await pool.query("SELECT metadata FROM asset_details WHERE asset_id=?", [assetId]);
+    if (!row) return res.status(404).json({ ok: false, error: "Asset not found" });
+    const meta = JSON.parse(row.metadata || "{}");
+    const existing = Array.isArray(meta.hcImages) ? meta.hcImages : [];
+    const newUrls = files.map(f => `/uploads/query-images/recovered/${f}`);
+    meta.hcImages = [...existing, ...newUrls];
+    await pool.query("UPDATE asset_details SET metadata=? WHERE asset_id=?", [JSON.stringify(meta), assetId]);
+    res.json({ ok: true, assigned: files.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Basic 404 handler
 app.use((req, res) => res.status(404).json({ message: "Not found", path: req.originalUrl }));
 
