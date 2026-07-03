@@ -1769,8 +1769,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
       const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
       const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
 
-      // Status
-      const rawStatus = pick(row, "status", "condition", "state");
+      // Status — "state" intentionally excluded to avoid matching a geographic State column
+      const rawStatus = pick(row, "status", "assetstatus", "condition");
       if (rawStatus && !VALID_STATUSES.has(rawStatus.toLowerCase())) {
         skipped.push({ row: rowNum, assetName, reason: `Invalid Status "${rawStatus}" in column "status". Accepted values: Active, Inactive` });
         continue;
