@@ -1632,7 +1632,31 @@ router.post("/assets/bulk-import", (req, res, next) => {
     const VALID_CRITICALITY     = new Set(["critical","non_critical","non-critical","noncritical","non critical"]);
     const VALID_ASSET_TYPES     = new Set(["general","healthcare","fleet"]);
     const VALID_STATUSES        = new Set(["active","inactive","unverified"]);
-    const VALID_WORKING_STATUSES = new Set(["working","not_working","not working","wip","condemned","critical","unverified","verified"]);
+    const VALID_WORKING_STATUSES = new Set(["working","not_working","not working","wip","condemned","critical","unverified","verified","rber","hnf"]);
+
+    // Parse maintenance column — may be a single value ("Catalyst") or a semicolon-separated
+    // list exported from the asset list ("Warranty; AMC; CMC"). Returns null on success or
+    // the first invalid token (string) so the caller can report the error.
+    const applyMaintenance = (rawMn, meta) => {
+      if (!rawMn) return null;
+      const parts = rawMn.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+      const invalid = parts.find(p => !VALID_MAINTENANCE.has(p.toLowerCase()));
+      if (invalid) return invalid;
+      const mTypes = { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false, rented: false };
+      for (const p of parts) {
+        const pl = p.toLowerCase();
+        if (pl === "warranty")                       mTypes.warranty = true;
+        else if (pl === "amc")                       mTypes.amc = true;
+        else if (pl === "cmc")                       mTypes.cmc = true;
+        else if (pl === "in house" || pl === "inhouse") mTypes.inhouse = true;
+        else if (pl === "catalyst")                  mTypes.catalyst = true;
+        else if (pl === "high end" || pl === "highend") mTypes.highEnd = true;
+        else if (pl === "rented")                    mTypes.rented = true;
+      }
+      meta.maintenanceType  = parts[0]; // primary (for single-type date mapping)
+      meta.maintenanceTypes = mTypes;
+      return null; // success
+    };
 
     // Normalize criticality values to the canonical DB form
     const normalizeCriticality = (v) => {
@@ -1897,14 +1921,10 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const rb2 = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb2) incomingMeta.rber = rb2.toLowerCase() === "yes" || rb2 === "1" || rb2.toLowerCase() === "true";
           const vs2 = pick(row, "verifiedstatus", "verified_status", "isverified", "verified"); if (vs2) incomingMeta._isVerified = vs2.toLowerCase() === "verified" ? 1 : 0;
           const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
-          if (mn2 && !VALID_MAINTENANCE.has(mn2.toLowerCase())) {
-            skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mn2}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+          const mnErr2 = applyMaintenance(mn2, incomingMeta);
+          if (mnErr2) {
+            skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr2}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
             continue;
-          }
-          if (mn2) {
-            incomingMeta.maintenanceType = mn2;
-            const mnLower2 = mn2.toLowerCase();
-            incomingMeta.maintenanceTypes = { warranty: mnLower2 === "warranty", amc: mnLower2 === "amc", cmc: mnLower2 === "cmc", inhouse: mnLower2 === "in house" || mnLower2 === "inhouse", catalyst: mnLower2 === "catalyst", highEnd: mnLower2 === "high end" || mnLower2 === "highend", rented: mnLower2 === "rented" };
           }
           // Maintenance date ranges — explicit per-type columns
           const ws2 = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws2) incomingMeta.warrantyStart = normalizeDate(ws2);
@@ -2070,14 +2090,10 @@ router.post("/assets/bulk-import", (req, res, next) => {
         const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport");
         if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
         const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
-        if (mn && !VALID_MAINTENANCE.has(mn.toLowerCase())) {
-          skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mn}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+        const mnErr = applyMaintenance(mn, meta);
+        if (mnErr) {
+          skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
           continue;
-        }
-        if (mn) {
-          meta.maintenanceType = mn;
-          const mnLower = mn.toLowerCase();
-          meta.maintenanceTypes = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented" };
         }
         // Maintenance date ranges — explicit per-type columns
         const ws = pick(row, "warrantystart", "warranty_start", "warrantybegin", "warrantybegindate"); if (ws) meta.warrantyStart = normalizeDate(ws);
