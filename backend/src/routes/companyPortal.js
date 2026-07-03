@@ -1629,10 +1629,17 @@ router.post("/assets/bulk-import", (req, res, next) => {
 
     // ── Valid value sets for import validation ───────────────────────────────
     const VALID_MAINTENANCE     = new Set(["warranty","amc","cmc","in house","inhouse","catalyst","high end","highend","rented"]);
-    const VALID_CRITICALITY     = new Set(["critical","non_critical","non-critical","noncritical"]);
+    const VALID_CRITICALITY     = new Set(["critical","non_critical","non-critical","noncritical","non critical"]);
     const VALID_ASSET_TYPES     = new Set(["general","healthcare","fleet"]);
     const VALID_STATUSES        = new Set(["active","inactive","unverified"]);
     const VALID_WORKING_STATUSES = new Set(["working","not_working","not working","wip","condemned","critical","unverified","verified"]);
+
+    // Normalize criticality values to the canonical DB form
+    const normalizeCriticality = (v) => {
+      if (!v) return null;
+      const l = String(v).toLowerCase().trim();
+      return (l === "critical" || l === "yes" || l === "1" || l === "high") ? "Critical" : "Non_Critical";
+    };
 
     // Helper: normalize any incoming date value to DD/MM/YYYY
     // Handles: Excel serial numbers, DD-Mon-YY, DD-Mon-YYYY, YYYY-MM-DD, DD/MM/YYYY, MM-DD-YYYY
@@ -1721,7 +1728,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
         skipped.push({ row: rowNum, assetName, reason: `Invalid Asset Type "${assetTypeRaw}" in column "assetType". Accepted values: general, healthcare, fleet` });
         continue;
       }
-      const assetType = assetTypeRaw || "general";
+      // Default assetType from company sector when not provided in the Excel
+      const assetType = assetTypeRaw || (isHC ? "healthcare" : "general");
 
       // Location fields
       const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
@@ -1943,7 +1951,8 @@ router.post("/assets/bulk-import", (req, res, next) => {
             skipped.push({ row: rowNum, assetName, reason: `Invalid Category "${inCriticality}" in column "category". Accepted values: Critical, Non_Critical` });
             continue;
           }
-          if (inCriticality && inCriticality !== existing.criticality)  assetChanges.criticality   = inCriticality;
+          const normalizedCriticality = normalizeCriticality(inCriticality);
+          if (normalizedCriticality && normalizedCriticality !== existing.criticality) assetChanges.criticality = normalizedCriticality;
           const inWorkingStatus = pick(row, "workingstatus", "working_status", "workingcondition");
           if (inWorkingStatus && !VALID_WORKING_STATUSES.has(inWorkingStatus.toLowerCase())) {
             skipped.push({ row: rowNum, assetName, reason: `Invalid Working Status "${inWorkingStatus}" in column "workingStatus". Accepted values: Working, Not_Working, WIP, Condemned, Critical, Unverified, Verified` });
@@ -2003,15 +2012,24 @@ router.post("/assets/bulk-import", (req, res, next) => {
 
           assetSeq += 1;
           const generatedAssetId = `${cCode}-${sCode}-${String(assetSeq).padStart(6, "0")}`;
+
+        // Pick criticality, working_status, is_verified for new asset
+        const rawCritForAdd = pick(row, "category", "criticality", "assetcategory", "asset_category");
+        const critForAdd = normalizeCriticality(rawCritForAdd) || "Non_Critical";
+        const rawWsForAdd = pick(row, "workingstatus", "working_status", "workstatus", "operationalstatus");
+        const wsForAdd = rawWsForAdd || "Working";
+        const rawVrForAdd = pick(row, "verifiedstatus", "verified_status", "verified", "isverified");
+        const isVerifiedForAdd = rawVrForAdd && ["verified", "active", "yes", "1", "true"].includes(rawVrForAdd.toLowerCase().trim()) ? 1 : 0;
+
         const [result] = await pool.execute(
           `INSERT INTO assets
              (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
               building, floor, room, building_id, floor_id, room_id, location_id,
-              status, qr_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              status, qr_code, criticality, working_status, is_verified)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
            [cid(req), departmentId, assetName, uniqueIdToUse, generatedAssetId, assetType,
             loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-            status, uniqueIdToUse]
+            status, uniqueIdToUse, critForAdd, wsForAdd, isVerifiedForAdd]
         );
         const assetId = result.insertId;
 
@@ -2034,7 +2052,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
         if (inv) meta.invoiceNo = inv;
         const pc = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue");
         if (pc) meta.purchaseCost = pc;
-        const my = pick(row, "mfgyear", "mfg_year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year");
+        const my = pick(row, "mfgyear", "mfg_year", "mfg.year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year");
         if (my) meta.manufacturingYear = my;
         const dl = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername");
         if (dl) meta.dealer = dl;
