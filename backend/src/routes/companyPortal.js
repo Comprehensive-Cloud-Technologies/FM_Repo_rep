@@ -1716,20 +1716,29 @@ router.post("/assets/bulk-import", (req, res, next) => {
       );
       if (!assetName) { skipped.push({ row: rowNum, reason: "Asset name column is empty" }); continue; }
 
-      // Asset type — "category" is intentionally excluded here because in the exported
-      // asset list "Category" holds the criticality value (Critical / Non_Critical),
-      // not the asset type.  Validating ensures typos surface immediately.
+      // Asset type — "category" in hospital Excel files holds criticality (CRITICAL /
+      // NON CRITICAL), not the asset type.  We pick from common column names including
+      // "category", but if the picked value looks like a criticality indicator we silently
+      // fall back to the sector default instead of raising a validation error.
+      const CRITICALITY_AS_ASSET_TYPE = new Set([
+        "critical", "non critical", "non-critical", "noncritical", "non_critical"
+      ]);
       const assetTypeRaw = pick(row,
-        "assettype", "asset_type", "type", "equipmenttype",
+        "assettype", "asset_type", "type", "category", "equipmenttype",
         "equipment_type", "itemtype", "subgroup", "sub_group",
         "group", "equipmentcategory"
       );
-      if (assetTypeRaw && !VALID_ASSET_TYPES.has(assetTypeRaw.toLowerCase())) {
+      const assetTypeLower = (assetTypeRaw || "").toLowerCase().trim();
+      let assetType;
+      if (!assetTypeRaw || CRITICALITY_AS_ASSET_TYPE.has(assetTypeLower)) {
+        // Missing or criticality-as-type — default from company sector
+        assetType = isHC ? "healthcare" : "general";
+      } else if (!VALID_ASSET_TYPES.has(assetTypeLower)) {
         skipped.push({ row: rowNum, assetName, reason: `Invalid Asset Type "${assetTypeRaw}" in column "assetType". Accepted values: general, healthcare, fleet` });
         continue;
+      } else {
+        assetType = assetTypeRaw;
       }
-      // Default assetType from company sector when not provided in the Excel
-      const assetType = assetTypeRaw || (isHC ? "healthcare" : "general");
 
       // Location fields
       const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
