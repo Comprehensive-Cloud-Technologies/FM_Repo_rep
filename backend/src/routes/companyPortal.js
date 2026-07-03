@@ -2119,6 +2119,9 @@ router.post("/assets/bulk-import", (req, res, next) => {
 router.get("/assets/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { id: userId, companyId: primaryCompanyId } = req.companyUser;
+    const accessibleIds = await getAccessibleCompanyIds(userId, primaryCompanyId);
+    const placeholders = accessibleIds.map(() => "?").join(",");
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
@@ -2143,8 +2146,8 @@ router.get("/assets/:id", async (req, res, next) => {
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
-       WHERE a.id = ? AND a.company_id = ?`,
-      [id, cid(req)]
+       WHERE a.id = ? AND a.company_id IN (${placeholders})`,
+      [id, ...accessibleIds]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
 

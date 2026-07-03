@@ -108,6 +108,18 @@ app.use("/uploads", (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "../uploads")));
 
+// Root portal login endpoint (credentials stored server-side in env)
+app.post("/api/root-login", express.json(), (req, res) => {
+  const { username, password } = req.body || {};
+  const validUser = process.env.ROOT_USERNAME || "rootadmin";
+  const validPass = process.env.ROOT_PASSWORD || "Root@12345";
+  if (!username || !password) return res.status(400).json({ ok: false, message: "Missing credentials" });
+  if (username.trim() === validUser && password === validPass) {
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ ok: false, message: "Invalid username or password" });
+});
+
 // Gallery image-to-asset mapping endpoint
 app.post("/api/gallery/assign", express.json(), async (req, res) => {
   const { assetId, files } = req.body;
