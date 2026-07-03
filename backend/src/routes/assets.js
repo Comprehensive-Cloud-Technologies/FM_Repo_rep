@@ -497,7 +497,7 @@ router.post(
         const id2 = pick(row, "installationdate", "installation_date", "dateofinstallation", "commissioningdate"); if (id2) meta.installationDate = id2;
         const inv = pick(row, "invoiceno", "invoice_no", "invoicenumber", "invoice", "invoicenum"); if (inv) meta.invoiceNo = inv;
         const pc = pick(row, "purchasecost", "purchase_cost", "cost", "price", "amount", "purchasevalue"); if (pc) meta.purchaseCost = pc;
-        const my = pick(row, "mfgyear", "mfg_year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my) meta.manufacturingYear = my;
+        const my = pick(row, "mfgyear", "mfg_year", "mfg.year", "manufacturingyear", "yearofmanufacture", "yearmfg", "year"); if (my) meta.manufacturingYear = my;
         const dl = pick(row, "dealer", "distributor", "vendor", "supplier", "vendorname", "dealername"); if (dl) meta.dealer = dl;
         const rm = pick(row, "remarks", "notes", "comment", "comments", "note", "remark"); if (rm) meta.remarks = rm;
         const rb = pick(row, "rber", "riskbased", "risk_based", "riskbasedexaminationreport"); if (rb) meta.rber = rb.toLowerCase() === "yes" || rb === "1" || rb.toLowerCase() === "true";
@@ -669,11 +669,37 @@ router.post(
         );
         if (!assetName) { skipped.push({ row: rowNum, reason: "Asset name column is empty" }); continue; }
 
-        const assetType = pick(row,
+        // "Category" column in hospital Excel files holds criticality (CRITICAL / NON CRITICAL),
+        // not the asset type. Detect and handle accordingly.
+        const CRITICALITY_WORDS = new Set(["critical", "non critical", "non-critical", "noncritical"]);
+        const rawCategory = pick(row,
           "assettype", "asset_type", "type", "category", "equipmenttype",
           "equipment_type", "itemtype", "assetcategory", "subgroup", "sub_group",
           "group", "equipmentcategory"
-        ) || "general";
+        );
+        const categoryIsCriticality = rawCategory && CRITICALITY_WORDS.has(rawCategory.toLowerCase().trim());
+
+        // Determine assetType: if "category" held a criticality value, fall back to sector default
+        let assetType;
+        if (!rawCategory || categoryIsCriticality) {
+          if (sectors.some(s => ["healthcare", "hospital", "medical"].includes(s))) assetType = "healthcare";
+          else if (sectors.some(s => ["fleet", "transport"].includes(s))) assetType = "fleet";
+          else if (sectors.some(s => ["technical"].includes(s))) assetType = "technical";
+          else assetType = "general";
+        } else {
+          assetType = rawCategory;
+        }
+
+        // Extract criticality: from category column if it held a criticality word,
+        // otherwise from an explicit criticality/risk column
+        const rawCritVal = categoryIsCriticality
+          ? rawCategory
+          : pick(row, "criticality", "criticaltype", "critical_type", "risklevel", "risk_level");
+        let criticality = "Non_Critical";
+        if (rawCritVal) {
+          const cl = rawCritVal.toLowerCase().trim();
+          criticality = (cl === "critical" || cl === "yes" || cl === "1" || cl === "high") ? "Critical" : "Non_Critical";
+        }
 
         const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
         const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
@@ -681,6 +707,14 @@ router.post(
 
         const rawStatus = pick(row, "status", "condition", "state");
         const status = rawStatus && rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active";
+
+        // Working Status column (e.g. "Working", "Not Working") — stored in working_status column
+        const rawWorkingStatus = pick(row, "workingstatus", "working_status", "workstatus", "operationalstatus");
+        const workingStatus = rawWorkingStatus || "Working";
+
+        // Verified Status column → is_verified flag
+        const rawVerified = pick(row, "verifiedstatus", "verified_status", "verified", "isverified");
+        const isVerified = rawVerified && ["verified", "active", "yes", "1", "true"].includes(rawVerified.toLowerCase().trim()) ? 1 : 0;
 
         const providedUniqueId = pick(row,
           "assetuniqueid", "asset_unique_id", "uniqueid", "qrcode", "qr_code",
@@ -710,11 +744,11 @@ router.post(
             `INSERT INTO assets
                (company_id, department_id, asset_name, asset_unique_id, generated_asset_id, asset_type,
                 building, floor, room, building_id, floor_id, room_id, location_id,
-                status, qr_code, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                status, qr_code, criticality, working_status, is_verified, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [companyId, departmentId, assetName, uniqueIdToUse, bulkGeneratedId, assetType,
              loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-             status, uniqueIdToUse, req.user.id]
+             status, uniqueIdToUse, criticality, workingStatus, isVerified, req.user.id]
           );
           const assetId = result.insertId;
 
