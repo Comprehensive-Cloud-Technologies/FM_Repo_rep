@@ -73,14 +73,18 @@ echo "====== Cloning / Updating repo ======"
 if [ -d "$APP_DIR" ]; then
   cd "$APP_DIR"
   git fetch origin
-  git checkout "$BRANCH"
-  git pull origin "$BRANCH"
+  # Use reset instead of checkout to avoid touching untracked files (uploads, etc.)
+  git reset --hard "origin/$BRANCH"
+  git pull --ff-only origin "$BRANCH" 2>/dev/null || true
 else
   git clone -b "$BRANCH" "$REPO_URL" "$APP_DIR"
   cd "$APP_DIR"
 fi
 
 echo "====== Configuring backend .env ======"
+# Only write .env if it does not already exist — never overwrite to preserve
+# secrets like ROOT_PASSWORD that are added manually after initial deploy.
+if [ ! -f "$APP_DIR/backend/.env" ]; then
 cat > "$APP_DIR/backend/.env" <<ENVEOF
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -93,7 +97,12 @@ PORT=${BACKEND_PORT}
 ALLOW_ORIGIN=http://${EC2_IP},http://${EC2_IP}:3000
 JWT_SECRET=${JWT_SECRET}
 NODE_ENV=production
+ROOT_USERNAME=rootadmin
+ROOT_PASSWORD=Root@12345
 ENVEOF
+else
+  echo ".env already exists, skipping overwrite."
+fi
 
 echo "====== Installing backend dependencies ======"
 cd "$APP_DIR/backend"
