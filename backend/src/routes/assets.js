@@ -506,7 +506,7 @@ router.post(
           const mnLower = mn.toLowerCase();
           meta.maintenanceType = mn;
           // Also set maintenanceTypes map for structured display
-          const mtMap = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented" };
+          const mtMap = { warranty: mnLower === "warranty", amc: mnLower === "amc", cmc: mnLower === "cmc", inhouse: mnLower === "in house" || mnLower === "inhouse", catalyst: mnLower === "catalyst", highEnd: mnLower === "high end" || mnLower === "highend", rented: mnLower === "rented", client: mnLower === "client" };
           if (Object.values(mtMap).some(Boolean)) meta.maintenanceTypes = mtMap;
         }
         // Maintenance date ranges — explicit per-type columns

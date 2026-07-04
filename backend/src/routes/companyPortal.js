@@ -105,7 +105,7 @@ router.get("/assets/bulk-import/template", (req, res) => {
         ["building/floor/room","No",      "Leave blank to keep existing location"],
         ["status",           "No",        "Active or Inactive. Leave blank to keep existing."],
         ["make/model/...",   "No",        "Any blank cell keeps the existing value"],
-        ["maintenanceType",  "No",        "Warranty, AMC, CMC, In House, Catalyst, High End, Rented"],
+        ["maintenanceType",  "No",        "Warranty, AMC, CMC, In House, Catalyst, High End, Rented, Client"],
         ["warrantyStart",    "No",        "Warranty start date (YYYY-MM-DD). Fill only if maintenanceType = Warranty"],
         ["warrantyEnd",      "No",        "Warranty end/expiry date (YYYY-MM-DD)"],
         ["amcStart",         "No",        "AMC start date (YYYY-MM-DD). Fill only if maintenanceType = AMC"],
@@ -1628,7 +1628,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
     };
 
     // ── Valid value sets for import validation ───────────────────────────────
-    const VALID_MAINTENANCE     = new Set(["warranty","amc","cmc","in house","inhouse","catalyst","high end","highend","rented"]);
+    const VALID_MAINTENANCE     = new Set(["warranty","amc","cmc","in house","inhouse","catalyst","high end","highend","rented","client"]);
     const VALID_CRITICALITY     = new Set(["critical","non_critical","non-critical","noncritical","non critical"]);
     const VALID_ASSET_TYPES     = new Set(["general","healthcare","fleet"]);
     const VALID_STATUSES        = new Set(["active","inactive","unverified"]);
@@ -1642,7 +1642,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
       const parts = rawMn.split(/[;,]/).map(s => s.trim()).filter(Boolean);
       const invalid = parts.find(p => !VALID_MAINTENANCE.has(p.toLowerCase()));
       if (invalid) return invalid;
-      const mTypes = { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false, rented: false };
+      const mTypes = { warranty: false, amc: false, cmc: false, inhouse: false, catalyst: false, highEnd: false, rented: false, client: false };
       for (const p of parts) {
         const pl = p.toLowerCase();
         if (pl === "warranty")                       mTypes.warranty = true;
@@ -1652,6 +1652,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
         else if (pl === "catalyst")                  mTypes.catalyst = true;
         else if (pl === "high end" || pl === "highend") mTypes.highEnd = true;
         else if (pl === "rented")                    mTypes.rented = true;
+        else if (pl === "client")                    mTypes.client = true;
       }
       meta.maintenanceType  = parts[0]; // primary (for single-type date mapping)
       meta.maintenanceTypes = mTypes;
@@ -1923,7 +1924,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
           const mn2 = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
           const mnErr2 = applyMaintenance(mn2, incomingMeta);
           if (mnErr2) {
-            skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr2}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+            skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr2}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented, Client` });
             continue;
           }
           // Maintenance date ranges — explicit per-type columns
@@ -2092,7 +2093,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
         const mn = pick(row, "maintenancetype", "maintenance_type", "maintenance", "maintenancecontract", "maintenancecategory", "maintenance_category");
         const mnErr = applyMaintenance(mn, meta);
         if (mnErr) {
-          skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented` });
+          skipped.push({ row: rowNum, assetName, reason: `Invalid Maintenance type "${mnErr}" in column "maintenance". Accepted values: Warranty, AMC, CMC, In House, Catalyst, High End, Rented, Client` });
           continue;
         }
         // Maintenance date ranges — explicit per-type columns
