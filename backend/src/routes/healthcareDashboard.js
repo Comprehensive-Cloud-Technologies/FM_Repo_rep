@@ -130,7 +130,10 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
              THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cost,
            COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.cmc') = 1))
              AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
-             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS cmc_cost
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS cmc_cost,
+           COALESCE(SUM(CASE WHEN ((JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.client') = true OR JSON_EXTRACT(ad.metadata, '$.maintenanceTypes.client') = 1))
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.purchaseCost')), ''), ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END), 0) AS client_cost
          FROM assets a
          LEFT JOIN asset_details ad ON ad.asset_id = a.id
          ${where}`,
@@ -198,6 +201,7 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       warrantyCost:   Number(snap.warranty_cost   || 0),
       amcCost:        Number(snap.amc_cost       || 0),
       cmcCost:        Number(snap.cmc_cost       || 0),
+      clientCost:     Number(snap.client_cost    || 0),
       // Complaint / Request Profile
       totalComplaints:  Number(reqStats.total_requests    || 0),
       wipComplaints:    Number(reqStats.wip_requests      || 0),
@@ -264,7 +268,10 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
              THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') AS DECIMAL(15,2)) ELSE 0 END), 0) AS amc_cost,
            COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata,'$.maintenanceTypes.cmc') = true OR JSON_EXTRACT(ad.metadata,'$.maintenanceTypes.cmc') = 1)
              AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') REGEXP '^[0-9]+(\\.[0-9]+)?$'
-             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') AS DECIMAL(15,2)) ELSE 0 END), 0) AS cmc_cost
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') AS DECIMAL(15,2)) ELSE 0 END), 0) AS cmc_cost,
+           COALESCE(SUM(CASE WHEN (JSON_EXTRACT(ad.metadata,'$.maintenanceTypes.client') = true OR JSON_EXTRACT(ad.metadata,'$.maintenanceTypes.client') = 1)
+             AND REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') REGEXP '^[0-9]+(\\.[0-9]+)?$'
+             THEN CAST(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.purchaseCost')),''),',',''),' ','') AS DECIMAL(15,2)) ELSE 0 END), 0) AS client_cost
          FROM assets a LEFT JOIN asset_details ad ON ad.asset_id = a.id
          WHERE a.company_id IN (${placeholders})`,
         companyIds
@@ -330,6 +337,7 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
       warrantyCost:     Number(snap.warranty_cost     || 0),
       amcCost:          Number(snap.amc_cost          || 0),
       cmcCost:          Number(snap.cmc_cost          || 0),
+      clientCost:       Number(snap.client_cost       || 0),
       totalComplaints:    Number(reqStats.total_requests    || 0),
       wipComplaints:      Number(reqStats.wip_requests      || 0),
       wipLt7:             Number(reqStats.wip_lt7           || 0),

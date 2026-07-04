@@ -1693,6 +1693,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 { label: "Under Warranty",     value: snapshot?.warrantyCost, color: "#16a34a", bg: "#dcfce7" },
                 { label: "Under AMC",          value: snapshot?.amcCost,      color: "#dc2626", bg: "#fee2e2" },
                 { label: "Under CMC",          value: snapshot?.cmcCost,      color: "#ea580c", bg: "#fff7ed" },
+                { label: "Under Client",       value: snapshot?.clientCost,   color: "#6366f1", bg: "#eef2ff" },
               ].map(row => (
                 <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
