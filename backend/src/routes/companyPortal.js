@@ -253,6 +253,7 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS escalation_level INT DEFAULT 0`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_hours INT DEFAULT 24`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_time DATETIME DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS in_progress_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolved_by INT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
@@ -4862,7 +4863,13 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    await pool.execute("UPDATE asset_queries SET status = ? WHERE id = ?", [status, aqId]);
+    // Track when ticket enters in_progress (wip_at equivalent) and resolution timestamps
+    const setExtra = status === "in_progress"
+      ? ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN NOW() ELSE in_progress_at END"
+      : status === "resolved"
+        ? ", resolved_at = CASE WHEN resolved_at IS NULL THEN NOW() ELSE resolved_at END"
+        : "";
+    await pool.execute(`UPDATE asset_queries SET status = ?, updated_at = NOW()${setExtra} WHERE id = ?`, [status, aqId]);
     res.json({ message: "Status updated", status });
   } catch (err) { next(err); }
 });

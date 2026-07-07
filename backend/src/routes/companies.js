@@ -256,6 +256,35 @@ router.get("/assets/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/companies/work-orders — work orders for a specific asset (used by asset detail overview)
+router.get("/work-orders", async (req, res, next) => {
+  try {
+    const { assetId, limit = 200 } = req.query;
+    if (!assetId) return res.status(400).json({ message: "assetId required" });
+    const [rows] = await pool.query(
+      `SELECT wo.id,
+              wo.work_order_number  AS "workOrderNumber",
+              wo.asset_name         AS "assetName",
+              wo.location,
+              wo.issue_description  AS "issueDescription",
+              wo.priority, wo.status,
+              wo.created_at         AS "createdAt",
+              wo.wip_at             AS "wipAt",
+              wo.resolution_at      AS "resolutionAt",
+              wo.closed_at          AS "closedAt",
+              cu.full_name          AS "assignedToName"
+       FROM work_orders wo
+       JOIN companies c ON c.id = wo.company_id AND c.user_id = ?
+       LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
+       WHERE wo.asset_id = ?
+       ORDER BY wo.created_at DESC
+       LIMIT ?`,
+      [req.user.id, Number(assetId), Number(limit)]
+    );
+    res.json({ data: rows, total: rows.length });
+  } catch (err) { next(err); }
+});
+
 // GET /api/companies/assets — full asset list for all companies managed by this user
 router.get("/assets", async (req, res, next) => {
   try {
