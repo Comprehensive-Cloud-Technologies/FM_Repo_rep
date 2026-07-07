@@ -170,8 +170,22 @@ export default function AssetDetailPage() {
   ].map(normalizeImgUrl).filter(Boolean);
 
   // Compute MTBF / MTTR / downtime from call logs
-  const closed = (callLogs || []).filter(wo => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt);
-  const totalDownMs = closed.reduce((s, wo) => s + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)), 0);
+  // Downtime = time from WIP (engineer starts) to Resolution (ticket closed/completed)
+  const resolved = (callLogs || []).filter(wo =>
+    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
+    wo.wipAt && wo.resolutionAt
+  );
+  const totalDownMs = resolved.reduce((s, wo) => s + Math.max(0, new Date(wo.resolutionAt) - new Date(wo.wipAt)), 0);
+  // Fallback: tickets with closedAt but no wipAt — use createdAt→closedAt
+  const legacyClosed = (callLogs || []).filter(wo =>
+    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
+    (!wo.wipAt || !wo.resolutionAt) && wo.createdAt && (wo.closedAt || wo.resolutionAt)
+  );
+  const legacyDownMs = legacyClosed.reduce((s, wo) => {
+    const end = wo.resolutionAt || wo.closedAt;
+    return s + Math.max(0, new Date(end) - new Date(wo.wipAt || wo.createdAt));
+  }, 0);
+  const combinedDownMs = totalDownMs + legacyDownMs;
   const fmtMs = (ms) => {
     const h = Math.floor(ms / 3600000);
     const min = Math.floor((ms % 3600000) / 60000);
@@ -179,15 +193,15 @@ export default function AssetDetailPage() {
     return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
   };
 
-  // MTBF = Total operating time / number of failures (failures = closed calls)
-  const failures = closed.length;
+  // MTBF = Total operating time / number of failures (failures = resolved calls)
+  const failures = resolved.length + legacyClosed.length;
   const assetAge = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
-  const operatingMs = Math.max(0, assetAge - totalDownMs);
+  const operatingMs = Math.max(0, assetAge - combinedDownMs);
   const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "00:00:00";
   // MTTR = Total downtime / number of breakdowns
-  const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "00:00:00";
+  const mttrLabel = failures > 0 ? fmtMs(combinedDownMs / failures) : "00:00:00";
 
-  const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "00:00:00";
+  const totalDownLabel = combinedDownMs > 0 ? fmtMs(combinedDownMs) : "00:00:00";
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
