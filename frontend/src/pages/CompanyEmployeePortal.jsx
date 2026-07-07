@@ -234,7 +234,7 @@ const ALL_MODULES = [
   { key: "dashboard",  label: "Dashboard" },
   { key: "checklists", label: "Checklists" },
   { key: "logsheets",  label: "Logsheets" },
-  { key: "workorders", label: "Requests" },
+  { key: "workorders", label: "Ticket Master" },
   { key: "warnings",   label: "Warnings" },
   { key: "assets",     label: "Assets" },
   { key: "mytasks",    label: "My Tasks" },
@@ -252,6 +252,7 @@ function normalizePerms(p) {
 
 function EmployeeModal({ existing, token, employees = [], customRoles = [], currentUserRole = "admin", onClose, onSaved }) {
   const isEdit = !!existing;
+  const [createdCreds, setCreatedCreds] = useState(null); // holds {fullName,username,password} after create
 
   // Use the saved service_domain from the DB directly.
   // Falls back to role-capability derivation only when the field is absent.
@@ -331,7 +332,12 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
       const saved = isEdit
         ? await updateCompanyPortalEmployee(token, existing.id, payload)
         : await createCompanyPortalEmployee(token, payload);
-      onSaved(saved, isEdit);
+      if (!isEdit) {
+        // Show credentials before closing so admin can note them down
+        setCreatedCreds({ fullName: form.fullName, username: form.username, password: form.password, savedObj: saved });
+      } else {
+        onSaved(saved, true);
+      }
     } catch (err) {
       setError(err.message || "Could not save");
     } finally {
@@ -494,6 +500,48 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
           <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save Changes" : "Add Employee"}</Btn>
         </div>
       </div>
+
+      {/* Credential confirmation overlay — shown only after creating a new employee */}
+      {createdCreds && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "440px", padding: "28px", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a", margin: 0 }}>Employee Created!</p>
+                <p style={{ fontSize: "12.5px", color: "#64748b", margin: "2px 0 0" }}>Save these login credentials now</p>
+              </div>
+            </div>
+
+            <div style={{ background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "16px", marginBottom: "16px" }}>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "11px" }}>Employee Name</p>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>{createdCreds.fullName}</p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ background: "#fff", border: "1.5px solid #bfdbfe", borderRadius: "8px", padding: "12px" }}>
+                  <p style={{ fontSize: "11px", fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 6px" }}>Username</p>
+                  <p style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}>{createdCreds.username}</p>
+                </div>
+                <div style={{ background: "#fff", border: "1.5px solid #fde68a", borderRadius: "8px", padding: "12px" }}>
+                  <p style={{ fontSize: "11px", fontWeight: 700, color: "#d97706", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 6px" }}>Password</p>
+                  <p style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}>{createdCreds.password}</p>
+                </div>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#94a3b8", margin: "0 0 16px", textAlign: "center" }}>
+              ⚠ The password cannot be recovered after this window closes. Share it securely with the employee.
+            </p>
+
+            <button onClick={() => { setCreatedCreds(null); onSaved(createdCreds.savedObj, false); }}
+              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>
+              I've saved the credentials — Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4025,7 +4073,7 @@ const NAV_ALL = [
   { key: "locations",   label: "Locations",   roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
   { key: "departments", label: "Departments", roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
   { key: "assets",      label: "Assets",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
-  { key: "requests",    label: "Requests",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { key: "requests",    label: "Ticket Master",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
@@ -7736,14 +7784,14 @@ export default function CompanyEmployeePortal() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                         <thead>
                           <tr>
-                            {["Employee", "Supervisor", "Email", "Designation", "Role", "Status", ...(canManage ? ["Actions"] : [])].map((h) => (
+                            {["Employee", "Supervisor", "Email", "Username", "Designation", "Role", "Status", ...(canManage ? ["Actions"] : [])].map((h) => (
                               <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {filteredEmployees.length === 0
-                            ? <tr><td colSpan={canManage ? 7 : 6} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No employees found{empSearch ? ` for "${empSearch}"` : ""}</td></tr>
+                            ? <tr><td colSpan={canManage ? 8 : 7} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No employees found{empSearch ? ` for "${empSearch}"` : ""}</td></tr>
                             : filteredEmployees.map((e) => (
                               <tr key={e.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                 <td style={{ padding: "11px 14px" }}>
@@ -7754,6 +7802,7 @@ export default function CompanyEmployeePortal() {
                                 </td>
                                 <td style={{ padding: "11px 14px", color: "#64748b", fontSize: "13px" }}>{e.supervisorName || <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                                 <td style={{ padding: "11px 14px", color: "#64748b", fontSize: "13px" }}>{e.email}</td>
+                                <td style={{ padding: "11px 14px", color: "#64748b", fontSize: "13px", fontFamily: "monospace" }}>{e.username || <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                                 <td style={{ padding: "11px 14px", color: "#475569", fontSize: "13px" }}>{e.designation || "—"}</td>
                                 <td style={{ padding: "11px 14px" }}><Badge val={e.role} /></td>
                                 <td style={{ padding: "11px 14px" }}>
@@ -9596,8 +9645,8 @@ export default function CompanyEmployeePortal() {
                   const result = await bulkImportCompanyPortalAssets(token, bulkAssetFile, bulkAssetImportMode);
                   setBulkAssetResult(result);
                   // Refresh assets list AND dashboard stats
-                  getCompanyPortalAssets(token).then((list) => list && setAssets(list)).catch(() => {});
-                  getCompanyPortalDashboard(token).then((d) => d && setDashboard(d)).catch(() => {});
+                  getCompanyPortalAssets(token, allCompaniesMode ? { allCompanies: "true" } : {}).then((list) => list && setAssets(list)).catch(() => {});
+                  getCompanyPortalDashboard(token, allCompaniesMode ? { allCompanies: "true" } : {}).then((d) => d && setDashboard(d)).catch(() => {});
                 } catch (err) {
                   setBulkAssetResult({ error: err.message });
                 } finally {

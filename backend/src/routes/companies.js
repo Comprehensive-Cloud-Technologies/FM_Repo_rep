@@ -204,6 +204,10 @@ router.get("/stats", async (req, res, next) => {
        LEFT JOIN work_orders wo ON wo.created_by = u.id
        ${byUserWhere}
        GROUP BY u.id, u.full_name, u.email, u.role, c.id, c.company_name
+       HAVING u.id = (
+         SELECT MAX(u2.id) FROM company_users u2
+         WHERE u2.full_name = u.full_name AND u2.company_id = c.id
+       )
        ORDER BY c.company_name, u.full_name`,
       byUserArgs
     ).catch(() => [[]]);

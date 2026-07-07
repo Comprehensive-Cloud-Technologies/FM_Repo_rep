@@ -213,6 +213,8 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS assigned_note TEXT DEFAULT NULL`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS escalation_level INT DEFAULT 0`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS expected_completion_at DATETIME DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS wip_at DATETIME DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS resolution_at DATETIME DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS shift VARCHAR(60) DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(60) DEFAULT 'technical'`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS supervisor_id INT DEFAULT NULL`,
@@ -2063,7 +2065,12 @@ router.post("/assets/bulk-import", (req, res, next) => {
         );
         const assetId = result.insertId;
 
-        // Save all metadata fields picked from the Excel row
+        // Register in asset_pre_qr so mobile QR scans resolve correctly via fetchPreQrByUid
+        await pool.execute(
+          `INSERT IGNORE INTO asset_pre_qr (company_id, qr_unique_id, asset_id, linked_at)
+           VALUES (?, ?, ?, NOW())`,
+          [cid(req), uniqueIdToUse, assetId]
+        );
         const meta = {};
         const mp = pick(row,
           "make", "manufacturer", "manufacturername", "brand", "mfg", "madeby", "makeby");
@@ -4567,6 +4574,8 @@ router.get("/work-orders/:id", async (req, res, next) => {
               wo.created_at AS "createdAt",
               wo.closed_at AS "closedAt",
               wo.expected_completion_at AS "expectedCompletionAt",
+              wo.wip_at AS "wipAt",
+              wo.resolution_at AS "resolutionAt",
               wo.escalation_interval_minutes AS "escalationIntervalMinutes",
               wo.escalation_level AS "escalationLevel",
               wo.escalation_note AS "escalationNote",
@@ -4636,6 +4645,8 @@ router.get("/work-orders", async (req, res, next) => {
               wo.created_at AS "createdAt",
               wo.expected_completion_at AS "expectedCompletionAt",
               wo.escalation_level AS "escalationLevel",
+              wo.wip_at AS "wipAt",
+              wo.resolution_at AS "resolutionAt",
               f.severity AS "flagSeverity", f.source AS "flagSource",
               COALESCE(f.escalated, FALSE) AS "flagEscalated"
        FROM work_orders wo
@@ -4784,13 +4795,13 @@ router.put("/work-orders/:id/assign", async (req, res, next) => {
     if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
 
     await pool.execute(
-      "UPDATE work_orders SET cp_assigned_to = ?, assigned_note = ?, status = 'in_progress' WHERE id = ?",
+      "UPDATE work_orders SET cp_assigned_to = ?, assigned_note = ?, status = 'assigned' WHERE id = ?",
       [assignedTo, assignedNote || null, woId]
     );
 
     await pool.execute(
       `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks)
-       VALUES (?, 'in_progress', NULL, ?)`,
+       VALUES (?, 'assigned', NULL, ?)`,
       [woId, `Assigned to ${assignee.fullName}`]
     );
 
@@ -4918,8 +4929,11 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
 
     const closedAt = (status === "completed" || status === "closed") ? new Date() : null;
     await pool.execute(
-      `UPDATE work_orders SET status = ?, closed_at = ? WHERE id = ?`,
-      [status, closedAt, woId]
+      `UPDATE work_orders SET status = ?, closed_at = ?,
+        wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END
+       WHERE id = ?`,
+      [status, closedAt, status, status, woId]
     );
 
     await pool.execute(
@@ -4967,7 +4981,13 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
     if (!wo) return res.status(404).json({ message: "Work order not found" });
 
     const closedAt = (status === "completed" || status === "closed") ? new Date() : null;
-    await pool.execute(`UPDATE work_orders SET status = ?, closed_at = ? WHERE id = ?`, [status, closedAt, woId]);
+    await pool.execute(
+      `UPDATE work_orders SET status = ?, closed_at = ?,
+        wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END
+       WHERE id = ?`,
+      [status, closedAt, status, status, woId]
+    );
     await pool.execute(
       `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks) VALUES (?, ?, NULL, ?)`,
       [woId, status, remark || null]

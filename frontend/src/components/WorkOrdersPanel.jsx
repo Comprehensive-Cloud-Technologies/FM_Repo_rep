@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -401,17 +402,38 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
         <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>🔧</div>
         <div style={{ flex: 1, minWidth: "160px" }}>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a" }}>Requests</h2>
+          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a" }}>Ticket Master</h2>
           <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#64748b" }}>Track and manage maintenance tasks and issue resolutions</p>
         </div>
         <button onClick={() => load()} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>↻ Refresh</button>
         <button onClick={() => {
-          const rows = [["WO #","Asset","Description","Priority","Status","Assigned To","Created At"]];
-          displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace(/_/g," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
-          const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-          const blob = new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
-          const a=document.createElement("a"); a.href=url; a.download=`requests-${filter}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
-        }} style={{ padding: "8px 16px", borderRadius: "8px", border: "1.5px solid #22c55e", background: "#fff", color: "#166534", fontWeight: 700, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
+          const headers = ["WO #","Asset","Hospital","Description","Priority","Status","Raised By","Assigned To","WIP Date","Resolution Date","Downtime (mins)","Created At"];
+          const wsData = [
+            headers,
+            ...displayed.map(w => {
+              const dtMins = (w.wipAt && w.resolutionAt) ? Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000)) : "";
+              return [
+                w.workOrderNumber || `WO-${w.id}`,
+                w.assetName || "",
+                w.companyName || "",
+                w.issueDescription || "",
+                w.priority || "",
+                (w.status || "").replace(/_/g, " "),
+                w.createdByName || "",
+                w.assignedToName || "Unassigned",
+                w.wipAt ? new Date(w.wipAt).toLocaleString() : "",
+                w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : "",
+                dtMins === "" ? "" : Number(dtMins),
+                w.createdAt ? new Date(w.createdAt).toLocaleString() : "",
+              ];
+            })
+          ];
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          ws["!cols"] = [12,20,18,36,10,14,16,16,20,20,14,20].map(w => ({ wch: w }));
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Ticket Master");
+          XLSX.writeFile(wb, `ticket-master-${filter}-${new Date().toISOString().slice(0,10)}.xlsx`);
+        }} style={{ padding: "8px 16px", borderRadius: "8px", border: "1.5px solid #22c55e", background: "#fff", color: "#166834", fontWeight: 700, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
@@ -489,7 +511,7 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  {["#", "WO Number", "Asset", "Description", "Priority", "Source", "Assigned To", "Status", "Created", "Actions"].map((h) => (
+                  {["#", "WO Number", "Asset", "Description", "Priority", "Source", "Raised By", "Assigned To", "WIP Date", "Resolution Date", "Downtime", "Status", "Created", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -549,6 +571,9 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
                       <td style={{ padding: "12px 14px" }}>
                         <span style={{ padding: "3px 9px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: src.bg, color: src.color }}>{src.label}</span>
                       </td>
+                      <td style={{ padding: "12px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600 }}>
+                        {wo.createdByName || <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
                       <td style={{ padding: "12px 14px" }}>
                         {wo.assignedToName ? (
                           <span style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{wo.assignedToName}</span>
@@ -560,6 +585,20 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
                             {wo.assignedNote.length > 30 ? wo.assignedNote.slice(0, 30) + "…" : wo.assignedNote}
                           </div>
                         )}
+                      </td>
+                      <td style={{ padding: "12px 14px", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
+                        {wo.wipAt ? new Date(wo.wipAt).toLocaleString() : <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "12px 14px", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
+                        {wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleString() : <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                        {wo.wipAt && wo.resolutionAt ? (() => {
+                          const mins = Math.round((new Date(wo.resolutionAt) - new Date(wo.wipAt)) / 60000);
+                          if (mins < 0) return <span style={{ color: "#94a3b8" }}>—</span>;
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>{label}</span>;
+                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: stat.bg, color: stat.color, whiteSpace: "nowrap" }}>{stat.label}</span>

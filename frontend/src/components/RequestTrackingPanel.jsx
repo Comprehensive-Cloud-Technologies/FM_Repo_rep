@@ -720,13 +720,14 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       if (statusFilter === "escalated") ef.escalated = true;
       else ef.status = statusFilter;
     }
-    const qs = buildQS({ ...ef, type: "all" });
+    if (allCompaniesMode) ef.allCompanies = true;
+    const qs = buildQS({ ...ef, type: "requests" });
     try {
       const res = await fetch(`${BASE}/api/company-portal/healthcare/export${qs}`, { headers: { Authorization: `Bearer ${authToken}` } });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `HTTP ${res.status}`); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `requests-export-${new Date().toISOString().slice(0,10)}.xlsx`;
+      const a = document.createElement("a"); a.href = url; a.download = `ticket-master-${new Date().toISOString().slice(0,10)}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     } catch(e) { alert(`Export failed: ${e.message}`); }
   };
@@ -748,7 +749,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
             <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </div>
-            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Requests</h1>
+            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Ticket Master</h1>
           </div>
           <p style={{ color: "#64748b", fontSize: "13.5px", margin: "4px 0 0" }}>Track and manage maintenance tasks and issue resolutions</p>
         </div>
@@ -809,7 +810,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  {["#","Request #","Asset / Location","Description","Priority","Source","Assigned To","Status","Created","Cutoff","Actions"].map(h => (
+                  {["#","Request #","Hospital","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Resolution Date","Status","Created","Cutoff","Actions"].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -830,6 +831,10 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                         <span style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</span>
                         {escalatedFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#faf5ff", color: "#7c3aed", padding: "1px 5px", borderRadius: "8px" }}>⏫</span>}
                         {overdueFlag   && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#fff7ed", color: "#ea580c", padding: "1px 5px", borderRadius: "8px" }}>⚠️</span>}
+                      </td>
+                      {/* Hospital / Site Name */}
+                      <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {wo.company_name || <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <p style={{ margin: "0 0 2px", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>{wo.assetName || wo.asset_name || "—"}</p>
@@ -862,10 +867,28 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       <td style={{ padding: "11px 14px" }}>
                         <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: src.bg, color: src.color }}>{src.label}</span>
                       </td>
+                      {/* Raised By */}
+                      <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {wo.created_by_name || wo.requester_name || <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
                       <td style={{ padding: "11px 14px", fontSize: "13px", color: "#374151", whiteSpace: "nowrap" }}>
                         {wo.assigned_to_name || wo.assignedToName
                           ? <><span style={{ fontWeight: 600 }}>{wo.assigned_to_name || wo.assignedToName}</span><br/><span style={{ fontSize: "11px", color: "#94a3b8" }}>{wo.assigned_to_designation || ""}</span></>
                           : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}
+                      </td>
+                      {/* WIP Date */}
+                      <td style={{ padding: "11px 14px", fontSize: "12px", color: "#1d4ed8", whiteSpace: "nowrap" }}>
+                        {wo.wip_at ? (
+                          <><div style={{ fontWeight: 600 }}>{new Date(wo.wip_at).toLocaleDateString()}</div>
+                          <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
+                        ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
+                      {/* Resolution Date */}
+                      <td style={{ padding: "11px 14px", fontSize: "12px", color: "#16a34a", whiteSpace: "nowrap" }}>
+                        {wo.resolution_at ? (
+                          <><div style={{ fontWeight: 600 }}>{new Date(wo.resolution_at).toLocaleDateString()}</div>
+                          <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.resolution_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
+                        ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <Badge val={wo.status} styleMap={STATUS_STYLE} />

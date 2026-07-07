@@ -37,6 +37,7 @@ const router = Router();
   await safeAlter(`ALTER TABLE company_users ADD COLUMN permissions JSON NULL`);
   await safeAlter(`ALTER TABLE company_users ADD COLUMN module_access JSON NULL`);
   await safeAlter(`ALTER TABLE company_users ADD COLUMN service_domain VARCHAR(20) NOT NULL DEFAULT 'technical'`);
+  await safeAlter(`ALTER TABLE company_users ADD COLUMN plain_password VARCHAR(255) NULL`);
   await safeAlter(`CREATE UNIQUE INDEX uq_company_users_email ON company_users(email)`);
   await safeAlter(`CREATE UNIQUE INDEX uq_company_users_username ON company_users(username)`);
   await safeAlter(`CREATE INDEX idx_company_users_company ON company_users(company_id)`);
@@ -50,6 +51,8 @@ const router = Router();
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN assigned_note TEXT NULL`);
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN expected_completion_at DATETIME NULL`);
   await safeAlter(`ALTER TABLE work_orders ADD COLUMN escalation_level INT NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN wip_at DATETIME NULL DEFAULT NULL`);
+  await safeAlter(`ALTER TABLE work_orders ADD COLUMN resolution_at DATETIME NULL DEFAULT NULL`);
   await safeAlter(`ALTER TABLE work_orders MODIFY COLUMN status ENUM('open','assigned','in_progress','on_hold','completed','closed','escalated') NOT NULL DEFAULT 'open'`);
 
   // ── Multi-company access table ───────────────────────────────────────────
@@ -353,6 +356,8 @@ router.get("/work-orders", requireAuth, async (req, res, next) => {
               wo.created_at AS "createdAt",
               wo.expected_completion_at AS "expectedCompletionAt",
               wo.escalation_level AS "escalationLevel",
+              wo.wip_at AS "wipAt",
+              wo.resolution_at AS "resolutionAt",
               f.severity AS "flagSeverity", f.source AS "flagSource",
               COALESCE(f.escalated, FALSE) AS "flagEscalated"
        FROM work_orders wo
@@ -392,7 +397,13 @@ router.put("/work-orders/:id/status", requireAuth, async (req, res, next) => {
     const { status } = req.body;
     const validStatuses = ["open", "assigned", "in_progress", "on_hold", "completed", "closed", "escalated"];
     if (!validStatuses.includes(status)) return res.status(400).json({ message: "Invalid status" });
-    await pool.query("UPDATE work_orders SET status = ?, updated_at = NOW() WHERE id = ?", [status, req.params.id]);
+    await pool.query(
+      `UPDATE work_orders SET status = ?, updated_at = NOW(),
+        wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END
+       WHERE id = ?`,
+      [status, status, status, req.params.id]
+    );
     res.json({ message: "Updated" });
   } catch (err) { next(err); }
 });
@@ -480,6 +491,8 @@ router.get("/employees", requireAuth, async (req, res, next) => {
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
     const [rows] = await pool.query(
       `SELECT id, company_id AS "companyId", full_name AS "fullName", email, phone, role, designation,
+              username, plain_password AS "plainPassword",
+              IF(password_hash IS NOT NULL AND password_hash != '', 1, 0) AS "hasPassword",
               COALESCE(department_id, NULL) AS "departmentId", status,
               COALESCE(permissions, '{}') AS "permissions",
               COALESCE(module_access, '[]') AS "moduleAccess", created_at AS "createdAt"
@@ -497,12 +510,13 @@ router.post("/employees", requireAuth, async (req, res, next) => {
     if (!companyId || !fullName || !email) return res.status(400).json({ message: "companyId, fullName, email required" });
     const bcrypt = (await import("bcryptjs")).default;
     const hashedPw = password ? await bcrypt.hash(password, 10) : await bcrypt.hash("changeme123", 10);
+    const plainPw  = password || "changeme123";
     const permJson = JSON.stringify(permissions && typeof permissions === "object" ? permissions : {});
     const modJson  = JSON.stringify(Array.isArray(moduleAccess) ? moduleAccess : []);
     const [result] = await pool.execute(
-      `INSERT INTO company_users (company_id, full_name, email, phone, role, designation, department_id, password_hash, status, permissions, module_access)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-      [companyId, fullName, email, phone || null, role, designation || null, departmentId || null, hashedPw, permJson, modJson]
+      `INSERT INTO company_users (company_id, full_name, email, phone, role, designation, department_id, password_hash, plain_password, status, permissions, module_access)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+      [companyId, fullName, email, phone || null, role, designation || null, departmentId || null, hashedPw, plainPw, permJson, modJson]
     );
     res.status(201).json({ id: result.insertId, fullName, email, role, status: "active", permissions: JSON.parse(permJson), moduleAccess: JSON.parse(modJson) });
   } catch (err) { next(err); }
@@ -511,7 +525,7 @@ router.post("/employees", requireAuth, async (req, res, next) => {
 // PUT /api/company-users/employees/:id – update employee (admin)
 router.put("/employees/:id", requireAuth, async (req, res, next) => {
   try {
-    const { fullName, email, phone, role, designation, departmentId, status, permissions, moduleAccess } = req.body;
+    const { fullName, email, phone, role, designation, departmentId, status, permissions, moduleAccess, password, username } = req.body;
     const fields = []; const params = [];
     if (fullName !== undefined)    { fields.push("full_name = ?");    params.push(fullName); }
     if (email !== undefined)       { fields.push("email = ?");        params.push(email); }
@@ -522,7 +536,33 @@ router.put("/employees/:id", requireAuth, async (req, res, next) => {
     if (status !== undefined)      { fields.push("status = ?");       params.push(status); }
     if (permissions !== undefined) { fields.push("permissions = ?"); params.push(JSON.stringify(permissions || {})); }
     if (moduleAccess !== undefined){ fields.push("module_access = ?"); params.push(JSON.stringify(Array.isArray(moduleAccess) ? moduleAccess : [])); }
+    if (username !== undefined)    { fields.push("username = ?");     params.push(username || null); }
+    if (password && password.trim()) {
+      const hashed = await bcrypt.hash(password.trim(), 10);
+      fields.push("password_hash = ?"); params.push(hashed);
+      fields.push("plain_password = ?"); params.push(password.trim());
+    }
     if (!fields.length) return res.status(400).json({ message: "No fields" });
+    params.push(req.params.id);
+    await pool.query(`UPDATE company_users SET ${fields.join(", ")} WHERE id = ?`, params);
+    res.json({ message: "Updated" });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/company-users/employees/:id – update password / username only (admin)
+router.patch("/employees/:id", requireAuth, async (req, res, next) => {
+  try {
+    const { password, username } = req.body;
+    const fields = []; const params = [];
+    if (username !== undefined) { fields.push("username = ?"); params.push(username || null); }
+    if (password && password.trim()) {
+      const hashed = await bcrypt.hash(password.trim(), 10);
+      fields.push("password_hash = ?");
+      params.push(hashed);
+      fields.push("plain_password = ?");
+      params.push(password.trim());
+    }
+    if (!fields.length) return res.status(400).json({ message: "No fields to update" });
     params.push(req.params.id);
     await pool.query(`UPDATE company_users SET ${fields.join(", ")} WHERE id = ?`, params);
     res.json({ message: "Updated" });

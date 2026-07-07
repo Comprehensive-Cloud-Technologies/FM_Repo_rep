@@ -905,7 +905,7 @@ router.get("/filter-options", async (req, res, next) => {
    GET /api/company-portal/healthcare/export?type=assets|call-logs|pms|calibration|training|rber
    ═══════════════════════════════════════════════════════════════════════════ */
 router.get("/export", validate([
-  query("type").isIn(["assets","call-logs","pms","calibration","training","rber","all"]),
+  query("type").isIn(["assets","call-logs","pms","calibration","training","rber","all","requests"]),
   ...filterParams,
 ]), async (req, res, next) => {
   try {
@@ -1020,8 +1020,81 @@ router.get("/export", validate([
       addSheet("RBER Records", rows);
     }
 
+    // ── Ticket Master / Requests export ───────────────────────────────────────
+    if (type === "requests") {
+      let companyIds;
+      if (req.query.allCompanies === "true") {
+        companyIds = await getAccessibleCompanyIds(req.companyUser.id, companyId);
+      } else {
+        companyIds = [companyId];
+      }
+      const inClause = companyIds.map(() => "?").join(",");
+      const [woRows] = await pool.query(
+        `SELECT
+           wo.work_order_number        AS "Request #",
+           c.company_name              AS "Hospital / Site",
+           wo.asset_name               AS "Asset",
+           wo.location                 AS "Location",
+           wo.issue_description        AS "Description",
+           wo.priority                 AS "Priority",
+           COALESCE(wo.source_label,'Manual') AS "Source",
+           cb.full_name                AS "Raised By",
+           cu.full_name                AS "Assigned To",
+           wo.status                   AS "Status",
+           wo.created_at               AS "Created At",
+           wo.wip_at                   AS "WIP (In Progress) Date",
+           wo.resolution_at            AS "Resolution Date",
+           CASE
+             WHEN wo.wip_at IS NOT NULL AND wo.resolution_at IS NOT NULL
+             THEN ROUND(TIMESTAMPDIFF(MINUTE, wo.wip_at, wo.resolution_at))
+             ELSE NULL
+           END                         AS "Downtime (Minutes)",
+           wo.escalation_level         AS "Escalation Level",
+           wo.cutoff_time              AS "Cutoff Time"
+         FROM work_orders wo
+         LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
+         LEFT JOIN company_users cb ON cb.id = wo.cp_created_by
+         LEFT JOIN companies c      ON c.id  = wo.company_id
+         WHERE wo.company_id IN (${inClause})
+         ORDER BY wo.created_at DESC`,
+        companyIds
+      );
+      const [aqRows] = await pool.query(
+        `SELECT
+           CONCAT('AQ-', aq.id)        AS "Request #",
+           c.company_name              AS "Hospital / Site",
+           COALESCE(a.asset_name,'Unknown Asset') AS "Asset",
+           COALESCE(a.building,'')     AS "Location",
+           COALESCE(aq.description, aq.title, aq.message, '') AS "Description",
+           'normal'                    AS "Priority",
+           'QR Scan'                   AS "Source",
+           aq.requester_name           AS "Raised By",
+           cu.full_name                AS "Assigned To",
+           aq.status                   AS "Status",
+           aq.created_at               AS "Created At",
+           NULL                        AS "WIP (In Progress) Date",
+           aq.resolved_at              AS "Resolution Date",
+           NULL                        AS "Downtime (Minutes)",
+           0                           AS "Escalation Level",
+           aq.cutoff_time              AS "Cutoff Time"
+         FROM asset_queries aq
+         LEFT JOIN assets a  ON a.id  = aq.asset_id
+         LEFT JOIN company_users cu ON cu.id = aq.assigned_to
+         LEFT JOIN companies c  ON c.id = aq.company_id
+         WHERE aq.company_id IN (${inClause})
+         ORDER BY aq.created_at DESC`,
+        companyIds
+      );
+      const allReqs = [...woRows, ...aqRows].sort((a, b) => new Date(b["Created At"]) - new Date(a["Created At"]));
+      // Set column widths for readability
+      const ws = XLSX.utils.json_to_sheet(allReqs);
+      const colWidths = [12,20,22,18,40,10,12,18,18,14,20,22,22,18,12,20];
+      ws['!cols'] = colWidths.map(w => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, "Ticket Master");
+    }
+
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    const filename = `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`;
+    const filename = `ticket-master-export-${new Date().toISOString().slice(0,10)}.xlsx`;
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buf);
@@ -1198,14 +1271,20 @@ router.get("/requests", validate([
          wo.source_label,
          wo.created_at,
          wo.created_at AS updated_at,
+         wo.wip_at,
+         wo.resolution_at,
          cu.full_name AS assigned_to_name,
          cu.designation AS assigned_to_designation,
+         cb.full_name AS created_by_name,
          d.name AS department_name,
+         c.company_name,
          'work_order' AS source_type
        FROM work_orders wo
        LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
+       LEFT JOIN company_users cb ON cb.id = wo.cp_created_by
        LEFT JOIN assets a         ON a.id  = wo.asset_id
        LEFT JOIN departments d    ON d.id  = a.department_id
+       LEFT JOIN companies c      ON c.id  = wo.company_id
        ${woWhere}`,
       woP
     );
@@ -1228,18 +1307,23 @@ router.get("/requests", validate([
            'QR Scan' AS source_label,
            aq.created_at,
            aq.updated_at,
+           NULL AS wip_at,
+           aq.resolved_at AS resolution_at,
            cu.full_name AS assigned_to_name,
            cu.designation AS assigned_to_designation,
            d.name AS department_name,
+           c.company_name,
            'asset_query' AS source_type,
            aq.requester_name,
            aq.requester_phone,
            aq.requester_email,
+           aq.requester_name AS created_by_name,
            aq.images
          FROM asset_queries aq
          LEFT JOIN assets a ON a.id = aq.asset_id
          LEFT JOIN company_users cu ON cu.id = aq.assigned_to
          LEFT JOIN departments d    ON d.id  = a.department_id
+         LEFT JOIN companies c      ON c.id  = aq.company_id
          ${aqWhere}`,
         aqP
       );

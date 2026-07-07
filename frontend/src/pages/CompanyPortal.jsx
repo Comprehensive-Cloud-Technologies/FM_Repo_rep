@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import * as XLSX from "xlsx";
 import {
 
 
@@ -3638,12 +3639,46 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
     return true;
   }).filter(w => !search || (w.workOrderNumber||"").toLowerCase().includes(search.toLowerCase()) || (w.issueDescription||"").toLowerCase().includes(search.toLowerCase()) || (w.assetName||"").toLowerCase().includes(search.toLowerCase()) || (w.companyName||"").toLowerCase().includes(search.toLowerCase()));
 
+  const formatDowntime = (wipAt, resolutionAt) => {
+    if (!wipAt || !resolutionAt) return "—";
+    const mins = Math.round((new Date(resolutionAt) - new Date(wipAt)) / 60000);
+    if (mins < 0) return "—";
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (hours < 24) return `${hours}h ${m}m`;
+    const days = Math.floor(hours / 24);
+    const h = hours % 24;
+    return `${days}d ${h}h ${m}m`;
+  };
+
   const exportToExcel = () => {
-    const rows = [["WO #","Company","Asset","Description","Priority","Status","Assigned To","Created At"]];
-    displayed.forEach(w => rows.push([w.workOrderNumber||`WO-${w.id}`, w.companyName||"", w.assetName||"", w.issueDescription||"", w.priority||"", (w.status||"").replace(/_/g," "), w.assignedToName||"Unassigned", w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ""]));
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type:"text/csv" }); const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `requests-${filter}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    const headers = ["WO #","Hospital","Asset","Description","Priority","Status","Raised By","Assigned To","WIP Date","Resolution Date","Downtime (mins)","Created At"];
+    const wsData = [
+      headers,
+      ...displayed.map(w => {
+        const dtMins = (w.wipAt && w.resolutionAt) ? Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000)) : "";
+        return [
+          w.workOrderNumber || `WO-${w.id}`,
+          w.companyName || "",
+          w.assetName || "",
+          w.issueDescription || "",
+          w.priority || "",
+          (w.status || "").replace(/_/g, " "),
+          w.createdByName || "",
+          w.assignedToName || "Unassigned",
+          w.wipAt ? new Date(w.wipAt).toLocaleString() : "",
+          w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : "",
+          dtMins === "" ? "" : Number(dtMins),
+          w.createdAt ? new Date(w.createdAt).toLocaleString() : "",
+        ];
+      })
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [12,18,20,36,10,14,16,16,20,20,14,20].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ticket Master");
+    XLSX.writeFile(wb, `ticket-master-${filter}-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   const TILES = [
@@ -3657,7 +3692,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
     <div style={{ padding:"24px", maxWidth:"1400px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px", flexWrap:"wrap", gap:"10px" }}>
         <div>
-          <h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Requests</h1>
+          <h1 style={{ fontSize:"22px", fontWeight:800, color:"#0f172a", margin:0 }}>Ticket Master</h1>
           <p style={{ color:"#64748b", fontSize:"13.5px", margin:"4px 0 0" }}>Track and manage maintenance tasks and all issue resolutions</p>
         </div>
         <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
@@ -3729,8 +3764,8 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"14px" }}>
             <thead>
               <tr style={{ background:"#f8fafc" }}>
-                {["WO #","Company","Asset","Description","Priority","Status","Assigned To","Actions"].map(h=>(
-                  <th key={h} style={{ padding:"11px 14px", textAlign:"left", color:"#475569", fontWeight:600, fontSize:"12px", textTransform:"uppercase", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
+                {["WO #","Hospital","Asset","Description","Priority","Status","Raised By","Assigned To","WIP Date","Resolution Date","Downtime","Actions"].map(h=>(
+                  <th key={h} style={{ padding:"11px 14px", textAlign:"left", color:"#475569", fontWeight:600, fontSize:"12px", textTransform:"uppercase", borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -3751,7 +3786,15 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                     <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"-"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
+                    <td style={{ padding:"11px 14px", fontSize:"12.5px", color:"#0f172a", fontWeight:600 }}>{w.createdByName||<span style={{ color:"#94a3b8" }}>—</span>}</td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>—</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>—</span>}</td>
+                    <td style={{ padding:"11px 14px", whiteSpace:"nowrap" }}>
+                      {w.wipAt && w.resolutionAt ? (
+                        <span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:"#fef9c3", color:"#854d0e" }}>{formatDowntime(w.wipAt, w.resolutionAt)}</span>
+                      ) : <span style={{ color:"#94a3b8", fontSize:"12px" }}>—</span>}
+                    </td>
                     <td style={{ padding:"11px 14px" }}>
                       <div style={{ display:"flex", gap:"6px", alignItems:"center" }}>
                         <select value={w.status} onChange={e=>updateStatus(w,e.target.value)} style={{ padding:"5px 8px", borderRadius:"6px", border:"1px solid #e2e8f0", fontSize:"12px", cursor:"pointer" }}>
@@ -4473,6 +4516,19 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
   const [formCompanyId, setFormCompanyId] = useState(null); // primary company selected inside modal
   const [companyAccessOpen, setCompanyAccessOpen] = useState(false);
   const [companyAccessSearch, setCompanyAccessSearch] = useState("");
+  // Set-password dialog state
+  const [setPwdEmp, setSetPwdEmp] = useState(null);  // employee object
+  const [setPwdVal, setSetPwdVal] = useState("");
+  const [setPwdSaving, setSetPwdSaving] = useState(false);
+  const [setPwdErr, setSetPwdErr] = useState(null);
+  const [setPwdDone, setSetPwdDone] = useState(false);
+  // View credentials dialog
+  const [viewEmp, setViewEmp] = useState(null);
+  const [viewNewPwd, setViewNewPwd] = useState("");
+  const [viewPwdSaving, setViewPwdSaving] = useState(false);
+  const [viewPwdErr, setViewPwdErr] = useState(null);
+  const [viewPwdDone, setViewPwdDone] = useState(false);
+  const [viewShowPwd, setViewShowPwd] = useState(false);
 
   useEffect(() => {
     if (initialCompanyId) { setSelCo(initialCompanyId); if (onCompanySelected) onCompanySelected(); }
@@ -4745,7 +4801,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
         <div style={{ background:"#fff", borderRadius:"12px", border:"1px solid #e2e8f0", overflow:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13.5px" }}>
             <thead><tr style={{ background:"#f8fafc", borderBottom:"1px solid #e2e8f0" }}>
-              {["#","Name","Email","Phone","Designation","Role","Status","Actions"].map(h=>(
+              {["#","Name","Email","Phone","Username","Designation","Role","Status","Actions"].map(h=>(
                 <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:700, color:"#64748b", fontSize:"11px", textTransform:"uppercase", letterSpacing:"0.05em", whiteSpace:"nowrap" }}>{h}</th>
               ))}
             </tr></thead>
@@ -4763,11 +4819,17 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.email}</td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.phone||"-"}</td>
+                  <td style={{ padding:"10px 14px" }}>
+                    {e.username
+                      ? <span style={{ fontFamily:"monospace", fontSize:"13px", color:"#0f172a", background:"#f1f5f9", padding:"2px 8px", borderRadius:"6px" }}>{e.username}</span>
+                      : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>—</span>}
+                  </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"-"}</td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: e.status==="Active"||e.status==="active" ? "#dcfce7":"#fee2e2", color: e.status==="Active"||e.status==="active" ? "#166534":"#dc2626", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700 }}>{e.status||"Active"}</span></td>
                   <td style={{ padding:"10px 14px" }}>
                     <div style={{ display:"flex", gap:"6px" }}>
+                      <button type="button" onClick={() => { setViewEmp(e); setViewNewPwd(""); setViewPwdErr(null); setViewPwdDone(false); setViewShowPwd(false); }} style={{ padding:"5px 10px", borderRadius:"6px", border:"1px solid #bfdbfe", background:"#eff6ff", color:"#2563eb", fontSize:"12px", cursor:"pointer", fontWeight:600 }}>View</button>
                       <button type="button" onClick={async () => {
                         setEditEmp(e);
                         setForm({ fullName:e.fullName||"", email:e.email||"", phone:e.phone||"", designation:e.designation||"", role:e.role||"employee", status:e.status||"Active", username:e.username||"", password:"" });
@@ -4791,6 +4853,193 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
           </table>
         </div>
       )}
+
+    {/* ── View Credentials Dialog ───────────────────────────────────── */}
+    {viewEmp && (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}
+        onClick={e => { if (e.target === e.currentTarget) setViewEmp(null); }}>
+        <div style={{ background:"#fff", borderRadius:"16px", width:"100%", maxWidth:"460px", padding:"28px", boxShadow:"0 24px 64px rgba(0,0,0,0.2)", maxHeight:"90vh", overflowY:"auto" }}>
+          {/* Header */}
+          <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"22px" }}>
+            <div style={{ width:"44px", height:"44px", borderRadius:"50%", background:"#2563eb", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px", fontWeight:800, flexShrink:0 }}>
+              {(viewEmp.fullName||"?")[0].toUpperCase()}
+            </div>
+            <div>
+              <p style={{ fontWeight:800, fontSize:"16px", color:"#0f172a", margin:0 }}>{viewEmp.fullName}</p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{viewEmp.role} · {viewEmp.status}</p>
+            </div>
+            <button onClick={() => setViewEmp(null)} style={{ marginLeft:"auto", width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b", fontSize:"16px" }}>×</button>
+          </div>
+
+          {/* Details grid */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"20px" }}>
+            {[
+              ["Email", viewEmp.email],
+              ["Phone", viewEmp.phone || "—"],
+              ["Designation", viewEmp.designation || "—"],
+              ["Role", viewEmp.role],
+              ["Status", viewEmp.status],
+              ["Company", viewEmp.companyName || "—"],
+            ].map(([lbl, val]) => (
+              <div key={lbl} style={{ background:"#f8fafc", borderRadius:"8px", padding:"10px 12px", border:"1px solid #e2e8f0" }}>
+                <p style={{ fontSize:"10px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 3px" }}>{lbl}</p>
+                <p style={{ fontSize:"13px", fontWeight:600, color:"#0f172a", margin:0, wordBreak:"break-all" }}>{val}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile Login Credentials */}
+          <div style={{ background:"#eff6ff", border:"1.5px solid #bfdbfe", borderRadius:"10px", padding:"16px", marginBottom:"20px" }}>
+            <p style={{ fontSize:"11px", fontWeight:700, color:"#2563eb", textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 12px" }}>Mobile App Login Credentials</p>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+              <div>
+                <p style={{ fontSize:"10px", fontWeight:700, color:"#64748b", textTransform:"uppercase", margin:"0 0 4px" }}>Username</p>
+                <p style={{ fontFamily:"monospace", fontSize:"15px", fontWeight:700, color:"#0f172a", margin:0, background:"#fff", padding:"6px 10px", borderRadius:"6px", border:"1px solid #bfdbfe" }}>
+                  {viewEmp.username || <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"13px" }}>Not set</span>}
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize:"10px", fontWeight:700, color:"#64748b", textTransform:"uppercase", margin:"0 0 4px" }}>Password</p>
+                <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                  <p style={{ fontFamily:"monospace", fontSize:"15px", fontWeight:700, color:"#0f172a", margin:0, background:"#fff", padding:"6px 10px", borderRadius:"6px", border:"1px solid #bfdbfe", flex:1, letterSpacing: viewShowPwd ? "normal" : "0.2em" }}>
+                    {viewEmp.plainPassword
+                      ? (viewShowPwd ? viewEmp.plainPassword : "••••••••")
+                      : viewEmp.hasPassword
+                        ? <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"12px", letterSpacing:"normal" }}>Set before this update — use Change Password below to set a new visible one</span>
+                        : <span style={{ color:"#ef4444", fontStyle:"italic", fontFamily:"inherit", fontSize:"13px", letterSpacing:"normal" }}>Not set</span>}
+                  </p>
+                  {viewEmp.plainPassword && (
+                    <button onClick={() => setViewShowPwd(v => !v)} title={viewShowPwd ? "Hide" : "Show"}
+                      style={{ background:"none", border:"none", cursor:"pointer", color:"#2563eb", padding:"4px", flexShrink:0 }}>
+                      {viewShowPwd
+                        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Change password section */}
+          <div style={{ borderTop:"1px solid #e2e8f0", paddingTop:"16px" }}>
+            <p style={{ fontSize:"13px", fontWeight:700, color:"#0f172a", margin:"0 0 10px" }}>Change Password</p>
+            {viewPwdErr && <div style={{ background:"#fef2f2", color:"#dc2626", padding:"8px 12px", borderRadius:"7px", marginBottom:"10px", fontSize:"12.5px" }}>{viewPwdErr}</div>}
+            {viewPwdDone && (
+              <div style={{ background:"#f0fdf4", border:"1px solid #86efac", borderRadius:"7px", padding:"10px 12px", marginBottom:"10px", fontSize:"13px", color:"#16a34a", fontWeight:600 }}>
+                ✓ Password updated to: <span style={{ fontFamily:"monospace" }}>{viewNewPwd}</span>
+              </div>
+            )}
+            <div style={{ display:"flex", gap:"8px" }}>
+              <input
+                type="text"
+                value={viewNewPwd}
+                onChange={ev => { setViewNewPwd(ev.target.value); setViewPwdDone(false); setViewPwdErr(null); }}
+                placeholder="Enter new password"
+                style={{ flex:1, padding:"9px 12px", borderRadius:"8px", border:"1.5px solid #e2e8f0", fontSize:"13.5px", fontFamily:"monospace", outline:"none" }}
+              />
+              <button disabled={viewPwdSaving || !viewNewPwd.trim()} onClick={async () => {
+                if (!viewNewPwd.trim()) return;
+                setViewPwdSaving(true); setViewPwdErr(null);
+                try {
+                  const r = await fetch(`/api/company-users/employees/${viewEmp.id}`, {
+                    method:"PATCH",
+                    headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+                    body: JSON.stringify({ password: viewNewPwd.trim() }),
+                  });
+                  if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.message || `HTTP ${r.status}`); }
+                  const newPwd = viewNewPwd.trim();
+                  // 1. Update the view modal immediately so it shows the new password
+                  setViewEmp(prev => ({ ...prev, plainPassword: newPwd, hasPassword: 1 }));
+                  // 2. Update the employees array in-place so clicking "View" again shows the new password
+                  setEmp(prev => prev.map(emp => emp.id === viewEmp.id ? { ...emp, plainPassword: newPwd, hasPassword: 1 } : emp));
+                  setViewPwdDone(true);
+                  setViewShowPwd(true);
+                  // 3. Background sync with backend to confirm the save
+                  load(selCo).catch(() => {});
+                } catch(err) { setViewPwdErr(err.message); }
+                finally { setViewPwdSaving(false); }
+              }} style={{ padding:"9px 16px", borderRadius:"8px", border:"none", background: viewPwdSaving || !viewNewPwd.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: viewPwdSaving || !viewNewPwd.trim() ? "default":"pointer", whiteSpace:"nowrap" }}>
+                {viewPwdSaving ? "Saving…" : "Set Password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Set Password Dialog ───────────────────────────────────────── */}
+    {setPwdEmp && (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+        <div style={{ background:"#fff", borderRadius:"16px", width:"100%", maxWidth:"400px", padding:"28px", boxShadow:"0 24px 64px rgba(0,0,0,0.2)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"20px" }}>
+            <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"#fef9c3", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <p style={{ fontWeight:800, fontSize:"15px", color:"#0f172a", margin:0 }}>Set Password</p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{setPwdEmp.fullName} · <span style={{ fontFamily:"monospace" }}>{setPwdEmp.username || "no username"}</span></p>
+            </div>
+          </div>
+
+          {setPwdDone ? (
+            <div style={{ textAlign:"center", padding:"10px 0 20px" }}>
+              <div style={{ fontSize:"36px", marginBottom:"8px" }}>✅</div>
+              <p style={{ fontWeight:700, color:"#16a34a", fontSize:"15px", margin:"0 0 6px" }}>Password updated!</p>
+              <p style={{ color:"#64748b", fontSize:"13px", margin:"0 0 18px" }}>New password has been set for {setPwdEmp.fullName}.</p>
+              <div style={{ background:"#f0fdf4", border:"1px solid #86efac", borderRadius:"10px", padding:"12px 16px", marginBottom:"18px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <p style={{ fontSize:"11px", fontWeight:700, color:"#16a34a", margin:"0 0 4px" }}>USERNAME</p>
+                  <p style={{ fontFamily:"monospace", fontSize:"14px", fontWeight:700, color:"#0f172a", margin:0 }}>{setPwdEmp.username || "\u2014"}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize:"11px", fontWeight:700, color:"#16a34a", margin:"0 0 4px" }}>NEW PASSWORD</p>
+                  <p style={{ fontFamily:"monospace", fontSize:"14px", fontWeight:700, color:"#0f172a", margin:0 }}>{setPwdVal}</p>
+                </div>
+              </div>
+              <button onClick={() => setSetPwdEmp(null)} style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"none", background:"#2563eb", color:"#fff", fontWeight:700, fontSize:"14px", cursor:"pointer" }}>
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              {setPwdErr && <div style={{ background:"#fef2f2", color:"#dc2626", padding:"9px 12px", borderRadius:"8px", marginBottom:"14px", fontSize:"13px" }}>{setPwdErr}</div>}
+              <div style={{ marginBottom:"16px" }}>
+                <label style={{ display:"block", fontSize:"12.5px", fontWeight:600, color:"#475569", marginBottom:"6px" }}>New Password</label>
+                <input
+                  type="text"
+                  value={setPwdVal}
+                  onChange={ev => setSetPwdVal(ev.target.value)}
+                  placeholder="Enter new password"
+                  autoFocus
+                  style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", border:"1.5px solid #e2e8f0", borderRadius:"8px", fontSize:"14px", outline:"none", fontFamily:"monospace" }}
+                />
+                <p style={{ fontSize:"11.5px", color:"#94a3b8", margin:"5px 0 0" }}>Minimum 6 characters recommended. Share securely with the employee.</p>
+              </div>
+              <div style={{ display:"flex", gap:"10px" }}>
+                <button onClick={() => setSetPwdEmp(null)} style={{ flex:1, padding:"10px", borderRadius:"8px", border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontWeight:600, fontSize:"13px", cursor:"pointer" }}>Cancel</button>
+                <button disabled={setPwdSaving || !setPwdVal.trim()} onClick={async () => {
+                  if (!setPwdVal.trim()) return setSetPwdErr("Please enter a password");
+                  setSetPwdSaving(true); setSetPwdErr(null);
+                  try {
+                    const r = await fetch(`/api/company-users/employees/${setPwdEmp.id}`, {
+                      method:"PATCH",
+                      headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+                      body: JSON.stringify({ password: setPwdVal.trim() }),
+                    });
+                    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.message || `HTTP ${r.status}`); }
+                    setSetPwdDone(true);
+                  } catch(err) { setSetPwdErr(err.message); }
+                  finally { setSetPwdSaving(false); }
+                }} style={{ flex:2, padding:"10px", borderRadius:"8px", border:"none", background: setPwdSaving || !setPwdVal.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: setPwdSaving || !setPwdVal.trim() ? "default":"pointer" }}>
+                  {setPwdSaving ? "Saving…" : "Set Password"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
     </div>
   );
 }
@@ -7350,6 +7599,17 @@ const CompanyPortal = () => {
     };
     return () => bc.close();
   }, [token]);
+
+  // Preload call logs (work orders) when asset detail opens so downtime shows on Overview tab
+  useEffect(() => {
+    if (!viewingAsset || !token) return;
+    setViewingAssetCallLogs(null);
+    setViewingAssetCalibration(null);
+    fetch(`${getApiBaseUrl()}/api/companies/work-orders?assetId=${viewingAsset.id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setViewingAssetCallLogs(Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])))
+      .catch(() => setViewingAssetCallLogs([]));
+  }, [viewingAsset, token]);
 
 
 
@@ -15150,9 +15410,9 @@ const CompanyPortal = () => {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <span className="nav-label">Logsheets</span>
           </button>
-          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }} title="Requests">
+          <button className={nav === "workorders" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("workorders"); setShowAddForm(false); }} title="Ticket Master">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <span className="nav-label">Requests</span>
+            <span className="nav-label">Ticket Master</span>
           </button>
           <button className={nav === "queries" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("queries"); setShowAddForm(false); }} title="Asset Issues">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -24283,17 +24543,40 @@ const CompanyPortal = () => {
                             </div>
                           )}
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-                            {[
-                              ["Cost of Asset", m.purchaseCost ? `? ${m.purchaseCost}` : "�"],
-                              ["Total Down Time", "�"],
-                              ["MTBF", "�"],
-                              ["MTTR", "�"],
-                            ].map(([lbl, val]) => (
-                              <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
-                                <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
-                                <p style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0 }}>{val}</p>
-                              </div>
-                            ))}
+                            {(() => {
+                              const wos = Array.isArray(viewingAssetCallLogs) ? viewingAssetCallLogs : [];
+                              const totalMins = wos.reduce((sum, w) => {
+                                if (!w.wipAt || !w.resolutionAt) return sum;
+                                const mins = Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000);
+                                return mins > 0 ? sum + mins : sum;
+                              }, 0);
+                              const fmtDt = (mins) => {
+                                if (mins === 0) return "0m";
+                                if (mins < 60) return `${mins}m`;
+                                const h = Math.floor(mins / 60); const m = mins % 60;
+                                if (h < 24) return `${h}h ${m}m`;
+                                const d = Math.floor(h / 24); const hr = h % 24;
+                                return `${d}d ${hr}h ${m}m`;
+                              };
+                              const completedWos = wos.filter(w => w.resolutionAt);
+                              const mttr = completedWos.length > 0
+                                ? fmtDt(Math.round(completedWos.reduce((s, w) => {
+                                    if (!w.wipAt || !w.resolutionAt) return s;
+                                    return s + Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000));
+                                  }, 0) / completedWos.length))
+                                : "—";
+                              return [
+                                ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
+                                ["Total Down Time", viewingAssetCallLogs === null ? "Loading…" : (totalMins > 0 ? fmtDt(totalMins) : "—")],
+                                ["Total Tickets", viewingAssetCallLogs === null ? "…" : String(wos.length)],
+                                ["Avg Resolution Time (MTTR)", viewingAssetCallLogs === null ? "Loading…" : mttr],
+                              ].map(([lbl, val]) => (
+                                <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
+                                  <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
+                                  <p style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0 }}>{val}</p>
+                                </div>
+                              ));
+                            })()}
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
                             {fields.map(([label, val]) => (
@@ -28592,13 +28875,30 @@ const CompanyPortal = () => {
             );
           };
 
-          // Export helpers
-          const exportToCSV = (rows, headers, filename) => {
-            const lines = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(","))];
-            const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a"); a.href = url; a.download = filename;
-            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+          // Export helpers — generates a real .xlsx workbook so all Excel formulas work natively
+          const exportToXLSX = (rows, headers, filename, colWidths = []) => {
+            const wsData = [
+              headers,
+              ...rows.map(r => headers.map(h => {
+                const v = r[h] ?? "";
+                if (typeof v === "number") return v;
+                const n = Number(v);
+                // Treat as number if it is purely numeric (Purchase Cost, counts, etc.)
+                if (v !== "" && !isNaN(n) && String(v).trim() !== "" && /^-?\d+(\.\d+)?$/.test(String(v).trim())) return n;
+                return String(v);
+              }))
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            // Bold header row
+            const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const cell = ws[XLSX.utils.encode_cell({ r: 0, c })];
+              if (cell) cell.s = { font: { bold: true } };
+            }
+            if (colWidths.length) ws["!cols"] = colWidths.map(w => ({ wch: w }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, filename);
           };
 
           const ASSET_HEADERS = ["SN","Company","Equipment Name","Asset ID","Category","Make","Model","Serial No","Accessories","Department","Building","Floor","Room","Mfg Year","Installation Date","Invoice No","Purchase Date","Purchase Cost","Maintenance","RBER","Remarks","Working Status","Verified Status","Tagged By","Tagged At","Created At"];
@@ -28618,7 +28918,7 @@ const CompanyPortal = () => {
               "Building": a.building||"", "Floor": a.floor||"", "Room": a.room||"",
               "Mfg Year": m.mfgYear||m.manufacturingYear||"", "Installation Date": m.installationDate||"",
               "Invoice No": m.invoiceNo||"", "Purchase Date": m.purchaseDate||"",
-              "Purchase Cost": m.purchaseCost||"", "Maintenance": maint,
+              "Purchase Cost": m.purchaseCost ? Number(m.purchaseCost) || m.purchaseCost : "", "Maintenance": maint,
               "RBER": m.rber?"Yes":"No", "Remarks": m.remarks||"",
               "Working Status": workingStatus||"Working", "Verified Status": verifiedStatus,
               "Tagged By": a.createdByName||"",
@@ -28635,7 +28935,9 @@ const CompanyPortal = () => {
               const qs = [statusParam, coParam.slice(1)].filter(Boolean).join("&");
               try {
                 const assets = await getClientAssets(token, qs);
-                exportToCSV(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, (type === "asset_profile" || type === "total_assets" ? "all" : type) + "_assets.csv");
+                const label = (type === "asset_profile" || type === "total_assets" ? "all" : type);
+                exportToXLSX(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, `${label}_assets.xlsx`,
+                  [4,18,22,14,12,14,14,14,18,14,12,8,12,10,16,12,14,14,18,6,20,14,14,14,18,14]);
               } catch(e) { alert("Export failed: " + e.message); }
             } else if (type === "complaint_profile" && dashboardStats) {
               const cp = dashboardStats.complaintProfile || {};
@@ -28647,16 +28949,17 @@ const CompanyPortal = () => {
                 { Category: "Resolved", Count: cp.resolved ?? 0 },
                 { Category: "Closed", Count: cp.closed ?? 0 },
               ];
-              exportToCSV(rows, ["Category", "Count"], "complaint_profile.csv");
+              exportToXLSX(rows, ["Category", "Count"], "complaint_profile.xlsx", [24, 10]);
             } else if (type === "companies" && byCompany.length > 0) {
               const rows = byCompany.map(c => ({ Company: c.companyName || "", Assets: c.assetCount ?? 0, Employees: c.employeeCount ?? 0 }));
-              exportToCSV(rows, ["Company", "Assets", "Employees"], "companies_summary.csv");
+              exportToXLSX(rows, ["Company", "Assets", "Employees"], "companies_summary.xlsx", [28, 10, 12]);
             } else {
               // Export all assets
               const qs = coParam ? coParam.slice(1) : "";
               try {
                 const assets = await getClientAssets(token, qs);
-                exportToCSV(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, "all_assets.csv");
+                exportToXLSX(assets.map((a, i) => assetRowMapper(a, i)), ASSET_HEADERS, "all_assets.xlsx",
+                  [4,18,22,14,12,14,14,14,18,14,12,8,12,10,16,12,14,14,18,6,20,14,14,14,18,14]);
               } catch(e) { alert("Export failed: " + e.message); }
             }
           };
@@ -28896,8 +29199,15 @@ const CompanyPortal = () => {
                   {/* Multi-user filter � show each user once; selecting picks ALL their company composite keys */}
                   <div style={{ position: "relative" }}>
                     {(() => {
+                      // Deduplicate: one entry per (userName, companyId) — handles re-created users
+                      const userMap = new Map();
+                      for (const u of byUser) {
+                        const key = `${(u.userName||"").toLowerCase().trim()}||${u.companyId}`;
+                        if (!userMap.has(key) || u.id > userMap.get(key).id) userMap.set(key, u);
+                      }
+                      const deduped = [...userMap.values()];
                       // Deduplicated user list (one entry per unique user ID)
-                      const uniqueUserIds = [...new Set(byUser.map(u => u.id))];
+                      const uniqueUserIds = [...new Set(deduped.map(u => u.id))];
                       const selectedUserIds = [...new Set(
                         byUser.filter(u2 => dashUserFilters.includes(getDashUserSelectionKey(u2))).map(u2 => u2.id)
                       )];
@@ -28929,7 +29239,7 @@ const CompanyPortal = () => {
                                 All Users
                               </button>
                               {uniqueUserIds
-                                .map(uid => byUser.find(u => u.id === uid))
+                                .map(uid => deduped.find(u => u.id === uid))
                                 .filter(u => {
                                   if (!u) return false;
                                   const q = (dashUserSearch || "").toLowerCase();
