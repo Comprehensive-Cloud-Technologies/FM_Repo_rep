@@ -838,7 +838,10 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <p style={{ margin: "0 0 2px", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>{wo.assetName || wo.asset_name || "—"}</p>
-                        <p style={{ margin: 0, color: "#64748b", fontSize: "11.5px" }}>{wo.location || wo.department_name || "—"}</p>
+                        {(wo.generated_asset_id) && (
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#2563eb", fontFamily: "monospace", background: "#eff6ff", display: "inline-block", padding: "1px 6px", borderRadius: "4px" }}>{wo.generated_asset_id}</p>
+                        )}
+                        <p style={{ margin: "2px 0 0", color: "#64748b", fontSize: "11.5px" }}>{wo.location || wo.department_name || ""}</p>
                       </td>
                       <td style={{ padding: "11px 14px", maxWidth: "200px" }}>
                         <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#374151" }}>{wo.issueDescription || wo.issue_description || "—"}</div>
