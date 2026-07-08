@@ -516,7 +516,7 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
             </div>
 
             <div style={{ background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "16px", marginBottom: "16px" }}>
-              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "11px" }}>Employee Name</p>
+              <p style={{ fontSize: "11px", color: "#64748b", margin: "0 0 10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Employee Name</p>
               <p style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>{createdCreds.fullName}</p>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>

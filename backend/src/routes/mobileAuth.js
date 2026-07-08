@@ -12,7 +12,7 @@ import jwt from "jsonwebtoken";
 import pool from "../db.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 function toObject(value) {
   if (!value) return {};

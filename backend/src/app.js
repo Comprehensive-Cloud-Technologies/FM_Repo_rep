@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import pool from "./db.js";
@@ -65,9 +66,18 @@ const healthHandler = async (_req, res) => {
     res.status(503).json({ status: "degraded", db: "error", detail: err.message });
   }
 };
+// Rate-limit login/auth endpoints — 20 attempts per 15 minutes per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts. Please try again in 15 minutes." },
+});
+
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/clients", clientsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/companies", companiesRouter);
@@ -79,12 +89,12 @@ app.use("/api/logs", logsRouter);
 app.use("/api/checklist-templates", checklistTemplatesRouter);
 app.use("/api/logsheet-templates", logsheetTemplatesRouter);
 app.use("/api/company-users", companyUsersRouter);
-app.use("/api/company-auth", companyAuthRouter);
+app.use("/api/company-auth", authLimiter, companyAuthRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);
 app.use("/api", assetQueriesRouter);
-app.use("/api/mobile-auth", mobileAuthRouter);
+app.use("/api/mobile-auth", authLimiter, mobileAuthRouter);
 // Submission reports – accepts both company JWT and main-platform JWT (must be BEFORE templateAssignmentsRouter)
 app.use("/api/template-assignments", submissionReportsRouter);
 app.use("/api/template-assignments", templateAssignmentsRouter);

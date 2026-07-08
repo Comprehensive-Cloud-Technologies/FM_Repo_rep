@@ -98,10 +98,23 @@ export default function AssetDetailPage() {
       return;
     }
     const base = getApiBaseUrl();
-    fetch(`${base}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setCallLogs(Array.isArray(d?.data) ? d.data : []))
-      .catch(() => setCallLogs([]));
+    // Fetch work-orders AND asset queries (QR-scan requests) so downtime includes both sources
+    Promise.all([
+      fetch(`${base}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => Array.isArray(d?.data) ? d.data : [])
+        .catch(() => []),
+      fetch(`${base}/api/company-portal/asset-queries?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => (Array.isArray(d) ? d : []).map(q => ({
+          ...q,
+          // Normalise to work-order field names used in downtime calculation
+          wipAt: q.wipAt || null,
+          resolutionAt: q.resolvedAt || null,
+          closedAt: q.resolvedAt || null,
+        })))
+        .catch(() => []),
+    ]).then(([workOrders, assetQueries]) => setCallLogs([...workOrders, ...assetQueries]));
     fetch(`${base}/api/company-portal/assets/${id}/calibration-records`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => setCalibration(Array.isArray(d) ? d : []))

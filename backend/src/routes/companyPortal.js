@@ -2836,6 +2836,7 @@ router.get("/asset-queries", async (req, res, next) => {
               aq.escalation_level AS "escalationLevel",
               aq.cutoff_hours AS "cutoffHours",
               aq.resolved_by AS "resolvedBy", cu_res.full_name AS "resolvedByName",
+              aq.in_progress_at AS "wipAt",
               aq.resolved_at AS "resolvedAt", aq.resolution_note AS "resolutionNote",
               aq.created_at AS "createdAt", aq.updated_at AS "updatedAt"
        FROM asset_queries aq

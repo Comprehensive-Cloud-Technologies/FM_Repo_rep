@@ -382,8 +382,17 @@ router.patch("/:id/status", async (req, res, next) => {
       );
       if (!aq) return res.status(404).json({ message: "Request not found" });
 
+      // Track in_progress_at (WIP) and resolved_at timestamps
+      const aqExtras = [];
+      if (status === 'in_progress') {
+        aqExtras.push("in_progress_at = COALESCE(in_progress_at, NOW())");
+      }
+      if (status === 'resolved' || status === 'closed') {
+        aqExtras.push("resolved_at = COALESCE(resolved_at, NOW())");
+      }
+      const aqExtra = aqExtras.length ? ', ' + aqExtras.join(', ') : '';
       await pool.query(
-        "UPDATE asset_queries SET status = ?, resolution_note = COALESCE(?, resolution_note) WHERE id = ?",
+        `UPDATE asset_queries SET status = ?, resolution_note = COALESCE(?, resolution_note)${aqExtra} WHERE id = ?`,
         [status, remarks || null, id]
       );
       return res.json({ message: "Status updated", status });
@@ -414,8 +423,13 @@ router.patch("/:id/status", async (req, res, next) => {
     if (remarks) updates.remarks = remarks;
 
     await pool.query(
-      "UPDATE work_orders SET status = ?, completion_note = COALESCE(?, completion_note) WHERE id = ?",
-      [status, remarks || null, id]
+      `UPDATE work_orders SET
+         status = ?,
+         completion_note = COALESCE(?, completion_note),
+         wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+         resolution_at = CASE WHEN ? IN ('resolved','completed','closed') AND resolution_at IS NULL THEN NOW() ELSE resolution_at END
+       WHERE id = ?`,
+      [status, remarks || null, status, status, id]
     );
 
     // If engineer resolves, notify the original raiser
