@@ -828,7 +828,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       onMouseLeave={e => { e.currentTarget.style.background = rowBg || ""; }}>
                       <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: "12px" }}>{(page - 1) * LIMIT + i + 1}</td>
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                        <span style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</span>
+                        <button onClick={() => setSelectedWO(wo)} style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</button>
                         {escalatedFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#faf5ff", color: "#7c3aed", padding: "1px 5px", borderRadius: "8px" }}>⏫</span>}
                         {overdueFlag   && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#fff7ed", color: "#ea580c", padding: "1px 5px", borderRadius: "8px" }}>⚠️</span>}
                       </td>
@@ -838,8 +838,8 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <p style={{ margin: "0 0 2px", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>{wo.assetName || wo.asset_name || "—"}</p>
-                        {(wo.generated_asset_id) && (
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#2563eb", fontFamily: "monospace", background: "#eff6ff", display: "inline-block", padding: "1px 6px", borderRadius: "4px" }}>{wo.generated_asset_id}</p>
+                        {(wo.generated_asset_id || wo.asset_id) && (
+                          <button onClick={() => wo.asset_id && window.open(`/company/asset/${wo.asset_id}`, '_blank')} style={{ margin: "2px 0 0", fontSize: "11px", color: "#2563eb", fontFamily: "monospace", background: "#eff6ff", display: "inline-block", padding: "1px 6px", borderRadius: "4px", border: "none", cursor: wo.asset_id ? "pointer" : "default", textDecoration: wo.asset_id ? "underline" : "none" }}>{wo.generated_asset_id || `Asset #${wo.asset_id}`}</button>
                         )}
                         <p style={{ margin: "2px 0 0", color: "#64748b", fontSize: "11.5px" }}>{wo.location || wo.department_name || ""}</p>
                       </td>

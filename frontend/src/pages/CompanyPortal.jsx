@@ -3623,6 +3623,8 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
     } catch(e) { alert(e.message || "Delete failed"); }
   };
 
+  const [selectedWODetail, setSelectedWODetail] = useState(null);
+
   const now = Date.now();
   const counts = { all:0, open:0, assigned:0, in_progress:0, on_hold:0, completed:0, closed:0, escalated:0, overdue:0 };
   for (const w of wos) {
@@ -3777,12 +3779,18 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                 return (
                   <tr key={w.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOverdue ? "#fff7f7":"#fff" }}>
                     <td style={{ padding:"11px 14px", fontWeight:700, color:"#2563eb", fontSize:"12.5px" }}>
-                      {w.workOrderNumber || `WO-${w.id}`}
+                      <button onClick={() => setSelectedWODetail(w)} style={{ fontWeight:700, color:"#2563eb", fontSize:"12.5px", background:"none", border:"none", cursor:"pointer", padding:0, textDecoration:"underline" }}>
+                        {w.workOrderNumber || `WO-${w.id}`}
+                      </button>
                       {(Number(w.escalationLevel)>0||w.flagEscalated) && <span style={{ marginLeft:"6px", fontSize:"10px", background:"#faf5ff", color:"#7c3aed", padding:"1px 5px", borderRadius:"8px" }}>Escalated</span>}
                       {isOverdue && <span style={{ marginLeft:"4px", fontSize:"10px", background:"#fee2e2", color:"#991b1b", padding:"1px 5px", borderRadius:"8px" }}>Overdue</span>}
                     </td>
                     <td style={{ padding:"11px 14px", color:"#475569", fontSize:"12.5px", fontWeight:600 }}>{w.companyName||"-"}</td>
-                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>{w.assetName||"-"}</td>
+                    <td style={{ padding:"11px 14px", color:"#475569", fontSize:"13px" }}>
+                      {w.assetId ? (
+                        <button onClick={() => window.open(`/company/asset/${w.assetId}`, '_blank')} style={{ color:"#2563eb", background:"none", border:"none", cursor:"pointer", padding:0, textDecoration:"underline", fontWeight:600, fontSize:"13px" }}>{w.assetName||"-"}</button>
+                      ) : (w.assetName||"-")}
+                    </td>
                     <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"-"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
@@ -3812,13 +3820,55 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
           </table>
         </div>
       )}
+
+      {/* ── Work Order Detail Modal ─────────────────────────────────────────── */}
+      {selectedWODetail && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}
+          onClick={e => e.target === e.currentTarget && setSelectedWODetail(null)}>
+          <div style={{ background:"#fff", borderRadius:"16px", width:"640px", maxWidth:"96vw", maxHeight:"90vh", overflow:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding:"20px 24px", borderBottom:"1px solid #f1f5f9", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:"#fff", zIndex:1 }}>
+              <h3 style={{ margin:0, fontSize:"16px", fontWeight:800, color:"#0f172a" }}>Request: {selectedWODetail.workOrderNumber || `WO-${selectedWODetail.id}`}</h3>
+              <button onClick={() => setSelectedWODetail(null)} style={{ width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:"16px", color:"#475569" }}>×</button>
+            </div>
+            <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:"12px", fontSize:"13.5px" }}>
+              {[
+                ["Request #",     selectedWODetail.workOrderNumber || `WO-${selectedWODetail.id}`],
+                ["Hospital",      selectedWODetail.companyName],
+                ["Asset",         selectedWODetail.assetName],
+                ["Location",      selectedWODetail.location],
+                ["Description",   selectedWODetail.issueDescription],
+                ["Priority",      selectedWODetail.priority],
+                ["Status",        (selectedWODetail.status||"").replace(/_/g," ")],
+                ["Source",        selectedWODetail.issueSource || selectedWODetail.source],
+                ["Raised By",     selectedWODetail.createdByName],
+                ["Assigned To",   selectedWODetail.assignedToName || "Unassigned"],
+                ["WIP Date",      selectedWODetail.wipAt ? new Date(selectedWODetail.wipAt).toLocaleString() : null],
+                ["Resolution Date", selectedWODetail.resolutionAt ? new Date(selectedWODetail.resolutionAt).toLocaleString() : null],
+                ["Downtime",      selectedWODetail.wipAt && selectedWODetail.resolutionAt ? formatDowntime(selectedWODetail.wipAt, selectedWODetail.resolutionAt) : null],
+                ["Created At",    selectedWODetail.createdAt ? new Date(selectedWODetail.createdAt).toLocaleString() : null],
+                ["Cutoff / Due",  selectedWODetail.expectedCompletionAt ? new Date(selectedWODetail.expectedCompletionAt).toLocaleString() : null],
+                ["Escalation Level", Number(selectedWODetail.escalationLevel) > 0 ? `Level ${selectedWODetail.escalationLevel}` : null],
+              ].filter(([,v]) => v != null && v !== "" && v !== "-").map(([label, value]) => (
+                <div key={label} style={{ display:"grid", gridTemplateColumns:"150px 1fr", gap:"8px" }}>
+                  <span style={{ color:"#64748b", fontWeight:600 }}>{label}</span>
+                  <span style={{ color:"#0f172a", wordBreak:"break-word" }}>{value}</span>
+                </div>
+              ))}
+              {selectedWODetail.assetId && (
+                <div style={{ paddingTop:"12px", borderTop:"1px solid #f1f5f9" }}>
+                  <button onClick={() => window.open(`/company/asset/${selectedWODetail.assetId}`, '_blank')}
+                    style={{ padding:"8px 16px", borderRadius:"8px", background:"#eff6ff", color:"#2563eb", border:"1px solid #bfdbfe", fontWeight:700, cursor:"pointer", fontSize:"13px" }}>
+                    View Asset Details →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-
-
-
 
 
 

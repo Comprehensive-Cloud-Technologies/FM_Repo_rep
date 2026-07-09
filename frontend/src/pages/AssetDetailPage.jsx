@@ -69,6 +69,7 @@ export default function AssetDetailPage() {
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedCallLog, setSelectedCallLog] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
@@ -778,8 +779,8 @@ export default function AssetDetailPage() {
             {/* Metrics row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
               <FieldCard label="Total Down Time" value={totalDownLabel} />
-              <FieldCard label="MTBF (hh:mm:ss)" value={mtbfLabel} />
-              <FieldCard label="MTTR (hh:mm:ss)" value={mttrLabel} />
+              <FieldCard label="MTBF (hh:mm:ss)" value="00:00:00" />
+              <FieldCard label="MTTR (hh:mm:ss)" value="00:00:00" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
@@ -799,25 +800,30 @@ export default function AssetDetailPage() {
             ) : callLogs.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px", color: "#94a3b8" }}>No call logs found</div>
             ) : (
+              <>
               <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["WO Number", "Description", "Priority", "Status", "Assigned To", "Created", "Closed", "Down Time"].map(h => (
+                      {["Request ID", "Description", "Priority", "Status", "Assigned To", "Created", "Closed", "Down Time"].map(h => (
                         <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {callLogs.map(wo => {
+                      const isAQ = !wo.workOrderNumber && !wo.work_order_number;
+                      const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
                       const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
                       return (
                         <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600 }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
-                          <td style={{ padding: "10px 14px", color: "#334155" }}>{wo.issueDescription || "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <button onClick={() => setSelectedCallLog(wo)} style={{ fontFamily: "monospace", color: "#2563eb", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", fontSize: "13px" }}>{reqId}</button>
+                          </td>
+                          <td style={{ padding: "10px 14px", color: "#334155" }}>{wo.issueDescription || wo.description || wo.title || "—"}</td>
                           <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#64748b" }}>{wo.priority || "—"}</span></td>
                           <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534" }}>{wo.status || "—"}</span></td>
-                          <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
+                          <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || wo.assigned_to_name || "Unassigned"}</td>
                           <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
                           <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
                           <td style={{ padding: "10px 14px", color: dtMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: dtMs > 0 ? 600 : 400, fontSize: "12px" }}>{dtMs > 0 ? fmtMs(dtMs) : "—"}</td>
@@ -827,6 +833,49 @@ export default function AssetDetailPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Request Detail Modal */}
+              {selectedCallLog && (() => {
+                const wo = selectedCallLog;
+                const isAQ = !wo.workOrderNumber && !wo.work_order_number;
+                const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
+                const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                const rows = [
+                  ["Request ID",    reqId],
+                  ["Type",          isAQ ? "QR Scan / Asset Query" : "Work Order"],
+                  ["Description",   wo.issueDescription || wo.description || wo.title],
+                  ["Priority",      wo.priority],
+                  ["Status",        wo.status],
+                  ["Assigned To",   wo.assignedToName || wo.assigned_to_name || "Unassigned"],
+                  ["Raised By",     wo.createdByName  || wo.created_by_name  || wo.raisedByName || wo.requesterName],
+                  ["Location",      wo.location],
+                  ["Created",       wo.createdAt ? new Date(wo.createdAt).toLocaleString() : null],
+                  ["Closed / Resolved", wo.closedAt ? new Date(wo.closedAt).toLocaleString() : null],
+                  ["WIP Start",     wo.wipAt ? new Date(wo.wipAt).toLocaleString() : null],
+                  ["Down Time",     dtMs > 0 ? fmtMs(dtMs) : null],
+                  ["Resolution Note", wo.resolutionNote],
+                ].filter(([, v]) => v);
+                return (
+                  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+                    onClick={e => e.target === e.currentTarget && setSelectedCallLog(null)}>
+                    <div style={{ background: "#fff", borderRadius: "16px", width: "560px", maxWidth: "96vw", maxHeight: "90vh", overflow: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+                      <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff" }}>
+                        <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>Request: {reqId}</h3>
+                        <button onClick={() => setSelectedCallLog(null)} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "16px", color: "#475569" }}>×</button>
+                      </div>
+                      <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {rows.map(([label, value]) => (
+                          <div key={label} style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", fontSize: "13.5px", borderBottom: "1px solid #f8fafc", paddingBottom: "8px" }}>
+                            <span style={{ color: "#64748b", fontWeight: 600 }}>{label}</span>
+                            <span style={{ color: "#0f172a", wordBreak: "break-word" }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              </>
             )}
           </div>
         )}

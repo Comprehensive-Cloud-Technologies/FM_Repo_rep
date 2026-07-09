@@ -6597,7 +6597,7 @@ export default function CompanyEmployeePortal() {
                           m.accessories||"", a.departmentName||"",
                           a.building||"", a.floor||"", a.room||"",
                           m.mfgYear||m.manufacturingYear||"", fmtD(m.installationDate)||"",
-                          m.invoiceNo||"", fmtD(m.purchaseDate)||"", m.purchaseCost||"",
+                          m.invoiceNo||"", fmtD(m.purchaseDate)||"", m.purchaseCost !== undefined && m.purchaseCost !== null && m.purchaseCost !== "" ? (isNaN(Number(m.purchaseCost)) ? m.purchaseCost : Number(m.purchaseCost)) : "",
                           maint, startDate||"", endDate||"", m.rber?"Yes":"No", m.remarks||"",
                           workingStatus||"Working", verifiedStatus,
                           a.createdByName||"",
@@ -9306,8 +9306,8 @@ export default function CompanyEmployeePortal() {
                       {[
                         ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
                         ["Total Down Time", totalDownLabel],
-                        ["MTBF (hh:mm:ss)", mtbfLabel],
-                        ["MTTR (hh:mm:ss)", mttrLabel],
+                        ["MTBF (hh:mm:ss)", "00:00:00"],
+                        ["MTTR (hh:mm:ss)", "00:00:00"],
                       ].map(([lbl, val]) => (
                         <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
                           <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>

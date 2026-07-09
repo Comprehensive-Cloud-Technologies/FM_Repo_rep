@@ -1782,7 +1782,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
                   <thead>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["#","Asset","Request Title","Status","Priority","Department","Raised By","Date"].map(h => (
+                      {["#","Asset","Asset ID","Request ID","Request Title","Status","Priority","Department","Raised By","Date"].map(h => (
                         <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -1796,6 +1796,19 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                         <tr key={r.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "8px 12px", color: "#94a3b8" }}>{i + 1}</td>
                           <td style={{ padding: "8px 12px", color: "#0f172a", fontWeight: 600 }}>{r.assetName || r.asset_name || "—"}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            {(r.assetUniqueId || r.asset_unique_id) ? (
+                              <button onClick={() => r.assetId && window.open(`/company/asset/${r.assetId}`, '_blank')}
+                                style={{ fontFamily: "monospace", fontSize: "11.5px", color: "#2563eb", background: "#eff6ff", border: "none", padding: "1px 7px", borderRadius: "4px", cursor: r.assetId ? "pointer" : "default", textDecoration: r.assetId ? "underline" : "none", fontWeight: 700 }}>
+                                {r.assetUniqueId || r.asset_unique_id}
+                              </button>
+                            ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                          </td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: "11.5px", color: "#7c3aed", background: "#faf5ff", padding: "1px 7px", borderRadius: "4px", fontWeight: 700 }}>
+                              AQ-{r.id}
+                            </span>
+                          </td>
                           <td style={{ padding: "8px 12px", color: "#334155" }}>{r.title || r.description || "—"}</td>
                           <td style={{ padding: "8px 12px" }}>
                             <span style={{ background: statusColors[st] || "#f1f5f9", color: statusText[st] || "#475569", padding: "2px 8px", borderRadius: "12px", fontSize: "11.5px", fontWeight: 700 }}>
