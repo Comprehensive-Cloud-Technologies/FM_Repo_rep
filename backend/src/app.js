@@ -66,13 +66,13 @@ const healthHandler = async (_req, res) => {
     res.status(503).json({ status: "degraded", db: "error", detail: err.message });
   }
 };
-// Rate-limit login/auth endpoints — 20 attempts per 15 minutes per IP
+// Rate-limit login/auth endpoints — 100 attempts per 5 minutes per IP
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 5 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Too many login attempts. Please try again in 15 minutes." },
+  message: { message: "Too many login attempts. Please try again in 5 minutes." },
 });
 
 app.get("/health", healthHandler);
