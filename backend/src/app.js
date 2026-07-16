@@ -81,10 +81,12 @@ const authLimiter = rateLimit({
   message: { message: "Too many login attempts. Please try again in 5 minutes." },
 });
 
-// Global rate limiter — 300 requests per minute per IP across all API routes
+// Global rate limiter — 2000 requests per minute per IP across all API routes
+// The company portal dashboard fires ~20 parallel requests on load plus polling
+// intervals for alerts/work-orders; 300/min was too low for real usage.
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 300,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests. Please slow down." },
