@@ -9237,7 +9237,7 @@ export default function CompanyEmployeePortal() {
         const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
         const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "N/A";
         const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "N/A";
-        const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
+        const totalDownLabel = fmtMs(totalDownMs); // always HH:MM:SS; fmtMs(0) = "00:00:00"
         const mttrLoading = assetDetailCallLogs === null;
 
         // Fetch call logs for the asset when tab selected

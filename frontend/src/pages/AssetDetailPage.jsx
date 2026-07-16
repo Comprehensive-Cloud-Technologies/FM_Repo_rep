@@ -208,7 +208,7 @@ export default function AssetDetailPage() {
   // MTTR = Total Downtime ÷ Total Number of Breakdown Events
   const mttrLabel = failures > 0 ? fmtMs(combinedDownMs / failures) : "N/A";
 
-  const totalDownLabel = combinedDownMs > 0 ? fmtMs(combinedDownMs) : "—";
+  const totalDownLabel = fmtMs(combinedDownMs); // always show HH:MM:SS format; fmtMs(0) = "00:00:00"
   const mttrLoading = callLogs === null;
 
   const fields = [
