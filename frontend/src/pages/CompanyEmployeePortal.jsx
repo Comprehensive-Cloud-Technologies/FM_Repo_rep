@@ -11,6 +11,7 @@ import ChecklistTemplateModule from "../components/ChecklistTemplateModule.jsx";
 import SubmissionsPanel from "../components/SubmissionsPanel.jsx";
 import WarningsPanel from "../components/WarningsPanel.jsx";
 import WorkOrdersPanel from "../components/WorkOrdersPanel.jsx";
+import ReportBuilderPanel from "../components/ReportBuilderPanel.jsx";
 import HealthcareDashboard from "../components/HealthcareDashboard.jsx";
 import RequestTrackingPanel from "../components/RequestTrackingPanel.jsx";
 import AssetDashboard from "../components/AssetDashboard.jsx";
@@ -4077,6 +4078,7 @@ const NAV_ALL = [
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
+  { key: "reports",     label: "Reports",     roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -4250,6 +4252,7 @@ export default function CompanyEmployeePortal() {
       mytasks: ["mytasks", "tasks"],
       ojt: ["ojt"],
       shifts: ["shifts"],
+      reports: ["reports", "analytics"],
     };
 
     const candidates = keyMap[navKey] || [navKey];
@@ -4395,6 +4398,11 @@ export default function CompanyEmployeePortal() {
   const [advFilterRber, setAdvFilterRber] = useState("");
   const [advFilterDateFrom, setAdvFilterDateFrom] = useState("");
   const [advFilterDateTo, setAdvFilterDateTo] = useState("");
+  const [advFilterMake, setAdvFilterMake] = useState("");
+  const [advFilterModel, setAdvFilterModel] = useState("");
+  const [advFilterWorkingStatus, setAdvFilterWorkingStatus] = useState("");
+  const [advFilterFloor, setAdvFilterFloor] = useState("");
+  const [advFilterRoom, setAdvFilterRoom] = useState("");
   const [deptSearch, setDeptSearch] = useState("");
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editDept, setEditDept] = useState(null);
@@ -4930,15 +4938,20 @@ export default function CompanyEmployeePortal() {
 
       const matchAdvDept = !advFilterDept || String(a.departmentId) === String(advFilterDept);
       const matchAdvBuilding = !advFilterBuilding || (a.building || "").toLowerCase().includes(advFilterBuilding.toLowerCase());
-      const matchAdvCategory = !advFilterCategory || (m.criticality || a.criticality || "").toLowerCase() === advFilterCategory.toLowerCase();
+      const matchAdvCategory = !advFilterCategory || (m.criticality || a.criticality || "").toLowerCase().replace(/[_-]/g, "") === advFilterCategory.toLowerCase().replace(/[_-]/g, "");
       const matchAdvMaint = !advFilterMaint || maintStr.includes(advFilterMaint.toLowerCase());
       const matchAdvRber = !advFilterRber || (advFilterRber === "yes" ? !!m.rber : !m.rber);
       const matchAdvDateFrom = !advFilterDateFrom || (a.createdAt && new Date(a.createdAt) >= new Date(advFilterDateFrom));
       const matchAdvDateTo = !advFilterDateTo || (a.createdAt && new Date(a.createdAt) <= new Date(advFilterDateTo + "T23:59:59"));
+      const matchAdvMake = !advFilterMake || (m.make || m.manufacturer || "").toLowerCase().includes(advFilterMake.toLowerCase());
+      const matchAdvModel = !advFilterModel || (m.model || "").toLowerCase().includes(advFilterModel.toLowerCase());
+      const matchAdvWorkingStatus = !advFilterWorkingStatus || (m.workingStatus || a.workingStatus || "").toLowerCase() === advFilterWorkingStatus.toLowerCase();
+      const matchAdvFloor = !advFilterFloor || (a.floor || "").toLowerCase().includes(advFilterFloor.toLowerCase());
+      const matchAdvRoom = !advFilterRoom || (a.room || "").toLowerCase().includes(advFilterRoom.toLowerCase());
 
-      return matchSearch && matchStatus && matchAdvDept && matchAdvBuilding && matchAdvCategory && matchAdvMaint && matchAdvRber && matchAdvDateFrom && matchAdvDateTo;
+      return matchSearch && matchStatus && matchAdvDept && matchAdvBuilding && matchAdvCategory && matchAdvMaint && matchAdvRber && matchAdvDateFrom && matchAdvDateTo && matchAdvMake && matchAdvModel && matchAdvWorkingStatus && matchAdvFloor && matchAdvRoom;
     }),
-    [assets, assetSearch, assetStatusFilter, advFilterDept, advFilterBuilding, advFilterCategory, advFilterMaint, advFilterRber, advFilterDateFrom, advFilterDateTo]
+    [assets, assetSearch, assetStatusFilter, advFilterDept, advFilterBuilding, advFilterCategory, advFilterMaint, advFilterRber, advFilterDateFrom, advFilterDateTo, advFilterMake, advFilterModel, advFilterWorkingStatus, advFilterFloor, advFilterRoom]
   );
 
   // Dept filtered
@@ -6581,24 +6594,26 @@ export default function CompanyEmployeePortal() {
                       const dataRows = filteredAssets.map((a, i) => {
                         const m = a.metadata || {};
                         const mt = m.maintenanceTypes || { warranty: !!(m.warranty?.enabled || m.warranty), amc: !!(m.amc?.enabled || m.amc), cmc: !!(m.cmc?.enabled || m.cmc), inHouse: !!(m.inHouse), catalyst: !!(m.catalyst) };
-                        const maint = [mt.warranty?"Warranty":"", mt.amc?"AMC":"", mt.cmc?"CMC":"", mt.inHouse?"In House":"", mt.catalyst?"Catalyst":""].filter(Boolean).join("; ");
-                        const fmtD = d => d ? d.split("-").reverse().join("/") : "";
+                        const maint = [mt.warranty?"Warranty":"", mt.amc?"AMC":"", mt.cmc?"CMC":"", mt.inHouse?"In House":"", mt.catalyst?"Catalyst":"", mt.highEnd?"High End":"", mt.rented?"Rented":""].filter(Boolean).join("; ");
+                        const fmtD = d => d && typeof d === "string" ? d.split("-").reverse().join("/") : "";
                         const startDate = [mt.warranty&&(m.warrantyStart||m.warranty?.startDate), mt.amc&&(m.amcStart||m.amc?.startDate), mt.cmc&&(m.cmcStart||m.cmc?.startDate)].filter(Boolean).map(fmtD).join(" | ") || "";
                         const endDate = [mt.warranty&&(m.warrantyEnd||m.warranty?.endDate), mt.amc&&(m.amcEnd||m.amc?.endDate), mt.cmc&&(m.cmcEnd||m.cmc?.endDate)].filter(Boolean).map(fmtD).join(" | ") || "";
                         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
-                        const workingStatus = m.workingStatus || "";
+                        const workingStatus = m.workingStatus || a.workingStatus || "";
                         const verifiedStatus = isVerified ? "Verified" : workingStatus === "Condemned" ? "Condemned" : m.rber ? "RBER" : workingStatus || a.status || "Active";
                         const rawAssetId = a.generatedAssetId||a.assetUniqueId||a.asset_unique_id||"";
+                        const rawCrit = m.criticality || a.criticality || "";
+                        const category = rawCrit.toLowerCase().replace(/[_-]/g, "") === "critical" ? "Critical" : "Non-Critical";
                         return [
                           i+1, rawAssetId,
                           m.equipmentName||a.assetName||a.asset_name||"",
-                          (m.criticality||a.criticality||"Non-Critical"),
+                          category,
                           m.make||m.manufacturer||"", m.model||"", m.serialNo||"",
                           m.accessories||"", a.departmentName||"",
                           a.building||"", a.floor||"", a.room||"",
                           m.mfgYear||m.manufacturingYear||"", fmtD(m.installationDate)||"",
                           m.invoiceNo||"", fmtD(m.purchaseDate)||"", m.purchaseCost !== undefined && m.purchaseCost !== null && m.purchaseCost !== "" ? (isNaN(Number(m.purchaseCost)) ? m.purchaseCost : Number(m.purchaseCost)) : "",
-                          maint, startDate||"", endDate||"", m.rber?"Yes":"No", m.remarks||"",
+                          maint, startDate||"", endDate||"", m.rber != null ? (m.rber ? "Yes" : "No") : "", m.remarks||"",
                           workingStatus||"Working", verifiedStatus,
                           a.createdByName||"",
                           a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "",
@@ -6641,6 +6656,16 @@ export default function CompanyEmployeePortal() {
                       style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "130px" }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Floor</label>
+                    <input value={advFilterFloor} onChange={e => setAdvFilterFloor(e.target.value)} placeholder="Floor..."
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "100px" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Room</label>
+                    <input value={advFilterRoom} onChange={e => setAdvFilterRoom(e.target.value)} placeholder="Room..."
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "100px" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Category</label>
                     <select value={advFilterCategory} onChange={e => setAdvFilterCategory(e.target.value)}
                       style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none" }}>
@@ -6648,6 +6673,16 @@ export default function CompanyEmployeePortal() {
                       <option value="critical">Critical</option>
                       <option value="non_critical">Non-Critical</option>
                     </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Make</label>
+                    <input value={advFilterMake} onChange={e => setAdvFilterMake(e.target.value)} placeholder="Make / Brand..."
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "120px" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Model</label>
+                    <input value={advFilterModel} onChange={e => setAdvFilterModel(e.target.value)} placeholder="Model..."
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none", width: "120px" }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Maintenance</label>
@@ -6661,6 +6696,22 @@ export default function CompanyEmployeePortal() {
                       <option value="catalyst">Catalyst</option>
                       <option value="high end">High End</option>
                       <option value="rented">Rented</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Working Status</label>
+                    <select value={advFilterWorkingStatus} onChange={e => setAdvFilterWorkingStatus(e.target.value)}
+                      style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", background: "#fff", outline: "none" }}>
+                      <option value="">All</option>
+                      <option value="Active">Active</option>
+                      <option value="Working">Working</option>
+                      <option value="HNF">HNF</option>
+                      <option value="WIP">WIP</option>
+                      <option value="Not Working">Not Working</option>
+                      <option value="Not_Working">Not Working (alt)</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="RBER">RBER</option>
+                      <option value="Condemned">Condemned</option>
                     </select>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -6682,7 +6733,7 @@ export default function CompanyEmployeePortal() {
                     <input type="date" value={advFilterDateTo} onChange={e => setAdvFilterDateTo(e.target.value)}
                       style={{ padding: "5px 9px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", outline: "none" }} />
                   </div>
-                  <button onClick={() => { setAdvFilterDept(""); setAdvFilterBuilding(""); setAdvFilterCategory(""); setAdvFilterMaint(""); setAdvFilterRber(""); setAdvFilterDateFrom(""); setAdvFilterDateTo(""); }}
+                  <button onClick={() => { setAdvFilterDept(""); setAdvFilterBuilding(""); setAdvFilterCategory(""); setAdvFilterMaint(""); setAdvFilterRber(""); setAdvFilterDateFrom(""); setAdvFilterDateTo(""); setAdvFilterMake(""); setAdvFilterModel(""); setAdvFilterWorkingStatus(""); setAdvFilterFloor(""); setAdvFilterRoom(""); }}
                     style={{ padding: "5px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: "12px", fontWeight: 600, alignSelf: "flex-end" }}>
                     Clear
                   </button>
@@ -8994,6 +9045,13 @@ export default function CompanyEmployeePortal() {
         )}
       </main>
 
+      {/* ── Reports / Report Builder ──────────────────────────── */}
+      {nav === "reports" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
+        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f1f5f9" }}>
+          <ReportBuilderPanel token={token} companies={accessibleCompanies} defaultCompanyId={currentUser?.companyId} />
+        </div>
+      )}
+
       {/* ── Settings (Public Dashboard Link) ─────────────────── */}
       {nav === "settings" && currentUser.role === "admin" && (() => {
         const link = settingsPublicToken ? `${window.location.origin}/public/${settingsPublicToken}` : "";
@@ -9166,14 +9224,21 @@ export default function CompanyEmployeePortal() {
         };
 
         // Compute MTBF / MTTR / Total downtime from call logs (available after loadCallLogs)
-        const closedCalls = (assetDetailCallLogs || []).filter(wo => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt);
-        const totalDownMs = closedCalls.reduce((s, wo) => s + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)), 0);
+        // Downtime = repair completion (resolutionAt ?? closedAt) - breakdown start (createdAt)
+        const closedCalls = (assetDetailCallLogs || []).filter(wo =>
+          (wo.status === "closed" || wo.status === "completed") && wo.createdAt && (wo.resolutionAt || wo.closedAt)
+        );
+        const totalDownMs = closedCalls.reduce((s, wo) => {
+          const end = wo.resolutionAt || wo.closedAt;
+          return s + Math.max(0, new Date(end) - new Date(wo.createdAt));
+        }, 0);
         const failures = closedCalls.length;
         const assetAgeMs = a.createdAt ? Math.max(0, Date.now() - new Date(a.createdAt)) : 0;
         const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
-        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "—";
-        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "—";
+        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "N/A";
+        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "N/A";
         const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
+        const mttrLoading = assetDetailCallLogs === null;
 
         // Fetch call logs for the asset when tab selected
         const loadCallLogs = async () => {
@@ -9306,8 +9371,8 @@ export default function CompanyEmployeePortal() {
                       {[
                         ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
                         ["Total Down Time", totalDownLabel],
-                        ["MTBF (hh:mm:ss)", "00:00:00"],
-                        ["MTTR (hh:mm:ss)", "00:00:00"],
+                        ["MTBF (hh:mm:ss)", mttrLoading ? "…" : mtbfLabel],
+                        ["MTTR (hh:mm:ss)", mttrLoading ? "…" : mttrLabel],
                       ].map(([lbl, val]) => (
                         <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
                           <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>

@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
+import hpp from "hpp";
+import { requireAuth } from "./middleware/auth.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import pool from "./db.js";
@@ -44,16 +46,20 @@ import statesRouter from "./routes/states.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Trust the first proxy (nginx) so rate-limiter and req.protocol use the real client IP/protocol
+app.set("trust proxy", 1);
+
 const allowedOrigins = process.env.ALLOW_ORIGIN?.split(",").map((o) => o.trim());
 
 app.use(helmet());
 app.use(
   cors({
-    origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : "*",
+    origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : false,
     credentials: true,
   })
 );
 app.use(express.json());
+app.use(hpp()); // HTTP Parameter Pollution prevention
 app.use(morgan("tiny"));
 
 const healthHandler = async (_req, res) => {
@@ -74,6 +80,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Too many login attempts. Please try again in 5 minutes." },
 });
+
+// Global rate limiter — 300 requests per minute per IP across all API routes
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please slow down." },
+});
+app.use("/api/", globalLimiter);
 
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
@@ -119,10 +135,13 @@ app.use("/uploads", (req, res, next) => {
 }, express.static(path.join(__dirname, "../uploads")));
 
 // Root portal login endpoint (credentials stored server-side in env)
-app.post("/api/root-login", express.json(), (req, res) => {
+app.post("/api/root-login", authLimiter, express.json(), (req, res) => {
   const { username, password } = req.body || {};
-  const validUser = process.env.ROOT_USERNAME || "rootadmin";
-  const validPass = process.env.ROOT_PASSWORD || "Root@12345";
+  const validUser = process.env.ROOT_USERNAME;
+  const validPass = process.env.ROOT_PASSWORD;
+  if (!validUser || !validPass) {
+    return res.status(503).json({ ok: false, message: "Root login not configured" });
+  }
   if (!username || !password) return res.status(400).json({ ok: false, message: "Missing credentials" });
   if (username.trim() === validUser && password === validPass) {
     return res.json({ ok: true });
@@ -131,7 +150,7 @@ app.post("/api/root-login", express.json(), (req, res) => {
 });
 
 // Gallery image-to-asset mapping endpoint
-app.post("/api/gallery/assign", express.json(), async (req, res) => {
+app.post("/api/gallery/assign", authLimiter, requireAuth, express.json(), async (req, res) => {
   const { assetId, files } = req.body;
   if (!assetId || !Array.isArray(files) || !files.length)
     return res.status(400).json({ ok: false, error: "assetId and files required" });
@@ -145,7 +164,7 @@ app.post("/api/gallery/assign", express.json(), async (req, res) => {
     await pool.query("UPDATE asset_details SET metadata=? WHERE asset_id=?", [JSON.stringify(meta), assetId]);
     res.json({ ok: true, assigned: files.length });
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: "Unexpected error" });
   }
 });
 
@@ -185,7 +204,7 @@ app.use((err, _req, res, _next) => {
       code: "DB_UNREACHABLE",
     });
   }
-  res.status(500).json({ message: "Unexpected error", detail: err.message });
+  res.status(500).json({ message: "Unexpected error" });
 });
 
 export default app;

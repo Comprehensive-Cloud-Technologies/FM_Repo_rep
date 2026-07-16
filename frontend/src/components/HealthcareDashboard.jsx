@@ -1221,11 +1221,37 @@ function ReviewsSection({ token, compact = false }) {
                       <div style={{ height: '100%', width: `${pct}%`, background: cfg.fill, borderRadius: 4 }} />
                     </div>
                     <span style={{ fontSize: '9px', color: '#94a3b8', width: 16, textAlign: 'right' }}>{count}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 26, textAlign: 'right', flexShrink: 0 }}>{totalRatings > 0 ? Math.round((count / totalRatings) * 100) : 0}%</span>
                   </div>
                 );
               })}
             </div>
           </>
+        )}
+        {/* Recent reviews in compact mode */}
+        {!loading && data && totalRatings > 0 && allReviews.length > 0 && (
+          <div style={{ marginTop: 10, borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Recent Reviews
+            </div>
+            {allReviews.slice(0, 3).map((r) => {
+              const text = (r.reviewText || '').trim();
+              const cfg = RR_STAR_COLORS[Math.min(5, Math.max(1, Math.round(r.rating)))];
+              return (
+                <div key={r.id} style={{ padding: '7px 8px', marginBottom: 5, borderRadius: 7, background: '#f8fafc', border: `1px solid ${cfg.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                    <UserAvatar name={r.reviewerName} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reviewerName || 'User'}</div>
+                      <StarDisplay rating={r.rating} size={9} />
+                    </div>
+                    <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
+                  </div>
+                  {text && <div style={{ fontSize: '10.5px', color: '#475569', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', paddingLeft: 4, borderLeft: `2px solid ${cfg.border}` }}>{text}</div>}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     );
@@ -1320,6 +1346,7 @@ function ReviewsSection({ token, compact = false }) {
                       <div style={{ height: '100%', width: `${pct}%`, background: cfg.fill, borderRadius: 4, transition: 'width 0.6s ease', opacity: 0.85 }} />
                     </div>
                     <span style={{ fontSize: 9, color: '#94A3B8', width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#64748B', width: 28, textAlign: 'right', flexShrink: 0 }}>{totalRatings > 0 ? Math.round((count / totalRatings) * 100) : 0}%</span>
                   </div>
                 );
               })}

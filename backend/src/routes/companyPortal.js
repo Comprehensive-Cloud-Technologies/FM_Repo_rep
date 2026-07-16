@@ -215,6 +215,7 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS expected_completion_at DATETIME DEFAULT NULL`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS wip_at DATETIME DEFAULT NULL`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS resolution_at DATETIME DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS downtime_minutes INT DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS shift VARCHAR(60) DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(60) DEFAULT 'technical'`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS supervisor_id INT DEFAULT NULL`,
@@ -1288,6 +1289,14 @@ router.get("/departments", async (req, res, next) => {
       const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
       whereClause = `d.company_id IN (${ids.map(() => "?").join(",")})`;
       queryParams = ids;
+    } else if (req.query.companyId) {
+      const requested = Number(req.query.companyId);
+      const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      if (!accessibleIds.includes(requested)) {
+        return res.status(403).json({ message: "Access denied to this company" });
+      }
+      whereClause = `d.company_id = ?`;
+      queryParams = [requested];
     } else {
       whereClause = `d.company_id = ?`;
       queryParams = [cid(req)];
@@ -1432,13 +1441,21 @@ router.get("/assets", async (req, res, next) => {
 
     const { search, type, assignedOnly, assignedToMe, verified } = req.query;
 
-    // Determine company filter: single company or all accessible companies
+    // Determine company filter: single company, specific accessible company, or all accessible companies
     let companyWhereClause;
     let params;
     if (req.query.allCompanies === "true") {
       const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
       companyWhereClause = `a.company_id IN (${ids.map(() => "?").join(",")})`;
       params = [...ids];
+    } else if (req.query.companyId) {
+      const requested = Number(req.query.companyId);
+      const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      if (!accessibleIds.includes(requested)) {
+        return res.status(403).json({ message: "Access denied to this company" });
+      }
+      companyWhereClause = `a.company_id = ?`;
+      params = [requested];
     } else {
       companyWhereClause = `a.company_id = ?`;
       params = [cid(req)];
@@ -4618,10 +4635,68 @@ router.get("/work-orders/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* GET /reports/accessible-companies – companies accessible to this user for Reports */
+router.get("/reports/accessible-companies", async (req, res, next) => {
+  try {
+    const { id: userId, companyId: primaryId } = req.companyUser;
+    const ids = await getAccessibleCompanyIds(userId, primaryId);
+    const placeholders = ids.map(() => "?").join(",");
+    const [companies] = await pool.query(
+      `SELECT id, company_name AS companyName, company_code AS companyCode FROM companies WHERE id IN (${placeholders}) ORDER BY company_name`,
+      ids
+    );
+    res.json(companies);
+  } catch (err) { next(err); }
+});
+
+/* GET /assets/:id/mttr – MTTR for a specific asset */
+router.get("/assets/:id/mttr", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const assetId = Number(req.params.id);
+    const [[result]] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalEvents,
+         COALESCE(SUM(
+           COALESCE(
+             downtime_minutes,
+             GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, COALESCE(resolution_at, closed_at)))
+           )
+         ), 0) AS totalDowntimeMinutes
+       FROM work_orders
+       WHERE company_id = ? AND asset_id = ?
+         AND status IN ('completed','closed')
+         AND created_at IS NOT NULL
+         AND (downtime_minutes IS NOT NULL OR resolution_at IS NOT NULL OR closed_at IS NOT NULL)`,
+      [companyId, assetId]
+    );
+    const totalEvents = Number(result.totalEvents) || 0;
+    const totalDowntimeMinutes = Number(result.totalDowntimeMinutes) || 0;
+    const mttrMinutes = totalEvents > 0 ? totalDowntimeMinutes / totalEvents : 0;
+    const h = Math.floor(mttrMinutes / 60);
+    const m = Math.floor(mttrMinutes % 60);
+    const s = Math.floor((mttrMinutes * 60) % 60);
+    const mttrFormatted = totalEvents > 0
+      ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      : 'N/A';
+    res.json({ totalEvents, totalDowntimeMinutes, mttrMinutes, mttrFormatted });
+  } catch (err) { next(err); }
+});
+
 /* GET /work-orders  – list all work orders for this company */
 router.get("/work-orders", async (req, res, next) => {
   try {
-    const companyId = cid(req);
+    const primaryCompanyId = cid(req);
+    // Allow admin/supervisor to view a specific accessible company's work orders
+    let companyId = primaryCompanyId;
+    if (req.query.companyId && Number(req.query.companyId) !== primaryCompanyId) {
+      const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, primaryCompanyId);
+      const requested = Number(req.query.companyId);
+      if (!accessibleIds.includes(requested)) {
+        return res.status(403).json({ message: "Access denied to this company" });
+      }
+      companyId = requested;
+    }
     const { status, priority, assignedTo, assetId, limit = 200, offset = 0 } = req.query;
 
     let where = "WHERE wo.company_id = ?";
@@ -4649,6 +4724,7 @@ router.get("/work-orders", async (req, res, next) => {
               wo.escalation_level AS "escalationLevel",
               wo.wip_at AS "wipAt",
               wo.resolution_at AS "resolutionAt",
+              wo.closed_at AS "closedAt",
               f.severity AS "flagSeverity", f.source AS "flagSource",
               COALESCE(f.escalated, FALSE) AS "flagEscalated"
        FROM work_orders wo
@@ -4939,9 +5015,11 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
     await pool.execute(
       `UPDATE work_orders SET status = ?, closed_at = ?,
         wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
-        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END
+        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
+        downtime_minutes = CASE WHEN ? IN ('completed', 'closed') AND downtime_minutes IS NULL
+          THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, NOW())) ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, woId]
+      [status, closedAt, status, status, status, woId]
     );
 
     await pool.execute(
@@ -4992,9 +5070,11 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
     await pool.execute(
       `UPDATE work_orders SET status = ?, closed_at = ?,
         wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
-        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END
+        resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
+        downtime_minutes = CASE WHEN ? IN ('completed', 'closed') AND downtime_minutes IS NULL
+          THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, NOW())) ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, woId]
+      [status, closedAt, status, status, status, woId]
     );
     await pool.execute(
       `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks) VALUES (?, ?, NULL, ?)`,

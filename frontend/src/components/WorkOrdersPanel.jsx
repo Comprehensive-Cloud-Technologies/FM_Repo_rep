@@ -407,11 +407,13 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
         </div>
         <button onClick={() => load()} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>↻ Refresh</button>
         <button onClick={() => {
-          const headers = ["WO #","Asset","Hospital","Description","Priority","Status","Raised By","Assigned To","WIP Date","Resolution Date","Downtime (mins)","Created At"];
+          const headers = ["WO #","Asset","Hospital","Description","Priority","Status","Raised By","Assigned To","Logged At","WIP Date","Resolution Date","Downtime (mins)","Response Time (mins)","TAT (mins)","Closed At"];
           const wsData = [
             headers,
             ...displayed.map(w => {
               const dtMins = (w.wipAt && w.resolutionAt) ? Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000)) : "";
+              const responseMins = (w.createdAt && w.wipAt) ? Math.max(0, Math.round((new Date(w.wipAt) - new Date(w.createdAt)) / 60000)) : "";
+              const tatMins = (w.createdAt && w.closedAt) ? Math.max(0, Math.round((new Date(w.closedAt) - new Date(w.createdAt)) / 60000)) : "";
               return [
                 w.workOrderNumber || `WO-${w.id}`,
                 w.assetName || "",
@@ -421,15 +423,18 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
                 (w.status || "").replace(/_/g, " "),
                 w.createdByName || "",
                 w.assignedToName || "Unassigned",
+                w.createdAt ? new Date(w.createdAt).toLocaleString() : "",
                 w.wipAt ? new Date(w.wipAt).toLocaleString() : "",
                 w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : "",
                 dtMins === "" ? "" : Number(dtMins),
-                w.createdAt ? new Date(w.createdAt).toLocaleString() : "",
+                responseMins === "" ? "" : Number(responseMins),
+                tatMins === "" ? "" : Number(tatMins),
+                w.closedAt ? new Date(w.closedAt).toLocaleString() : "",
               ];
             })
           ];
           const ws = XLSX.utils.aoa_to_sheet(wsData);
-          ws["!cols"] = [12,20,18,36,10,14,16,16,20,20,14,20].map(w => ({ wch: w }));
+          ws["!cols"] = [12,20,18,36,10,14,16,16,20,20,20,14,16,12,20].map(w => ({ wch: w }));
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, ws, "Ticket Master");
           XLSX.writeFile(wb, `ticket-master-${filter}-${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -511,7 +516,7 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  {["#", "WO Number", "Asset", "Description", "Priority", "Source", "Raised By", "Assigned To", "WIP Date", "Resolution Date", "Downtime", "Status", "Created", "Actions"].map((h) => (
+                  {["#", "WO Number", "Asset", "Description", "Priority", "Source", "Raised By", "Assigned To", "WIP Date", "Response Time", "Resolution Date", "Downtime", "TAT", "Status", "Closed At", "Created", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -589,6 +594,14 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
                       <td style={{ padding: "12px 14px", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
                         {wo.wipAt ? new Date(wo.wipAt).toLocaleString() : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
+                      {/* Response Time: wipAt - createdAt */}
+                      <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                        {wo.wipAt && wo.createdAt ? (() => {
+                          const mins = Math.max(0, Math.round((new Date(wo.wipAt) - new Date(wo.createdAt)) / 60000));
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{label}</span>;
+                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
+                      </td>
                       <td style={{ padding: "12px 14px", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
                         {wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleString() : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
@@ -600,8 +613,19 @@ export default function WorkOrdersPanel({ token, companyId, assets = [], presele
                           return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>{label}</span>;
                         })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
                       </td>
+                      {/* TAT: closedAt - createdAt */}
+                      <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                        {wo.closedAt && wo.createdAt ? (() => {
+                          const mins = Math.max(0, Math.round((new Date(wo.closedAt) - new Date(wo.createdAt)) / 60000));
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534" }}>{label}</span>;
+                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
+                      </td>
                       <td style={{ padding: "12px 14px" }}>
                         <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: stat.bg, color: stat.color, whiteSpace: "nowrap" }}>{stat.label}</span>
+                      </td>
+                      <td style={{ padding: "12px 14px", fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                        {wo.closedAt ? new Date(wo.closedAt).toLocaleString() : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       <td style={{ padding: "12px 14px", fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>
                         {wo.createdAt ? new Date(wo.createdAt).toLocaleString() : "—"}

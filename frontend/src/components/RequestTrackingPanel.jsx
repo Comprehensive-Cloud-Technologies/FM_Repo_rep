@@ -564,7 +564,7 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={submit} disabled={saving} style={{ background: saving ? "#86efac" : "#16a34a" }}>{saving ? "Creating…" : "Create Work Order"}</Btn>
+        <Btn onClick={submit} disabled={saving} style={{ background: saving ? "#86efac" : "#16a34a" }}>{saving ? "Creating…" : "Create Request"}</Btn>
       </div>
     </Modal>
   );
@@ -810,7 +810,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  {["#","Request #","Hospital","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Resolution Date","Status","Created","Cutoff","Actions"].map(h => (
+                  {["#","Request #","Hospital","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Response Time","Resolution Date","TAT","Status","Created","Cutoff","Actions"].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -886,12 +886,28 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                           <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
+                      {/* Response Time: wip_at - created_at */}
+                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                        {wo.wip_at && wo.created_at ? (() => {
+                          const mins = Math.max(0, Math.round((new Date(wo.wip_at) - new Date(wo.created_at)) / 60000));
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", whiteSpace: "nowrap" }}>{label}</span>;
+                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
+                      </td>
                       {/* Resolution Date */}
                       <td style={{ padding: "11px 14px", fontSize: "12px", color: "#16a34a", whiteSpace: "nowrap" }}>
                         {wo.resolution_at ? (
                           <><div style={{ fontWeight: 600 }}>{new Date(wo.resolution_at).toLocaleDateString()}</div>
                           <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.resolution_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                      </td>
+                      {/* TAT: closed_at - created_at */}
+                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                        {wo.closed_at && wo.created_at ? (() => {
+                          const mins = Math.max(0, Math.round((new Date(wo.closed_at) - new Date(wo.created_at)) / 60000));
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534", whiteSpace: "nowrap" }}>{label}</span>;
+                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <Badge val={wo.status} styleMap={STATUS_STYLE} />

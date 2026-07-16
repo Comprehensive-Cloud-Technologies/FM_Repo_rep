@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { requireAuth } from "../middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -31,7 +32,7 @@ const upload = multer({
 
 const router = Router();
 
-router.post("/", upload.single("file"), (req, res) => {
+router.post("/", requireAuth, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
   // Use x-forwarded-proto set by Nginx reverse proxy to build correct HTTPS URL.
   // Without this, req.protocol returns 'http' (the internal plain-text connection)
