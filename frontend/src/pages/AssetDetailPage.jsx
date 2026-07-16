@@ -184,15 +184,22 @@ export default function AssetDetailPage() {
   ].map(normalizeImgUrl).filter(Boolean);
 
   // Compute MTBF / MTTR / downtime from call logs
-  // Formula: Downtime = Repair Completion (resolutionAt ?? closedAt) − Breakdown Start (createdAt)
+  // Downtime = time from WIP (engineer starts) to Resolution (ticket closed/completed)
   const resolved = (callLogs || []).filter(wo =>
-    (wo.status === "completed" || wo.status === "closed") &&
-    wo.createdAt && (wo.resolutionAt || wo.closedAt)
+    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
+    wo.wipAt && wo.resolutionAt
   );
-  const combinedDownMs = resolved.reduce((s, wo) => {
+  const totalDownMs = resolved.reduce((s, wo) => s + Math.max(0, new Date(wo.resolutionAt) - new Date(wo.wipAt)), 0);
+  // Fallback: tickets with closedAt but no wipAt — use createdAt→closedAt
+  const legacyClosed = (callLogs || []).filter(wo =>
+    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
+    (!wo.wipAt || !wo.resolutionAt) && wo.createdAt && (wo.closedAt || wo.resolutionAt)
+  );
+  const legacyDownMs = legacyClosed.reduce((s, wo) => {
     const end = wo.resolutionAt || wo.closedAt;
-    return s + Math.max(0, new Date(end) - new Date(wo.createdAt));
+    return s + Math.max(0, new Date(end) - new Date(wo.wipAt || wo.createdAt));
   }, 0);
+  const combinedDownMs = totalDownMs + legacyDownMs;
   const fmtMs = (ms) => {
     const h = Math.floor(ms / 3600000);
     const min = Math.floor((ms % 3600000) / 60000);
@@ -200,16 +207,15 @@ export default function AssetDetailPage() {
     return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
   };
 
-  // MTBF = (Asset age − total downtime) / number of breakdown events
-  const failures = resolved.length;
+  // MTBF = Total operating time / number of failures (failures = resolved calls)
+  const failures = resolved.length + legacyClosed.length;
   const assetAge = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
   const operatingMs = Math.max(0, assetAge - combinedDownMs);
-  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "N/A";
-  // MTTR = Total Downtime ÷ Total Number of Breakdown Events
-  const mttrLabel = failures > 0 ? fmtMs(combinedDownMs / failures) : "N/A";
+  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "00:00:00";
+  // MTTR = Total downtime / number of breakdowns
+  const mttrLabel = failures > 0 ? fmtMs(combinedDownMs / failures) : "00:00:00";
 
-  const totalDownLabel = fmtMs(combinedDownMs); // always show HH:MM:SS format; fmtMs(0) = "00:00:00"
-  const mttrLoading = callLogs === null;
+  const totalDownLabel = combinedDownMs > 0 ? fmtMs(combinedDownMs) : "00:00:00";
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
@@ -772,9 +778,9 @@ export default function AssetDetailPage() {
 
             {/* Metrics row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-              <FieldCard label="Total Down Time" value={mttrLoading ? "…" : totalDownLabel} />
-              <FieldCard label="MTBF (hh:mm:ss)" value={mttrLoading ? "…" : mtbfLabel} />
-              <FieldCard label="MTTR (hh:mm:ss)" value={mttrLoading ? "…" : mttrLabel} />
+              <FieldCard label="Total Down Time" value={totalDownLabel} />
+              <FieldCard label="MTBF (hh:mm:ss)" value="00:00:00" />
+              <FieldCard label="MTTR (hh:mm:ss)" value="00:00:00" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
