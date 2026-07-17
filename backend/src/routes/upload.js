@@ -1,47 +1,37 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
 import { requireAuth } from "../middleware/auth.js";
+import { uploadToS3, S3_FOLDERS } from "../utils/s3.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "../../uploads");
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    const ext = path.extname(file.originalname) || ".bin";
-    cb(null, `${unique}${ext}`);
-  },
-});
-
+// Memory storage — buffer is streamed straight to S3, never written to EC2 disk
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|pdf|mp4|mov|avi/i;
-    cb(null, allowed.test(path.extname(file.originalname)));
+    if (allowed.test(path.extname(file.originalname))) cb(null, true);
+    else cb(new Error("File type not allowed"), false);
   },
 });
 
 const router = Router();
 
-router.post("/", requireAuth, upload.single("file"), (req, res) => {
+router.post("/", requireAuth, upload.single("file"), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-  // Use x-forwarded-proto set by Nginx reverse proxy to build correct HTTPS URL.
-  // Without this, req.protocol returns 'http' (the internal plain-text connection)
-  // and the returned URL would be blocked as mixed content on HTTPS portals.
-  const proto = (req.headers['x-forwarded-proto']) || req.protocol;
-  const hostHeader = (req.headers['x-forwarded-host']) || req.get("host");
-  const host = process.env.API_BASE_URL || `${proto}://${hostHeader}`;
-  const url = `${host}/uploads/${req.file.filename}`;
-  res.json({ url, name: req.file.originalname, size: req.file.size });
+  try {
+    const ext      = path.extname(req.file.originalname) || ".bin";
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+    const url = await uploadToS3({
+      buffer:   req.file.buffer,
+      mimetype: req.file.mimetype,
+      folder:   S3_FOLDERS.uploads,
+      filename,
+    });
+    res.json({ url, name: req.file.originalname, size: req.file.size });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

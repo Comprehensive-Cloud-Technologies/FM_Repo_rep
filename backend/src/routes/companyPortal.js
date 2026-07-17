@@ -10,22 +10,19 @@ import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
+import { uploadToS3, S3_FOLDERS } from "../utils/s3.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
 const queryImagesDir = path.join(__dirname, "../../uploads/query-images");
-fs.mkdirSync(uploadsDir, { recursive: true }); // ensure directory exists
+fs.mkdirSync(uploadsDir, { recursive: true }); // ensure directory exists (legacy EC2 files still served from here)
 fs.mkdirSync(queryImagesDir, { recursive: true });
 
-const ojtStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `ojt_${Date.now()}_${safe}`);
-  },
-});
+// ── All multer instances use memoryStorage — files stream to S3, never touch disk ──
+const memStorage = multer.memoryStorage();
+
 const uploadOjt = multer({
-  storage: ojtStorage,
+  storage: memStorage,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
   fileFilter: (_req, file, cb) => {
     const allowed = /\.(mp4|mkv|avi|mov|webm|wmv|flv|3gp|pdf|doc|docx|csv|xlsx|xls|pptx|ppt|txt|odt|ods)$/i;
@@ -34,9 +31,9 @@ const uploadOjt = multer({
   },
 });
 
-// Separate multer instance for image uploads (reference photos, question photos)
+// Image uploads (reference photos, query photos, etc.)
 const uploadImage = multer({
-  storage: ojtStorage,
+  storage: memStorage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
     const allowed = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
@@ -45,18 +42,9 @@ const uploadImage = multer({
   },
 });
 
-// Company logo upload (stores as company-{id}.{ext} in uploads/logos/)
-const logosDir = path.join(__dirname, "../../uploads/logos");
-fs.mkdirSync(logosDir, { recursive: true });
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, logosDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || ".png";
-    cb(null, `company-${req.companyUser.companyId}${ext}`);
-  },
-});
+// Company logo upload
 const uploadLogo = multer({
-  storage: logoStorage,
+  storage: memStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -1536,12 +1524,10 @@ router.get("/assets", async (req, res, next) => {
 // Multer instance for Excel uploads (disk storage — avoids holding file buffer in RAM)
 const excelUploadDir = path.join(__dirname, "../../uploads/tmp-excel");
 fs.mkdirSync(excelUploadDir, { recursive: true });
+// Use memoryStorage so the xlsx buffer is read directly without writing to EC2 disk
 const excelAssetUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, excelUploadDir),
-    filename: (_req, _file, cb) => cb(null, `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}.xlsx`),
-  }),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max (typical 500-row Excel is < 1MB)
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   fileFilter: (_req, file, cb) => {
     /\.(xlsx|xls|csv)$/i.test(file.originalname) ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
   },
@@ -1555,7 +1541,6 @@ const excelAssetUpload = multer({
 router.post("/assets/bulk-import", (req, res, next) => {
   excelAssetUpload.single("file")(req, res, (err) => {
     if (err) {
-      if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch (_) {}
       if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Excel file is too large. Maximum allowed size is 10 MB." });
       return res.status(400).json({ message: err.message || "File upload failed" });
     }
@@ -1601,9 +1586,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
     let assetSeq = Number(initialAssetCount || 0);
 
     const { read, utils } = await import("xlsx");
-    const wb = read(req.file.path, { type: "file" });
-    // Clean up temp file immediately after parsing — free disk + avoid accumulation
-    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    const wb = read(req.file.buffer, { type: "buffer" });
 
     // Some files have title rows or multiple sheets; auto-select the best candidate.
     const likelyAssetKey = (key) => [
@@ -6302,21 +6285,16 @@ router.post("/upload-image", (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     if (!req.file) return res.status(400).json({ message: "No file provided" });
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, filename: req.file.filename, size: req.file.size, mimetype: req.file.mimetype });
+    const ext = path.extname(req.file.originalname).toLowerCase() || ".jpg";
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+    const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.uploads, filename });
+    res.json({ url, filename, size: req.file.size, mimetype: req.file.mimetype });
   } catch (err) { next(err); }
 });
 
 /* POST /upload-query-image – upload an image attachment for a query/issue report */
-const queryImageStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, queryImagesDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
-    cb(null, `query_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const uploadQueryImage = multer({
-  storage: queryImageStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -6332,7 +6310,9 @@ router.post("/upload-query-image", (req, res, next) => {
 }, async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No image provided" });
-    const url = `/uploads/query-images/${req.file.filename}`;
+    const ext = path.extname(req.file.originalname).toLowerCase() || ".jpg";
+    const filename = `query_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+    const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.queryImages, filename });
     res.json({ url });
   } catch (err) { next(err); }
 });
@@ -6352,7 +6332,8 @@ router.post("/upload-logo", (req, res, next) => {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     if (!req.file) return res.status(400).json({ message: "No file provided" });
     const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
-    const url = `/uploads/logos/company-${req.companyUser.companyId}${ext}`;
+    const filename = `company-${req.companyUser.companyId}-${Date.now()}${ext}`;
+    const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.logos, filename });
     await pool.query("UPDATE companies SET logo_url = ? WHERE id = ?", [url, req.companyUser.companyId]);
     res.json({ url });
   } catch (err) { next(err); }
@@ -6362,16 +6343,8 @@ router.post("/upload-logo", (req, res, next) => {
 router.delete("/logo", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const [[row]] = await pool.query("SELECT logo_url AS logoUrl FROM companies WHERE id = ?", [req.companyUser.companyId]);
-    const logoUrl = row?.logoUrl || null;
     await pool.query("UPDATE companies SET logo_url = NULL WHERE id = ?", [req.companyUser.companyId]);
-
-    if (logoUrl && String(logoUrl).startsWith("/uploads/logos/")) {
-      const filename = path.basename(String(logoUrl));
-      const absPath = path.join(logosDir, filename);
-      try { if (fs.existsSync(absPath)) fs.unlinkSync(absPath); } catch {}
-    }
-
+    // Note: old EC2 logo files remain on disk for backward compat. S3 logos are not deleted here.
     res.json({ message: "Logo removed" });
   } catch (err) { next(err); }
 });
@@ -6400,8 +6373,10 @@ router.post("/ojt/upload", (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     if (!req.file) return res.status(400).json({ message: "No file provided" });
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, filename: req.file.filename, size: req.file.size, mimetype: req.file.mimetype });
+    const safe = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filename = `ojt_${Date.now()}_${safe}`;
+    const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.ojt, filename });
+    res.json({ url, filename, size: req.file.size, mimetype: req.file.mimetype });
   } catch (err) { next(err); }
 });
 
