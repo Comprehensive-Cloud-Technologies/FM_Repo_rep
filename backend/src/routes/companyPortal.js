@@ -10,7 +10,7 @@ import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
-import { uploadToS3, S3_FOLDERS } from "../utils/s3.js";
+import { uploadToS3, S3_FOLDERS, presignMetadataImages } from "../utils/s3.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -1510,11 +1510,13 @@ router.get("/assets", async (req, res, next) => {
        ORDER BY a.asset_name`,
       params
     );
-    const normalized = rows.map((r) => {
+    const normalized = await Promise.all(rows.map(async (r) => {
       const meta = r.metadata == null ? {} : (typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata);
       const docs = r.documents == null ? undefined : (typeof r.documents === "string" ? JSON.parse(r.documents) : r.documents);
-      return { ...r, metadata: docs ? { ...meta, documents: docs } : meta, documents: undefined };
-    });
+      const merged = docs ? { ...meta, documents: docs } : meta;
+      const signedMeta = await presignMetadataImages(merged).catch(() => merged);
+      return { ...r, metadata: signedMeta, documents: undefined };
+    }));
     res.json(normalized);
   } catch (err) {
     next(err);
@@ -2244,7 +2246,8 @@ router.get("/assets/:id", async (req, res, next) => {
       console.error("[assets/:id] assignments query failed:", e.message);
     }
 
-    res.json({ ...asset, metadata: meta, checklists, assignments });
+    const signedMeta = await presignMetadataImages(meta).catch(() => meta);
+    res.json({ ...asset, metadata: signedMeta, checklists, assignments });
   } catch (err) {
     next(err);
   }

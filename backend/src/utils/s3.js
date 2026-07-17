@@ -106,3 +106,27 @@ export function normalizeImageUrl(url, apiBase) {
 }
 
 export { BUCKET, REGION, EXPIRY };
+
+// ── Pre-sign all S3 image URLs inside an asset metadata object ────────────────
+// Walks hcImages, images, invoiceImages, hcInvoiceUrl, invoiceUrl and replaces
+// any direct S3 object URLs with time-limited pre-signed GET URLs.
+export async function presignMetadataImages(meta, expiresIn = EXPIRY) {
+  if (!meta || typeof meta !== "object") return meta;
+  const signUrl = async (url) => {
+    if (!url || typeof url !== "string") return url;
+    const key = keyFromS3Url(url);
+    if (!key) return url; // not an S3 URL (old EC2 path) — leave as-is
+    try { return await getPresignedUrl(key, expiresIn); } catch { return url; }
+  };
+  const signArr = (arr) =>
+    Array.isArray(arr) ? Promise.all(arr.map(signUrl)) : Promise.resolve(arr);
+
+  const [hcImages, images, invoiceImages, hcInvoiceUrl, invoiceUrl] = await Promise.all([
+    signArr(meta.hcImages),
+    signArr(meta.images),
+    signArr(meta.invoiceImages),
+    signUrl(meta.hcInvoiceUrl),
+    signUrl(meta.invoiceUrl),
+  ]);
+  return { ...meta, hcImages, images, invoiceImages, hcInvoiceUrl, invoiceUrl };
+}
