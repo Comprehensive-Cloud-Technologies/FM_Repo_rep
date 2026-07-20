@@ -28,7 +28,7 @@ const require = createRequire(import.meta.url);
 require("dotenv").config();
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const UPLOADS_ROOT = join(__dirname, "../uploads");
+const UPLOADS_ROOT = join(__dirname, "uploads"); // backend/uploads/
 const BUCKET  = process.env.AWS_S3_BUCKET  || "catalysthtmappuploads";
 const REGION  = process.env.AWS_REGION     || "ap-south-1";
 
@@ -69,8 +69,9 @@ function mimeFor(filename) {
 }
 
 function s3KeyFor(localAbsPath) {
-  // Convert absolute local path → relative to uploads/ → S3 key
-  // e.g. /uploads/query-images/foo.jpg → query-images/foo.jpg
+      // Convert absolute local path → S3 key (relative to uploads root)
+  // e.g. /home/ec2-user/fmapp/backend/uploads/query-images/foo.jpg → query-images/foo.jpg
+  // DB stores paths as /uploads/query-images/foo.jpg — keep that as the map key
   const rel = relative(UPLOADS_ROOT, localAbsPath).replace(/\\/g, "/");
   return rel;
 }
@@ -231,7 +232,7 @@ async function main() {
 
   for (let i = 0; i < files.length; i++) {
     const localPath = files[i];
-    const relPath   = "/" + relative(join(UPLOADS_ROOT, ".."), localPath).replace(/\\/g, "/");
+      const relPath = "/uploads/" + relative(UPLOADS_ROOT, localPath).replace(/\\/g, "/");
     try {
       const { url, skipped: wasSkipped } = await uploadFile(localPath);
       urlMap.set(relPath, url);

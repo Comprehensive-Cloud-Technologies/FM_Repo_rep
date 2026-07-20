@@ -1475,6 +1475,12 @@ router.get("/assets", async (req, res, next) => {
       params.push(req.companyUser.id, cid(req));
     }
 
+    // Pagination — cap at 5000 to prevent runaway queries.
+    // allCompanies mode raises the default to 5000 to return all assets across hospitals.
+    // Pass ?limit=N&offset=M to paginate on large datasets.
+    const reqLimit  = req.query.limit  ? Math.min(Number(req.query.limit), 5000) : (req.query.allCompanies === "true" ? 5000 : 2000);
+    const reqOffset = req.query.offset ? Number(req.query.offset) : 0;
+
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
@@ -1507,16 +1513,18 @@ router.get("/assets", async (req, res, next) => {
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
        LEFT JOIN company_users creator ON creator.id = a.created_by
        WHERE ${companyWhereClause} ${extraFilters}
-       ORDER BY a.asset_name`,
-      params
+       ORDER BY a.asset_name
+       LIMIT ? OFFSET ?`,
+      [...params, reqLimit, reqOffset]
     );
-    const normalized = await Promise.all(rows.map(async (r) => {
+    // List view: do NOT pre-sign image URLs here — images are only shown in the
+    // asset detail modal (GET /assets/:id) which handles signing individually.
+    // Pre-signing 3800+ assets on every list load was causing the page to be slow.
+    const normalized = rows.map((r) => {
       const meta = r.metadata == null ? {} : (typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata);
       const docs = r.documents == null ? undefined : (typeof r.documents === "string" ? JSON.parse(r.documents) : r.documents);
-      const merged = docs ? { ...meta, documents: docs } : meta;
-      const signedMeta = await presignMetadataImages(merged).catch(() => merged);
-      return { ...r, metadata: signedMeta, documents: undefined };
-    }));
+      return { ...r, metadata: docs ? { ...meta, documents: docs } : meta, documents: undefined };
+    });
     res.json(normalized);
   } catch (err) {
     next(err);
