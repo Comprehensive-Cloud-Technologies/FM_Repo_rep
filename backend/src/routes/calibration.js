@@ -183,6 +183,11 @@ const upload = multer({
       await pool.query("UPDATE calibration_schedules SET company_id = ? WHERE company_id = 0", [firstCo.id]);
     }
   } catch (e) { console.warn("[calibration] company_id data-fix:", e.message); }
+
+  // Cleanup: remove ghost records with empty vendor_name (created before input was working)
+  try {
+    await pool.query("DELETE FROM calibration_vendors WHERE vendor_name IS NULL OR vendor_name = ''");
+  } catch (e) { console.warn("[calibration] ghost vendor cleanup:", e.message); }
 })();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

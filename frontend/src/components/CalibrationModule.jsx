@@ -89,7 +89,7 @@ function VendorsTab({ token }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setVendors(await apiFetch(`${CAL_API}/vendors?search=${encodeURIComponent(search)}`, {}, token)); }
+    try { setVendors(await apiFetch(`${CAL_API}/vendors?search=${encodeURIComponent(search)}&_t=${Date.now()}`, {}, token)); }
     catch { setVendors([]); } finally { setLoading(false); }
   }, [token, search]);
 
