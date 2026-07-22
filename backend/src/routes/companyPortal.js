@@ -1358,6 +1358,23 @@ router.put("/departments/:id", async (req, res, next) => {
   }
 });
 
+router.delete("/departments/bulk", async (req, res, next) => {
+  try {
+    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const ids = Array.isArray(req.body.ids)
+      ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
+      : [];
+    if (ids.length === 0) return res.status(400).json({ message: "ids array is required" });
+    const companyId = cid(req);
+    const placeholders = ids.map(() => "?").join(",");
+    const [result] = await pool.query(
+      `DELETE FROM departments WHERE id IN (${placeholders}) AND company_id = ?`,
+      [...ids, companyId]
+    );
+    res.json({ deleted: result.affectedRows });
+  } catch (err) { next(err); }
+});
+
 router.delete("/departments/:id", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
@@ -2335,6 +2352,7 @@ router.post("/assets", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status = "Active", metadata = {} } = req.body;
+    const pmsChecklistId = req.body.pmsChecklistId || null;
     if (!assetName?.trim() || !assetType) return res.status(400).json({ message: "assetName and assetType are required" });
 
     const loc = await upsertLocationHierarchyForCompany(pool, {
@@ -2367,9 +2385,13 @@ router.post("/assets", async (req, res, next) => {
        req.companyUser?.id || null]
     );
     const newId = result.insertId;
+    if (pmsChecklistId) {
+      await pool.query("UPDATE assets SET pms_checklist_id = ? WHERE id = ?", [pmsChecklistId, newId]);
+    }
     const [[asset]] = await pool.query(
       `SELECT id, asset_name AS assetName, asset_unique_id AS assetUniqueId, generated_asset_id AS generatedAssetId,
-              asset_type AS assetType, status, building, floor, room, department_id AS departmentId
+              asset_type AS assetType, status, building, floor, room, department_id AS departmentId,
+              pms_checklist_id AS pmsChecklistId
        FROM assets WHERE id = ?`,
       [newId]
     );
@@ -2407,7 +2429,8 @@ router.post("/assets", async (req, res, next) => {
 router.post("/assets/manual", async (req, res, next) => {
   try {
     const { companyId, departmentId, assetName, assetType = "healthcare",
-            building, floor, room, workingStatus, criticality, metadata = {} } = req.body;
+            building, floor, room, workingStatus, criticality, metadata = {},
+            pmsChecklistId: manualPmsChecklistId } = req.body;
     if (!assetName?.trim()) return res.status(400).json({ message: "assetName is required" });
     if (!companyId)         return res.status(400).json({ message: "companyId is required" });
 
@@ -2445,6 +2468,9 @@ router.post("/assets/manual", async (req, res, next) => {
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     const barcodeNo = `HC-${dateStr}-${rand}`;
     await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
+    if (manualPmsChecklistId) {
+      await pool.query("UPDATE assets SET pms_checklist_id = ? WHERE id = ?", [manualPmsChecklistId, newId]);
+    }
 
     const docs = Array.isArray(metadata?.documents) ? metadata.documents : null;
     const metaClean = { ...metadata }; delete metaClean.documents;
@@ -2506,7 +2532,8 @@ router.patch("/assets/:id", async (req, res, next) => {
     const { id } = req.params;
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room,
             buildingId, floorId, roomId, locationId,
-            status, criticality, workingStatus, metadata = {} } = req.body;
+            status, criticality, workingStatus, metadata = {},
+            pmsChecklistId: patchPmsChecklistId } = req.body;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
@@ -2533,6 +2560,7 @@ router.patch("/assets/:id", async (req, res, next) => {
          status = COALESCE(?, status),
          criticality = COALESCE(?, criticality),
          working_status = COALESCE(?, working_status),
+         pms_checklist_id = IF(? IS NOT NULL, ?, pms_checklist_id),
          updated_at = NOW()
        WHERE id = ?`,
       [
@@ -2542,7 +2570,7 @@ router.patch("/assets/:id", async (req, res, next) => {
         building || null, floor || null, room || null,
         buildingId || null, floorId || null, roomId || null, locationId || null,
         status || null, criticality || null,
-        workingStatus || null, id,
+        workingStatus || null, patchPmsChecklistId || null, patchPmsChecklistId || null, id,
       ]
     );
     const [[asset]] = await pool.query(
@@ -2647,12 +2675,22 @@ router.delete("/assets/bulk", async (req, res, next) => {
         `DELETE FROM asset_pre_qr WHERE asset_id IN (${placeholders}) AND company_id = ?`,
         [...chunk, companyId]
       );
+      // Cascade: delete PMS schedule_asset records for these assets
+      await pool.query(
+        `DELETE FROM pms_schedule_assets WHERE asset_id IN (${placeholders})`,
+        chunk
+      );
       const [result] = await pool.query(
         `DELETE FROM assets WHERE id IN (${placeholders}) AND company_id = ?`,
         [...chunk, companyId]
       );
       deleted += Number(result.affectedRows || 0);
     }
+    // Delete PMS schedules that now have no assets
+    await pool.query(`
+      DELETE FROM pms_schedules
+      WHERE id NOT IN (SELECT DISTINCT schedule_id FROM pms_schedule_assets)
+        AND company_id = ?`, [companyId]);
 
     res.json({ deleted });
   } catch (err) { next(err); }
@@ -2666,6 +2704,13 @@ router.delete("/assets/:id", async (req, res, next) => {
     if (!check) return res.status(404).json({ message: "Asset not found" });
     // Cascade: delete linked QR code
     await pool.query("DELETE FROM asset_pre_qr WHERE asset_id = ? AND company_id = ?", [id, cid(req)]);
+    // Cascade: delete PMS schedule_asset records for this asset
+    await pool.query("DELETE FROM pms_schedule_assets WHERE asset_id = ?", [id]);
+    // Delete PMS schedules that now have no assets
+    await pool.query(`
+      DELETE FROM pms_schedules
+      WHERE id NOT IN (SELECT DISTINCT schedule_id FROM pms_schedule_assets)
+        AND company_id = ?`, [cid(req)]);
     await pool.query("DELETE FROM assets WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -3932,6 +3977,7 @@ router.get("/employees", async (req, res, next) => {
               cu.full_name AS "fullName", cu.email, cu.phone,
               cu.designation, cu.role, cu.shift, cu.status, cu.username,
               cu.supervisor_id AS "supervisorId",
+              cu.department_id AS "departmentId",
               COALESCE(cu.service_domain, 'technical') AS "serviceDomain",
               s.full_name AS "supervisorName",
               s.role AS "supervisorRole",
@@ -4006,7 +4052,7 @@ router.get("/my-team", async (req, res, next) => {
 
 router.post("/employees", async (req, res, next) => {
   try {
-    const { fullName, email, phone, designation, role = "employee", status = "Active", password, username, supervisorId, shift, serviceDomain = "technical" } = req.body;
+    const { fullName, email, phone, designation, role = "employee", status = "Active", password, username, supervisorId, shift, serviceDomain = "technical", departmentId } = req.body;
     if (!fullName || !email) return res.status(400).json({ message: "fullName and email are required" });
 
     if (req.companyUser.role !== "admin" && req.companyUser.role !== "supervisor") {
@@ -4023,19 +4069,20 @@ router.post("/employees", async (req, res, next) => {
     let passwordHash = null;
     if (password) passwordHash = await bcrypt.hash(password, 10);
 
-    const [rows] = await pool.query(
-      `INSERT INTO company_users (company_id, full_name, email, phone, designation, role, shift, status, password_hash, username, supervisor_id, service_domain)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       RETURNING id,
-                 company_id     AS "companyId",
-                 full_name      AS "fullName",
-                 email, phone, designation, role, shift, status, username,
-                 supervisor_id  AS "supervisorId",
-                 service_domain AS "serviceDomain",
-                 created_at     AS "createdAt"`,
-      [cid(req), fullName, email, phone || null, designation || null, role, shift || null, status, passwordHash, username || null, resolvedSupervisorId, resolvedDomain]
+    const [result] = await pool.query(
+      `INSERT INTO company_users (company_id, full_name, email, phone, designation, role, shift, status, password_hash, username, supervisor_id, service_domain, department_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid(req), fullName, email, phone || null, designation || null, role, shift || null, status, passwordHash, username || null, resolvedSupervisorId, resolvedDomain, departmentId || null]
     );
-    res.status(201).json(rows[0]);
+    const [[created]] = await pool.query(
+      `SELECT id, company_id AS "companyId", full_name AS "fullName", email, phone, designation,
+              role, shift, status, username, supervisor_id AS "supervisorId",
+              department_id AS "departmentId", service_domain AS "serviceDomain",
+              created_at AS "createdAt"
+       FROM company_users WHERE id = ?`,
+      [result.insertId]
+    );
+    res.status(201).json(created);
   } catch (err) {
     if (err.code === "23505" || err.code === "ER_DUP_ENTRY") {
       if ((err.constraint || "").includes("username") || (err.message || "").includes("username")) {
@@ -4050,7 +4097,7 @@ router.post("/employees", async (req, res, next) => {
 router.put("/employees/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, email, phone, designation, role, status, password, username, supervisorId, shift, serviceDomain } = req.body;
+    const { fullName, email, phone, designation, role, status, password, username, supervisorId, shift, serviceDomain, departmentId } = req.body;
 
     if (req.companyUser.role !== "admin" && req.companyUser.role !== "supervisor") {
       return res.status(403).json({ message: "Not authorised" });
@@ -4085,11 +4132,13 @@ router.put("/employees/:id", async (req, res, next) => {
     if (serviceDomain !== undefined && validDomains.includes(serviceDomain)) {
       serviceDomainClause = ", service_domain = ?";
     }
+    let departmentClause = departmentId !== undefined ? ", department_id = ?" : "";
     const params = [fullName, email, phone || null, designation || null, role || "employee", status || "Active"];
     if (username !== undefined) params.push(username || null);
     if (resolvedSupervisorId !== undefined) params.push(resolvedSupervisorId);
     if (shift !== undefined) params.push(shift || null);
     if (serviceDomainClause) params.push(serviceDomain);
+    if (departmentId !== undefined) params.push(departmentId || null);
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       passwordClause = ", password_hash = ?";
@@ -4097,18 +4146,20 @@ router.put("/employees/:id", async (req, res, next) => {
     }
     params.push(id);
 
-    const [rows] = await pool.query(
+    await pool.query(
       `UPDATE company_users
-       SET full_name = ?, email = ?, phone = ?, designation = ?, role = ?, status = ?${usernameClause}${supervisorClause}${shiftClause}${serviceDomainClause}${passwordClause}, updated_at = NOW()
-       WHERE id = ?
-       RETURNING id,
-                 full_name      AS "fullName",
-                 email, phone, designation, role, shift, status, username,
-                 supervisor_id  AS "supervisorId",
-                 service_domain AS "serviceDomain"`,
+       SET full_name = ?, email = ?, phone = ?, designation = ?, role = ?, status = ?${usernameClause}${supervisorClause}${shiftClause}${serviceDomainClause}${departmentClause}${passwordClause}, updated_at = NOW()
+       WHERE id = ?`,
       params
     );
-    res.json(rows[0]);
+    const [[updated]] = await pool.query(
+      `SELECT id, full_name AS "fullName", email, phone, designation, role, shift, status,
+              username, supervisor_id AS "supervisorId", department_id AS "departmentId",
+              service_domain AS "serviceDomain"
+       FROM company_users WHERE id = ?`,
+      [id]
+    );
+    res.json(updated);
   } catch (err) {
     if (err.code === "23505" || err.code === "ER_DUP_ENTRY") {
       if ((err.constraint || "").includes("username") || (err.message || "").includes("username")) {
@@ -6835,7 +6886,7 @@ router.patch("/pre-qr/:id/link", async (req, res, next) => {
     const { assetId } = req.body;
     if (!assetId) return res.status(400).json({ message: "assetId required" });
     const [[qr]] = await pool.query(
-      "SELECT id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
+      "SELECT id, qr_unique_id FROM asset_pre_qr WHERE id = ? AND company_id = ?",
       [req.params.id, cid(req)]
     );
     if (!qr) return res.status(404).json({ message: "QR not found" });
@@ -6843,6 +6894,13 @@ router.patch("/pre-qr/:id/link", async (req, res, next) => {
       "UPDATE asset_pre_qr SET asset_id = ?, linked_at = NOW() WHERE id = ?",
       [assetId, req.params.id]
     );
+    // Sync asset_unique_id so QR scanning always works
+    if (qr.qr_unique_id) {
+      await pool.query(
+        "UPDATE assets SET asset_unique_id = ? WHERE id = ? AND company_id = ?",
+        [qr.qr_unique_id, assetId, cid(req)]
+      );
+    }
     const [[updated]] = await pool.query(
       `SELECT q.id, q.qr_unique_id AS qrUniqueId, q.asset_id AS assetId,
               a.asset_name AS assetName, a.asset_unique_id AS assetUniqueId,

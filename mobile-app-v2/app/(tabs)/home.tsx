@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount } from '../../utils/api';
+import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount, fetchMyPmsStats, fetchDeptHeadPending, fetchDeptHeadStats } from '../../utils/api';
 import { useTheme, Spacing, Radius } from '../../utils/theme';
 import { hasTechAccess, canManageTeam, canViewNotifications, canRegisterAssets } from '../../utils/permissions';
 
@@ -154,20 +154,23 @@ function HCStaffHome({ user }: { user: any }) {
 // ─── HC Engineer Home ─────────────────────────────────────────────────────────
 function HCEngineerHome({ user }: { user: any }) {
   const { theme } = useTheme();
-  const [dash, setDash]     = useState<any>(null);
-  const [cases, setCases]   = useState<any[]>([]);
+  const [dash, setDash]         = useState<any>(null);
+  const [pmsDash, setPmsDash]   = useState<any>(null);
+  const [cases, setCases]       = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [dRes, cRes] = await Promise.allSettled([
+      const [dRes, cRes, pRes] = await Promise.allSettled([
         authenticatedFetch('/api/mobile/case-logs/dashboard').then(r => r.json()),
         authenticatedFetch('/api/mobile/case-logs?limit=10').then(r => r.json()),
+        fetchMyPmsStats(),
       ]);
       if (dRes.status === 'fulfilled') setDash(dRes.value);
       if (cRes.status === 'fulfilled') setCases((cRes.value as any).data || []);
+      if (pRes.status === 'fulfilled') setPmsDash(pRes.value);
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -219,6 +222,30 @@ function HCEngineerHome({ user }: { user: any }) {
               <StatCard label="Closed"      value={dash?.closed     ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
               <StatCard label="Total"       value={dash?.total      ?? 0} color="#0F172A" onPress={() => router.push('/(tabs)/tasks')} />
             </View>
+
+            <Text style={[ss.sectionTitle, { color: theme.textMuted, marginTop: 16 }]}>MY PMS</Text>
+            <TouchableOpacity
+              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#bfdbfe' }]}
+              onPress={() => router.push('/pms-assignments')}
+              activeOpacity={0.75}>
+              <View style={[ss.pmsIconBox, { backgroundColor: '#dbeafe' }]}>
+                <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#2563eb" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Preventive Maintenance</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>
+                  {Number(pmsDash?.assigned ?? 0)} assigned · {Number(pmsDash?.inProgress ?? 0)} in progress
+                </Text>
+              </View>
+              {(Number(pmsDash?.assigned ?? 0) + Number(pmsDash?.inProgress ?? 0)) > 0 && (
+                <View style={ss.pmsBadge}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    {Number(pmsDash?.assigned ?? 0) + Number(pmsDash?.inProgress ?? 0)}
+                  </Text>
+                </View>
+              )}
+              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
+            </TouchableOpacity>
 
             {cases.filter(item => !['resolved','closed'].includes(item.status)).length > 0 && (
               <>
@@ -347,12 +374,110 @@ function HCAdminHome({ user }: { user: any }) {
   );
 }
 
+// ─── Department Head Home ─────────────────────────────────────────────────────
+function DeptHeadHome({ user }: { user: any }) {
+  const { theme } = useTheme();
+  const [stats, setStats]       = useState<any>(null);
+  const [pending, setPending]   = useState(0);
+  const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const timeout = (ms: number) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
+    try {
+      const [sRes, pRes] = await Promise.allSettled([
+        Promise.race([fetchDeptHeadStats(), timeout(5000)]),
+        Promise.race([fetchDeptHeadPending(), timeout(5000)]),
+      ]);
+      if (sRes.status === 'fulfilled') setStats(sRes.value);
+      if (pRes.status === 'fulfilled') setPending(Array.isArray(pRes.value) ? pRes.value.length : 0);
+    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  useFocusEffect(useCallback(() => {
+    void load(true);
+    const t = setInterval(() => void load(true), 30000);
+    return () => clearInterval(t);
+  }, [load]));
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
+
+  return (
+    <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={ss.scroll}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header — matches Doctor UI */}
+        <View style={ss.topBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting} 👋</Text>
+            <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
+            <Text style={[ss.roleTag, { color: '#7c3aed', backgroundColor: '#f3e8ff' }]}>Department Head</Text>
+          </View>
+          <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
+            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* PMS Overview stats — 2×2 grid like Doctor's Case Logs */}
+        {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
+          <>
+            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY PMS OVERVIEW</Text>
+            <View style={ss.statsGrid}>
+              <StatCard label="Total"    value={stats?.total    ?? 0} color="#2563EB" onPress={() => router.push('/dept-head-pms')} />
+              <StatCard label="Pending"  value={stats?.pending  ?? 0} color="#DC2626" onPress={() => router.push('/dept-head-pms')} />
+              <StatCard label="Approved" value={stats?.approved ?? 0} color="#059669" />
+              <StatCard label="Closed"   value={stats?.closed   ?? 0} color="#64748B" />
+            </View>
+          </>
+        )}
+
+        {/* PMS Review action card */}
+        <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>PMS REVIEW</Text>
+        <TouchableOpacity
+          style={[dhs.pmsCard, { backgroundColor: '#0891b20d', borderColor: '#0891b240' }]}
+          onPress={() => router.push('/dept-head-pms')}
+          activeOpacity={0.8}
+        >
+          <View style={[dhs.pmsIconBox, { backgroundColor: '#0891b220' }]}>
+            <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#0891b2" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[dhs.pmsCardTitle, { color: '#0c4a6e' }]}>Review & Close Submissions</Text>
+            <Text style={{ fontSize: 12, color: '#0891b2', marginTop: 2 }}>Close completed engineer PMS reports</Text>
+          </View>
+          {pending > 0 && (
+            <View style={[ss.pmsBadge]}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{pending}</Text>
+            </View>
+          )}
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#0891b2" />
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const dhs = StyleSheet.create({
+  pmsCard:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: Radius.lg, borderWidth: 1.5 },
+  pmsIconBox:   { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsCardTitle: { fontSize: 15, fontWeight: '700' },
+});
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const { user, capabilities } = useAuth();
-  if (capabilities.isHCStaff)    return <HCStaffHome    user={user} />;
-  if (capabilities.isHCEngineer) return <HCEngineerHome user={user} />;
-  if (capabilities.isHCAdmin)    return <HCAdminHome    user={user} />;
+  if (capabilities.isHCStaff)              return <HCStaffHome    user={user} />;
+  if (capabilities.isHCEngineer)           return <HCEngineerHome user={user} />;
+  if (capabilities.isHCAdmin)              return <HCAdminHome    user={user} />;
+  if (user?.role === 'department_head')    return <DeptHeadHome   user={user} />;
   return <LegacyHome user={user} capabilities={capabilities} />;
 }
 
@@ -389,6 +514,10 @@ const ss = StyleSheet.create({
   actionIcon:  { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   legacyCard:  { width: '47.5%', padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, gap: 8 },
+  pmsCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5 },
+  pmsIconBox:  { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  pmsCardTitle:{ fontSize: 15, fontWeight: '700' },
+  pmsBadge:    { backgroundColor: '#2563eb', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },
 });
 
 // ─── Quick-action card ────────────────────────────────────────────────────────
@@ -416,23 +545,30 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
   const { theme } = useTheme();
   const [progress,   setProgress]   = useState<any>(null);
   const [notifCount, setNotifCount] = useState(0);
+  const [pendingPms, setPendingPms] = useState(0);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const isDeptHead = user?.role === 'department_head';
 
   const load = useCallback(async () => {
     // 5-second timeout so the spinner doesn't hang if the backend is unreachable
     const timeout = (ms: number) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
     try {
-      const [prog, nc] = await Promise.allSettled([
+      const promises: Promise<any>[] = [
         Promise.race([fetchMyTodayProgress(), timeout(5000)]),
         Promise.race([fetchNotificationCount(), timeout(5000)]),
-      ]);
-      if (prog.status === 'fulfilled') setProgress(prog.value);
-      if (nc.status   === 'fulfilled') setNotifCount((nc.value as any).unread ?? (nc.value as any).count ?? 0);
+      ];
+      if (isDeptHead) promises.push(Promise.race([fetchDeptHeadPending(), timeout(5000)]));
+
+      const results = await Promise.allSettled(promises);
+      if (results[0].status === 'fulfilled') setProgress(results[0].value);
+      if (results[1].status === 'fulfilled') setNotifCount((results[1].value as any).unread ?? (results[1].value as any).count ?? 0);
+      if (isDeptHead && results[2]?.status === 'fulfilled') setPendingPms(Array.isArray(results[2].value) ? results[2].value.length : 0);
     } catch { /* silent */ } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, []);
+  }, [isDeptHead]);
 
   useEffect(() => { void load(); }, [load]);
   const onRefresh = () => { setRefreshing(true); void load(); };
@@ -536,6 +672,32 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
           ) : null}
         </View>
 
+        {/* ── Dept Head PMS Review ────────────────────────────────────── */}
+        {user?.role === 'department_head' && (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>PMS REVIEW</Text>
+            <TouchableOpacity
+              style={[styles.pmsApprovalCard, { backgroundColor: '#0891b212', borderColor: '#0891b240' }]}
+              onPress={() => router.push('/dept-head-pms')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.pmsApprovalIcon, { backgroundColor: '#0891b220' }]}>
+                <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#0891b2" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pmsApprovalTitle, { color: '#0c4a6e' }]}>Review & Close Submissions</Text>
+                <Text style={[styles.pmsApprovalSub, { color: '#0891b2' }]}>Close completed engineer PMS reports</Text>
+              </View>
+              {pendingPms > 0 && (
+                <View style={styles.pmsApprovalBadge}>
+                  <Text style={styles.pmsApprovalBadgeText}>{pendingPms}</Text>
+                </View>
+              )}
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#0891b2" />
+            </TouchableOpacity>
+          </>
+        )}
+
         {/* ── Role chip ─────────────────────────────────────────────────── */}
         <View style={[styles.roleChip, { backgroundColor: theme.primaryBg, borderColor: theme.primary + '30' }]}>
           <MaterialCommunityIcons name="shield-account-outline" size={16} color={theme.primary} />
@@ -573,4 +735,11 @@ const styles = StyleSheet.create({
 
   roleChip:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1 },
   roleText:     { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+
+  pmsApprovalCard:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5 },
+  pmsApprovalIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsApprovalTitle: { fontSize: 15, fontWeight: '700' },
+  pmsApprovalSub:   { fontSize: 12, marginTop: 2 },
+  pmsApprovalBadge: { backgroundColor: '#7c3aed', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },
+  pmsApprovalBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12 },
 });

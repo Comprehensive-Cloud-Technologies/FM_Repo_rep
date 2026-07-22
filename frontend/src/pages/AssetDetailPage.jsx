@@ -66,6 +66,11 @@ export default function AssetDetailPage() {
   const [asset, setAsset] = useState(null);
   const [callLogs, setCallLogs] = useState(null);
   const [calibration, setCalibration] = useState(null);
+  const [pmsHistory, setPmsHistory] = useState(null);
+  const [pmsHistoryLoading, setPmsHistoryLoading] = useState(false);
+  const [selectedPms, setSelectedPms] = useState(null);
+  const [pmsDetail, setPmsDetail] = useState(null);
+  const [pmsDetailLoading, setPmsDetailLoading] = useState(false);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -251,11 +256,12 @@ export default function AssetDetailPage() {
   ].filter(([, v]) => v && v !== "—");
 
   const TABS = [
-    { key: "overview", label: "Overview" },
-    { key: "calllogs", label: "Call Log History" },
-    { key: "calibration", label: "Calibration History" },
-    { key: "purchase", label: "Purchase History" },
-    { key: "indent", label: "Indent Details" },
+    { key: "overview",    label: "Overview" },
+    { key: "calllogs",   label: "Call Log History" },
+    { key: "calibration",label: "Calibration History" },
+    { key: "purchase",   label: "Purchase History" },
+    { key: "pms_history",label: "PMS History" },
+    { key: "indent",     label: "Indent Details" },
   ];
 
   const tabStyle = (key) => ({
@@ -755,7 +761,16 @@ export default function AssetDetailPage() {
 
       {/* Tab bar */}
       <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff", padding: "0 24px", overflowX: "auto", flexShrink: 0 }}>
-        {TABS.map(t => <button key={t.key} style={tabStyle(t.key)} onClick={() => setTab(t.key)}>{t.label}</button>)}
+        {TABS.map(t => <button key={t.key} style={tabStyle(t.key)} onClick={() => {
+          setTab(t.key);
+          if (t.key === "pms_history" && !pmsHistory && !pmsHistoryLoading && token && !isAdmin) {
+            setPmsHistoryLoading(true);
+            fetch(`${getApiBaseUrl()}/api/company-portal/pms/reports/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.ok ? r.json() : Promise.reject())
+              .then(d => { setPmsHistory(d); setPmsHistoryLoading(false); })
+              .catch(() => { setPmsHistory({ history: [] }); setPmsHistoryLoading(false); });
+          }
+        }}>{t.label}</button>)}
       </div>
 
       {/* Content */}
@@ -985,6 +1000,71 @@ export default function AssetDetailPage() {
                 <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8", fontSize: "14px" }}>No indent details recorded for this asset.</div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* PMS History */}
+        {tab === "pms_history" && (
+          <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+            <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>PMS History</h4>
+            {pmsHistoryLoading ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading PMS history…</div>
+            ) : isAdmin ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                PMS history is available in the Employee Portal.
+              </div>
+            ) : !pmsHistory ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                Click the tab to load PMS history.
+              </div>
+            ) : (pmsHistory.history || []).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", color: "#94a3b8", fontSize: "14px" }}>
+                No preventive maintenance records found for this asset.
+              </div>
+            ) : (
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13.5px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      {["Schedule No.", "Checklist", "Scheduled", "Completed", "Engineer", "Dept. Head", "Status"].map(h => (
+                        <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "12px", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(pmsHistory.history || []).map(h => {
+                      const apSt = {
+                        pending:          { label: "Awaiting Closure", color: "#0891b2", bg: "#e0f2fe" },
+                        auto_approved:    { label: "Closed",           color: "#059669", bg: "#dcfce7" },
+                        approved:         { label: "Closed",           color: "#059669", bg: "#dcfce7" },
+                        rejected:         { label: "Rejected",         color: "#dc2626", bg: "#fee2e2" },
+                        rework_required:  { label: "Rework",           color: "#d97706", bg: "#ffedd5" },
+                        completed:        { label: "Completed",        color: "#059669", bg: "#dcfce7" },
+                        closed:           { label: "Closed",           color: "#059669", bg: "#dcfce7" },
+                        pending_approval: { label: "Completed",        color: "#059669", bg: "#dcfce7" },
+                      }[h.approvalStatus || h.status] || { label: h.status || "—", color: "#64748b", bg: "#f1f5f9" };
+                      return (
+                        <tr key={h.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                          onMouseLeave={e => e.currentTarget.style.background = ""}>
+                          <td style={{ padding: "10px 14px", fontWeight: 700, color: "#2563eb", fontFamily: "monospace" }}>{h.scheduleNumber}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{h.checklistName || "—"}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(h.maintenanceDate)}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(h.completedAt)}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{h.engineerName || "—"}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{h.reviewerName || "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: apSt.bg, color: apSt.color }}>
+                              {apSt.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

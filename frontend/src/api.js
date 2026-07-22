@@ -148,6 +148,7 @@ export const getCompanyPortalDepartments = (token, allCompanies = false) =>
 export const createCompanyPortalDepartment = (token, data) => request("POST", "/api/company-portal/departments", data, { authToken: token });
 export const updateCompanyPortalDepartment = (token, id, data) => request("PUT", `/api/company-portal/departments/${id}`, data, { authToken: token });
 export const deleteCompanyPortalDepartment = (token, id) => request("DELETE", `/api/company-portal/departments/${id}`, undefined, { authToken: token });
+export const bulkDeleteCompanyPortalDepartments = (token, ids) => request("DELETE", "/api/company-portal/departments/bulk", { ids }, { authToken: token });
 export const getCompanyPortalAssetTypes = (token) => request("GET", "/api/company-portal/asset-types", undefined, { authToken: token });
 export const getCompanyPortalAssets = (token, params = {}) => {
   const qs = new URLSearchParams(params).toString();

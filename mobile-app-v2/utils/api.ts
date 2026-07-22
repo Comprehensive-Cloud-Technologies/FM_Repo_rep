@@ -944,11 +944,103 @@ export interface ManualAssetPayload {
   calibrationCertificateNumber?: string;
   calibrationStatus?: string;
   alertBeforeDays?: number;
+  pmsChecklistId?: number | null;
   metadata?: Record<string, any>;
 }
 
 export async function fetchAllCompaniesForEngineer(): Promise<Array<{ id: number; companyName: string }>> {
   return apiGet<Array<{ id: number; companyName: string }>>('/api/company-portal/all-companies');
+}
+
+export async function fetchActivePmsChecklists(): Promise<Array<{ id: number; checklist_name: string; checklist_code: string }>> {
+  return apiGet<Array<{ id: number; checklist_name: string; checklist_code: string }>>('/api/company-portal/pms/checklists?status=active');
+}
+
+export async function fetchMyPmsStats(): Promise<{ total: number; assigned: number; inProgress: number; completed: number; missed: number }> {
+  return apiGet('/api/company-portal/pms/my-pms/stats');
+}
+
+export async function fetchMyPmsAssignments(status?: string): Promise<any[]> {
+  const qs = status ? `?status=${status}` : '';
+  return apiGet(`/api/company-portal/pms/my-pms${qs}`);
+}
+
+export async function fetchMyPmsChecklist(id: number): Promise<any> {
+  return apiGet(`/api/company-portal/pms/my-pms/${id}/checklist`);
+}
+
+export async function verifyAssetQr(qrValue: string, assetId: number): Promise<boolean> {
+  try {
+    const res = await apiGet<{ match: boolean }>(`/api/company-portal/pms/verify-asset-qr?qrValue=${encodeURIComponent(qrValue)}&assetId=${assetId}`);
+    return res?.match === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function startPmsAssignment(id: number): Promise<{ ok: boolean }> {
+  return apiPatch(`/api/company-portal/pms/my-pms/${id}/start`, {});
+}
+
+export async function completePmsAssignment(id: number): Promise<{ ok: boolean }> {
+  return apiPatch(`/api/company-portal/pms/my-pms/${id}/complete`, {});
+}
+
+export interface PmsResponse {
+  checklistItemId: number;
+  responseValue: string;
+  photoUrl?: string | null;
+  remarks?: string | null;
+}
+
+export async function submitPmsCompletion(
+  id: number,
+  payload: {
+    responses: PmsResponse[];
+    engineerNotes?: string;
+    engineerImages?: string[];
+    submissionMetadata?: Record<string, any> | null;
+  }
+): Promise<{ ok: boolean; approvalStatus: string; newStatus: string }> {
+  return apiPatch(`/api/company-portal/pms/my-pms/${id}/complete`, payload);
+}
+
+export async function fetchPmsReports(): Promise<any[]> {
+  return apiGet(`/api/company-portal/pms/reports`);
+}
+
+export async function fetchPmsAssetHistory(assetId: number): Promise<any> {
+  return apiGet(`/api/company-portal/pms/reports/${assetId}`);
+}
+
+export async function fetchPmsAssignmentResponses(id: number): Promise<any> {
+  return apiGet(`/api/company-portal/pms/assignments/${id}/responses`);
+}
+
+// ─── PMS Department Head ──────────────────────────────────────────────────────
+export async function fetchDeptHeadPending(): Promise<any[]> {
+  return apiGet<any[]>('/api/company-portal/pms/dept-head/pending');
+}
+
+export interface DeptHeadStats {
+  total: number; pending: number; approved: number; closed: number; rejected: number;
+}
+export async function fetchDeptHeadStats(): Promise<DeptHeadStats> {
+  return apiGet<DeptHeadStats>('/api/company-portal/pms/dept-head/stats');
+}
+
+export async function fetchDeptHeadDetail(id: number): Promise<any> {
+  return apiGet<any>(`/api/company-portal/pms/dept-head/${id}/details`);
+}
+
+export interface DeptHeadDecision {
+  decision: 'closed' | 'rework_required';
+  approvalComments?: string;
+  reviewMetadata?: Record<string, any> | null;
+}
+
+export async function submitDeptHeadReview(id: number, payload: DeptHeadDecision): Promise<{ ok: boolean; newStatus: string; decision: string }> {
+  return apiPatch<{ ok: boolean; newStatus: string; decision: string }>(`/api/company-portal/pms/dept-head/${id}/review`, payload);
 }
 
 export async function fetchDepartmentsByCompany(companyId: number): Promise<Array<{ id: number; name: string }>> {
