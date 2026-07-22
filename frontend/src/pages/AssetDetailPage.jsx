@@ -183,17 +183,21 @@ export default function AssetDetailPage() {
     ...(m.invoiceUrl ? [m.invoiceUrl] : []),
   ].map(normalizeImgUrl).filter(Boolean);
 
+  // ── Downtime formula: strictly resolutionAt − wipAt
+  // If either timestamp is missing, downtime = 0 (cannot calculate without both)
+  const calcDownMs = (wo) => {
+    const end   = wo.resolutionAt || wo.closedAt; // when repair was completed
+    const start = wo.wipAt;                       // when engineer started (WIP) — required
+    if (!end || !start) return 0;                 // no wipAt = no measurable downtime
+    return Math.max(0, new Date(end) - new Date(start));
+  };
+
   // ── MTTR: Mean Time To Repair = Total Repair Time ÷ Number of Completed Breakdowns ──────
-  // Repair Time per ticket = resolutionAt (repair done) − createdAt (breakdown start)
-  // Spec: Repair Start = breakdown/WO creation time (breakdown reported)
   const completedBreakdowns = (callLogs || []).filter(wo =>
     (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
     wo.createdAt && (wo.resolutionAt || wo.closedAt)
   );
-  const totalRepairMs = completedBreakdowns.reduce((s, wo) => {
-    const end = wo.resolutionAt || wo.closedAt;
-    return s + Math.max(0, new Date(end) - new Date(wo.createdAt));
-  }, 0);
+  const totalRepairMs  = completedBreakdowns.reduce((s, wo) => s + calcDownMs(wo), 0);
   const breakdownCount = completedBreakdowns.length;
 
   const fmtMs = (ms) => {
@@ -203,20 +207,21 @@ export default function AssetDetailPage() {
     return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
   };
 
-  // MTTR = Total Repair Time ÷ Number of Completed Breakdowns
+  // MTTR = Total Repair Time ÷ Completed Breakdowns (00:00:00 if no data)
   const mttrMs    = breakdownCount > 0 ? totalRepairMs / breakdownCount : 0;
-  const mttrLabel = breakdownCount > 0 ? fmtMs(mttrMs) : "N/A";
+  const mttrLabel = fmtMs(mttrMs);
 
   // ── MTBF: Mean Time Between Failures = Total Operating Time ÷ Number of Failures ───────
-  // Number of Failures = ALL issues ever raised (not just completed ones)
-  // Operating Time = (Time since asset was registered) − Total Downtime
-  const totalFailures = (callLogs || []).length; // every raised issue = one failure event
+  // Number of Failures = ALL issues ever raised (not just completed)
+  // Operating Time = (Now − Asset Registration Date) − Total Downtime
+  const totalFailures = (callLogs || []).length;
   const assetAge      = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
   const operatingMs   = Math.max(0, assetAge - totalRepairMs);
-  const mtbfLabel     = totalFailures > 0 ? fmtMs(operatingMs / totalFailures) : "N/A";
+  const mtbfMs        = totalFailures > 0 ? operatingMs / totalFailures : 0;
+  const mtbfLabel     = fmtMs(mtbfMs);
 
-  const combinedDownMs = totalRepairMs; // used by call log row formula
-  const totalDownLabel = totalRepairMs > 0 ? fmtMs(totalRepairMs) : "00:00:00";
+  const combinedDownMs = totalRepairMs;
+  const totalDownLabel = fmtMs(totalRepairMs);
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
@@ -780,16 +785,8 @@ export default function AssetDetailPage() {
             {/* Metrics row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
               <FieldCard label="Total Down Time" value={totalDownLabel} />
-              <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }} title={`MTBF = Operating Time ÷ Total Issues Raised\nOperating Time = Asset Age − Total Downtime\nIssues Raised: ${totalFailures}`}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>MTBF (hh:mm:ss)</div>
-                <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600 }}>{mtbfLabel}</div>
-                <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>Op.Time ÷ {totalFailures} failure{totalFailures !== 1 ? "s" : ""}</div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }} title={`MTTR = Total Repair Time ÷ Completed Breakdowns\nCompleted: ${breakdownCount}`}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>MTTR (hh:mm:ss)</div>
-                <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600 }}>{mttrLabel}</div>
-                <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>{totalDownLabel} ÷ {breakdownCount} breakdown{breakdownCount !== 1 ? "s" : ""}</div>
-              </div>
+              <FieldCard label="MTBF (hh:mm:ss)" value={mtbfLabel} />
+              <FieldCard label="MTTR (hh:mm:ss)" value={mttrLabel} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
@@ -823,15 +820,8 @@ export default function AssetDetailPage() {
                     {callLogs.map(wo => {
                       const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                       const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                      // Downtime = repair completion \u2013 repair start
-                      // resolutionAt = when engineer finished (completed/resolved)
-                      // wipAt = when engineer started work (in-progress)
-                      // Fall back: resolutionAt|closedAt \u2013 wipAt|createdAt
-                      const repairEnd   = wo.resolutionAt || wo.closedAt;
-                      const repairStart = wo.wipAt || wo.createdAt;
-                      const isFinished  = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
-                      const dtMs = isFinished && repairStart && repairEnd
-                        ? Math.max(0, new Date(repairEnd) - new Date(repairStart)) : 0;
+                      // Downtime = resolutionAt − wipAt (strictly; 0 if either is missing)
+                      const dtMs = calcDownMs(wo);
                       return (
                         <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "10px 14px" }}>
@@ -856,11 +846,8 @@ export default function AssetDetailPage() {
                 const wo = selectedCallLog;
                 const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                 const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                const repairEnd   = wo.resolutionAt || wo.closedAt;
-                const repairStart = wo.wipAt || wo.createdAt;
-                const isFinished  = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
-                const dtMs = isFinished && repairStart && repairEnd
-                  ? Math.max(0, new Date(repairEnd) - new Date(repairStart)) : 0;
+                // Downtime = resolutionAt − wipAt (strictly; 0 if either is missing)
+                const dtMs = calcDownMs(wo);
                 const rows = [
                   ["Request ID",    reqId],
                   ["Type",          isAQ ? "QR Scan / Asset Query" : "Work Order"],
