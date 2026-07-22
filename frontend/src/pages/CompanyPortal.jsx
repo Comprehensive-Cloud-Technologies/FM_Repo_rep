@@ -12938,6 +12938,7 @@ const CompanyPortal = () => {
     { key: "qrcodes", label: "QR Codes" },
     { key: "settings", label: "Settings" },
     { key: "reports", label: "Reports" },
+    { key: "pms", label: "PMS (Preventive Maintenance)" },
   ];
 
   const normalizePortalModuleKey = (value) => {

@@ -4340,6 +4340,7 @@ export default function CompanyEmployeePortal() {
       ojt: ["ojt"],
       shifts: ["shifts"],
       reports: ["reports", "analytics"],
+      pms: ["pms", "preventive_maintenance", "preventiveMaintenance"],
     };
 
     const candidates = keyMap[navKey] || [navKey];
