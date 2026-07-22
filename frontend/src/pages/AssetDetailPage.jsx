@@ -188,12 +188,13 @@ export default function AssetDetailPage() {
     ...(m.invoiceUrl ? [m.invoiceUrl] : []),
   ].map(normalizeImgUrl).filter(Boolean);
 
-  // ── Downtime formula: strictly resolutionAt − wipAt
-  // If either timestamp is missing, downtime = 0 (cannot calculate without both)
+  // ── Downtime formula: resolutionAt − wipAt
+  // If wipAt is missing (ticket not marked in-progress), fall back to createdAt
+  // so every completed issue contributes its full repair time to the total downtime.
   const calcDownMs = (wo) => {
     const end   = wo.resolutionAt || wo.closedAt; // when repair was completed
-    const start = wo.wipAt;                       // when engineer started (WIP) — required
-    if (!end || !start) return 0;                 // no wipAt = no measurable downtime
+    const start = wo.wipAt || wo.createdAt;       // WIP start; fallback to issue-raised time
+    if (!end || !start) return 0;
     return Math.max(0, new Date(end) - new Date(start));
   };
 

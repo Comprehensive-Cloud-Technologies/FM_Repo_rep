@@ -1,3 +1,0 @@
-# Deployment is now handled via GitHub Actions → EC2 (FM_Instance, ap-south-1).
-# See .github/workflows/deploy-ec2.yml
-# This file is kept as a placeholder; AWS Amplify, Elastic Beanstalk, and CloudFront are no longer used.

@@ -9367,20 +9367,23 @@ export default function CompanyEmployeePortal() {
         };
 
         // Compute MTBF / MTTR / Total downtime from call logs (available after loadCallLogs)
-        // Downtime = repair completion (resolutionAt ?? closedAt) - breakdown start (createdAt)
+        // Downtime per issue = (resolutionAt ?? closedAt) − (wipAt ?? createdAt)
+        // wipAt fallback ensures tickets that were never marked WIP still count
         const closedCalls = (assetDetailCallLogs || []).filter(wo =>
-          (wo.status === "closed" || wo.status === "completed") && wo.createdAt && (wo.resolutionAt || wo.closedAt)
+          (wo.status === "closed" || wo.status === "completed" || wo.status === "resolved") &&
+          wo.createdAt && (wo.resolutionAt || wo.closedAt)
         );
         const totalDownMs = closedCalls.reduce((s, wo) => {
-          const end = wo.resolutionAt || wo.closedAt;
-          return s + Math.max(0, new Date(end) - new Date(wo.createdAt));
+          const end   = wo.resolutionAt || wo.closedAt;
+          const start = wo.wipAt || wo.createdAt;
+          return s + Math.max(0, new Date(end) - new Date(start));
         }, 0);
         const failures = closedCalls.length;
         const assetAgeMs = a.createdAt ? Math.max(0, Date.now() - new Date(a.createdAt)) : 0;
         const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
-        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "N/A";
-        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "N/A";
-        const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
+        const mtbfLabel = fmtMs(failures > 0 ? operatingMs / failures : 0);
+        const mttrLabel = fmtMs(failures > 0 ? totalDownMs / failures : 0);
+        const totalDownLabel = fmtMs(totalDownMs);
         const mttrLoading = assetDetailCallLogs === null;
 
         // Fetch call logs for the asset when tab selected
@@ -9541,16 +9544,22 @@ export default function CompanyEmployeePortal() {
                     {assetDetailCallLogs === null ? (
                       <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
                     ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
-                      // Calculate total downtime across all closed/resolved work orders
+                      // Downtime = repair completion (resolutionAt ?? resolvedAt ?? closedAt) - createdAt
+                      // Must match the same formula used in the Overview tab
                       const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => {
-                        if ((wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt) {
-                          return sum + (new Date(wo.closedAt) - new Date(wo.createdAt));
+                        const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
+                        const endTime = wo.resolutionAt || wo.resolvedAt || wo.closedAt;
+                        if (isFinished && wo.createdAt && endTime) {
+                          return sum + Math.max(0, new Date(endTime) - new Date(wo.createdAt));
                         }
                         return sum;
                       }, 0);
                       const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
                       const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
-                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
+                      const totalDowntimeSecs = Math.floor((totalDowntimeMs % 60000) / 1000);
+                      const downtimeLabel = totalDowntimeMs > 0
+                        ? `${String(totalDowntimeHours).padStart(2,"0")}:${String(totalDowntimeMins).padStart(2,"0")}:${String(totalDowntimeSecs).padStart(2,"0")}`
+                        : "—";
                       return (
                         <>
                           <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
@@ -9578,9 +9587,12 @@ export default function CompanyEmployeePortal() {
                               </thead>
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
-                                  const downMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
-                                    ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                                  const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
+                                  const endTime = wo.resolutionAt || wo.resolvedAt || wo.closedAt;
+                                  const downMs = isFinished && wo.createdAt && endTime
+                                    ? Math.max(0, new Date(endTime) - new Date(wo.createdAt)) : 0;
                                   const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
+                                  const displayClosedAt = wo.closedAt || wo.resolvedAt || null;
                                   return (
                                     <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                       <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
@@ -9593,7 +9605,7 @@ export default function CompanyEmployeePortal() {
                                       </td>
                                       <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
                                       <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{displayClosedAt ? new Date(displayClosedAt).toLocaleDateString("en-IN") : "—"}</td>
                                       <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
                                     </tr>
                                   );
