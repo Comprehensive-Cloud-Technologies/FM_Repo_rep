@@ -14,6 +14,8 @@ import WorkOrdersPanel from "../components/WorkOrdersPanel.jsx";
 import ReportBuilderPanel from "../components/ReportBuilderPanel.jsx";
 import HealthcareDashboard from "../components/HealthcareDashboard.jsx";
 import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
+import PmsApprovalsPanel from "../components/PmsApprovalsPanel.jsx";
+import PmsReportsPanel from "../components/PmsReportsPanel.jsx";
 import RequestTrackingPanel from "../components/RequestTrackingPanel.jsx";
 import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
@@ -27,6 +29,7 @@ import {
   createCompanyPortalDepartment,
   updateCompanyPortalDepartment,
   deleteCompanyPortalDepartment,
+  bulkDeleteCompanyPortalDepartments,
   getCompanyPortalAssetTypes,
   getCompanyPortalAssets,
   createCompanyPortalAsset,
@@ -129,21 +132,23 @@ const Btn = ({ children, onClick, outline, color = "#2563eb", bg, disabled, styl
 
 /* ─── Role Definitions & Hierarchy ─────────────────────────────── */
 const ROLES = [
-  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
-  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
-  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
-  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
-  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
+  { value: "admin",           label: "Admin",            color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "engineer",        label: "Engineer",         color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "doctor",          label: "Doctor",           color: "#0e7490", bg: "#cffafe" },
+  { value: "nurse",           label: "Nurse",            color: "#059669", bg: "#d1fae5" },
+  { value: "ward_boy",        label: "Ward Boy",         color: "#ca8a04", bg: "#fefce8" },
+  { value: "department_head", label: "Department Head",  color: "#7c3aed", bg: "#f3e8ff" },
 ];
 const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
 
 // Default hierarchy for healthcare org
 const DEFAULT_HIERARCHY_CHAIN = [
-  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
-  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
-  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
-  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
+  { role: "admin",           label: "Admin",           parentRole: null,             color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
+  { role: "department_head", label: "Department Head", parentRole: "admin",          color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
+  { role: "engineer",        label: "Engineer",        parentRole: "admin",          color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+  { role: "doctor",          label: "Doctor",          parentRole: "admin",          color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
+  { role: "nurse",           label: "Nurse",           parentRole: "doctor",         color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "ward_boy",        label: "Ward Boy",        parentRole: "nurse",          color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
 ];
 
 // Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
@@ -252,7 +257,7 @@ function normalizePerms(p) {
   };
 }
 
-function EmployeeModal({ existing, token, employees = [], customRoles = [], currentUserRole = "admin", onClose, onSaved }) {
+function EmployeeModal({ existing, token, employees = [], departments = [], customRoles = [], currentUserRole = "admin", onClose, onSaved }) {
   const isEdit = !!existing;
   const [createdCreds, setCreatedCreds] = useState(null); // holds {fullName,username,password} after create
 
@@ -376,6 +381,23 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </FSelect>
+
+          {/* Department */}
+          <div style={{ gridColumn: "span 2" }}>
+            <FSelect
+              label={<>Department {form.role === "department_head" ? <span style={{ color: "#ef4444" }}>*</span> : <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "11px" }}>(optional)</span>}</>}
+              value={form.departmentId || ""}
+              onChange={(e) => change("departmentId", e.target.value || null)}
+            >
+              <option value="">— No Department —</option>
+              {departments.map((d) => (
+                <option key={d.id} value={String(d.id)}>{d.departmentName || d.name}</option>
+              ))}
+            </FSelect>
+            {form.role === "department_head" && !form.departmentId && (
+              <p style={{ fontSize: "11.5px", color: "#d97706", marginTop: "4px" }}>⚠ Department Heads should be assigned to a department for PMS approvals to work.</p>
+            )}
+          </div>
 
           {/* Role */}
           <div style={{ gridColumn: "span 2" }}>
@@ -986,6 +1008,8 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         })
         .filter((img) => img && typeof img.url === "string" && img.url),
       hcInvoiceUrl:        meta.hcInvoiceUrl || (Array.isArray(meta.invoiceImages) && meta.invoiceImages.length ? meta.invoiceImages[0] : "") || "",
+      hcPmsEnabled:        !!(src?.pms_checklist_id),
+      hcPmsChecklistId:    src?.pms_checklist_id ? String(src.pms_checklist_id) : "",
       // Valuation
       purchaseValue:    meta.purchaseValue    || "",
       usefulLifeYears:  meta.usefulLifeYears  || "",
@@ -1016,6 +1040,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   const [locBuildingId, setLocBuildingId] = useState("");
   const [locFloorId, setLocFloorId] = useState("");
   const [calibrationVendors, setCalibrationVendors] = useState([]);
+  const [pmsChecklists, setPmsChecklists] = useState([]);
 
   useEffect(() => {
     if (!companyId || !token) {
@@ -1041,6 +1066,14 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       .then(r => r.json())
       .then(d => setCalibrationVendors(Array.isArray(d) ? d : []))
       .catch(() => setCalibrationVendors([]));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) { setPmsChecklists([]); return; }
+    fetch(`/api/company-portal/pms/checklists?status=active`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setPmsChecklists(Array.isArray(d) ? d : []))
+      .catch(() => setPmsChecklists([]));
   }, [token]);
 
   // Auto-set assetType to "healthcare" for HC companies when adding new asset
@@ -1189,6 +1222,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         room:          form.room     || null,
         status:        form.status,
         ...(isHealthcareLegacy ? { criticality: form.hcCategory || "Non_Critical", workingStatus: form.hcWorkingStatus || "Working" } : {}),
+        ...(isHealthcareLegacy && form.hcPmsEnabled && form.hcPmsChecklistId ? { pmsChecklistId: Number(form.hcPmsChecklistId) } : {}),
         metadata:      buildMetadata(),
       };
       const saved = isEdit
@@ -1344,6 +1378,34 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
             <FInput label="Dealer / Distributor" name="hcDealer" value={form.hcDealer} onChange={handleChange} placeholder="Supplier name" error={fieldErrors.hcDealer} />
             <FInput label="Manufacturing Year" name="hcManufacturingYear" type="number" value={form.hcManufacturingYear} onChange={handleChange} placeholder="e.g. 2022" error={fieldErrors.hcManufacturingYear} />
             <FInput label="Installation Date" name="hcInstallationDate" type="date" value={form.hcInstallationDate} onChange={handleChange} error={fieldErrors.hcInstallationDate} />
+
+            {/* PMS */}
+            <div style={{ gridColumn: "span 2", borderTop: "1px solid #e2e8f0", paddingTop: "14px", marginTop: "2px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: form.hcPmsEnabled ? "12px" : 0 }}>
+                <input type="checkbox" id="hcPmsEnabled" checked={!!form.hcPmsEnabled}
+                  onChange={e => setForm(p => ({ ...p, hcPmsEnabled: e.target.checked, hcPmsChecklistId: "" }))}
+                  style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#2563eb" }} />
+                <label htmlFor="hcPmsEnabled" style={{ fontSize: "13.5px", fontWeight: 600, color: "#1d4ed8", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>🔧</span> Enable PMS (Preventive Maintenance System) for this asset
+                </label>
+              </div>
+              {form.hcPmsEnabled && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#1e40af", marginBottom: "6px" }}>Select PMS Checklist</label>
+                    <select value={form.hcPmsChecklistId || ""}
+                      onChange={e => setForm(p => ({ ...p, hcPmsChecklistId: e.target.value }))}
+                      style={{ width: "100%", padding: "8px 10px", border: "1px solid #93c5fd", borderRadius: "6px", fontSize: "13.5px", background: "#fff", color: "#1e3a8a", outline: "none" }}>
+                      <option value="">— Select PMS Checklist —</option>
+                      {pmsChecklists.map(cl => (
+                        <option key={cl.id} value={cl.id}>{cl.checklist_name} ({cl.checklist_code})</option>
+                      ))}
+                    </select>
+                    {pmsChecklists.length === 0 && <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "5px" }}>No active PMS checklists found. Create one in the PMS section first.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Invoice */}
             <FSec title="Invoice No. / Purchase Date" />
@@ -4079,8 +4141,8 @@ const NAV_ALL = [
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-  { key: "pms",         label: "PMS",         roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-  { key: "reports",     label: "Reports",     roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
+  { key: "pms",          label: "PMS",              roles: ["admin","supervisor","department_head"],   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
+  { key: "reports",      label: "Reports",          roles: ["admin","supervisor"],                   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -4186,6 +4248,29 @@ function StatusMasterSection({ token }) {
       <p style={{ fontSize: "11.5px", color: "#94a3b8", marginTop: "14px", marginBottom: 0 }}>
         These statuses appear in the mobile app when registering assets. If none are configured, the default statuses (Working, Not_Working, WIP…) are used.
       </p>
+    </div>
+  );
+}
+
+/* ─── PMS Section (sub-tabs: Checklists · Approvals · Reports) ──── */
+function PmsSection({ token, companyId, currentUser, canManage, canApprove, defaultTab }) {
+  return (
+    <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f1f5f9" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "28px" }}>
+        <PMSChecklistModule
+          token={token}
+          companyId={companyId}
+          initialTab={defaultTab || "checklists"}
+          extraTabs={canApprove ? [
+            { key: "approvals", label: "✅ Approvals" },
+            { key: "reports",   label: "📊 Reports"   },
+          ] : []}
+          extraTabContent={{
+            approvals: <PmsApprovalsPanel token={token} currentUser={currentUser} />,
+            reports:   <PmsReportsPanel   token={token} />,
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -4406,6 +4491,7 @@ export default function CompanyEmployeePortal() {
   const [advFilterFloor, setAdvFilterFloor] = useState("");
   const [advFilterRoom, setAdvFilterRoom] = useState("");
   const [deptSearch, setDeptSearch] = useState("");
+  const [selectedDeptIds, setSelectedDeptIds] = useState(new Set());
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editDept, setEditDept] = useState(null);
   const [showAssetModal, setShowAssetModal] = useState(false);
@@ -4834,6 +4920,7 @@ export default function CompanyEmployeePortal() {
     }
     if (nav === "employees") {
       load("employees", () => getCompanyPortalEmployees(token)).then((d) => d && setEmployees(d));
+      getCompanyPortalDepartments(token).then((d) => d && setDepartments(d)).catch(() => {});
       getCompanyRoles(token)
         .then((d) => {
           const list = Array.isArray(d) ? d : [];
@@ -4972,6 +5059,17 @@ export default function CompanyEmployeePortal() {
     if (!window.confirm("Delete this department?")) return;
     try { await deleteCompanyPortalDepartment(token, id); setDepartments(p => p.filter(d => d.id !== id)); }
     catch (err) { alert(err.message || "Delete failed"); }
+  };
+  const handleBulkDeleteDepts = async () => {
+    const ids = Array.from(selectedDeptIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected department(s)? This cannot be undone.`)) return;
+    try {
+      const res = await bulkDeleteCompanyPortalDepartments(token, ids);
+      setDepartments(p => p.filter(d => !selectedDeptIds.has(d.id)));
+      setSelectedDeptIds(new Set());
+      alert(`Deleted ${res.deleted ?? ids.length} department(s).`);
+    } catch (err) { alert(err.message || "Bulk delete failed"); }
   };
   const handleAssetSaved = (saved, isEdit) => {
     const dept = departments.find(d => String(d.id) === String(saved.departmentId));
@@ -6425,10 +6523,19 @@ export default function CompanyEmployeePortal() {
                 <p style={{ color: "#64748b", fontSize: "13.5px" }}>Operational departments within {currentUser.companyName}</p>
               </div>
               {isAdmin && (
-                <Btn onClick={() => { setEditDept(null); setShowDeptModal(true); }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Add Department
-                </Btn>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {selectedDeptIds.size > 0 && (
+                    <button onClick={handleBulkDeleteDepts}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      Delete ({selectedDeptIds.size})
+                    </button>
+                  )}
+                  <Btn onClick={() => { setEditDept(null); setShowDeptModal(true); }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Department
+                  </Btn>
+                </div>
               )}
             </div>
             {errors.departments && <Alert>{errors.departments}</Alert>}
@@ -6443,6 +6550,14 @@ export default function CompanyEmployeePortal() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                     <thead>
                       <tr>
+                        {isAdmin && (
+                          <th style={{ padding: "12px 16px", width: "40px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                            <input type="checkbox"
+                              checked={filteredDepts.length > 0 && filteredDepts.every(d => selectedDeptIds.has(d.id))}
+                              onChange={e => setSelectedDeptIds(e.target.checked ? new Set(filteredDepts.map(d => d.id)) : new Set())}
+                            />
+                          </th>
+                        )}
                         {["#", "Department Name", "Description", "Created", ...(isAdmin ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
                         ))}
@@ -6450,9 +6565,17 @@ export default function CompanyEmployeePortal() {
                     </thead>
                     <tbody>
                       {filteredDepts.length === 0
-                        ? <tr><td colSpan={isAdmin ? 5 : 4} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No departments found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? 6 : 4} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No departments found</td></tr>
                         : filteredDepts.map((d, i) => (
-                          <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedDeptIds.has(d.id) ? "#fef9f9" : undefined }}>
+                            {isAdmin && (
+                              <td style={{ padding: "14px 16px" }}>
+                                <input type="checkbox"
+                                  checked={selectedDeptIds.has(d.id)}
+                                  onChange={e => setSelectedDeptIds(p => { const n = new Set(p); e.target.checked ? n.add(d.id) : n.delete(d.id); return n; })}
+                                />
+                              </td>
+                            )}
                             <td style={{ padding: "14px 16px", color: "#64748b", fontWeight: 600 }}>{i + 1}</td>
                             <td style={{ padding: "14px 16px", fontWeight: 600, color: "#0f172a" }}>{d.departmentName}</td>
                             <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "—"}</td>
@@ -9047,12 +9170,23 @@ export default function CompanyEmployeePortal() {
         )}
       </main>
 
-      {/* ── PMS Checklist Module ────────────────────────────────── */}
-      {nav === "pms" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
-        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, overflowY: "auto", background: "#f1f5f9", padding: "28px" }}>
-          <PMSChecklistModule token={token} companyId={currentUser?.companyId} />
-        </div>
-      )}
+      {/* ── PMS Section (Checklists / Approvals / Reports) ────── */}
+      {nav === "pms" && (() => {
+        const canManage = currentUser.role === "admin" || currentUser.role === "supervisor";
+        const canApprove = currentUser.role === "department_head" || canManage;
+        // Default sub-tab: department_head goes straight to approvals
+        const defaultPmsTab = canManage ? "checklists" : "approvals";
+        return (
+          <PmsSection
+            token={token}
+            companyId={currentUser?.companyId}
+            currentUser={currentUser}
+            canManage={canManage}
+            canApprove={canApprove}
+            defaultTab={defaultPmsTab}
+          />
+        );
+      })()}
 
       {/* ── Reports / Report Builder ──────────────────────────── */}
       {nav === "reports" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
@@ -9804,6 +9938,7 @@ export default function CompanyEmployeePortal() {
           token={token}
           existing={editEmp}
           employees={employees}
+          departments={departments}
           customRoles={customRoles}
           currentUserRole={currentUser.role}
           onClose={() => { setShowEmpModal(false); setEditEmp(null); }}

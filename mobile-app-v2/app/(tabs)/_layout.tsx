@@ -79,6 +79,21 @@ export default function TabsLayout() {
     );
   }
 
+  // ── Department Head: Home + Profile only
+  if (user?.role === 'department_head') {
+    return (
+      <Tabs screenOptions={screenOpts}>
+        <Tabs.Screen name="home"        options={{ title: 'Home',    tabBarIcon: icon('home-variant') }} />
+        <Tabs.Screen name="profile"     options={{ title: 'Profile', tabBarIcon: icon('account-circle') }} />
+        <Tabs.Screen name="dashboard"   options={{ href: null }} />
+        <Tabs.Screen name="checklists"  options={{ href: null }} />
+        <Tabs.Screen name="tasks"       options={{ href: null }} />
+        <Tabs.Screen name="assignments" options={{ href: null }} />
+        <Tabs.Screen name="soft-requests" options={{ href: null }} />
+      </Tabs>
+    );
+  }
+
   // ── Legacy / non-HC roles (original layout)
   return (
     <Tabs screenOptions={screenOpts}>

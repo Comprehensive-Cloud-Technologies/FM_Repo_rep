@@ -24,6 +24,7 @@ import {
   addAssetManually,
   uploadQueryImage,
   getToken,
+  fetchActivePmsChecklists,
 } from '../utils/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -442,6 +443,12 @@ export default function AddAssetScreen() {
   const [mfgYear,          setMfgYear]          = useState('');
   const [installationDate, setInstallationDate] = useState('');
 
+  // PMS
+  const [pmsEnabled, setPmsEnabled] = useState(false);
+  const [pmsChecklistId, setPmsChecklistId] = useState<number | null>(null);
+  const [pmsChecklists, setPmsChecklists] = useState<Array<{ id: number; checklist_name: string; checklist_code: string }>>([]);
+  const [showPmsChecklistPicker, setShowPmsChecklistPicker] = useState(false);
+
   // Invoice / Purchase
   const [invoiceNo,    setInvoiceNo]    = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
@@ -496,6 +503,12 @@ export default function AddAssetScreen() {
       .then(setCompanies)
       .catch(() => Alert.alert('Error', 'Could not load companies'))
       .finally(() => setLoadingCompanies(false));
+  }, []);
+
+  useEffect(() => {
+    fetchActivePmsChecklists()
+      .then(setPmsChecklists)
+      .catch(() => setPmsChecklists([]));
   }, []);
 
   useEffect(() => {
@@ -587,6 +600,7 @@ export default function AddAssetScreen() {
         workingStatus: workingStatus || undefined,
         is_verified: approvedStatus === 'Verified' ? 1 : 0,
         criticality: category,
+        pmsChecklistId: pmsEnabled ? pmsChecklistId : null,
         metadata: {
           make: make.trim() || undefined,
           model: model.trim() || undefined,
@@ -833,6 +847,29 @@ export default function AddAssetScreen() {
           <Field label="Installation Date">
             <DatePickerField value={installationDate} onChange={setInstallationDate} placeholder="DD/MM/YYYY" />
           </Field>
+
+          {/* ── PMS ──────────────────────────────────────── */}
+          <SectionHeader title="Preventive Maintenance (PMS)" />
+          <Checkbox
+            checked={pmsEnabled}
+            label="Enable PMS for this asset"
+            onToggle={() => { setPmsEnabled(v => !v); if (pmsEnabled) setPmsChecklistId(null); }}
+          />
+          {pmsEnabled && (
+            <Field label="PMS Checklist">
+              <TouchableOpacity
+                style={[ss.input, { backgroundColor: theme.surface, borderColor: '#93c5fd', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                onPress={() => setShowPmsChecklistPicker(true)}>
+                <Text style={{ color: pmsChecklistId ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                  {pmsChecklists.find(c => c.id === pmsChecklistId)?.checklist_name ?? '— Select PMS Checklist —'}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={18} color={theme.textMuted} />
+              </TouchableOpacity>
+              {pmsChecklists.length === 0 && (
+                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 4 }}>No active checklists found. Create one in the PMS section.</Text>
+              )}
+            </Field>
+          )}
 
           {/* ── INVOICE / PURCHASE ────────────────────────── */}
           <SectionHeader title="Invoice / Purchase Details" />
@@ -1166,6 +1203,13 @@ export default function AddAssetScreen() {
           setCalibrationVendorName(map[id] || '');
         }}
         onClose={() => setShowCalibrationVendorPicker(false)}
+      />
+      <PickerModal
+        visible={showPmsChecklistPicker}
+        title="Select PMS Checklist"
+        items={pmsChecklists.map(c => ({ id: c.id, label: `${c.checklist_name} (${c.checklist_code})` }))}
+        onSelect={(id) => { setPmsChecklistId(id); setShowPmsChecklistPicker(false); }}
+        onClose={() => setShowPmsChecklistPicker(false)}
       />
     </SafeAreaView>
   );
