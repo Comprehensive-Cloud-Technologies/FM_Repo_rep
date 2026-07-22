@@ -814,7 +814,15 @@ export default function AssetDetailPage() {
                     {callLogs.map(wo => {
                       const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                       const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                      const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                      // Downtime = repair completion \u2013 repair start
+                      // resolutionAt = when engineer finished (completed/resolved)
+                      // wipAt = when engineer started work (in-progress)
+                      // Fall back: resolutionAt|closedAt \u2013 wipAt|createdAt
+                      const repairEnd   = wo.resolutionAt || wo.closedAt;
+                      const repairStart = wo.wipAt || wo.createdAt;
+                      const isFinished  = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
+                      const dtMs = isFinished && repairStart && repairEnd
+                        ? Math.max(0, new Date(repairEnd) - new Date(repairStart)) : 0;
                       return (
                         <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "10px 14px" }}>
@@ -839,7 +847,11 @@ export default function AssetDetailPage() {
                 const wo = selectedCallLog;
                 const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                 const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                const repairEnd   = wo.resolutionAt || wo.closedAt;
+                const repairStart = wo.wipAt || wo.createdAt;
+                const isFinished  = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
+                const dtMs = isFinished && repairStart && repairEnd
+                  ? Math.max(0, new Date(repairEnd) - new Date(repairStart)) : 0;
                 const rows = [
                   ["Request ID",    reqId],
                   ["Type",          isAQ ? "QR Scan / Asset Query" : "Work Order"],
