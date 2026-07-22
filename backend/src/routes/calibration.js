@@ -19,6 +19,7 @@ import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
+router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -142,6 +143,46 @@ const upload = multer({
   // Link asset to latest calibration info
   await safe(`ALTER TABLE assets ADD COLUMN last_calibration_date DATE NULL`);
   await safe(`ALTER TABLE assets ADD COLUMN next_calibration_due DATE NULL`);
+
+  // Safety: ensure all required columns exist on pre-existing tables
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN company_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER id`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN vendor_name VARCHAR(200) NOT NULL DEFAULT '' AFTER company_id`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN vendor_code VARCHAR(60) NOT NULL DEFAULT '' AFTER vendor_name`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN contact_person VARCHAR(160) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN mobile VARCHAR(30) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN email VARCHAR(200) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN company_name VARCHAR(200) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN gst_number VARCHAR(20) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN address TEXT NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN city VARCHAR(100) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN state VARCHAR(100) NULL`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN country VARCHAR(80) NULL DEFAULT 'India'`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN status ENUM('active','inactive') NOT NULL DEFAULT 'active'`);
+  await safe(`ALTER TABLE calibration_vendors ADD COLUMN created_by INT UNSIGNED NULL`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN company_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER id`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN schedule_number VARCHAR(60) NULL`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN calibration_date DATE NOT NULL DEFAULT '2000-01-01'`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN frequency VARCHAR(40) NOT NULL DEFAULT 'One Time'`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'scheduled'`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN notes TEXT NULL`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN recurring_group_id CHAR(36) NULL`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN occurrence_index INT NOT NULL DEFAULT 0`);
+  await safe(`ALTER TABLE calibration_schedules ADD COLUMN created_by INT UNSIGNED NULL`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN vendor_id INT UNSIGNED NULL`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN vendor_name VARCHAR(200) NULL`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending'`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN certificate_id INT UNSIGNED NULL`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN completed_at DATETIME NULL`);
+  await safe(`ALTER TABLE calibration_schedule_assets ADD COLUMN notes TEXT NULL`);
+
+  // Data fix: reassign any orphaned rows (company_id=0 from pre-existing tables) to the first company
+  try {
+    const [[firstCo]] = await pool.query("SELECT id FROM companies ORDER BY id LIMIT 1");
+    if (firstCo?.id) {
+      await pool.query("UPDATE calibration_vendors SET company_id = ? WHERE company_id = 0", [firstCo.id]);
+      await pool.query("UPDATE calibration_schedules SET company_id = ? WHERE company_id = 0", [firstCo.id]);
+    }
+  } catch (e) { console.warn("[calibration] company_id data-fix:", e.message); }
 })();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -230,8 +271,9 @@ router.patch("/vendors/:id", async (req, res, next) => {
   try {
     const { vendorName, contactPerson, mobile, email, companyName, gstNumber, address, city, state, country, status } = req.body;
     const id = Number(req.params.id);
-    const [[v]] = await pool.query("SELECT id FROM calibration_vendors WHERE id = ? AND company_id = ?", [id, cid(req)]);
-    if (!v) return res.status(404).json({ message: "Vendor not found" });
+    const [[v]] = await pool.query("SELECT id, company_id FROM calibration_vendors WHERE id = ?", [id]);
+    if (!v || (v.company_id !== 0 && v.company_id !== cid(req))) return res.status(404).json({ message: "Vendor not found" });
+    if (v.company_id === 0) await pool.query("UPDATE calibration_vendors SET company_id = ? WHERE id = ?", [cid(req), id]);
     await pool.query(
       `UPDATE calibration_vendors SET vendor_name=COALESCE(?,vendor_name), contact_person=COALESCE(?,contact_person), mobile=COALESCE(?,mobile), email=COALESCE(?,email), company_name=COALESCE(?,company_name), gst_number=COALESCE(?,gst_number), address=COALESCE(?,address), city=COALESCE(?,city), state=COALESCE(?,state), country=COALESCE(?,country), status=COALESCE(?,status) WHERE id=?`,
       [vendorName||null, contactPerson||null, mobile||null, email||null, companyName||null, gstNumber||null, address||null, city||null, state||null, country||null, status||null, id]
@@ -246,8 +288,8 @@ router.patch("/vendors/:id", async (req, res, next) => {
 router.delete("/vendors/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const [[v]] = await pool.query("SELECT id FROM calibration_vendors WHERE id = ? AND company_id = ?", [id, cid(req)]);
-    if (!v) return res.status(404).json({ message: "Vendor not found" });
+    const [[v]] = await pool.query("SELECT id, company_id FROM calibration_vendors WHERE id = ?", [id]);
+    if (!v || (v.company_id !== 0 && v.company_id !== cid(req))) return res.status(404).json({ message: "Vendor not found" });
     const [[{ cnt }]] = await pool.query("SELECT COUNT(*) AS cnt FROM calibration_schedule_assets WHERE vendor_id = ?", [id]);
     if (cnt > 0) return res.status(409).json({ message: "Vendor is in use and cannot be deleted. Deactivate it instead." });
     await pool.query("DELETE FROM calibration_vendors WHERE id = ? AND company_id = ?", [id, cid(req)]);

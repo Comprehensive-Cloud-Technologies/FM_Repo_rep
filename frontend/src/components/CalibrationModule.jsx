@@ -68,6 +68,15 @@ function ConfirmDialog({ message, onYes, onNo }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // VENDOR MANAGEMENT
 // ══════════════════════════════════════════════════════════════════════════════
+function VendorField({ label, field, type = "text", placeholder, form, setForm }) {
+  return (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <label style={S.label}>{label}</label>
+      <input type={type} value={form[field]} onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))} placeholder={placeholder} style={S.input} />
+    </div>
+  );
+}
+
 function VendorsTab({ token }) {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,13 +118,6 @@ function VendorsTab({ token }) {
     setEditId(v.id); setShowForm(true); window.scrollTo(0, 0);
   };
 
-  const F = ({ label, field, type = "text", placeholder }) => (
-    <div style={{ flex: 1, minWidth: 180 }}>
-      <label style={S.label}>{label}</label>
-      <input type={type} value={form[field]} onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))} placeholder={placeholder} style={S.input} />
-    </div>
-  );
-
   return (
     <div>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -134,16 +136,16 @@ function VendorsTab({ token }) {
         <div style={{ ...S.card, marginBottom: 20, border: "2px solid #2563eb" }}>
           <h3 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: 700, color: "#1e40af" }}>{editId ? "Edit Vendor" : "New Vendor"}</h3>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-            <F label="Vendor Name *" field="vendorName" placeholder="e.g. Fluke Calibration Services" />
-            <F label="Contact Person" field="contactPerson" placeholder="e.g. John Doe" />
-            <F label="Mobile" field="mobile" placeholder="+91 98765 43210" />
-            <F label="Email" field="email" type="email" placeholder="vendor@example.com" />
+            <VendorField label="Vendor Name *" field="vendorName" placeholder="e.g. Fluke Calibration Services" form={form} setForm={setForm} />
+            <VendorField label="Contact Person" field="contactPerson" placeholder="e.g. John Doe" form={form} setForm={setForm} />
+            <VendorField label="Mobile" field="mobile" placeholder="+91 98765 43210" form={form} setForm={setForm} />
+            <VendorField label="Email" field="email" type="email" placeholder="vendor@example.com" form={form} setForm={setForm} />
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-            <F label="Company Name" field="companyName" placeholder="e.g. Fluke India Pvt Ltd" />
-            <F label="GST Number" field="gstNumber" placeholder="Optional" />
-            <F label="City" field="city" placeholder="City" />
-            <F label="State" field="state" placeholder="State" />
+            <VendorField label="Company Name" field="companyName" placeholder="e.g. Fluke India Pvt Ltd" form={form} setForm={setForm} />
+            <VendorField label="GST Number" field="gstNumber" placeholder="Optional" form={form} setForm={setForm} />
+            <VendorField label="City" field="city" placeholder="City" form={form} setForm={setForm} />
+            <VendorField label="State" field="state" placeholder="State" form={form} setForm={setForm} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={S.label}>Address</label>
@@ -168,7 +170,7 @@ function VendorsTab({ token }) {
                 {vendors.map(v => (
                   <tr key={v.id} style={{ cursor: "pointer" }}>
                     <td style={S.td}><span style={{ fontFamily: "monospace", fontSize: "12px", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4 }}>{v.vendor_code}</span></td>
-                    <td style={{ ...S.td, fontWeight: 600 }}>{v.vendor_name}</td>
+                    <td style={{ ...S.td, fontWeight: 600 }}>{v.vendor_name || "—"}</td>
                     <td style={S.td}>{v.contact_person || "—"}</td>
                     <td style={S.td}>{v.mobile || "—"}</td>
                     <td style={S.td}>{v.email || "—"}</td>
@@ -353,7 +355,7 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
                 </div>
                 {form.frequency !== "One Time" && (
                   <p style={{ fontSize: "12.5px", color: "#2563eb", marginTop: 8, background: "#eff6ff", padding: "8px 12px", borderRadius: 8 }}>
-                    ℹ This will create independent calibration occurrences for 1 full year ({({ Monthly: 12, Quarterly: 4, "Half-Yearly": 2, Yearly: 1 }[form.frequency]} occurrences). Each asset receives its own separate record.
+                    ℹ This will create independent calibration occurrences for 1 full year ({({ Monthly: 12, Quarterly: 4, "Half-Yearly": 2, Yearly: 1 }[form.frequency])} occurrences). Each asset receives its own separate record.
                   </p>
                 )}
               </div>
