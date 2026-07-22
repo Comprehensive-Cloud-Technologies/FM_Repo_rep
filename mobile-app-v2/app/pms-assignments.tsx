@@ -26,7 +26,7 @@ async function captureSubmissionMetadata(): Promise<Record<string, any>> {
     deviceName: Device.deviceName ?? 'Unknown',
     deviceModel: Device.modelName ?? 'Unknown',
     os: `${Device.osName ?? Platform.OS} ${Device.osVersion ?? ''}`.trim(),
-    appVersion: Constants.expoConfig?.version ?? Constants.manifest?.version ?? '—',
+    appVersion: Constants.expoConfig?.version ?? (Constants.manifest as any)?.version ?? '—',
     platform: Platform.OS,
     submittedAt: new Date().toISOString(),
   };
