@@ -110,6 +110,8 @@ app.use("/api/checklist-templates", checklistTemplatesRouter);
 app.use("/api/logsheet-templates", logsheetTemplatesRouter);
 app.use("/api/company-users", companyUsersRouter);
 app.use("/api/company-auth", authLimiter, companyAuthRouter);
+// Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
+app.use("/api/company-portal/calibration", calibrationRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);
