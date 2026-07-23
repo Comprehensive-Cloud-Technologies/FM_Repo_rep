@@ -43,6 +43,7 @@ import publicDashboardRouter from "./routes/publicDashboard.js";
 import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 import locationsRouter from "./routes/locations.js";
 import statesRouter from "./routes/states.js";
+import mobileNotificationsRouter from "./routes/mobileNotifications.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -132,6 +133,7 @@ app.use("/api/public", publicDashboardRouter);
 app.use("/api/mobile/case-logs", mobileCaseLogsRouter);
 app.use("/api/locations", locationsRouter);
 app.use("/api/states", statesRouter);
+app.use("/api/mobile/notifications", mobileNotificationsRouter);
 
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");

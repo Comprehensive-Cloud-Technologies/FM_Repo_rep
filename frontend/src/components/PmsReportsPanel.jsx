@@ -9,19 +9,38 @@ const getBase = () => import.meta.env?.VITE_API_URL || "";
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-const APPROVAL_STYLES = {
-  pending:         { label: "Awaiting Closure", color: "#0891b2", bg: "#e0f2fe" },
-  auto_approved:   { label: "Closed",          color: "#059669", bg: "#dcfce7" },
-  approved:        { label: "Closed",          color: "#059669", bg: "#dcfce7" },
-  rejected:        { label: "Rejected",        color: "#dc2626", bg: "#fee2e2" },
-  rework_required: { label: "Rework",          color: "#d97706", bg: "#ffedd5" },
-  completed:       { label: "Completed",       color: "#059669", bg: "#dcfce7" },
-  closed:          { label: "Closed",          color: "#059669", bg: "#dcfce7" },
-  pending_approval:{ label: "Completed",       color: "#059669", bg: "#dcfce7" },
+// PSA raw status (before any submission)
+const PSA_STATUS_STYLES = {
+  pending:     { label: "Scheduled",   color: "#2563eb", bg: "#dbeafe" },
+  in_progress: { label: "In Progress", color: "#d97706", bg: "#ffedd5" },
+  missed:      { label: "Missed",      color: "#dc2626", bg: "#fee2e2" },
+  cancelled:   { label: "Cancelled",   color: "#64748b", bg: "#f1f5f9" },
 };
 
-const Badge = ({ status }) => {
-  const s = APPROVAL_STYLES[status] || { label: status || "—", color: "#64748b", bg: "#f1f5f9" };
+// Approval-level status (after engineer submits / dept-head reviews)
+const APPROVAL_STYLES = {
+  pending:         { label: "Completed",  color: "#059669", bg: "#dcfce7" }, // submitted by eng, awaiting dept-head
+  auto_approved:   { label: "Completed",  color: "#059669", bg: "#dcfce7" }, // no dept-head in company → auto-pass
+  approved:        { label: "Completed",  color: "#059669", bg: "#dcfce7" }, // approved but not yet closed
+  rejected:        { label: "Rejected",   color: "#dc2626", bg: "#fee2e2" },
+  rework_required: { label: "Rework",     color: "#d97706", bg: "#ffedd5" },
+  completed:       { label: "Completed",  color: "#059669", bg: "#dcfce7" },
+  closed:          { label: "Closed",     color: "#0891b2", bg: "#e0f2fe" }, // only when dept-head explicitly closes
+  pending_approval:{ label: "Completed",  color: "#059669", bg: "#dcfce7" },
+};
+
+/**
+ * Badge resolves display status correctly:
+ *   approvalStatus set  → engineer has submitted  → use APPROVAL_STYLES
+ *   approvalStatus null → not yet submitted        → use PSA_STATUS_STYLES
+ */
+const Badge = ({ status, approvalStatus }) => {
+  let s;
+  if (approvalStatus != null && approvalStatus !== "") {
+    s = APPROVAL_STYLES[approvalStatus] || { label: approvalStatus, color: "#64748b", bg: "#f1f5f9" };
+  } else {
+    s = PSA_STATUS_STYLES[status] || APPROVAL_STYLES[status] || { label: status || "—", color: "#64748b", bg: "#f1f5f9" };
+  }
   return (
     <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>
       {s.label}
@@ -110,7 +129,7 @@ export default function PmsReportsPanel({ token }) {
                   ["Completed", fmt(assignmentDetail.completedAt || assignmentDetail.submitted_at)],
                   ["Engineer", assignmentDetail.engineerName],
                   ["Checklist", assignmentDetail.checklistName],
-                  ["Status", <Badge key="s" status={assignmentDetail.approvalStatus || assignmentDetail.status} />],
+                  ["Status", <Badge key="s" status={assignmentDetail.status} approvalStatus={assignmentDetail.approvalStatus} />],
                   ["Approved By", assignmentDetail.approvedByName],
                   ["Approval Date", fmt(assignmentDetail.approved_at)],
                 ].filter(([, v]) => v).map(([label, value]) => (
@@ -264,7 +283,7 @@ export default function PmsReportsPanel({ token }) {
                     <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(h.completedAt)}</td>
                     <td style={{ padding: "10px 14px", color: "#374151" }}>{h.engineerName || "—"}</td>
                     <td style={{ padding: "10px 14px", color: "#374151" }}>{h.reviewerName || "—"}</td>
-                    <td style={{ padding: "10px 14px" }}><Badge status={h.approvalStatus || h.status} /></td>
+                    <td style={{ padding: "10px 14px" }}><Badge status={h.status} approvalStatus={h.approvalStatus} /></td>
                     <td style={{ padding: "10px 14px" }}>
                       <button onClick={() => openAssignment(h)}
                         style={{ padding: "5px 12px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>

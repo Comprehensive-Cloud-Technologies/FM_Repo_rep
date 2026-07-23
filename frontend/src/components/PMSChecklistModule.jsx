@@ -499,9 +499,11 @@ function ChecklistsTab({ token, companyId, onAssignClick }) {
 }
 
 // ─── Assign Tab ───────────────────────────────────────────────────────────────
-function AssignTab({ token, initialChecklist, onDone }) {
+function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", selectedCompanyName = "My Hospital" }) {
   const [checklists, setChecklists] = useState([]);
   const [assets, setAssets]         = useState([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
+  const [assetsErr, setAssetsErr]   = useState("");
   const [selectedCL, setSelectedCL] = useState(initialChecklist?.id?.toString() || "");
   const [selectedAssets, setSelectedAssets] = useState(new Set());
   const [filters, setFilters]       = useState({ search: "", departmentId: "", assetCategory: "", withChecklist: "" });
@@ -512,14 +514,35 @@ function AssignTab({ token, initialChecklist, onDone }) {
 
   useEffect(() => {
     apiFetch("GET", "/api/company-portal/pms/checklists?status=active", null, token).then(setChecklists).catch(() => {});
-    apiFetch("GET", "/api/company-portal/departments", null, token).then(d => setDepartments(d || [])).catch(() => {});
-  }, [token]);
+    const deptQs = selectedCompanyId ? `?companyId=${selectedCompanyId}` : "?allCompanies=true";
+    apiFetch("GET", `/api/company-portal/departments${deptQs}`, null, token).then(d => setDepartments(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [token, selectedCompanyId]);
 
   useEffect(() => {
+    setAssetsLoading(true);
+    setAssetsErr("");
+    setSelectedAssets(new Set()); // clear selection when hospital changes
     const qs = new URLSearchParams();
+    if (selectedCompanyId) qs.append("companyId", selectedCompanyId);
+    else qs.append("allCompanies", "true");
     Object.entries(filters).forEach(([k, v]) => v && qs.append(k, v));
-    apiFetch("GET", `/api/company-portal/pms/assets?${qs}`, null, token).then(setAssets).catch(() => {});
-  }, [token, filters]);
+    apiFetch("GET", `/api/company-portal/pms/assets?${qs}`, null, token)
+      .then(rows => { setAssets(Array.isArray(rows) ? rows : []); })
+      .catch(() => {
+        const qs2 = new URLSearchParams();
+        if (selectedCompanyId) qs2.append("companyId", selectedCompanyId);
+        else qs2.append("allCompanies", "true");
+        if (filters.search) qs2.append("search", filters.search);
+        if (filters.assetCategory) qs2.append("type", filters.assetCategory);
+        apiFetch("GET", `/api/company-portal/assets?${qs2}&limit=5000`, null, token)
+          .then(rows => {
+            const data = Array.isArray(rows) ? rows : (Array.isArray(rows?.data) ? rows.data : []);
+            setAssets(data.map(a => ({ ...a, assetName: a.assetName || a.asset_name, generatedAssetId: a.generatedAssetId || a.generated_asset_id, departmentName: a.departmentName || a.department_name, companyName: a.companyName || a.company_name })));
+          })
+          .catch(e => setAssetsErr(`Could not load assets: ${e.message}`));
+      })
+      .finally(() => setAssetsLoading(false));
+  }, [token, filters, selectedCompanyId]);
 
   const toggleAll = () => {
     if (selectedAssets.size === assets.length) setSelectedAssets(new Set());
@@ -596,7 +619,7 @@ function AssignTab({ token, initialChecklist, onDone }) {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
             <div style={{ fontSize: "13px", color: "#475569" }}>
-              <strong>{assets.length}</strong> assets · <strong>{selectedAssets.size}</strong> selected
+              <strong>{assets.length}</strong> assets from <span style={{ color: "#2563eb", fontWeight: 700 }}>{selectedCompanyName}</span> · <strong>{selectedAssets.size}</strong> selected
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <button style={S.btn()} onClick={toggleAll}>{selectedAssets.size === assets.length ? "Deselect All" : "Select All"}</button>
@@ -612,7 +635,7 @@ function AssignTab({ token, initialChecklist, onDone }) {
               <thead>
                 <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
                   <th style={S.th}><input type="checkbox" checked={assets.length > 0 && selectedAssets.size === assets.length} onChange={toggleAll} /></th>
-                  {["Asset","ID","Dept","Location","Current Checklist","Last PMS"].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  {["Hospital","Asset","ID","Dept","Location","Current Checklist","Last PMS"].map(h => <th key={h} style={S.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -622,6 +645,9 @@ function AssignTab({ token, initialChecklist, onDone }) {
                     <tr key={a.id} style={{ background: selectedAssets.has(a.id) ? "#eff6ff" : hasChecklist ? "#f0fdf4" : (i % 2 === 0 ? "#fff" : "#fafafa"), cursor: "pointer" }}
                       onClick={() => setSelectedAssets(p => { const n = new Set(p); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })}>
                       <td style={S.td}><input type="checkbox" checked={selectedAssets.has(a.id)} readOnly /></td>
+                      <td style={{ ...S.td, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: "11px", background: "#eff6ff", color: "#1d4ed8", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>{a.companyName || "—"}</span>
+                      </td>
                       <td style={{ ...S.td, fontWeight: 600 }}>{a.assetName}</td>
                       <td style={S.td}><code style={{ fontSize: "11px", background: "#f1f5f9", padding: "1px 5px", borderRadius: "4px" }}>{a.generatedAssetId || a.assetUniqueId || "—"}</code></td>
                       <td style={S.td}>{a.departmentName || "—"}</td>
@@ -635,8 +661,13 @@ function AssignTab({ token, initialChecklist, onDone }) {
                     </tr>
                   );
                 })}
-                {assets.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found.</td></tr>
+                {assets.length === 0 && !assetsLoading && (
+                  <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: assetsErr ? "#dc2626" : "#94a3b8" }}>
+                    {assetsErr || "No assets found. Check that assets are registered in this company."}
+                  </td></tr>
+                )}
+                {assetsLoading && (
+                  <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading assets…</td></tr>
                 )}
               </tbody>
             </table>
@@ -755,7 +786,7 @@ function CalEventCard({ ev, onClick }) {
   );
 }
 
-function SchedulesTab({ token }) {
+function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My Hospital" }) {
   const [schedules,      setSchedules]      = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [viewDate,       setViewDate]       = useState(new Date());
@@ -781,11 +812,14 @@ function SchedulesTab({ token }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await apiFetch("GET", "/api/company-portal/pms/schedules", null, token);
+      const qs = new URLSearchParams();
+      if (selectedCompanyId) qs.append("companyId", selectedCompanyId);
+      else qs.append("allCompanies", "true");
+      const d = await apiFetch("GET", `/api/company-portal/pms/schedules?${qs}`, null, token);
       setSchedules(d);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [token]);
+  }, [token, selectedCompanyId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1513,12 +1547,21 @@ function SchedulesTab({ token }) {
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
+      {/* ── Create Schedule Drawer (full-height right panel) ─────────────── */}
       {modal === "create" && (
-        <Modal title="Create PMS Schedule" onClose={() => setModal(null)} maxWidth={1000}>
-          <CreateScheduleForm token={token}
-            onSave={() => { setModal(null); showToast("Schedule created!"); load(); }}
-            onCancel={() => setModal(null)} />
-        </Modal>
+        <>
+          {/* Backdrop */}
+          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 490 }}
+            onClick={() => setModal(null)} />
+          {/* Drawer panel */}
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(780px, 95vw)",
+            background: "#f8fafc", zIndex: 500, display: "flex", flexDirection: "column",
+            boxShadow: "-8px 0 40px rgba(0,0,0,0.18)" }}>
+            <CreateScheduleForm token={token}
+              onSave={() => { setModal(null); showToast("Schedule created successfully!"); load(); }}
+              onCancel={() => setModal(null)} />
+          </div>
+        </>
       )}
       {modal?.view && (
         <Modal title={`Schedule ${modal.view.schedule_number}`} onClose={() => setModal(null)} maxWidth={900}>
@@ -1545,237 +1588,518 @@ function SchedulesTab({ token }) {
 }
 
 // ─── Create Schedule Form (3-step wizard) ────────────────────────────────────
+// ─── Create Schedule Form (slide-in drawer, 3-step wizard) ──────────────────
 function CreateScheduleForm({ token, onSave, onCancel }) {
-  const [step, setStep] = useState(1);
-  const [date, setDate] = useState("");
-  const [frequency, setFrequency] = useState("Monthly");
-  const [assets, setAssets] = useState([]);
-  const [allAssets, setAllAssets] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [assetFilters, setAssetFilters] = useState({ search: "", departmentId: "", assetCategory: "", building: "" });
-  const [selectedAssets, setSelectedAssets] = useState(new Set());
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-  const [conflicts, setConflicts] = useState([]);    // assets that already have a future schedule
-  const [showConflict, setShowConflict] = useState(false);
+  const [step,             setStep]             = useState(1);
+  const [date,             setDate]             = useState("");
+  const [frequency,        setFrequency]        = useState("Monthly");
+  const [notes,            setNotes]            = useState("");
+  const [assets,           setAssets]           = useState([]);
+  const [departments,      setDepartments]      = useState([]);
+  const [assetFilters,     setAssetFilters]     = useState({ search: "", departmentId: "", assetCategory: "" });
+  const [selectedAssets,   setSelectedAssets]   = useState(new Set());
+  const [saving,           setSaving]           = useState(false);
+  const [err,              setErr]              = useState("");
+  const [conflicts,        setConflicts]        = useState([]);
+  const [showConflict,     setShowConflict]     = useState(false);
   const [replaceConflicts, setReplaceConflicts] = useState(false);
+  const [assetsLoading,    setAssetsLoading]    = useState(false);
+  const bodyRef = useRef(null);
+
+  // Scroll body to top on step change
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [step]);
 
   useEffect(() => {
-    apiFetch("GET", "/api/company-portal/departments", null, token).then(d => setDepartments(d || [])).catch(() => {});
+    apiFetch("GET", "/api/company-portal/departments", null, token)
+      .then(d => setDepartments(d || [])).catch(() => {});
   }, [token]);
 
   useEffect(() => {
     const qs = new URLSearchParams();
-    Object.entries(assetFilters).forEach(([k, v]) => v && qs.append(k, v));
-    apiFetch("GET", `/api/company-portal/pms/assets?${qs}`, null, token).then(rows => { setAllAssets(rows); setAssets(rows); }).catch(() => {});
+    if (assetFilters.search)       qs.append("search",       assetFilters.search);
+    if (assetFilters.departmentId) qs.append("departmentId", assetFilters.departmentId);
+    if (assetFilters.assetCategory)qs.append("assetCategory",assetFilters.assetCategory);
+    setAssetsLoading(true);
+    apiFetch("GET", `/api/company-portal/pms/assets?${qs}`, null, token)
+      .then(rows => setAssets(rows || []))
+      .catch(() => setAssets([]))
+      .finally(() => setAssetsLoading(false));
   }, [token, assetFilters]);
 
-  const toggleAll = () => {
-    if (selectedAssets.size === assets.length) setSelectedAssets(new Set());
-    else setSelectedAssets(new Set(assets.map(a => a.id)));
-  };
+  const toggleAsset = (id) =>
+    setSelectedAssets(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () =>
+    setSelectedAssets(assets.length > 0 && selectedAssets.size === assets.length
+      ? new Set() : new Set(assets.map(a => a.id)));
 
-  // Step 2→3 advance: check for conflicts first
   const advanceToReview = async () => {
-    if (!selectedAssets.size) return;
+    if (!selectedAssets.size) { setErr("Select at least one asset."); return; }
+    setErr("");
     try {
-      const { conflicts: found } = await apiFetch("POST", "/api/company-portal/pms/schedules/check-conflicts",
-        { assetIds: [...selectedAssets] }, token);
-      if (found.length > 0) { setConflicts(found); setShowConflict(true); }
-      else { setStep(3); }
+      const { conflicts: found } = await apiFetch("POST",
+        "/api/company-portal/pms/schedules/check-conflicts", { assetIds: [...selectedAssets] }, token);
+      if (found?.length > 0) { setConflicts(found); setShowConflict(true); }
+      else setStep(3);
     } catch { setStep(3); }
   };
 
   const save = async (replace = false) => {
     setSaving(true); setErr("");
     try {
-      const occurrenceCount = { Monthly: 12, Quarterly: 4, 'Half-Yearly': 2, Yearly: 2, Once: 1 }[frequency] ?? 1;
       await apiFetch("POST", "/api/company-portal/pms/schedules", {
-        maintenanceDate: date,
-        frequency,
-        notes,
-        assetIds: [...selectedAssets],
-        replaceConflicts: replace,
+        maintenanceDate: date, frequency, notes,
+        assetIds: [...selectedAssets], replaceConflicts: replace,
       }, token);
       onSave();
     } catch (e) { setErr(e.message); setSaving(false); }
   };
 
-  // Conflict dialog
-  if (showConflict) {
-    return (
-      <div>
-        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "12px", padding: "20px", marginBottom: "16px" }}>
-          <h3 style={{ margin: "0 0 8px", color: "#c2410c", fontSize: "16px", fontWeight: 700 }}>⚠️ PMS Already Scheduled</h3>
-          <p style={{ margin: "0 0 14px", color: "#7c2d12", fontSize: "13.5px" }}>
-            The following {conflicts.length} asset{conflicts.length !== 1 ? "s" : ""} already have an active future PMS schedule.
-            Proceeding will cancel those future occurrences and create new ones starting <strong>{date}</strong>.
-          </p>
-          <div style={{ background: "#fff", borderRadius: "8px", border: "1px solid #fed7aa", maxHeight: "200px", overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
-              <thead><tr style={{ background: "#fff7ed" }}>
-                {["Asset", "Current Schedule", "Next Date", "Frequency"].map(h =>
-                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "#92400e" }}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {conflicts.map(c => (
-                  <tr key={c.assetId} style={{ borderTop: "1px solid #fed7aa" }}>
-                    <td style={{ padding: "8px 12px", fontWeight: 600 }}>{c.assetName}</td>
-                    <td style={{ padding: "8px 12px", fontFamily: "monospace", fontSize: "11px" }}>{c.scheduleNumber}</td>
-                    <td style={{ padding: "8px 12px" }}>{c.maintenanceDate?.split("T")[0]}</td>
-                    <td style={{ padding: "8px 12px" }}>{c.frequency}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button style={S.btn("ghost")} onClick={() => setShowConflict(false)}>No, Keep Existing</button>
-          <button style={{ ...S.btn("danger"), background: "#dc2626" }}
-            onClick={() => { setShowConflict(false); setReplaceConflicts(true); setStep(3); }}>
-            Yes, Replace Schedule
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const STEPS = [
+    { n: 1, label: "Schedule Details" },
+    { n: 2, label: "Select Assets"    },
+    { n: 3, label: "Review & Confirm" },
+  ];
 
-  const stepLabel = (n, label) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <div style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700,
-        background: step === n ? "#2563eb" : step > n ? "#16a34a" : "#e2e8f0",
-        color: step >= n ? "#fff" : "#64748b" }}>{step > n ? "✓" : n}</div>
-      <span style={{ fontSize: "13px", fontWeight: step === n ? 700 : 500, color: step === n ? "#0f172a" : "#64748b" }}>{label}</span>
-    </div>
-  );
+  const FREQ_INFO = {
+    Monthly:     "12 occurrences / year",
+    Quarterly:   "4 occurrences / year",
+    "Half-Yearly":"2 occurrences / year",
+    Yearly:      "1 occurrence / year",
+    Once:        "Single one-time schedule",
+    Custom:      "Manual interval",
+  };
 
   return (
-    <div>
-      {/* Step indicators */}
-      <div style={{ display: "flex", gap: "24px", marginBottom: "28px", padding: "16px 20px", background: "#f8fafc", borderRadius: "10px", flexWrap: "wrap" }}>
-        {stepLabel(1, "Maintenance Date")}
-        <div style={{ color: "#e2e8f0", alignSelf: "center" }}>→</div>
-        {stepLabel(2, "Select Assets")}
-        <div style={{ color: "#e2e8f0", alignSelf: "center" }}>→</div>
-        {stepLabel(3, "Review & Assign")}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+
+      {/* ── Drawer header ──────────────────────────────────────────────────── */}
+      <div style={{ padding: "20px 24px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
+              Preventive Maintenance
+            </div>
+            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0f172a" }}>Create PMS Schedule</h2>
+          </div>
+          <button onClick={onCancel}
+            style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#f1f5f9",
+              border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Step progress bar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: "0", paddingBottom: "0" }}>
+          {STEPS.map((s, i) => (
+            <div key={s.n} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? "1 1 auto" : "0 0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingBottom: "16px",
+                borderBottom: step === s.n ? "3px solid #2563eb" : "3px solid transparent",
+                paddingRight: i < STEPS.length - 1 ? "12px" : "0" }}>
+                <div style={{ width: "26px", height: "26px", borderRadius: "50%", display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: "12px", fontWeight: 800, flexShrink: 0, transition: "all 0.2s",
+                  background: step > s.n ? "#16a34a" : step === s.n ? "#2563eb" : "#e2e8f0",
+                  color: step >= s.n ? "#fff" : "#94a3b8" }}>
+                  {step > s.n ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  ) : s.n}
+                </div>
+                <span style={{ fontSize: "13px", fontWeight: step === s.n ? 700 : 500,
+                  color: step === s.n ? "#0f172a" : step > s.n ? "#16a34a" : "#94a3b8", whiteSpace: "nowrap" }}>
+                  {s.label}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div style={{ flex: 1, height: "2px", background: step > s.n + 0 ? "#bbf7d0" : "#e2e8f0",
+                  marginBottom: "16px", marginLeft: "12px", marginRight: "4px" }} />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {err && <div style={{ padding: "10px 14px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", marginBottom: "14px", fontSize: "13px" }}>{err}</div>}
-
-      {/* Step 1 */}
-      {step === 1 && (
-        <div style={{ maxWidth: "440px" }}>
-          <Field label="Maintenance Date" required>
-            <Inp type="date" value={date} onChange={e => setDate(e.target.value)} style={{ fontSize: "15px" }} />
-          </Field>
-          <Field label="Frequency">
-            <Sel value={frequency} onChange={e => setFrequency(e.target.value)}
-              options={FREQUENCIES.map(f => ({ value: f, label: f }))} />
-          </Field>
-          <Field label="Notes (optional)">
-            <Txt value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes for this schedule…" rows={2} />
-          </Field>
+      {/* ── Error bar ─────────────────────────────────────────────────────── */}
+      {err && (
+        <div style={{ padding: "10px 24px", background: "#fef2f2", borderBottom: "1px solid #fca5a5",
+          fontSize: "13px", color: "#dc2626", fontWeight: 600, flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            style={{ marginRight: "6px", verticalAlign: "-2px" }}>
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          {err}
         </div>
       )}
 
-      {/* Step 2: Select Assets */}
-      {step === 2 && (
-        <div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px", alignItems: "center" }}>
-            <input value={assetFilters.search} onChange={e => setAssetFilters(p => ({ ...p, search: e.target.value }))}
-              placeholder="Search assets…" style={{ ...S.input, maxWidth: "200px" }} />
-            <select value={assetFilters.departmentId} onChange={e => setAssetFilters(p => ({ ...p, departmentId: e.target.value }))}
-              style={{ ...S.input, maxWidth: "160px", background: "#fff" }}>
-              <option value="">All Departments</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
-            </select>
-            <select value={assetFilters.assetCategory} onChange={e => setAssetFilters(p => ({ ...p, assetCategory: e.target.value }))}
-              style={{ ...S.input, maxWidth: "150px", background: "#fff" }}>
-              <option value="">All Categories</option>
-              {ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-            </select>
-            <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
-              <span style={{ fontSize: "13px", color: "#475569" }}><strong>{selectedAssets.size}</strong> selected</span>
-              <button style={S.btn()} onClick={toggleAll}>{selectedAssets.size === assets.length ? "Deselect All" : "Select All"}</button>
-            </div>
-          </div>
-          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", maxHeight: "400px", overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                  <th style={S.th}><input type="checkbox" checked={assets.length > 0 && selectedAssets.size === assets.length} onChange={toggleAll} /></th>
-                  {["Asset","ID","Department","Location","Checklist","Last PMS","Next Due"].map(h => <th key={h} style={S.th}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map((a, i) => (
-                  <tr key={a.id} style={{ background: selectedAssets.has(a.id) ? "#eff6ff" : (i % 2 === 0 ? "#fff" : "#fafafa"), cursor: "pointer" }}
-                    onClick={() => setSelectedAssets(p => { const n = new Set(p); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })}>
-                    <td style={S.td}><input type="checkbox" checked={selectedAssets.has(a.id)} readOnly /></td>
-                    <td style={{ ...S.td, fontWeight: 600 }}>{a.assetName}</td>
-                    <td style={S.td}><code style={{ fontSize: "11px" }}>{a.generatedAssetId || a.assetUniqueId || "—"}</code></td>
-                    <td style={S.td}>{a.departmentName || "—"}</td>
-                    <td style={S.td}>{[a.building, a.floor, a.room].filter(Boolean).join(" / ") || "—"}</td>
-                    <td style={S.td}>{a.checklistName ? <span style={S.badge("green")}>{a.checklistCode}</span> : <span style={S.badge("gray")}>None</span>}</td>
-                    <td style={S.td}>{a.lastPmsDate || "—"}</td>
-                    <td style={S.td}>{a.nextPmsDue || "—"}</td>
-                  </tr>
-                ))}
-                {assets.length === 0 && <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No assets found.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* ── Scrollable body ────────────────────────────────────────────────── */}
+      <div ref={bodyRef} style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
 
-      {/* Step 3: Review */}
-      {step === 3 && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "20px" }}>
-            <div style={{ ...S.card, background: "#f0fdf4" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#15803d", textTransform: "uppercase", marginBottom: "6px" }}>Date</div>
-              <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{date || "—"}</div>
+        {/* ─ Step 1: Schedule Details ─ */}
+        {step === 1 && !showConflict && (
+          <div style={{ maxWidth: "560px", margin: "0 auto" }}>
+            <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0",
+              overflow: "hidden", marginBottom: "16px" }}>
+              <div style={{ padding: "14px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>Maintenance Date & Recurrence</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>Define when and how often PMS should occur</div>
+              </div>
+              <div style={{ padding: "20px" }}>
+                <Field label="Maintenance Start Date" required>
+                  <Inp type="date" value={date} onChange={e => setDate(e.target.value)}
+                    style={{ fontSize: "15px", fontWeight: 600 }} />
+                </Field>
+                <Field label="Recurrence Frequency" required>
+                  <Sel value={frequency} onChange={e => setFrequency(e.target.value)}
+                    options={FREQUENCIES.map(f => ({ value: f, label: f }))} />
+                  {frequency && (
+                    <div style={{ marginTop: "6px", fontSize: "12px", color: "#2563eb", background: "#eff6ff",
+                      padding: "6px 10px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      {FREQ_INFO[frequency] || frequency}
+                    </div>
+                  )}
+                </Field>
+              </div>
             </div>
-            <div style={{ ...S.card, background: "#eff6ff" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", marginBottom: "6px" }}>Frequency</div>
-              <div style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a" }}>{frequency}</div>
-            </div>
-            <div style={{ ...S.card, background: "#fef9c3" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#a16207", textTransform: "uppercase", marginBottom: "6px" }}>Assets Selected</div>
-              <div style={{ fontSize: "32px", fontWeight: 800, color: "#0f172a" }}>{selectedAssets.size}</div>
-            </div>
-          </div>
-          {notes && <div style={{ padding: "12px 16px", background: "#f8fafc", borderRadius: "8px", fontSize: "13px", color: "#475569", marginBottom: "16px" }}><strong>Notes:</strong> {notes}</div>}
-          <div style={{ padding: "12px 16px", background: "#fef9c3", borderRadius: "8px", fontSize: "13px", color: "#78350f" }}>
-            ⚠️ This will create <strong>{frequency === "Once" ? "1 occurrence" : `recurring PMS occurrences`}</strong> for <strong>{selectedAssets.size} assets</strong> starting <strong>{date}</strong>.
-            {frequency !== "Once" && <span> Future occurrences will be generated automatically. Engineer assignment applies only to the first occurrence.</span>}
-          </div>
-        </div>
-      )}
 
-      {/* Navigation */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
-        <div>
-          {step > 1 && <button style={S.btn("ghost")} onClick={() => setStep(s => s - 1)}>← Back</button>}
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button style={S.btn("ghost")} onClick={onCancel}>Cancel</button>
-          {step < 3 ? (
-            <button style={S.btn("primary")} onClick={() => {
-              if (step === 1 && !date) { setErr("Please select a maintenance date."); return; }
-              setErr("");
-              if (step === 2) { advanceToReview(); return; }
-              setStep(s => s + 1);
-            }}>Next →</button>
-          ) : (
-            <button style={{ ...S.btn("success"), opacity: saving ? 0.6 : 1 }} onClick={() => save(replaceConflicts)} disabled={saving}>
-              {saving ? "Creating…" : "✓ Create Schedule"}
-            </button>
-          )}
-        </div>
+            <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>Additional Notes</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>Optional instructions or context for this schedule</div>
+              </div>
+              <div style={{ padding: "20px" }}>
+                <Txt value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="e.g. Ensure all assets are powered off before inspection. Coordinate with biomedical team…"
+                  rows={4} style={{ fontSize: "13px" }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Step 2: Select Assets ─ */}
+        {step === 2 && !showConflict && (
+          <div>
+            {/* Filter bar */}
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0",
+              padding: "12px 16px", marginBottom: "14px",
+              display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ position: "relative", flex: "1 1 180px", minWidth: "160px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
+                  style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input value={assetFilters.search} placeholder="Search assets…"
+                  onChange={e => setAssetFilters(p => ({ ...p, search: e.target.value }))}
+                  style={{ ...S.input, paddingLeft: "32px" }} />
+              </div>
+              <select value={assetFilters.departmentId}
+                onChange={e => setAssetFilters(p => ({ ...p, departmentId: e.target.value }))}
+                style={{ ...S.input, maxWidth: "180px", background: "#fff" }}>
+                <option value="">All Departments</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
+              </select>
+              <select value={assetFilters.assetCategory}
+                onChange={e => setAssetFilters(p => ({ ...p, assetCategory: e.target.value }))}
+                style={{ ...S.input, maxWidth: "160px", background: "#fff" }}>
+                <option value="">All Categories</option>
+                {ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+              </select>
+              {(assetFilters.search || assetFilters.departmentId || assetFilters.assetCategory) && (
+                <button style={S.btn("ghost")} onClick={() => setAssetFilters({ search: "", departmentId: "", assetCategory: "" })}>
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+
+            {/* Selection summary bar */}
+            <div style={{ background: selectedAssets.size > 0 ? "#eff6ff" : "#f8fafc",
+              border: `1px solid ${selectedAssets.size > 0 ? "#bfdbfe" : "#e2e8f0"}`,
+              borderRadius: "10px", padding: "10px 16px", marginBottom: "12px",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <div style={{ fontSize: "13px", color: selectedAssets.size > 0 ? "#1d4ed8" : "#64748b" }}>
+                {assetsLoading ? "Loading assets…" : (
+                  <>
+                    <strong>{assets.length}</strong> assets found
+                    {selectedAssets.size > 0 && <> · <strong style={{ color: "#16a34a" }}>{selectedAssets.size} selected</strong></>}
+                  </>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {selectedAssets.size > 0 && (
+                  <button style={{ ...S.btn("ghost"), fontSize: "12px", padding: "5px 10px" }}
+                    onClick={() => setSelectedAssets(new Set())}>
+                    Deselect All
+                  </button>
+                )}
+                <button style={{ ...S.btn(), fontSize: "12px", padding: "5px 10px" }} onClick={toggleAll}
+                  disabled={assets.length === 0}>
+                  {assets.length > 0 && selectedAssets.size === assets.length ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+            </div>
+
+            {/* Assets table */}
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0",
+              overflow: "hidden", maxHeight: "calc(100vh - 380px)", overflowY: "auto" }}>
+              {assetsLoading ? (
+                <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600 }}>Loading assets…</div>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 1 }}>
+                      <th style={{ ...S.th, width: "40px" }}>
+                        <input type="checkbox"
+                          checked={assets.length > 0 && selectedAssets.size === assets.length}
+                          onChange={toggleAll} />
+                      </th>
+                      {["Asset Name", "Asset ID", "Department", "Last PMS", "Next Due", "Checklist"].map(h => (
+                        <th key={h} style={S.th}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assets.map((a, i) => {
+                      const isSelected = selectedAssets.has(a.id);
+                      return (
+                        <tr key={a.id} onClick={() => toggleAsset(a.id)}
+                          style={{ background: isSelected ? "#eff6ff" : i % 2 === 0 ? "#fff" : "#fafafa",
+                            cursor: "pointer", transition: "background 0.1s",
+                            outline: isSelected ? "2px solid #bfdbfe" : "none",
+                            outlineOffset: "-2px" }}>
+                          <td style={{ ...S.td, width: "40px" }}>
+                            <input type="checkbox" checked={isSelected} readOnly />
+                          </td>
+                          <td style={{ ...S.td, fontWeight: 600, color: "#0f172a" }}>{a.assetName}</td>
+                          <td style={{ ...S.td }}>
+                            <code style={{ fontSize: "11px", background: "#f1f5f9", padding: "2px 6px",
+                              borderRadius: "4px", color: "#475569" }}>
+                              {a.generatedAssetId || a.assetUniqueId || "—"}
+                            </code>
+                          </td>
+                          <td style={{ ...S.td, color: "#475569" }}>{a.departmentName || "—"}</td>
+                          <td style={{ ...S.td, color: a.lastPmsDate ? "#0f172a" : "#94a3b8", fontSize: "12px" }}>
+                            {a.lastPmsDate || "Never"}
+                          </td>
+                          <td style={{ ...S.td, fontSize: "12px" }}>
+                            {a.nextPmsDue ? (
+                              <span style={{ color: new Date(a.nextPmsDue) < new Date() ? "#dc2626" : "#16a34a", fontWeight: 600 }}>
+                                {a.nextPmsDue}
+                              </span>
+                            ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                          </td>
+                          <td style={S.td}>
+                            {a.checklistName
+                              ? <span style={S.badge("green")}>{a.checklistCode}</span>
+                              : <span style={S.badge("gray")}>None</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {assets.length === 0 && !assetsLoading && (
+                      <tr><td colSpan={7} style={{ padding: "48px", textAlign: "center", color: "#94a3b8" }}>
+                        <div style={{ fontWeight: 600, marginBottom: "4px" }}>No assets found</div>
+                        <div style={{ fontSize: "12px" }}>Try adjusting your search or filter criteria</div>
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─ Step 3: Review & Confirm ─ */}
+        {step === 3 && !showConflict && (
+          <div style={{ maxWidth: "580px", margin: "0 auto" }}>
+            {/* Summary cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+                  letterSpacing: "0.06em", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  Start Date
+                </div>
+                <div style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a" }}>{date}</div>
+              </div>
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+                  letterSpacing: "0.06em", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                  </svg>
+                  Frequency
+                </div>
+                <div style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a" }}>{frequency}</div>
+                <div style={{ fontSize: "11px", color: "#2563eb", marginTop: "4px" }}>{FREQ_INFO[frequency]}</div>
+              </div>
+              <div style={{ background: "#eff6ff", borderRadius: "12px", border: "1px solid #bfdbfe", padding: "18px", gridColumn: "span 2" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase",
+                  letterSpacing: "0.06em", marginBottom: "8px" }}>Assets Selected</div>
+                <div style={{ fontSize: "36px", fontWeight: 900, color: "#1d4ed8", lineHeight: 1 }}>
+                  {selectedAssets.size}
+                </div>
+                <div style={{ fontSize: "12px", color: "#3b82f6", marginTop: "4px" }}>
+                  assets will be scheduled for PMS
+                </div>
+              </div>
+            </div>
+
+            {notes && (
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0",
+                padding: "16px", marginBottom: "16px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase",
+                  letterSpacing: "0.06em", marginBottom: "8px" }}>Notes</div>
+                <div style={{ fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>{notes}</div>
+              </div>
+            )}
+
+            {/* Warning banner */}
+            <div style={{ background: "#fefce8", borderRadius: "12px", border: "1px solid #fde68a",
+              padding: "14px 16px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2"
+                style={{ flexShrink: 0, marginTop: "1px" }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div style={{ fontSize: "13px", color: "#78350f", lineHeight: 1.6 }}>
+                <strong>Confirm before creating:</strong>{" "}
+                This will create{" "}
+                <strong>{frequency === "Once" ? "1 one-time schedule" : `recurring ${frequency.toLowerCase()} PMS schedules`}</strong>{" "}
+                for <strong>{selectedAssets.size} assets</strong> starting <strong>{date}</strong>.
+                {frequency !== "Once" && " Future occurrences will be generated automatically."}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Conflict Resolution Dialog ─ */}
+        {showConflict && (
+          <div style={{ maxWidth: "580px", margin: "0 auto" }}>
+            <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "14px",
+              padding: "20px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "14px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#ea580c",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ margin: "0 0 4px", color: "#9a3412", fontSize: "16px", fontWeight: 800 }}>
+                    Schedule Conflict Detected
+                  </h3>
+                  <p style={{ margin: 0, color: "#7c2d12", fontSize: "13px", lineHeight: 1.5 }}>
+                    {conflicts.length} asset{conflicts.length !== 1 ? "s" : ""} already have active future PMS schedules.
+                    Proceeding will replace those occurrences starting <strong>{date}</strong>.
+                  </p>
+                </div>
+              </div>
+              <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #fed7aa",
+                maxHeight: "220px", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                  <thead>
+                    <tr style={{ background: "#fff7ed" }}>
+                      {["Asset Name", "Schedule No.", "Next PMS Date", "Frequency"].map(h => (
+                        <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, color: "#92400e",
+                          fontSize: "11px", textTransform: "uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {conflicts.map(c => (
+                      <tr key={c.assetId} style={{ borderTop: "1px solid #fed7aa" }}>
+                        <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a" }}>{c.assetName}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{c.scheduleNumber}</td>
+                        <td style={{ padding: "9px 12px", color: "#c2410c", fontWeight: 600 }}>{c.maintenanceDate?.split("T")[0]}</td>
+                        <td style={{ padding: "9px 12px", color: "#374151" }}>{c.frequency}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button style={S.btn("ghost")} onClick={() => setShowConflict(false)}>
+                ← Go Back, Keep Existing
+              </button>
+              <button style={{ ...S.btn("danger"), background: "#dc2626" }}
+                onClick={() => { setShowConflict(false); setReplaceConflicts(true); setStep(3); }}>
+                Replace & Continue →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ── Drawer footer (sticky navigation) ─────────────────────────────── */}
+      {!showConflict && (
+        <div style={{ padding: "16px 24px", background: "#fff", borderTop: "1px solid #e2e8f0",
+          display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
+          boxShadow: "0 -4px 16px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {step > 1 && (
+              <button style={S.btn("ghost")} onClick={() => { setStep(s => s - 1); setErr(""); }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  style={{ marginRight: "5px", verticalAlign: "-2px" }}>
+                  <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                </svg>
+                Back
+              </button>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <button style={S.btn("ghost")} onClick={onCancel}>Cancel</button>
+            {step < 3 ? (
+              <button style={{ ...S.btn("primary"), minWidth: "120px" }} onClick={() => {
+                if (step === 1) {
+                  if (!date) { setErr("Please select a maintenance date."); return; }
+                  setErr(""); setStep(2);
+                } else if (step === 2) {
+                  advanceToReview();
+                }
+              }}>
+                Next
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  style={{ marginLeft: "5px", verticalAlign: "-2px" }}>
+                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </button>
+            ) : (
+              <button
+                style={{ ...S.btn("success"), minWidth: "160px", opacity: saving ? 0.6 : 1,
+                  display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}
+                onClick={() => save(replaceConflicts)} disabled={saving}>
+                {saving ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      style={{ animation: "spin 1s linear infinite" }}>
+                      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Confirm & Create
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -2010,6 +2334,33 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
   const [tab, setTab]             = useState(initialTab || "checklists");
   const [assignChecklist, setAssignChecklist] = useState(null);
 
+  // Hospital / company selector — store full object to avoid lookup issues
+  const [companies, setCompanies]           = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(null); // null = all hospitals
+
+  useEffect(() => {
+    fetch(`${BASE}/api/company-auth/my-companies`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const list = d?.companies || [];
+        if (list.length > 1) setCompanies(list);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // Derive values from selected company object — avoids mismatched id/name lookups
+  const selectedCompanyId   = selectedCompany ? String(selectedCompany.companyId || selectedCompany.id || "") : "";
+  const selectedCompanyName = selectedCompany
+    ? (selectedCompany.companyName || selectedCompany.company_name || "Selected Hospital")
+    : "All Hospitals";
+
+  const handleCompanyChange = (e) => {
+    const val = e.target.value;
+    if (!val) { setSelectedCompany(null); return; }
+    const found = companies.find(c => String(c.companyId || c.id) === String(val));
+    setSelectedCompany(found || null);
+  };
+
   const tabBtn = (key, label) => (
     <button onClick={() => setTab(key)} style={{
       padding: "8px 18px", borderRadius: "8px", border: "none", cursor: "pointer",
@@ -2022,9 +2373,36 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>Preventive Maintenance System</h1>
-        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Create reusable PMS checklists, assign them to assets, and schedule maintenance jobs.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>Preventive Maintenance System</h1>
+          <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Create reusable PMS checklists, assign them to assets, and schedule maintenance jobs.</p>
+        </div>
+
+        {/* Hospital selector — shown when user has access to multiple hospitals */}
+        {companies.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <div style={{ position: "relative" }}>
+              <select
+                value={selectedCompanyId}
+                onChange={handleCompanyChange}
+                style={{ appearance: "none", WebkitAppearance: "none", padding: "7px 32px 7px 10px", border: `1.5px solid ${selectedCompanyId ? "#2563eb" : "#e2e8f0"}`, borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: selectedCompanyId ? "#2563eb" : "#64748b", background: selectedCompanyId ? "#eff6ff" : "#fff", cursor: "pointer", outline: "none", minWidth: "190px" }}>
+                <option value="">🏥 All Hospitals</option>
+                {companies.map(c => {
+                  const id   = c.companyId || c.id;   // API returns companyId
+                  const name = c.companyName || c.company_name || `Hospital ${id}`;
+                  return <option key={id} value={String(id)}>{name}</option>;
+                })}
+              </select>
+              <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={selectedCompanyId ? "#2563eb" : "#64748b"} strokeWidth={2.5} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            {selectedCompanyId && (
+              <button onClick={() => setSelectedCompany(null)}
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "2px" }}>×</button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -2032,19 +2410,23 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
         {tabBtn("checklists", "📋 Checklists")}
         {tabBtn("assign", "🔗 Assign to Assets")}
         {tabBtn("schedules", "📅 Schedules")}
-        {extraTabs.map(t => tabBtn(t.key, t.label))}
+        {extraTabs.map(t => <span key={t.key}>{tabBtn(t.key, t.label)}</span>)}
       </div>
 
       {tab === "checklists" && (
-        <ChecklistsTab token={token} companyId={companyId}
+        <ChecklistsTab token={token} companyId={selectedCompanyId || companyId}
           onAssignClick={(cl) => { setAssignChecklist(cl); setTab("assign"); }} />
       )}
       {tab === "assign" && (
         <AssignTab token={token} initialChecklist={assignChecklist}
+          selectedCompanyId={selectedCompanyId}
+          selectedCompanyName={selectedCompanyName}
           onDone={() => setAssignChecklist(null)} />
       )}
       {tab === "schedules" && (
-        <SchedulesTab token={token} />
+        <SchedulesTab token={token}
+          selectedCompanyId={selectedCompanyId}
+          selectedCompanyName={selectedCompanyName} />
       )}
       {extraTabs.map(t => tab === t.key ? <div key={t.key}>{extraTabContent[t.key]}</div> : null)}
     </div>

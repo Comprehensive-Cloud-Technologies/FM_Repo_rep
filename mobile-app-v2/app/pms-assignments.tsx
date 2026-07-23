@@ -55,11 +55,27 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   completed:        { label: 'Completed',   color: '#059669', bg: '#dcfce7' },
   pending_approval: { label: 'Completed',   color: '#059669', bg: '#dcfce7' },
   closed:           { label: 'Closed',      color: '#0891b2', bg: '#e0f2fe' },
-  rework_required:  { label: 'Rework',      color: '#D97706', bg: '#ffedd5' },
+  rework_required:  { label: 'Rework Required', color: '#D97706', bg: '#ffedd5' },
   rejected:         { label: 'Rejected',    color: '#DC2626', bg: '#fee2e2' },
   missed:           { label: 'Missed',      color: '#DC2626', bg: '#fee2e2' },
 };
 const getStatus = (s: string) => STATUS[s] || STATUS.pending;
+
+// ─── Calculate next PMS date from current scheduled date + frequency ──────────
+const DONE_STATUSES = new Set(['completed', 'pending_approval', 'closed']);
+
+function getNextPmsDate(maintenanceDateStr: string, frequency?: string): string {
+  if (!maintenanceDateStr || !frequency) return 'Not scheduled';
+  const date = new Date(maintenanceDateStr);
+  if (isNaN(date.getTime())) return 'Not scheduled';
+  const f = (frequency || '').toLowerCase();
+  if (f === 'monthly')            date.setMonth(date.getMonth() + 1);
+  else if (f === 'quarterly')     date.setMonth(date.getMonth() + 3);
+  else if (f === 'half-yearly')   date.setMonth(date.getMonth() + 6);
+  else if (f === 'yearly')        date.setFullYear(date.getFullYear() + 1);
+  else return 'Not scheduled';  // 'once' or unknown
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PmsAssignmentsScreen() {
@@ -94,6 +110,19 @@ export default function PmsAssignmentsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const openItem = (item: any) => {
+    // Block re-submission for already-completed or closed PMS
+    if (DONE_STATUSES.has(item.status)) {
+      const isClosed = item.status === 'closed';
+      const nextDate = getNextPmsDate(item.maintenance_date, item.frequency);
+      Alert.alert(
+        isClosed ? 'PMS Closed' : 'PMS Already Completed',
+        isClosed
+          ? `This PMS has been reviewed and closed by the Department Head.\n\nNext PMS scheduled on:\n${nextDate}`
+          : `You have already submitted the PMS checklist for this schedule.\n\nNext PMS scheduled on:\n${nextDate}`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setSelected(item);
     setScanned(false);
     setScanError('');
@@ -136,6 +165,16 @@ export default function PmsAssignmentsScreen() {
 
   const loadChecklist = async () => {
     if (!selected) return;
+    // Guard: re-check status in case it changed since list was loaded
+    if (DONE_STATUSES.has(selected.status)) {
+      const nextDate = getNextPmsDate(selected.maintenance_date, selected.frequency);
+      Alert.alert(
+        'Already Completed',
+        `This PMS was already submitted.\nNext PMS scheduled on:\n${nextDate}`,
+        [{ text: 'OK', onPress: () => setView('list') }]
+      );
+      return;
+    }
     try {
       await startPmsAssignment(selected.id).catch(() => {}); // Mark in_progress
       const data = await fetchMyPmsChecklist(selected.id);
@@ -166,12 +205,23 @@ export default function PmsAssignmentsScreen() {
       }));
       const meta = await captureSubmissionMetadata();
       await submitPmsCompletion(selected.id, { responses: responsePayload, submissionMetadata: meta });
+      const nextDate = getNextPmsDate(selected?.maintenance_date, selected?.frequency);
       Alert.alert(
         'PMS Completed',
-        'Checklist submitted successfully. Awaiting Department Head to close the PMS.',
+        `Checklist submitted successfully.\n\nThe Department Head will review and close the PMS.\n\nNext PMS scheduled on:\n${nextDate}`,
         [{ text: 'OK', onPress: () => { setView('list'); void load(); } }]
       );
     } catch (e: any) {
+      // Handle 409 = already submitted
+      if ((e as any)?.status === 409 || e?.message?.includes('already submitted') || e?.message?.includes('already been closed')) {
+        const nextDate = getNextPmsDate(selected?.maintenance_date, selected?.frequency);
+        Alert.alert(
+          'Already Submitted',
+          `${e.message}\n\nNext PMS scheduled on:\n${nextDate}`,
+          [{ text: 'OK', onPress: () => { setView('list'); void load(); } }]
+        );
+        return;
+      }
       Alert.alert('Error', e.message || 'Could not complete');
     } finally { setSubmitting(false); }
   };

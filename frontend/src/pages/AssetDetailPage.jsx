@@ -189,9 +189,11 @@ export default function AssetDetailPage() {
   ].map(normalizeImgUrl).filter(Boolean);
 
   // ── Downtime formula: resolutionAt − wipAt
-  // If wipAt is missing (ticket not marked in-progress), fall back to createdAt
-  // so every completed issue contributes its full repair time to the total downtime.
+  // If wipAt is missing, fall back to createdAt so every completed issue contributes downtime.
+  // Only called for tickets in a FINISHED state (completed/closed/resolved).
   const calcDownMs = (wo) => {
+    const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
+    if (!isFinished) return 0;                    // reopened / open tickets do NOT count
     const end   = wo.resolutionAt || wo.closedAt; // when repair was completed
     const start = wo.wipAt || wo.createdAt;       // WIP start; fallback to issue-raised time
     if (!end || !start) return 0;
@@ -217,16 +219,6 @@ export default function AssetDetailPage() {
   const mttrMs    = breakdownCount > 0 ? totalRepairMs / breakdownCount : 0;
   const mttrLabel = fmtMs(mttrMs);
 
-  // ── MTBF: Mean Time Between Failures = Total Operating Time ÷ Number of Failures ───────
-  // Number of Failures = ALL issues ever raised (not just completed)
-  // Operating Time = (Now − Asset Registration Date) − Total Downtime
-  const totalFailures = (callLogs || []).length;
-  const assetAge      = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
-  const operatingMs   = Math.max(0, assetAge - totalRepairMs);
-  const mtbfMs        = totalFailures > 0 ? operatingMs / totalFailures : 0;
-  const mtbfLabel     = fmtMs(mtbfMs);
-
-  const combinedDownMs = totalRepairMs;
   const totalDownLabel = fmtMs(totalRepairMs);
 
   const fields = [
@@ -798,10 +790,9 @@ export default function AssetDetailPage() {
               </div>
             )}
 
-            {/* Metrics row */}
+            {/* Metrics row: Total Down Time + MTTR only (MTBF removed) */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
               <FieldCard label="Total Down Time" value={totalDownLabel} />
-              <FieldCard label="MTBF (hh:mm:ss)" value={mtbfLabel} />
               <FieldCard label="MTTR (hh:mm:ss)" value={mttrLabel} />
             </div>
 

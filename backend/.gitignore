@@ -7,3 +7,7 @@
 # User uploaded files - NEVER delete these during deployment
 uploads/query-images/
 uploads/
+
+# Firebase service account key (contains secrets — never commit)
+*firebase-adminsdk*.json
+firebase-service-account.json
