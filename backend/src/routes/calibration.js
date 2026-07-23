@@ -12,10 +12,27 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { isMigrationSafeError } from "../db.js";
 import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const S3_READY = Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+const CERT_LOCAL_DIR = path.join(__dirname, "../../uploads/calibration");
+
+// Upload a certificate buffer — S3 when credentials exist, local disk otherwise
+async function saveCertFile({ buffer, mimetype, filename }) {
+  if (S3_READY) {
+    return uploadToS3({ buffer, mimetype, folder: "calibration", filename });
+  }
+  fs.mkdirSync(CERT_LOCAL_DIR, { recursive: true });
+  const safeName = path.basename(filename);
+  fs.writeFileSync(path.join(CERT_LOCAL_DIR, safeName), buffer);
+  return `/uploads/calibration/${safeName}`;
+}
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -442,11 +459,15 @@ router.get("/schedules/:id/assets", async (req, res, next) => {
     const id = Number(req.params.id);
     const [rows] = await pool.query(
       `SELECT csa.id, csa.asset_id, csa.vendor_id, csa.vendor_name, csa.status, csa.completed_at, csa.notes,
-              a.asset_name, a.generated_asset_id, a.asset_code, a.asset_category, a.asset_type, a.manufacturer, a.model,
-              d.department_name AS departmentName,
+              a.asset_name, a.generated_asset_id, a.asset_unique_id, a.asset_type,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.category')) AS asset_category,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make'))     AS manufacturer,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model'))    AS model,
+              d.name AS departmentName,
               cc.id AS certificate_id, cc.file_name AS cert_file_name, cc.version AS cert_version, cc.created_at AS cert_uploaded_at
        FROM calibration_schedule_assets csa
        JOIN assets a ON a.id = csa.asset_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN calibration_certificates cc ON cc.id = csa.certificate_id
        WHERE csa.schedule_id = ?
@@ -543,8 +564,8 @@ router.post("/schedule-assets/:id/certificate", upload.single("certificate"), as
 
     // Upload to S3
     const ext = path.extname(req.file.originalname) || ".pdf";
-    const filename = `calibration/${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}`;
-    const fileUrl = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: "calibration", filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}` });
+    const filename = `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}`;
+    const fileUrl = await saveCertFile({ buffer: req.file.buffer, mimetype: req.file.mimetype, filename });
 
     const [certResult] = await pool.query(
       `INSERT INTO calibration_certificates (company_id, asset_id, schedule_asset_id, vendor_id, vendor_name, file_url, file_name, file_size, version, calibration_date, uploaded_by, uploaded_by_name)
@@ -598,7 +619,7 @@ router.post("/certificates/bulk-upload", upload.array("certificates", 500), asyn
         );
         const newVersion = curVersion + 1;
         await pool.query("UPDATE calibration_certificates SET is_current = 0 WHERE asset_id = ? AND company_id = ?", [sa.asset_id, cid(req)]);
-        const fileUrl = await uploadToS3({ buffer: file.buffer, mimetype: file.mimetype, folder: "calibration", filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}.pdf` });
+        const fileUrl = await saveCertFile({ buffer: file.buffer, mimetype: file.mimetype, filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}.pdf` });
         const [certResult] = await pool.query(
           `INSERT INTO calibration_certificates (company_id, asset_id, schedule_asset_id, vendor_id, vendor_name, file_url, file_name, file_size, version, calibration_date, uploaded_by, uploaded_by_name)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -664,8 +685,11 @@ router.get("/reports", async (req, res, next) => {
     if (department) { where += ` AND d.id = ?`; params.push(department); }
 
     const sql = `
-      SELECT a.id AS assetId, a.asset_name AS assetName, a.generated_asset_id AS assetId2, a.asset_category, a.asset_type, a.manufacturer, a.model,
-             d.department_name AS departmentName,
+      SELECT a.id AS assetId, a.asset_name AS assetName, a.generated_asset_id AS assetId2, a.asset_type,
+             JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.category')) AS asset_category,
+             JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make'))     AS manufacturer,
+             JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model'))    AS model,
+             d.name AS departmentName,
              (SELECT cs2.frequency FROM calibration_schedule_assets csa2
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
               WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id ORDER BY cs2.calibration_date DESC LIMIT 1) AS frequency,
@@ -695,6 +719,7 @@ router.get("/reports", async (req, res, next) => {
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
               WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed' ORDER BY cs2.calibration_date DESC LIMIT 1) AS certStatus
       FROM assets a
+      LEFT JOIN asset_details ad ON ad.asset_id = a.id
       LEFT JOIN departments d ON d.id = a.department_id
       WHERE ${where}
       ORDER BY a.asset_name
@@ -712,8 +737,14 @@ router.get("/reports/:assetId", async (req, res, next) => {
   try {
     const assetId = Number(req.params.assetId);
     const [[asset]] = await pool.query(
-      `SELECT a.id, a.asset_name, a.generated_asset_id, a.asset_code, a.qr_code, a.asset_category, a.asset_type, a.manufacturer, a.model, d.department_name AS departmentName
-       FROM assets a LEFT JOIN departments d ON d.id=a.department_id WHERE a.id=? AND a.company_id=?`,
+      `SELECT a.id, a.asset_name, a.generated_asset_id, a.asset_unique_id, a.qr_code, a.asset_type,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.category')) AS asset_category,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make'))     AS manufacturer,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model'))    AS model,
+              d.name AS departmentName
+       FROM assets a
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       LEFT JOIN departments d ON d.id=a.department_id WHERE a.id=? AND a.company_id=?`,
       [assetId, cid(req)]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });

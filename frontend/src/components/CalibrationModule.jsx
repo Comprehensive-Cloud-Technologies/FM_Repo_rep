@@ -218,7 +218,7 @@ function AssetPicker({ token, selected, onToggle, onSelectAll, onClearAll }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const categories = [...new Set(assets.map(a => a.asset_category).filter(Boolean))].sort();
+  const categories = [...new Set(assets.map(a => a.metadata?.category || a.assetType).filter(Boolean))].sort();
 
   return (
     <div>
@@ -245,16 +245,16 @@ function AssetPicker({ token, selected, onToggle, onSelectAll, onClearAll }) {
               <tr>{["", "Asset ID", "Asset Name", "Category", "Department", "Manufacturer"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {assets.map(a => (
+              {assets.filter(a => (!filters.department || String(a.departmentId) === String(filters.department)) && (!filters.category || (a.metadata?.category || a.assetType) === filters.category)).map(a => (
                 <tr key={a.id} onClick={() => onToggle(a.id)} style={{ cursor: "pointer", background: selected.has(a.id) ? "#eff6ff" : "transparent" }}>
                   <td style={{ ...S.td, width: 36, textAlign: "center" }}>
                     <input type="checkbox" readOnly checked={selected.has(a.id)} style={{ cursor: "pointer" }} />
                   </td>
-                  <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.generated_asset_id || a.asset_code}</td>
-                  <td style={{ ...S.td, fontWeight: 600 }}>{a.asset_name}</td>
-                  <td style={S.td}>{a.asset_category || "—"}</td>
-                  <td style={S.td}>{a.department_name || a.departmentName || "—"}</td>
-                  <td style={S.td}>{a.manufacturer || "—"}</td>
+                  <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
+                  <td style={{ ...S.td, fontWeight: 600 }}>{a.assetName || "—"}</td>
+                  <td style={S.td}>{a.metadata?.category || a.assetType || "—"}</td>
+                  <td style={S.td}>{a.departmentName || "—"}</td>
+                  <td style={S.td}>{a.metadata?.make || "—"}</td>
                 </tr>
               ))}
               {assets.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#94a3b8", padding: 20 }}>No assets found</td></tr>}
@@ -309,7 +309,7 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
     } catch (e) { setToast({ msg: e.message, type: "error" }); setSaving(false); }
   };
 
-  const STEPS = ["Schedule Details", "Select Assets", "Review & Confirm"];
+  const STEPS = ["Select Assets", "Schedule Details", "Review & Confirm"];
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -340,6 +340,11 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
 
           {/* Step 1 */}
           {step === 1 && (
+            <AssetPicker token={token} selected={selectedAssets} onToggle={toggleAsset} onSelectAll={selectAll} onClearAll={clearAll} />
+          )}
+
+          {/* Step 2 */}
+          {step === 2 && (
             <div style={{ maxWidth: 520 }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={S.label}>Calibration Date *</label>
@@ -364,11 +369,6 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
                 <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ ...S.input, resize: "vertical" }} placeholder="Add notes or instructions…" />
               </div>
             </div>
-          )}
-
-          {/* Step 2 */}
-          {step === 2 && (
-            <AssetPicker token={token} selected={selectedAssets} onToggle={toggleAsset} onSelectAll={selectAll} onClearAll={clearAll} />
           )}
 
           {/* Step 3 */}
@@ -397,7 +397,8 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
           <div style={{ display: "flex", gap: 8 }}>
             {step < 3 && (
               <button style={S.btn("primary")} onClick={() => {
-                if (step === 1 && !form.calibrationDate) return setToast({ msg: "Select a date", type: "error" });
+                if (step === 1 && !selectedAssets.size) return setToast({ msg: "Select at least one asset", type: "error" });
+                if (step === 2 && !form.calibrationDate) return setToast({ msg: "Select a date", type: "error" });
                 if (step === 2) return advanceToReview();
                 setStep(s => s + 1);
               }}>Next →</button>
@@ -581,7 +582,7 @@ function ScheduleDetail({ scheduleId, token, onBack }) {
             {assets.map(a => (
               <tr key={a.id}>
                 <td style={S.td}><input type="checkbox" checked={selectedRows.has(a.id)} onChange={() => toggleRow(a.id)} /></td>
-                <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.generated_asset_id || a.asset_code}</td>
+                <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.generated_asset_id || a.asset_unique_id}</td>
                 <td style={{ ...S.td, fontWeight: 600 }}>{a.asset_name}</td>
                 <td style={S.td}>{a.asset_category || "—"}</td>
                 <td style={S.td}>{a.departmentName || "—"}</td>
