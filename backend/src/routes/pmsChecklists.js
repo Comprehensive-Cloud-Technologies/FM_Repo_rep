@@ -13,6 +13,7 @@ import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { isMigrationSafeError } from "../db.js";
+import { sendPushNotification, sendMulticast } from "../services/fcmService.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -160,6 +161,16 @@ router.use(requireCompanyAuth);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const cid = (req) => req.companyUser.companyId;
+
+// Helper: returns all company IDs this user can access
+async function getAccessibleCompanyIds(userId, primaryId) {
+  const [extra] = await pool.query(
+    `SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?`, [userId]
+  ).catch(() => [[]]);
+  const ids = new Set([Number(primaryId)]);
+  extra.forEach(r => ids.add(Number(r.companyId)));
+  return [...ids];
+}
 
 // ── Recurring date helpers ─────────────────────────────────────────────────────
 function nextOccurrenceDate(dateStr, frequency) {
@@ -462,19 +473,36 @@ router.post("/assign", validate([
 // GET /schedules — list schedules with asset count
 router.get("/schedules", async (req, res, next) => {
   try {
-    const { status, dateFrom, dateTo } = req.query;
-    let where = "WHERE ps.company_id = ?";
-    const params = [cid(req)];
+    const { status, dateFrom, dateTo, companyId: qCompanyId, allCompanies } = req.query;
+
+    let companyWhere, params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhere = `ps.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else if (qCompanyId) {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      if (!ids.includes(Number(qCompanyId))) return res.status(403).json({ message: "Access denied" });
+      companyWhere = "ps.company_id = ?";
+      params = [Number(qCompanyId)];
+    } else {
+      companyWhere = "ps.company_id = ?";
+      params = [cid(req)];
+    }
+
+    let where = `WHERE ${companyWhere}`;
     if (status)   { where += " AND ps.status = ?";                params.push(status); }
     if (dateFrom) { where += " AND ps.maintenance_date >= ?";     params.push(dateFrom); }
     if (dateTo)   { where += " AND ps.maintenance_date <= ?";     params.push(dateTo); }
 
     const [rows] = await pool.query(
       `SELECT ps.*,
+              co.company_name AS companyName,
               COUNT(psa.id) AS totalAssets,
               SUM(psa.status = 'completed') AS completedAssets,
               SUM(psa.status = 'pending')   AS pendingAssets
        FROM pms_schedules ps
+       LEFT JOIN companies co ON co.id = ps.company_id
        LEFT JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
        ${where}
        GROUP BY ps.id
@@ -736,9 +764,25 @@ router.delete("/schedules/:id/assets/:assetId", async (req, res, next) => {
 // ─── Support: assets list for scheduler ───────────────────────────────────────
 router.get("/assets", async (req, res, next) => {
   try {
-    const { departmentId, building, assetCategory, assetType, search, withChecklist } = req.query;
-    let where = "WHERE a.company_id = ? AND a.status = 'Active'";
-    const params = [cid(req)];
+    const { departmentId, building, assetCategory, assetType, search, withChecklist, allCompanies, companyId } = req.query;
+
+    // Support allCompanies=true and companyId=X filtering
+    let companyWhere, params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhere = `a.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else if (companyId) {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      if (!ids.includes(Number(companyId))) return res.status(403).json({ message: "Access denied" });
+      companyWhere = "a.company_id = ?";
+      params = [Number(companyId)];
+    } else {
+      companyWhere = "a.company_id = ?";
+      params = [cid(req)];
+    }
+
+    let where = `WHERE ${companyWhere} AND a.status = 'Active'`;
     if (departmentId) { where += " AND a.department_id = ?";  params.push(departmentId); }
     if (building)     { where += " AND a.building LIKE ?";    params.push(`%${building}%`); }
     if (assetCategory){ where += " AND a.asset_type = ?"; params.push(assetCategory); }
@@ -754,13 +798,15 @@ router.get("/assets", async (req, res, next) => {
               a.building, a.floor, a.room, a.asset_type AS assetType,
               a.asset_type AS assetCategory, a.pms_checklist_id AS pmsChecklistId,
               a.last_pms_date AS lastPmsDate, a.next_pms_due AS nextPmsDue, a.status,
+              a.company_id AS companyId, co.company_name AS companyName,
               d.name AS departmentName,
               pc.checklist_name AS checklistName, pc.checklist_code AS checklistCode
        FROM assets a
+       LEFT JOIN companies co ON co.id = a.company_id
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN pms_checklists pc ON pc.id = a.pms_checklist_id
        ${where}
-       ORDER BY a.asset_name
+       ORDER BY co.company_name, a.asset_name
        LIMIT 10000`,
       params
     );
@@ -807,6 +853,38 @@ router.patch("/schedule-assets/:id", async (req, res, next) => {
        WHERE id = ?`,
       [engineerId || null, engineerName || null, req.params.id]
     );
+
+    // ── Send FCM notification to the assigned engineer ──────────────────────
+    if (engineerId) {
+      try {
+        const [[eng]] = await pool.query(
+          "SELECT fcm_token, full_name FROM company_users WHERE id = ? LIMIT 1",
+          [engineerId]
+        );
+        if (eng?.fcm_token) {
+          // Fetch asset + schedule info for the notification body
+          const [[info]] = await pool.query(
+            `SELECT a.asset_name, ps.maintenance_date, ps.schedule_number
+             FROM pms_schedule_assets psa
+             JOIN pms_schedules ps ON ps.id = psa.schedule_id
+             JOIN assets a ON a.id = psa.asset_id
+             WHERE psa.id = ? LIMIT 1`,
+            [req.params.id]
+          ).catch(() => [[null]]);
+          const assetLabel = info?.asset_name || "an asset";
+          const dateLabel  = info?.maintenance_date?.toISOString?.()?.slice(0,10)
+                          || String(info?.maintenance_date || "").slice(0,10)
+                          || "a scheduled date";
+          await sendPushNotification(
+            eng.fcm_token,
+            "PMS Task Assigned",
+            `You have been assigned PMS for ${assetLabel} on ${dateLabel}`,
+            { type: "pms_assigned", psaId: String(req.params.id), scheduleNumber: info?.schedule_number || "" }
+          );
+        }
+      } catch { /* non-fatal */ }
+    }
+
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -892,6 +970,72 @@ router.get("/verify-asset-qr", async (req, res, next) => {
     }
 
     res.json({ match: false });
+  } catch (err) { next(err); }
+});
+
+/* GET /dashboard-stats — aggregate PMS KPI counts for the company dashboard */
+router.get("/dashboard-stats", async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const today      = new Date().toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + "-01";
+    const nextMonthDate = new Date(monthStart);
+    nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+    const monthEnd     = nextMonthDate.toISOString().slice(0, 10);
+    const upcoming30   = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+    const [[stats]] = await pool.query(
+      `SELECT
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                         AS dueThisMonth,
+         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                       AS overdue,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled')) AS upcoming30d,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')             AS completedThisMonth
+       FROM pms_schedules ps
+       WHERE ps.company_id = ?`,
+      [monthStart, monthEnd, today, today, upcoming30, monthStart, monthEnd, companyId]
+    );
+    res.json({
+      dueThisMonth:       Number(stats?.dueThisMonth       || 0),
+      overdue:            Number(stats?.overdue            || 0),
+      upcoming30d:        Number(stats?.upcoming30d        || 0),
+      completedThisMonth: Number(stats?.completedThisMonth || 0),
+    });
+  } catch (err) { next(err); }
+});
+
+/* GET /overdue-details — list overdue PMS schedule assets for dashboard alert */
+router.get("/overdue-details", async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const ids   = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const [rows] = await pool.query(
+      `SELECT
+         ps.id              AS scheduleId,
+         ps.schedule_number AS scheduleNumber,
+         ps.maintenance_date AS maintenanceDate,
+         ps.engineer_name   AS engineerName,
+         a.id               AS assetId,
+         a.asset_name       AS assetName,
+         a.generated_asset_id AS assetCode,
+         d.name             AS departmentName,
+         co.company_name    AS companyName,
+         psa.id             AS psaId,
+         psa.status         AS psaStatus,
+         DATEDIFF(?, ps.maintenance_date) AS daysOverdue
+       FROM pms_schedules ps
+       JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
+       JOIN assets a ON a.id = psa.asset_id
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN companies co ON co.id = ps.company_id
+       WHERE ps.company_id IN (${ids.map(() => "?").join(",")})
+         AND ps.maintenance_date < ?
+         AND ps.status NOT IN ('completed','cancelled')
+         AND psa.status NOT IN ('completed','cancelled')
+       ORDER BY ps.maintenance_date ASC
+       LIMIT 100`,
+      [today, ...ids, today]
+    );
+    res.json(rows || []);
   } catch (err) { next(err); }
 });
 
@@ -1003,7 +1147,8 @@ router.patch("/my-pms/:id/complete", async (req, res, next) => {
     const { responses = [], engineerNotes = "", engineerImages = [], submissionMetadata = null } = req.body;
 
     const [[psa]] = await pool.query(
-      `SELECT psa.id, psa.asset_id, a.department_id
+      `SELECT psa.id, psa.asset_id, psa.status, a.department_id,
+              ps.maintenance_date, ps.frequency
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        JOIN assets a ON a.id = psa.asset_id
@@ -1011,6 +1156,27 @@ router.patch("/my-pms/:id/complete", async (req, res, next) => {
       [req.params.id, cid(req), userId]
     );
     if (!psa) return res.status(404).json({ message: "Not found" });
+
+    // Block re-submission if already completed or closed
+    if (["completed", "closed"].includes(psa.status)) {
+      // Calculate next occurrence date for the response message
+      const mDate   = new Date(psa.maintenance_date);
+      const freq    = (psa.frequency || "").toLowerCase();
+      if (freq === "monthly")         mDate.setMonth(mDate.getMonth() + 1);
+      else if (freq === "quarterly")  mDate.setMonth(mDate.getMonth() + 3);
+      else if (freq === "half-yearly")mDate.setMonth(mDate.getMonth() + 6);
+      else if (freq === "yearly")     mDate.setFullYear(mDate.getFullYear() + 1);
+      const nextDateStr = isNaN(mDate.getTime()) ? null
+        : mDate.toISOString().slice(0, 10);
+
+      return res.status(409).json({
+        message: psa.status === "closed"
+          ? "This PMS has already been closed by the Department Head."
+          : "PMS already submitted for this schedule. Re-submission is not allowed.",
+        nextPmsDate: nextDateStr,
+        currentStatus: psa.status,
+      });
+    }
 
     // Save checklist responses
     if (responses.length > 0) {
@@ -1186,16 +1352,18 @@ router.get("/dept-head/:id/details", async (req, res, next) => {
     );
     if (!psa) return res.status(404).json({ message: "Not found" });
 
-    // Checklist responses with item details
+    // Checklist responses with item details (LEFT JOIN so responses are never lost if items were edited)
     const [responses] = await pool.query(
       `SELECT r.id, r.checklist_item_id AS checklistItemId,
               r.response_value AS responseValue, r.photo_url AS photoUrl, r.remarks,
               r.sort_order AS sortOrder,
-              i.inspection_point AS inspectionPoint, i.check_type AS checkType,
-              i.response_type AS responseType, i.is_mandatory AS isMandatory,
+              COALESCE(i.inspection_point, CONCAT('Item #', r.checklist_item_id)) AS inspectionPoint,
+              COALESCE(i.check_type, '—') AS checkType,
+              COALESCE(i.response_type, '—') AS responseType,
+              COALESCE(i.is_mandatory, 0) AS isMandatory,
               i.tolerance_value AS toleranceValue
        FROM pms_submission_responses r
-       JOIN pms_checklist_items i ON i.id = r.checklist_item_id
+       LEFT JOIN pms_checklist_items i ON i.id = r.checklist_item_id
        WHERE r.pms_assignment_id = ?
        ORDER BY r.sort_order`,
       [psa.id]
@@ -1207,11 +1375,17 @@ router.get("/dept-head/:id/details", async (req, res, next) => {
       [psa.id]
     );
 
+    const safeJson = (val) => {
+      if (val == null) return null;
+      if (typeof val === "object") return val; // already parsed by mysql2
+      try { return JSON.parse(val); } catch { return null; }
+    };
+
     res.json({
       ...psa,
-      engineerImages: psa.engineer_images ? JSON.parse(psa.engineer_images) : [],
-      submissionMetadata: psa.submission_metadata ? JSON.parse(psa.submission_metadata) : null,
-      reviewMetadata: psa.review_metadata ? JSON.parse(psa.review_metadata) : null,
+      engineerImages:     safeJson(psa.engineer_images)     ?? [],
+      submissionMetadata: safeJson(psa.submission_metadata) ?? null,
+      reviewMetadata:     safeJson(psa.review_metadata)     ?? null,
       responses,
       auditLog,
     });

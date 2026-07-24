@@ -196,13 +196,18 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
   const { theme } = useTheme();
   const [detail, setDetail]       = useState<DetailItem | null>(null);
   const [loading, setLoading]     = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    setFetchError(null);
     fetchDeptHeadDetail(item.id)
       .then(setDetail)
-      .catch(() => setDetail(null))
+      .catch((err: any) => {
+        setFetchError(err?.message || 'Could not load submission details.');
+        setDetail(null);
+      })
       .finally(() => setLoading(false));
   }, [item.id]);
 
@@ -221,10 +226,11 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
     }
   };
 
-  const OPEN_STATUSES = ['pending', 'auto_approved'];
+  const OPEN_STATUSES = ['pending', 'auto_approved', 'completed'];
   const isOpen = detail
-    ? (OPEN_STATUSES.includes(detail.approvalStatus) || OPEN_STATUSES.includes(detail.approval_status))
-    : OPEN_STATUSES.includes(item.approvalStatus);
+    ? (!['closed', 'rework_required', 'rejected'].includes(detail.approval_status ?? '') &&
+       !['closed', 'rework_required'].includes(detail.status ?? ''))
+    : !['closed', 'rework_required', 'rejected'].includes(item.approvalStatus ?? '');
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
@@ -250,6 +256,20 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
 
       {loading ? (
         <View style={s.center}><ActivityIndicator size="large" color={theme.primary} /></View>
+      ) : fetchError ? (
+        <View style={s.center}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#dc2626" />
+          <Text style={{ color: '#dc2626', fontSize: 14, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>Failed to load details</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 6, textAlign: 'center', paddingHorizontal: 24 }}>{fetchError}</Text>
+          <TouchableOpacity
+            style={[s.reviewBtn, { backgroundColor: theme.primary, marginTop: 20, paddingHorizontal: 24 }]}
+            onPress={() => {
+              setLoading(true); setFetchError(null);
+              fetchDeptHeadDetail(item.id).then(setDetail).catch((e: any) => setFetchError(e?.message || 'Error')).finally(() => setLoading(false));
+            }}>
+            <Text style={s.reviewBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : !detail ? (
         <View style={s.center}><Text style={{ color: theme.textMuted }}>Could not load details.</Text></View>
       ) : (
@@ -282,9 +302,19 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
 
           {/* Checklist responses */}
           <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <SectionLabel text="Checklist Responses" />
+            <SectionLabel text={`Checklist Responses (${detail.responses.length})`} />
             {detail.responses.length === 0 ? (
-              <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 8 }}>No checklist responses recorded.</Text>
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <MaterialCommunityIcons name="clipboard-text-outline" size={36} color={theme.textMuted} />
+                <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
+                  No checklist responses were recorded for this submission.
+                </Text>
+                {detail.engineerNotes ? null : (
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                    The engineer may have submitted without a checklist assigned to this asset.
+                  </Text>
+                )}
+              </View>
             ) : detail.responses.map((r, idx) => {
               const rc = responseColor(r.responseValue);
               return (

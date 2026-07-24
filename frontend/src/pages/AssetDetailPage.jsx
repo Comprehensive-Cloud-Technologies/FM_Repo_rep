@@ -188,39 +188,38 @@ export default function AssetDetailPage() {
     ...(m.invoiceUrl ? [m.invoiceUrl] : []),
   ].map(normalizeImgUrl).filter(Boolean);
 
-  // Compute MTBF / MTTR / downtime from call logs
-  // Downtime = time from WIP (engineer starts) to Resolution (ticket closed/completed)
-  const resolved = (callLogs || []).filter(wo =>
+  // ── Downtime formula: resolutionAt − wipAt
+  // If wipAt is missing, fall back to createdAt so every completed issue contributes downtime.
+  // Only called for tickets in a FINISHED state (completed/closed/resolved).
+  const calcDownMs = (wo) => {
+    const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
+    if (!isFinished) return 0;                    // reopened / open tickets do NOT count
+    const end   = wo.resolutionAt || wo.closedAt; // when repair was completed
+    const start = wo.wipAt || wo.createdAt;       // WIP start; fallback to issue-raised time
+    if (!end || !start) return 0;
+    return Math.max(0, new Date(end) - new Date(start));
+  };
+
+  // ── MTTR: Mean Time To Repair = Total Repair Time ÷ Number of Completed Breakdowns ──────
+  const completedBreakdowns = (callLogs || []).filter(wo =>
     (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
-    wo.wipAt && wo.resolutionAt
+    wo.createdAt && (wo.resolutionAt || wo.closedAt)
   );
-  const totalDownMs = resolved.reduce((s, wo) => s + Math.max(0, new Date(wo.resolutionAt) - new Date(wo.wipAt)), 0);
-  // Fallback: tickets with closedAt but no wipAt — use createdAt→closedAt
-  const legacyClosed = (callLogs || []).filter(wo =>
-    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
-    (!wo.wipAt || !wo.resolutionAt) && wo.createdAt && (wo.closedAt || wo.resolutionAt)
-  );
-  const legacyDownMs = legacyClosed.reduce((s, wo) => {
-    const end = wo.resolutionAt || wo.closedAt;
-    return s + Math.max(0, new Date(end) - new Date(wo.wipAt || wo.createdAt));
-  }, 0);
-  const combinedDownMs = totalDownMs + legacyDownMs;
+  const totalRepairMs  = completedBreakdowns.reduce((s, wo) => s + calcDownMs(wo), 0);
+  const breakdownCount = completedBreakdowns.length;
+
   const fmtMs = (ms) => {
-    const h = Math.floor(ms / 3600000);
+    const h   = Math.floor(ms / 3600000);
     const min = Math.floor((ms % 3600000) / 60000);
     const sec = Math.floor((ms % 60000) / 1000);
     return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
   };
 
-  // MTBF = Total operating time / number of failures (failures = resolved calls)
-  const failures = resolved.length + legacyClosed.length;
-  const assetAge = asset.createdAt ? Math.max(0, Date.now() - new Date(asset.createdAt)) : 0;
-  const operatingMs = Math.max(0, assetAge - combinedDownMs);
-  const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "00:00:00";
-  // MTTR = Total downtime / number of breakdowns
-  const mttrLabel = failures > 0 ? fmtMs(combinedDownMs / failures) : "00:00:00";
+  // MTTR = Total Repair Time ÷ Completed Breakdowns (00:00:00 if no data)
+  const mttrMs    = breakdownCount > 0 ? totalRepairMs / breakdownCount : 0;
+  const mttrLabel = fmtMs(mttrMs);
 
-  const totalDownLabel = combinedDownMs > 0 ? fmtMs(combinedDownMs) : "00:00:00";
+  const totalDownLabel = fmtMs(totalRepairMs);
 
   const fields = [
     ["Asset ID", asset.generatedAssetId || asset.assetUniqueId],
@@ -791,11 +790,10 @@ export default function AssetDetailPage() {
               </div>
             )}
 
-            {/* Metrics row */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+            {/* Metrics row: Total Down Time + MTTR only (MTBF removed) */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
               <FieldCard label="Total Down Time" value={totalDownLabel} />
-              <FieldCard label="MTBF (hh:mm:ss)" value="00:00:00" />
-              <FieldCard label="MTTR (hh:mm:ss)" value="00:00:00" />
+              <FieldCard label="MTTR (hh:mm:ss)" value={mttrLabel} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
@@ -829,7 +827,8 @@ export default function AssetDetailPage() {
                     {callLogs.map(wo => {
                       const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                       const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                      const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                      // Downtime = resolutionAt − wipAt (strictly; 0 if either is missing)
+                      const dtMs = calcDownMs(wo);
                       return (
                         <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "10px 14px" }}>
@@ -854,7 +853,8 @@ export default function AssetDetailPage() {
                 const wo = selectedCallLog;
                 const isAQ = !wo.workOrderNumber && !wo.work_order_number;
                 const reqId = wo.workOrderNumber || wo.work_order_number || (isAQ ? `AQ-${wo.id}` : `REQ-${wo.id}`);
-                const dtMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                // Downtime = resolutionAt − wipAt (strictly; 0 if either is missing)
+                const dtMs = calcDownMs(wo);
                 const rows = [
                   ["Request ID",    reqId],
                   ["Type",          isAQ ? "QR Scan / Asset Query" : "Work Order"],
