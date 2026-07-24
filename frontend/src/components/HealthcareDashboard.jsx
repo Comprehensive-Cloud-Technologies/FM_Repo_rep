@@ -1448,6 +1448,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [pmsLoading, setPmsLoading]       = useState(false);
   const [pmsOverdueItems, setPmsOverdue]  = useState([]);
   const [overdueExpanded, setOverdueExp] = useState(false);
+  // KPI detail pane state — stores { section: 'pms'|'calibration', type, label, items, loading }
+  const [kpiPane, setKpiPane]             = useState(null);
   const [ojtStats, setOjtStats]     = useState(null);
   const [ojtLoading, setOjtLoading] = useState(false);
   const complaintPanelRef = useRef(null);
@@ -1958,14 +1960,69 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "pmsDue",       label: "Due This Month",      icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonth },
-            { key: "pmsOverdue",   label: "Overdue",             icon: Icon.Pms, color: "red",    value: pmsStats?.overdue },
-            { key: "pmsUpcoming",  label: "Upcoming (30D)",      icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30d },
-            { key: "pmsCompleted", label: "Completed This Month",icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonth },
+            { key: "pmsDue",       label: "Due This Month",       icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonth,       type: "due_this_month"        },
+            { key: "pmsOverdue",   label: "Overdue",              icon: Icon.Pms, color: "red",    value: pmsStats?.overdue,            type: "overdue"               },
+            { key: "pmsUpcoming",  label: "Upcoming (30D)",       icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30d,        type: "upcoming_30d"          },
+            { key: "pmsCompleted", label: "Completed This Month", icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonth, type: "completed_this_month"  },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading} isActive={false} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading}
+              isActive={kpiPane?.section === "pms" && kpiPane?.type === k.type}
+              onClick={() => {
+                if (kpiPane?.section === "pms" && kpiPane?.type === k.type) { setKpiPane(null); return; }
+                setKpiPane({ section: "pms", type: k.type, label: k.label, items: null, loading: true });
+                fetch(`${BASE}/api/company-portal/pms/kpi-details?type=${k.type}`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.ok ? r.json() : []).then(items => setKpiPane(p => p ? { ...p, items, loading: false } : null)).catch(() => setKpiPane(p => p ? { ...p, items: [], loading: false } : null));
+              }} />
           ))}
         </div>
+        {/* PMS KPI detail pane */}
+        {kpiPane?.section === "pms" && (
+          <div style={{ marginTop: "12px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>PMS — {kpiPane.label}
+                {!kpiPane.loading && <span style={{ marginLeft: "8px", fontSize: "12px", color: "#64748b", fontWeight: 500 }}>({kpiPane.items?.length || 0} assets)</span>}
+              </div>
+              <button onClick={() => setKpiPane(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px", lineHeight: 1 }}>×</button>
+            </div>
+            {kpiPane.loading ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading…</div>
+            ) : !kpiPane.items?.length ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets found for this period.</div>
+            ) : (
+              <div style={{ overflowX: "auto", maxHeight: "320px", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                      {["Asset", "Code", "Department", "Hospital", "Schedule", "Date", "Status", "Engineer"].map(h => (
+                        <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpiPane.items.map((r, i) => (
+                      <tr key={r.psaId || `${r.assetId}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                        <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{r.assetName}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{r.assetCode || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.departmentName || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.companyName || "—"}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>{r.scheduleNumber || "—"}</td>
+                        <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#374151" }}>{r.maintenanceDate ? String(r.maintenanceDate).slice(0,10) : "—"}</td>
+                        <td style={{ padding: "9px 12px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "100px", fontSize: "11px", fontWeight: 700,
+                            background: r.psaStatus === "completed" ? "#dcfce7" : r.psaStatus === "in_progress" ? "#fef9c3" : "#dbeafe",
+                            color: r.psaStatus === "completed" ? "#15803d" : r.psaStatus === "in_progress" ? "#92400e" : "#1d4ed8" }}>
+                            {r.psaStatus || "—"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.engineerName || <em style={{ color: "#94a3b8" }}>Unassigned</em>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* ── CALIBRATION PROFILE ── */}
@@ -1973,14 +2030,69 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDueThisMonth",        label: "Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
-            { key: "calibrationOverdue",             label: "Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
-            { key: "calibrationUpcoming",            label: "Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
-            { key: "calibrationCompletedThisMonth",  label: "Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
+            { key: "calibrationDue",       label: "Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth,      type: "due_this_month"        },
+            { key: "calibrationOverdue",   label: "Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue,           type: "overdue"               },
+            { key: "calibrationUpcoming",  label: "Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming,          type: "upcoming_30d"          },
+            { key: "calibrationCompleted", label: "Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth, type: "completed_this_month"  },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading} isActive={false} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading}
+              isActive={kpiPane?.section === "calibration" && kpiPane?.type === k.type}
+              onClick={() => {
+                if (kpiPane?.section === "calibration" && kpiPane?.type === k.type) { setKpiPane(null); return; }
+                setKpiPane({ section: "calibration", type: k.type, label: k.label, items: null, loading: true });
+                fetch(`${BASE}/api/company-portal/calibration/kpi-details?type=${k.type}`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.ok ? r.json() : []).then(items => setKpiPane(p => p ? { ...p, items, loading: false } : null)).catch(() => setKpiPane(p => p ? { ...p, items: [], loading: false } : null));
+              }} />
           ))}
         </div>
+        {/* Calibration KPI detail pane */}
+        {kpiPane?.section === "calibration" && (
+          <div style={{ marginTop: "12px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>Calibration — {kpiPane.label}
+                {!kpiPane.loading && <span style={{ marginLeft: "8px", fontSize: "12px", color: "#64748b", fontWeight: 500 }}>({kpiPane.items?.length || 0} assets)</span>}
+              </div>
+              <button onClick={() => setKpiPane(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px", lineHeight: 1 }}>×</button>
+            </div>
+            {kpiPane.loading ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading…</div>
+            ) : !kpiPane.items?.length ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets found for this period.</div>
+            ) : (
+              <div style={{ overflowX: "auto", maxHeight: "320px", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                      {["Asset", "Code", "Department", "Schedule", "Date", "Frequency", "Status", "Vendor"].map(h => (
+                        <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpiPane.items.map((r, i) => (
+                      <tr key={`${r.assetId}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                        <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{r.assetName}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{r.assetCode || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.departmentName || "—"}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>{r.scheduleNumber || "—"}</td>
+                        <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#374151" }}>{r.calibrationDate ? String(r.calibrationDate).slice(0,10) : "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.frequency || "—"}</td>
+                        <td style={{ padding: "9px 12px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "100px", fontSize: "11px", fontWeight: 700,
+                            background: r.status === "completed" ? "#dcfce7" : r.status === "in_progress" ? "#fef9c3" : "#dbeafe",
+                            color: r.status === "completed" ? "#15803d" : r.status === "in_progress" ? "#92400e" : "#1d4ed8" }}>
+                            {r.status || "—"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.vendorName || <em style={{ color: "#94a3b8" }}>—</em>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* ── TRAINING RECORDS ── */}

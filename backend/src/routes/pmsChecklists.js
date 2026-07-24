@@ -1003,6 +1003,53 @@ router.get("/dashboard-stats", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* GET /kpi-details?type=due_this_month|overdue|upcoming_30d|completed_this_month
+   Returns the individual asset+schedule rows that make up each KPI count */
+router.get("/kpi-details", async (req, res, next) => {
+  try {
+    const { type } = req.query;
+    const ids   = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const today      = new Date().toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + "-01";
+    const nextMonth  = new Date(monthStart); nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const monthEnd   = nextMonth.toISOString().slice(0, 10);
+    const upcoming30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+    let dateFilter = "";
+    if (type === "due_this_month")        dateFilter = `AND ps.maintenance_date >= '${monthStart}' AND ps.maintenance_date < '${monthEnd}'`;
+    else if (type === "overdue")          dateFilter = `AND ps.maintenance_date < '${today}' AND ps.status NOT IN ('completed','cancelled') AND psa.status NOT IN ('completed','cancelled')`;
+    else if (type === "upcoming_30d")     dateFilter = `AND ps.maintenance_date >= '${today}' AND ps.maintenance_date <= '${upcoming30}' AND ps.status NOT IN ('completed','cancelled')`;
+    else if (type === "completed_this_month") dateFilter = `AND ps.maintenance_date >= '${monthStart}' AND ps.maintenance_date < '${monthEnd}' AND psa.status = 'completed'`;
+    else return res.status(400).json({ message: "Invalid type" });
+
+    const [rows] = await pool.query(
+      `SELECT
+         a.id AS assetId, a.asset_name AS assetName,
+         a.generated_asset_id AS assetCode,
+         d.name AS departmentName,
+         co.company_name AS companyName,
+         ps.id AS scheduleId, ps.schedule_number AS scheduleNumber,
+         ps.maintenance_date AS maintenanceDate,
+         ps.frequency,
+         psa.status AS psaStatus,
+         psa.engineer_name AS engineerName,
+         psa.completed_at AS completedAt,
+         DATEDIFF('${today}', ps.maintenance_date) AS daysOverdue
+       FROM pms_schedules ps
+       JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
+       JOIN assets a ON a.id = psa.asset_id
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN companies co ON co.id = ps.company_id
+       WHERE ps.company_id IN (${ids.map(() => "?").join(",")})
+         ${dateFilter}
+       ORDER BY ps.maintenance_date ASC, a.asset_name ASC
+       LIMIT 200`,
+      ids
+    );
+    res.json(rows || []);
+  } catch (err) { next(err); }
+});
+
 /* GET /overdue-details — list overdue PMS schedule assets for dashboard alert */
 router.get("/overdue-details", async (req, res, next) => {
   try {

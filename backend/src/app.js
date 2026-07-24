@@ -37,6 +37,7 @@ import assetDashboardRouter from "./routes/assetDashboard.js";
 import companyPortalAssetDashboardRouter from "./routes/companyPortalAssetDashboard.js";
 import healthcareDashboardRouter from "./routes/healthcareDashboard.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
+import assetTransferRouter from "./routes/assetTransfer.js";
 import uploadRouter from "./routes/upload.js";
 import softServiceRequestsRouter from "./routes/softServiceRequests.js";
 import publicDashboardRouter from "./routes/publicDashboard.js";
@@ -113,6 +114,8 @@ app.use("/api/company-users", companyUsersRouter);
 app.use("/api/company-auth", authLimiter, companyAuthRouter);
 // Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
 app.use("/api/company-portal/calibration", calibrationRouter);
+// Asset transfer — must be registered BEFORE the broad companyPortalRouter
+app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);

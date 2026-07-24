@@ -1,5 +1,5 @@
 import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
@@ -13,9 +13,6 @@ import WarningsPanel from "../components/WarningsPanel.jsx";
 import WorkOrdersPanel from "../components/WorkOrdersPanel.jsx";
 import ReportBuilderPanel from "../components/ReportBuilderPanel.jsx";
 import HealthcareDashboard from "../components/HealthcareDashboard.jsx";
-import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
-import PmsApprovalsPanel from "../components/PmsApprovalsPanel.jsx";
-import PmsReportsPanel from "../components/PmsReportsPanel.jsx";
 import RequestTrackingPanel from "../components/RequestTrackingPanel.jsx";
 import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
@@ -29,7 +26,6 @@ import {
   createCompanyPortalDepartment,
   updateCompanyPortalDepartment,
   deleteCompanyPortalDepartment,
-  bulkDeleteCompanyPortalDepartments,
   getCompanyPortalAssetTypes,
   getCompanyPortalAssets,
   createCompanyPortalAsset,
@@ -132,23 +128,21 @@ const Btn = ({ children, onClick, outline, color = "#2563eb", bg, disabled, styl
 
 /* ─── Role Definitions & Hierarchy ─────────────────────────────── */
 const ROLES = [
-  { value: "admin",           label: "Admin",            color: "#7c3aed", bg: "#f3e8ff" },
-  { value: "engineer",        label: "Engineer",         color: "#1d4ed8", bg: "#dbeafe" },
-  { value: "doctor",          label: "Doctor",           color: "#0e7490", bg: "#cffafe" },
-  { value: "nurse",           label: "Nurse",            color: "#059669", bg: "#d1fae5" },
-  { value: "ward_boy",        label: "Ward Boy",         color: "#ca8a04", bg: "#fefce8" },
-  { value: "department_head", label: "Department Head",  color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
+  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
+  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
 ];
 const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
 
 // Default hierarchy for healthcare org
 const DEFAULT_HIERARCHY_CHAIN = [
-  { role: "admin",           label: "Admin",           parentRole: null,             color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
-  { role: "department_head", label: "Department Head", parentRole: "admin",          color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
-  { role: "engineer",        label: "Engineer",        parentRole: "admin",          color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-  { role: "doctor",          label: "Doctor",          parentRole: "admin",          color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
-  { role: "nurse",           label: "Nurse",           parentRole: "doctor",         color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
-  { role: "ward_boy",        label: "Ward Boy",        parentRole: "nurse",          color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
+  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
+  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
+  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
 ];
 
 // Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
@@ -257,7 +251,7 @@ function normalizePerms(p) {
   };
 }
 
-function EmployeeModal({ existing, token, employees = [], departments = [], customRoles = [], currentUserRole = "admin", onClose, onSaved }) {
+function EmployeeModal({ existing, token, employees = [], customRoles = [], currentUserRole = "admin", onClose, onSaved }) {
   const isEdit = !!existing;
   const [createdCreds, setCreatedCreds] = useState(null); // holds {fullName,username,password} after create
 
@@ -381,23 +375,6 @@ function EmployeeModal({ existing, token, employees = [], departments = [], cust
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </FSelect>
-
-          {/* Department */}
-          <div style={{ gridColumn: "span 2" }}>
-            <FSelect
-              label={<>Department {form.role === "department_head" ? <span style={{ color: "#ef4444" }}>*</span> : <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "11px" }}>(optional)</span>}</>}
-              value={form.departmentId || ""}
-              onChange={(e) => change("departmentId", e.target.value || null)}
-            >
-              <option value="">— No Department —</option>
-              {departments.map((d) => (
-                <option key={d.id} value={String(d.id)}>{d.departmentName || d.name}</option>
-              ))}
-            </FSelect>
-            {form.role === "department_head" && !form.departmentId && (
-              <p style={{ fontSize: "11.5px", color: "#d97706", marginTop: "4px" }}>⚠ Department Heads should be assigned to a department for PMS approvals to work.</p>
-            )}
-          </div>
 
           {/* Role */}
           <div style={{ gridColumn: "span 2" }}>
@@ -1008,8 +985,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         })
         .filter((img) => img && typeof img.url === "string" && img.url),
       hcInvoiceUrl:        meta.hcInvoiceUrl || (Array.isArray(meta.invoiceImages) && meta.invoiceImages.length ? meta.invoiceImages[0] : "") || "",
-      hcPmsEnabled:        !!(src?.pms_checklist_id),
-      hcPmsChecklistId:    src?.pms_checklist_id ? String(src.pms_checklist_id) : "",
       // Valuation
       purchaseValue:    meta.purchaseValue    || "",
       usefulLifeYears:  meta.usefulLifeYears  || "",
@@ -1040,7 +1015,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   const [locBuildingId, setLocBuildingId] = useState("");
   const [locFloorId, setLocFloorId] = useState("");
   const [calibrationVendors, setCalibrationVendors] = useState([]);
-  const [pmsChecklists, setPmsChecklists] = useState([]);
 
   useEffect(() => {
     if (!companyId || !token) {
@@ -1066,14 +1040,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
       .then(r => r.json())
       .then(d => setCalibrationVendors(Array.isArray(d) ? d : []))
       .catch(() => setCalibrationVendors([]));
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) { setPmsChecklists([]); return; }
-    fetch(`/api/company-portal/pms/checklists?status=active`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => setPmsChecklists(Array.isArray(d) ? d : []))
-      .catch(() => setPmsChecklists([]));
   }, [token]);
 
   // Auto-set assetType to "healthcare" for HC companies when adding new asset
@@ -1222,7 +1188,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
         room:          form.room     || null,
         status:        form.status,
         ...(isHealthcareLegacy ? { criticality: form.hcCategory || "Non_Critical", workingStatus: form.hcWorkingStatus || "Working" } : {}),
-        ...(isHealthcareLegacy && form.hcPmsEnabled && form.hcPmsChecklistId ? { pmsChecklistId: Number(form.hcPmsChecklistId) } : {}),
         metadata:      buildMetadata(),
       };
       const saved = isEdit
@@ -1378,34 +1343,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
             <FInput label="Dealer / Distributor" name="hcDealer" value={form.hcDealer} onChange={handleChange} placeholder="Supplier name" error={fieldErrors.hcDealer} />
             <FInput label="Manufacturing Year" name="hcManufacturingYear" type="number" value={form.hcManufacturingYear} onChange={handleChange} placeholder="e.g. 2022" error={fieldErrors.hcManufacturingYear} />
             <FInput label="Installation Date" name="hcInstallationDate" type="date" value={form.hcInstallationDate} onChange={handleChange} error={fieldErrors.hcInstallationDate} />
-
-            {/* PMS */}
-            <div style={{ gridColumn: "span 2", borderTop: "1px solid #e2e8f0", paddingTop: "14px", marginTop: "2px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: form.hcPmsEnabled ? "12px" : 0 }}>
-                <input type="checkbox" id="hcPmsEnabled" checked={!!form.hcPmsEnabled}
-                  onChange={e => setForm(p => ({ ...p, hcPmsEnabled: e.target.checked, hcPmsChecklistId: "" }))}
-                  style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#2563eb" }} />
-                <label htmlFor="hcPmsEnabled" style={{ fontSize: "13.5px", fontWeight: 600, color: "#1d4ed8", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>🔧</span> Enable PMS (Preventive Maintenance System) for this asset
-                </label>
-              </div>
-              {form.hcPmsEnabled && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "14px" }}>
-                  <div style={{ gridColumn: "span 2" }}>
-                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#1e40af", marginBottom: "6px" }}>Select PMS Checklist</label>
-                    <select value={form.hcPmsChecklistId || ""}
-                      onChange={e => setForm(p => ({ ...p, hcPmsChecklistId: e.target.value }))}
-                      style={{ width: "100%", padding: "8px 10px", border: "1px solid #93c5fd", borderRadius: "6px", fontSize: "13.5px", background: "#fff", color: "#1e3a8a", outline: "none" }}>
-                      <option value="">— Select PMS Checklist —</option>
-                      {pmsChecklists.map(cl => (
-                        <option key={cl.id} value={cl.id}>{cl.checklist_name} ({cl.checklist_code})</option>
-                      ))}
-                    </select>
-                    {pmsChecklists.length === 0 && <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "5px" }}>No active PMS checklists found. Create one in the PMS section first.</p>}
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Invoice */}
             <FSec title="Invoice No. / Purchase Date" />
@@ -4141,8 +4078,8 @@ const NAV_ALL = [
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-  { key: "pms",          label: "PMS",              roles: ["admin","supervisor","department_head"],   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-  { key: "reports",      label: "Reports",          roles: ["admin","supervisor"],                   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
+  { key: "reports",        label: "Reports",          roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
+  { key: "asset_transfer", label: "Asset Transfers",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/><path d="M19 12H5M12 19l-7-7 7-7" opacity=".4"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -4252,25 +4189,361 @@ function StatusMasterSection({ token }) {
   );
 }
 
-/* ─── PMS Section (sub-tabs: Checklists · Approvals · Reports) ──── */
-function PmsSection({ token, companyId, currentUser, canManage, canApprove, defaultTab }) {
+
+
+// ─── Asset Transfer Section ───────────────────────────────────────────────────
+const BASE_AT = () => {
+  if (typeof window !== "undefined" && window.VITE_API_URL) return window.VITE_API_URL;
+  return import.meta.env?.VITE_API_URL || "";
+};
+
+function AssetTransferSection({ token, companyId }) {
+  const [subTab, setSubTab] = React.useState("transfer");
+
+  // ── Transfer tab state ──
+  const [atAssets, setAtAssets]           = React.useState([]);
+  const [atLoading, setAtLoading]         = React.useState(true);
+  const [atSearch, setAtSearch]           = React.useState("");
+  const [atDeptFilter, setAtDeptFilter]   = React.useState("");
+  const [atDepts, setAtDepts]             = React.useState([]);
+  const [atSelected, setAtSelected]       = React.useState(new Set());
+  const [atCompanies, setAtCompanies]     = React.useState([]);
+  const [atToDepts, setAtToDepts]         = React.useState([]);
+  const [atForm, setAtForm]               = React.useState({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
+  const [atLoadingDepts, setAtLoadingDepts] = React.useState(false);
+  const [atTransferring, setAtTransferring] = React.useState(false);
+  const [atResult, setAtResult]           = React.useState(null); // {succeeded, failed, message, results}
+  const [atError, setAtError]             = React.useState(null);
+
+  // ── History tab state ──
+  const [histRows, setHistRows]           = React.useState([]);
+  const [histLoading, setHistLoading]     = React.useState(true);
+  const [histSearch, setHistSearch]       = React.useState("");
+  const [histTotal, setHistTotal]         = React.useState(0);
+  const [histPage, setHistPage]           = React.useState(1);
+
+  const H = { Authorization: `Bearer ${token}` };
+  const base = BASE_AT();
+
+  // Load assets for current company
+  React.useEffect(() => {
+    setAtLoading(true);
+    const qs = new URLSearchParams({ limit: 2000 });
+    if (atSearch)     qs.append("search", atSearch);
+    if (atDeptFilter) qs.append("departmentId", atDeptFilter);
+    fetch(`${base}/api/company-portal/assets?${qs}`, { headers: H })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setAtAssets(Array.isArray(d) ? d : []))
+      .catch(() => setAtAssets([]))
+      .finally(() => setAtLoading(false));
+  }, [token, atSearch, atDeptFilter]);
+
+  React.useEffect(() => {
+    fetch(`${base}/api/company-portal/departments`, { headers: H })
+      .then(r => r.ok ? r.json() : []).then(d => setAtDepts(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${base}/api/company-portal/assets/transfer/companies`, { headers: H })
+      .then(r => r.ok ? r.json() : []).then(d => setAtCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [token]);
+
+  // Load history
+  React.useEffect(() => {
+    if (subTab !== "history") return;
+    setHistLoading(true);
+    const qs = new URLSearchParams({ page: histPage, limit: 50, ...(histSearch ? { search: histSearch } : {}) });
+    fetch(`${base}/api/company-portal/assets/transfer/company-history?${qs}`, { headers: H })
+      .then(r => r.ok ? r.json() : { total: 0, rows: [] })
+      .then(d => { setHistRows(d.rows || []); setHistTotal(d.total || 0); })
+      .catch(() => {})
+      .finally(() => setHistLoading(false));
+  }, [subTab, histPage, histSearch, token]);
+
+  const toggleAsset = (id) => setAtSelected(p => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleAll   = () => setAtSelected(atAssets.length > 0 && atSelected.size === atAssets.length ? new Set() : new Set(atAssets.map(a => a.id)));
+
+  const execTransfer = async () => {
+    if (!atForm.toCompanyId || atSelected.size === 0 || atTransferring) return;
+    setAtTransferring(true); setAtError(null); setAtResult(null);
+    try {
+      const resp = await fetch(`${base}/api/company-portal/assets/bulk-transfer`, {
+        method: "POST",
+        headers: { ...H, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assetIds:      [...atSelected],
+          toCompanyId:   Number(atForm.toCompanyId),
+          toDepartmentId: atForm.toDepartmentId ? Number(atForm.toDepartmentId) : null,
+          reason:  atForm.reason,
+          remarks: atForm.remarks,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "Transfer failed");
+      setAtResult(data);
+      if (data.succeeded > 0) {
+        // Remove transferred assets from list
+        const transferred = new Set(data.results.filter(r => r.ok).map(r => r.assetId));
+        setAtAssets(p => p.filter(a => !transferred.has(a.id)));
+        setAtSelected(new Set());
+        setAtForm({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
+        setAtToDepts([]);
+      }
+    } catch (e) { setAtError(e.message); }
+    finally { setAtTransferring(false); }
+  };
+
+  const subTabStyle = (k) => ({
+    padding: "10px 20px", background: "none", border: "none",
+    borderBottom: subTab === k ? "3px solid #2563eb" : "3px solid transparent",
+    color: subTab === k ? "#2563eb" : "#64748b",
+    fontSize: "13.5px", fontWeight: subTab === k ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap",
+  });
+
   return (
-    <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f1f5f9" }}>
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px" }}>
-        <PMSChecklistModule
-          token={token}
-          companyId={companyId}
-          initialTab={defaultTab || "checklists"}
-          extraTabs={canApprove ? [
-            { key: "approvals", label: "✅ Approvals" },
-            { key: "reports",   label: "📊 Reports"   },
-          ] : []}
-          extraTabContent={{
-            approvals: <PmsApprovalsPanel token={token} currentUser={currentUser} />,
-            reports:   <PmsReportsPanel   token={token} />,
-          }}
-        />
+    <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f8fafc" }}>
+      {/* Page header */}
+      <div style={{ padding: "20px 28px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+        <h1 style={{ margin: "0 0 4px", fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Asset Transfers</h1>
+        <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#64748b" }}>Transfer single or multiple assets to another company or department. All history and QR codes are preserved.</p>
+        <div style={{ display: "flex", gap: 0 }}>
+          <button style={subTabStyle("transfer")} onClick={() => setSubTab("transfer")}>Transfer Assets</button>
+          <button style={subTabStyle("history")} onClick={() => setSubTab("history")}>Transfer History</button>
+        </div>
       </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+
+        {/* ── TRANSFER ASSETS TAB ── */}
+        {subTab === "transfer" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "20px", height: "100%", alignItems: "start" }}>
+
+            {/* Left: asset list */}
+            <div>
+              {/* Filters */}
+              <div style={{ display: "flex", gap: "10px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input value={atSearch} onChange={e => setAtSearch(e.target.value)} placeholder="Search assets…"
+                    style={{ width: "100%", paddingLeft: "32px", padding: "9px 12px 9px 32px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <select value={atDeptFilter} onChange={e => setAtDeptFilter(e.target.value)}
+                  style={{ padding: "9px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", outline: "none", minWidth: "160px" }}>
+                  <option value="">All Departments</option>
+                  {atDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
+                </select>
+              </div>
+
+              {/* Selection bar */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", background: atSelected.size > 0 ? "#eff6ff" : "#f8fafc", borderRadius: "8px", border: `1px solid ${atSelected.size > 0 ? "#bfdbfe" : "#e2e8f0"}`, marginBottom: "10px" }}>
+                <div style={{ fontSize: "13px", color: atSelected.size > 0 ? "#1d4ed8" : "#64748b" }}>
+                  {atLoading ? "Loading…" : <><strong>{atAssets.length}</strong> assets · <strong style={{ color: "#16a34a" }}>{atSelected.size} selected</strong></>}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {atSelected.size > 0 && <button onClick={() => setAtSelected(new Set())} style={{ padding: "5px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#64748b" }}>Clear</button>}
+                  <button onClick={toggleAll} style={{ padding: "5px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#374151" }}>
+                    {atAssets.length > 0 && atSelected.size === atAssets.length ? "Deselect All" : "Select All"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Asset table */}
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
+                {atLoading ? (
+                  <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading assets…</div>
+                ) : atAssets.length === 0 ? (
+                  <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets found.</div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 1 }}>
+                        <th style={{ padding: "10px 14px", width: "40px" }}><input type="checkbox" checked={atAssets.length > 0 && atSelected.size === atAssets.length} onChange={toggleAll} /></th>
+                        {["Asset Name", "Asset ID", "Department", "Status"].map(h => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                        ))}
+                        {/* Transferred badge column */}
+                        <th style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>Tag</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {atAssets.map((a, i) => (
+                        <tr key={a.id} onClick={() => toggleAsset(a.id)}
+                          style={{ cursor: "pointer", background: atSelected.has(a.id) ? "#eff6ff" : i % 2 === 0 ? "#fff" : "#fafafa", transition: "background 0.1s" }}>
+                          <td style={{ padding: "10px 14px" }}><input type="checkbox" checked={atSelected.has(a.id)} readOnly /></td>
+                          <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{a.assetName}</td>
+                          <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
+                          <td style={{ padding: "10px 14px", color: "#475569" }}>{a.departmentName || "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#64748b" }}>{a.status}</span>
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {(a.transferCount > 0 || a.transfer_count > 0) && (
+                              <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>↗ Transferred</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Right: transfer form */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px", position: "sticky", top: "0" }}>
+              <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>Transfer Destination</h3>
+                <p style={{ margin: "0 0 16px", fontSize: "12px", color: "#64748b" }}>{atSelected.size === 0 ? "Select assets from the list" : `${atSelected.size} asset(s) selected`}</p>
+
+                {/* Result banner */}
+                {atResult && (
+                  <div style={{ padding: "12px 14px", borderRadius: "10px", marginBottom: "14px",
+                    background: atResult.failed === 0 ? "#f0fdf4" : "#fff7ed",
+                    border: `1px solid ${atResult.failed === 0 ? "#bbf7d0" : "#fed7aa"}`,
+                    color: atResult.failed === 0 ? "#16a34a" : "#c2410c", fontSize: "13px", fontWeight: 600 }}>
+                    {atResult.failed === 0 ? "✓ " : "⚠ "}{atResult.message}
+                    {atResult.failed > 0 && atResult.results.filter(r => !r.ok).map(r => (
+                      <div key={r.assetId} style={{ fontSize: "12px", fontWeight: 500, marginTop: "4px" }}>• Asset {r.assetId}: {r.message}</div>
+                    ))}
+                  </div>
+                )}
+                {atError && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", fontSize: "13px", fontWeight: 600, marginBottom: "14px", border: "1px solid #fecaca" }}>⚠ {atError}</div>}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Destination Company *</label>
+                    <select value={atForm.toCompanyId}
+                      onChange={e => {
+                        const coId = e.target.value;
+                        setAtForm(p => ({ ...p, toCompanyId: coId, toDepartmentId: "" }));
+                        setAtToDepts([]);
+                        if (coId) {
+                          setAtLoadingDepts(true);
+                          fetch(`${base}/api/company-portal/assets/transfer/departments?companyId=${coId}`, { headers: H })
+                            .then(r => r.ok ? r.json() : []).then(d => { setAtToDepts(Array.isArray(d) ? d : []); setAtLoadingDepts(false); }).catch(() => setAtLoadingDepts(false));
+                        }
+                      }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", outline: "none" }}>
+                      <option value="">— Select Company —</option>
+                      {atCompanies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Destination Department <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
+                    <select value={atForm.toDepartmentId} disabled={!atForm.toCompanyId || atLoadingDepts}
+                      onChange={e => setAtForm(p => ({ ...p, toDepartmentId: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fff", outline: "none", opacity: (!atForm.toCompanyId || atLoadingDepts) ? 0.6 : 1 }}>
+                      <option value="">{atLoadingDepts ? "Loading…" : "— No Department —"}</option>
+                      {atToDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Reason <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
+                    <textarea value={atForm.reason} onChange={e => setAtForm(p => ({ ...p, reason: e.target.value }))} rows={2}
+                      placeholder="e.g. Department restructuring…"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12.5px", resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
+                    <textarea value={atForm.remarks} onChange={e => setAtForm(p => ({ ...p, remarks: e.target.value }))} rows={2}
+                      placeholder="Additional audit notes…"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12.5px", resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ padding: "10px 12px", background: "#fffbeb", borderRadius: "8px", border: "1px solid #fde68a", fontSize: "12px", color: "#92400e", display: "flex", gap: "8px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2" style={{ flexShrink: 0, marginTop: "1px" }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>QR codes stay on assets. All history, MTTR &amp; MTBF preserved.</span>
+                  </div>
+                  <button
+                    disabled={atSelected.size === 0 || !atForm.toCompanyId || atTransferring}
+                    onClick={execTransfer}
+                    style={{ padding: "11px 0", borderRadius: "8px", border: "none", background: "#f97316", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: (atSelected.size === 0 || !atForm.toCompanyId || atTransferring) ? "not-allowed" : "pointer", opacity: (atSelected.size === 0 || !atForm.toCompanyId || atTransferring) ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    {atTransferring ? (
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Transferring…</>
+                    ) : (
+                      <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Transfer {atSelected.size > 0 ? `${atSelected.size} Asset${atSelected.size > 1 ? "s" : ""}` : "Selected"}</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TRANSFER HISTORY TAB ── */}
+        {subTab === "history" && (
+          <div>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "16px", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flex: 1, minWidth: "220px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input value={histSearch} onChange={e => { setHistSearch(e.target.value); setHistPage(1); }} placeholder="Search asset name, ID, reference…"
+                  style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ fontSize: "13px", color: "#64748b" }}><strong>{histTotal}</strong> transfer(s) total</div>
+            </div>
+
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+              {histLoading ? (
+                <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading history…</div>
+              ) : histRows.length === 0 ? (
+                <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px" }}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  No transfer records found.
+                </div>
+              ) : (
+                <>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc" }}>
+                        {["Reference", "Asset", "Direction", "From", "To", "By", "Date", "Reason"].map(h => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {histRows.map((r, i) => (
+                        <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#2563eb", fontWeight: 700 }}>{r.transfer_reference || `#${r.id}`}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <div style={{ fontWeight: 600, color: "#0f172a" }}>{r.assetName}</div>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "monospace" }}>{r.assetCode}</div>
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
+                              background: r.direction === "in" ? "#dcfce7" : "#fff7ed",
+                              color:      r.direction === "in" ? "#16a34a"  : "#c2410c" }}>
+                              {r.direction === "in" ? "↙ Received" : "↗ Sent Out"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "#475569" }}>
+                            <div>{r.from_company_name}</div>
+                            {r.from_department_name && <div style={{ fontSize: "11px", color: "#94a3b8" }}>{r.from_department_name}</div>}
+                          </td>
+                          <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "#475569" }}>
+                            <div>{r.to_company_name}</div>
+                            {r.to_department_name && <div style={{ fontSize: "11px", color: "#94a3b8" }}>{r.to_department_name}</div>}
+                          </td>
+                          <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "#475569" }}>{r.transferred_by_name || "—"}</td>
+                          <td style={{ padding: "10px 14px", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
+                            {r.transferred_at ? new Date(r.transferred_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                          </td>
+                          <td style={{ padding: "10px 14px", fontSize: "12px", color: "#64748b", maxWidth: "160px" }}>
+                            {r.reason || r.remarks ? <span title={[r.reason, r.remarks].filter(Boolean).join(" · ")}>{(r.reason || r.remarks || "").slice(0, 40)}{((r.reason || "") + (r.remarks || "")).length > 40 ? "…" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {histTotal > 50 && (
+                    <div style={{ padding: "12px 14px", display: "flex", gap: "8px", justifyContent: "center", alignItems: "center", borderTop: "1px solid #f1f5f9" }}>
+                      <button disabled={histPage === 1} onClick={() => setHistPage(p => p - 1)} style={{ padding: "5px 14px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", cursor: histPage === 1 ? "not-allowed" : "pointer", fontWeight: 600, fontSize: "13px", opacity: histPage === 1 ? 0.5 : 1 }}>‹ Prev</button>
+                      <span style={{ fontSize: "13px", color: "#64748b" }}>Page {histPage} of {Math.ceil(histTotal / 50)}</span>
+                      <button disabled={histRows.length < 50} onClick={() => setHistPage(p => p + 1)} style={{ padding: "5px 14px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "#fff", cursor: histRows.length < 50 ? "not-allowed" : "pointer", fontWeight: 600, fontSize: "13px", opacity: histRows.length < 50 ? 0.5 : 1 }}>Next ›</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
     </div>
   );
 }
@@ -4339,8 +4612,6 @@ export default function CompanyEmployeePortal() {
       mytasks: ["mytasks", "tasks"],
       ojt: ["ojt"],
       shifts: ["shifts"],
-      reports: ["reports", "analytics"],
-      pms: ["pms", "preventive_maintenance", "preventiveMaintenance"],
     };
 
     const candidates = keyMap[navKey] || [navKey];
@@ -4492,7 +4763,6 @@ export default function CompanyEmployeePortal() {
   const [advFilterFloor, setAdvFilterFloor] = useState("");
   const [advFilterRoom, setAdvFilterRoom] = useState("");
   const [deptSearch, setDeptSearch] = useState("");
-  const [selectedDeptIds, setSelectedDeptIds] = useState(new Set());
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editDept, setEditDept] = useState(null);
   const [showAssetModal, setShowAssetModal] = useState(false);
@@ -4921,7 +5191,6 @@ export default function CompanyEmployeePortal() {
     }
     if (nav === "employees") {
       load("employees", () => getCompanyPortalEmployees(token)).then((d) => d && setEmployees(d));
-      getCompanyPortalDepartments(token).then((d) => d && setDepartments(d)).catch(() => {});
       getCompanyRoles(token)
         .then((d) => {
           const list = Array.isArray(d) ? d : [];
@@ -5060,17 +5329,6 @@ export default function CompanyEmployeePortal() {
     if (!window.confirm("Delete this department?")) return;
     try { await deleteCompanyPortalDepartment(token, id); setDepartments(p => p.filter(d => d.id !== id)); }
     catch (err) { alert(err.message || "Delete failed"); }
-  };
-  const handleBulkDeleteDepts = async () => {
-    const ids = Array.from(selectedDeptIds);
-    if (ids.length === 0) return;
-    if (!window.confirm(`Delete ${ids.length} selected department(s)? This cannot be undone.`)) return;
-    try {
-      const res = await bulkDeleteCompanyPortalDepartments(token, ids);
-      setDepartments(p => p.filter(d => !selectedDeptIds.has(d.id)));
-      setSelectedDeptIds(new Set());
-      alert(`Deleted ${res.deleted ?? ids.length} department(s).`);
-    } catch (err) { alert(err.message || "Bulk delete failed"); }
   };
   const handleAssetSaved = (saved, isEdit) => {
     const dept = departments.find(d => String(d.id) === String(saved.departmentId));
@@ -6524,19 +6782,10 @@ export default function CompanyEmployeePortal() {
                 <p style={{ color: "#64748b", fontSize: "13.5px" }}>Operational departments within {currentUser.companyName}</p>
               </div>
               {isAdmin && (
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  {selectedDeptIds.size > 0 && (
-                    <button onClick={handleBulkDeleteDepts}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "8px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                      Delete ({selectedDeptIds.size})
-                    </button>
-                  )}
-                  <Btn onClick={() => { setEditDept(null); setShowDeptModal(true); }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Department
-                  </Btn>
-                </div>
+                <Btn onClick={() => { setEditDept(null); setShowDeptModal(true); }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Add Department
+                </Btn>
               )}
             </div>
             {errors.departments && <Alert>{errors.departments}</Alert>}
@@ -6551,14 +6800,6 @@ export default function CompanyEmployeePortal() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                     <thead>
                       <tr>
-                        {isAdmin && (
-                          <th style={{ padding: "12px 16px", width: "40px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                            <input type="checkbox"
-                              checked={filteredDepts.length > 0 && filteredDepts.every(d => selectedDeptIds.has(d.id))}
-                              onChange={e => setSelectedDeptIds(e.target.checked ? new Set(filteredDepts.map(d => d.id)) : new Set())}
-                            />
-                          </th>
-                        )}
                         {["#", "Department Name", "Description", "Created", ...(isAdmin ? ["Actions"] : [])].map((h) => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
                         ))}
@@ -6566,17 +6807,9 @@ export default function CompanyEmployeePortal() {
                     </thead>
                     <tbody>
                       {filteredDepts.length === 0
-                        ? <tr><td colSpan={isAdmin ? 6 : 4} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No departments found</td></tr>
+                        ? <tr><td colSpan={isAdmin ? 5 : 4} style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No departments found</td></tr>
                         : filteredDepts.map((d, i) => (
-                          <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedDeptIds.has(d.id) ? "#fef9f9" : undefined }}>
-                            {isAdmin && (
-                              <td style={{ padding: "14px 16px" }}>
-                                <input type="checkbox"
-                                  checked={selectedDeptIds.has(d.id)}
-                                  onChange={e => setSelectedDeptIds(p => { const n = new Set(p); e.target.checked ? n.add(d.id) : n.delete(d.id); return n; })}
-                                />
-                              </td>
-                            )}
+                          <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                             <td style={{ padding: "14px 16px", color: "#64748b", fontWeight: 600 }}>{i + 1}</td>
                             <td style={{ padding: "14px 16px", fontWeight: 600, color: "#0f172a" }}>{d.departmentName}</td>
                             <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "13px" }}>{d.description || "—"}</td>
@@ -6907,7 +7140,16 @@ export default function CompanyEmployeePortal() {
                               onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
                               title="Click to view asset details"
-                              onClick={() => setAssetDetailModal(a)}>{m.equipmentName || a.assetName || "—"}</td>
+                              onClick={() => setAssetDetailModal(a)}>
+                              {m.equipmentName || a.assetName || "—"}
+                              {a.transfer_count > 0 && (
+                                <span title={`Transferred ${a.transfer_count} time(s) — from ${a.last_transferred_from_name || "another company"}`}
+                                  style={{ marginLeft: "6px", display: "inline-flex", alignItems: "center", gap: "3px", padding: "1px 7px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", verticalAlign: "middle" }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                  Transferred
+                                </span>
+                              )}
+                            </td>
                             <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: "#475569", fontSize: "13px" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.model || "—"}</td>
@@ -7045,6 +7287,13 @@ export default function CompanyEmployeePortal() {
                                     <button title="Delete" onClick={() => handleDeleteAsset(a.id)}
                                       style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fef2f2", color: "#dc2626", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                    </button>
+                                  )}
+                                  {/* Transfer — admin only */}
+                                  {currentUser?.role === "admin" && (
+                                    <button title="Transfer Asset to another company" onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}
+                                      style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#fff7ed", color: "#c2410c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                                     </button>
                                   )}
                                 </div>
@@ -9171,28 +9420,15 @@ export default function CompanyEmployeePortal() {
         )}
       </main>
 
-      {/* ── PMS Section (Checklists / Approvals / Reports) ────── */}
-      {nav === "pms" && (() => {
-        const canManage = currentUser.role === "admin" || currentUser.role === "supervisor";
-        const canApprove = currentUser.role === "department_head" || canManage;
-        // Default sub-tab: department_head goes straight to approvals
-        const defaultPmsTab = canManage ? "checklists" : "approvals";
-        return (
-          <PmsSection
-            token={token}
-            companyId={currentUser?.companyId}
-            currentUser={currentUser}
-            canManage={canManage}
-            canApprove={canApprove}
-            defaultTab={defaultPmsTab}
-          />
-        );
-      })()}
+      {/* ── Asset Transfers ───────────────────────────────────── */}
+      {nav === "asset_transfer" && currentUser.role === "admin" && (
+        <AssetTransferSection token={token} companyId={currentUser?.companyId} />
+      )}
 
       {/* ── Reports / Report Builder ──────────────────────────── */}
       {nav === "reports" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
         <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f1f5f9" }}>
-          <ReportBuilderPanel token={token} companies={accessibleCompanies} defaultCompanyId={currentUser?.companyId} />
+          <ReportBuilderPanel token={token} />
         </div>
       )}
 
@@ -9368,24 +9604,14 @@ export default function CompanyEmployeePortal() {
         };
 
         // Compute MTBF / MTTR / Total downtime from call logs (available after loadCallLogs)
-        // Downtime per issue = (resolutionAt ?? closedAt) − (wipAt ?? createdAt)
-        // wipAt fallback ensures tickets that were never marked WIP still count
-        const closedCalls = (assetDetailCallLogs || []).filter(wo =>
-          (wo.status === "closed" || wo.status === "completed" || wo.status === "resolved") &&
-          wo.createdAt && (wo.resolutionAt || wo.closedAt)
-        );
-        const totalDownMs = closedCalls.reduce((s, wo) => {
-          const end   = wo.resolutionAt || wo.closedAt;
-          const start = wo.wipAt || wo.createdAt;
-          return s + Math.max(0, new Date(end) - new Date(start));
-        }, 0);
+        const closedCalls = (assetDetailCallLogs || []).filter(wo => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt);
+        const totalDownMs = closedCalls.reduce((s, wo) => s + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)), 0);
         const failures = closedCalls.length;
         const assetAgeMs = a.createdAt ? Math.max(0, Date.now() - new Date(a.createdAt)) : 0;
         const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
-        const mtbfLabel = fmtMs(failures > 0 ? operatingMs / failures : 0);
-        const mttrLabel = fmtMs(failures > 0 ? totalDownMs / failures : 0);
-        const totalDownLabel = fmtMs(totalDownMs);
-        const mttrLoading = assetDetailCallLogs === null;
+        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "—";
+        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "—";
+        const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
 
         // Fetch call logs for the asset when tab selected
         const loadCallLogs = async () => {
@@ -9518,8 +9744,8 @@ export default function CompanyEmployeePortal() {
                       {[
                         ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
                         ["Total Down Time", totalDownLabel],
-                        ["MTBF (hh:mm:ss)", mttrLoading ? "…" : mtbfLabel],
-                        ["MTTR (hh:mm:ss)", mttrLoading ? "…" : mttrLabel],
+                        ["MTBF (hh:mm:ss)", "00:00:00"],
+                        ["MTTR (hh:mm:ss)", "00:00:00"],
                       ].map(([lbl, val]) => (
                         <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
                           <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>
@@ -9545,22 +9771,16 @@ export default function CompanyEmployeePortal() {
                     {assetDetailCallLogs === null ? (
                       <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
                     ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
-                      // Downtime = repair completion (resolutionAt ?? resolvedAt ?? closedAt) - createdAt
-                      // Must match the same formula used in the Overview tab
+                      // Calculate total downtime across all closed/resolved work orders
                       const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => {
-                        const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
-                        const endTime = wo.resolutionAt || wo.resolvedAt || wo.closedAt;
-                        if (isFinished && wo.createdAt && endTime) {
-                          return sum + Math.max(0, new Date(endTime) - new Date(wo.createdAt));
+                        if ((wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt) {
+                          return sum + (new Date(wo.closedAt) - new Date(wo.createdAt));
                         }
                         return sum;
                       }, 0);
                       const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
                       const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
-                      const totalDowntimeSecs = Math.floor((totalDowntimeMs % 60000) / 1000);
-                      const downtimeLabel = totalDowntimeMs > 0
-                        ? `${String(totalDowntimeHours).padStart(2,"0")}:${String(totalDowntimeMins).padStart(2,"0")}:${String(totalDowntimeSecs).padStart(2,"0")}`
-                        : "—";
+                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
                       return (
                         <>
                           <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
@@ -9588,12 +9808,9 @@ export default function CompanyEmployeePortal() {
                               </thead>
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
-                                  const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
-                                  const endTime = wo.resolutionAt || wo.resolvedAt || wo.closedAt;
-                                  const downMs = isFinished && wo.createdAt && endTime
-                                    ? Math.max(0, new Date(endTime) - new Date(wo.createdAt)) : 0;
+                                  const downMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
+                                    ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
                                   const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
-                                  const displayClosedAt = wo.closedAt || wo.resolvedAt || null;
                                   return (
                                     <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                       <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
@@ -9606,7 +9823,7 @@ export default function CompanyEmployeePortal() {
                                       </td>
                                       <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
                                       <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{displayClosedAt ? new Date(displayClosedAt).toLocaleDateString("en-IN") : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
                                       <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
                                     </tr>
                                   );
@@ -9951,7 +10168,6 @@ export default function CompanyEmployeePortal() {
           token={token}
           existing={editEmp}
           employees={employees}
-          departments={departments}
           customRoles={customRoles}
           currentUserRole={currentUser.role}
           onClose={() => { setShowEmpModal(false); setEditEmp(null); }}

@@ -1391,15 +1391,23 @@ router.delete("/departments/:id", async (req, res, next) => {
 /* ── Assets ─────────────────────────────────────────────────────────────────── */
 router.get("/assets", async (req, res, next) => {
   try {
-    // Determine service domain from company_users + role capabilities.
-    // service_domain: technical → exclude soft assets, soft → only soft, both → all
-    // For users without explicit service_domain, infer from role capabilities.
+    // ── Composite index for (company_id, asset_name) ORDER BY — add once ──
+    pool.query(`ALTER TABLE assets ADD INDEX idx_assets_co_name (company_id, asset_name(80))`)
+       .catch(() => { /* already exists */ });
+
+    // ── Pre-fetch soft asset type codes (replaces correlated subquery) ──────
+    const [softTypeRows] = await pool.query(
+      `SELECT code FROM asset_types WHERE workflow_type = 'soft' AND status = 'Active'`
+    ).catch(() => [[]]);
+    const softTypeCodes = softTypeRows.map(r => r.code).filter(Boolean);
+
+    // ── Service domain: combined into a single query with the main fetch ─────
     const [[cuRow]] = await pool.query(
       `SELECT cu.service_domain AS "serviceDomain",
-              COALESCE(cr.can_raise_soft_issue, FALSE)      AS "canRaiseSoftIssue",
-              COALESCE(cr.is_technician, FALSE)             AS "isTechnician",
-              COALESCE(cr.is_technical_supervisor, FALSE)   AS "isTechnicalSupervisor",
-              COALESCE(cr.is_soft_manager, FALSE)           AS "isSoftManager"
+              COALESCE(cr.can_raise_soft_issue, FALSE) AS "canRaiseSoftIssue",
+              COALESCE(cr.is_technician, FALSE)        AS "isTechnician",
+              COALESCE(cr.is_technical_supervisor, FALSE) AS "isTechnicalSupervisor",
+              COALESCE(cr.is_soft_manager, FALSE)      AS "isSoftManager"
        FROM company_users cu
        LEFT JOIN company_roles cr
          ON cr.company_id = cu.company_id AND cr.role_key = cu.role AND cr.is_active = TRUE
@@ -1408,45 +1416,32 @@ router.get("/assets", async (req, res, next) => {
     );
 
     let serviceDomain = (cuRow?.serviceDomain || '').toLowerCase();
-
-    const userRole = req.companyUser?.role || '';
+    const userRole   = req.companyUser?.role || '';
     const isAdminRole = ['admin', 'catalyst_admin'].includes(userRole);
 
-    // Infer service domain from capabilities when not explicitly set
     if (!isAdminRole && serviceDomain !== 'both') {
       const hasSoftCap = Boolean(cuRow?.canRaiseSoftIssue || cuRow?.isSoftManager);
       const hasTechCap = Boolean(cuRow?.isTechnician || cuRow?.isTechnicalSupervisor);
-      if (hasSoftCap && !hasTechCap) {
-        // Strictly a soft-service user — force to soft regardless of service_domain setting
-        serviceDomain = 'soft';
-      } else if (hasTechCap && !hasSoftCap) {
-        // Strictly a technical user — exclude soft assets
-        serviceDomain = 'technical';
-      } else if (!serviceDomain) {
-        serviceDomain = 'technical'; // safe default
-      }
+      if (hasSoftCap && !hasTechCap)      serviceDomain = 'soft';
+      else if (hasTechCap && !hasSoftCap) serviceDomain = 'technical';
+      else if (!serviceDomain)            serviceDomain = 'technical';
     }
 
-    // Build the asset type filter
+    // ── Build soft/technical filter using pre-fetched codes (no subquery) ───
     let softFilter = '';
     if (!isAdminRole && serviceDomain !== 'both') {
+      const allSoftCodes = ['soft', ...softTypeCodes].map(c => pool.escape(c)).join(',');
       if (serviceDomain === 'soft') {
-        // Only show assets whose type belongs to soft-service workflow
-        softFilter = `AND (
-          LOWER(TRIM(COALESCE(a.asset_type,''))) = 'soft'
-          OR a.asset_type IN (SELECT code FROM asset_types WHERE workflow_type = 'soft' AND status = 'Active')
-        )`;
+        softFilter = `AND LOWER(TRIM(COALESCE(a.asset_type,''))) IN (${allSoftCodes})`;
       } else {
-        // 'technical' — exclude all soft-service asset types
-        softFilter = `AND LOWER(TRIM(COALESCE(a.asset_type,''))) != 'soft'
-          AND (a.asset_type IS NULL OR a.asset_type NOT IN (SELECT code FROM asset_types WHERE workflow_type = 'soft' AND status = 'Active'))`;
+        // technical — exclude all soft types
+        softFilter = `AND (a.asset_type IS NULL OR LOWER(TRIM(COALESCE(a.asset_type,''))) NOT IN (${allSoftCodes}))`;
       }
     }
-    // 'both' domain or admin role → no filter
 
     const { search, type, assignedOnly, assignedToMe, verified } = req.query;
 
-    // Determine company filter: single company, specific accessible company, or all accessible companies
+    // ── Company access filter ────────────────────────────────────────────────
     let companyWhereClause;
     let params;
     if (req.query.allCompanies === "true") {
@@ -1467,7 +1462,7 @@ router.get("/assets", async (req, res, next) => {
     }
 
     let extraFilters = softFilter;
-    if (type) { extraFilters += ` AND a.asset_type = ?`; params.push(type); }
+    if (type)             { extraFilters += ` AND a.asset_type = ?`;                              params.push(type); }
     if (verified === "true")  { extraFilters += ` AND a.is_verified = 1`; }
     if (verified === "false") { extraFilters += ` AND (a.is_verified = 0 OR a.is_verified IS NULL)`; }
     if (search) {
@@ -1492,12 +1487,12 @@ router.get("/assets", async (req, res, next) => {
       params.push(req.companyUser.id, cid(req));
     }
 
-    // Pagination — cap at 5000 to prevent runaway queries.
-    // allCompanies mode raises the default to 5000 to return all assets across hospitals.
-    // Pass ?limit=N&offset=M to paginate on large datasets.
     const reqLimit  = req.query.limit  ? Math.min(Number(req.query.limit), 5000) : (req.query.allCompanies === "true" ? 5000 : 2000);
     const reqOffset = req.query.offset ? Number(req.query.offset) : 0;
 
+    // ── Main query — no documents JOIN, no creator JOIN ──────────────────────
+    // `ad.documents` is large and only needed in the detail view.
+    // `creator` JOIN (createdByName) is not displayed in the list.
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
@@ -1519,28 +1514,26 @@ router.get("/assets", async (req, res, next) => {
               a.is_verified AS "isVerified",
               a.created_by AS "createdBy",
               a.created_at AS "createdAt",
+              a.transfer_count AS "transferCount",
+              a.last_transferred_from_name AS "lastTransferredFromName",
               cu.full_name AS "assignedToName",
-              COALESCE(creator.full_name, creator.email, '') AS "createdByName",
               d.name AS "departmentName",
-              ad.metadata, ad.documents
+              ad.metadata
        FROM assets a
        LEFT JOIN companies co ON co.id = a.company_id
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
-       LEFT JOIN company_users creator ON creator.id = a.created_by
        WHERE ${companyWhereClause} ${extraFilters}
        ORDER BY a.asset_name
        LIMIT ? OFFSET ?`,
       [...params, reqLimit, reqOffset]
     );
-    // List view: do NOT pre-sign image URLs here — images are only shown in the
-    // asset detail modal (GET /assets/:id) which handles signing individually.
-    // Pre-signing 3800+ assets on every list load was causing the page to be slow.
+
+    // List view: skip document/image pre-signing — handled in detail view only.
     const normalized = rows.map((r) => {
-      const meta = r.metadata == null ? {} : (typeof r.metadata === "string" ? JSON.parse(r.metadata) : r.metadata);
-      const docs = r.documents == null ? undefined : (typeof r.documents === "string" ? JSON.parse(r.documents) : r.documents);
-      return { ...r, metadata: docs ? { ...meta, documents: docs } : meta, documents: undefined };
+      const meta = r.metadata == null ? {} : (typeof r.metadata === "string" ? (() => { try { return JSON.parse(r.metadata); } catch { return {}; } })() : r.metadata);
+      return { ...r, metadata: meta };
     });
     res.json(normalized);
   } catch (err) {

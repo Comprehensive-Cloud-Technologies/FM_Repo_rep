@@ -668,21 +668,27 @@ function SchedulerTab({ token }) {
       {showWizard && <CreateScheduleWizard token={token} onClose={() => setShowWizard(false)} onCreated={load} />}
 
       {/* Controls */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0f172a" }}>Calibration Scheduler</h2>
-          <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>Schedule and track calibrations for all assets</p>
+          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a" }}>Calibration Scheduler</h2>
+          <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#64748b" }}>Schedule and track calibrations for all assets</p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <select value={filters.status} onChange={e => setFilters(p => ({ ...p, status: e.target.value }))} style={{ ...S.input, width: 140 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={filters.status} onChange={e => setFilters(p => ({ ...p, status: e.target.value }))}
+            style={{ ...S.input, width: 140 }}>
             <option value="">All Statuses</option>
             <option value="scheduled">Scheduled</option>
             <option value="completed">Completed</option>
             <option value="overdue">Overdue</option>
           </select>
-          <button style={S.btn(view === "calendar" ? "primary" : "ghost")} onClick={() => setView("calendar")}>📅 Calendar</button>
-          <button style={S.btn(view === "list" ? "primary" : "ghost")} onClick={() => setView("list")}>☰ List</button>
-          <button style={S.btn("success")} onClick={() => setShowWizard(true)}>+ New Schedule</button>
+          <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "8px", padding: "2px", gap: "2px" }}>
+            <button style={{ padding: "6px 14px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, background: view === "calendar" ? "#fff" : "transparent", color: view === "calendar" ? "#2563eb" : "#64748b", boxShadow: view === "calendar" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }} onClick={() => setView("calendar")}>Calendar</button>
+            <button style={{ padding: "6px 14px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, background: view === "list" ? "#fff" : "transparent", color: view === "list" ? "#2563eb" : "#64748b", boxShadow: view === "list" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }} onClick={() => setView("list")}>List</button>
+          </div>
+          <button style={{ ...S.btn("primary"), display: "flex", alignItems: "center", gap: "6px" }} onClick={() => setShowWizard(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Schedule
+          </button>
         </div>
       </div>
 
@@ -912,29 +918,39 @@ export default function CalibrationModule({ token }) {
   const [tab, setTab] = useState("scheduler");
 
   const TABS = [
-    { key: "scheduler", label: "📅 Scheduler" },
-    { key: "vendors",   label: "🏢 Vendors"   },
-    { key: "reports",   label: "📊 Reports"   },
+    { key: "scheduler", label: "Scheduler",  icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { key: "vendors",   label: "Vendors",    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+    { key: "reports",   label: "Reports",    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/></svg> },
   ];
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ fontFamily: "Inter, system-ui, sans-serif", maxWidth: "100%" }}>
       {/* Module header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><circle cx="12" cy="12" r="2"/><path d="M12 5v2M12 17v2M5 12H3M21 12h-2M7.05 7.05 5.64 5.64M18.36 18.36l-1.41-1.41M7.05 16.95l-1.41 1.41M18.36 5.64l-1.41 1.41"/></svg>
-        </div>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0f172a" }}>Calibration Management</h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>Schedule, track, and certify equipment calibrations</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(37,99,235,0.15)", flexShrink: 0 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <circle cx="12" cy="12" r="2"/><path d="M12 5v2M12 17v2M5 12H3M21 12h-2M7.05 7.05 5.64 5.64M18.36 18.36l-1.41-1.41M7.05 16.95l-1.41 1.41M18.36 5.64l-1.41 1.41"/>
+            </svg>
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.3px" }}>Calibration Management</h1>
+            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#64748b" }}>Schedule, track, and certify equipment calibrations</p>
+          </div>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: "flex", gap: 4, background: "#f1f5f9", borderRadius: 10, padding: 4, marginBottom: 24, width: "fit-content" }}>
+      <div style={{ display: "flex", gap: "2px", borderBottom: "2px solid #e2e8f0", marginBottom: "24px" }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            style={{ padding: "8px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: "13.5px", fontWeight: tab === t.key ? 700 : 500, background: tab === t.key ? "#fff" : "transparent", color: tab === t.key ? "#1e40af" : "#64748b", boxShadow: tab === t.key ? "0 1px 4px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
+            style={{ display: "flex", alignItems: "center", gap: "7px", padding: "11px 20px", borderRadius: "8px 8px 0 0",
+              border: "none", cursor: "pointer", fontSize: "13.5px", fontWeight: tab === t.key ? 700 : 500,
+              background: tab === t.key ? "#fff" : "transparent",
+              color: tab === t.key ? "#2563eb" : "#64748b",
+              borderBottom: tab === t.key ? "2px solid #2563eb" : "2px solid transparent",
+              marginBottom: "-2px", transition: "all 0.15s" }}>
+            <span style={{ color: tab === t.key ? "#2563eb" : "#94a3b8" }}>{t.icon}</span>
             {t.label}
           </button>
         ))}
