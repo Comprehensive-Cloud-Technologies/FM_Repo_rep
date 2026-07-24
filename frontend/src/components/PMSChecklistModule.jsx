@@ -921,15 +921,24 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
 
   const engineers = [...new Set(schedules.map(s => s.engineer_name).filter(Boolean))];
 
+  const overdueSchedules = schedules.filter(s => s.status === "overdue" ||
+    (s.status === "scheduled" && (s.maintenance_date || "").split("T")[0] < todayStr));
+  const completedSchedules = schedules.filter(s => s.status === "completed");
   const stats = {
-    total:     schedules.length,
-    todayCount:schedules.filter(s => (s.maintenance_date || "").startsWith(todayStr)).length,
-    completed: schedules.filter(s => s.status === "completed").length,
-    pending:   schedules.filter(s => s.status === "scheduled").length,
-    overdue:   schedules.filter(s => s.status === "overdue" ||
-               (s.status === "scheduled" && (s.maintenance_date || "").split("T")[0] < todayStr)).length,
-    pct: schedules.length > 0 ? Math.round(schedules.filter(s => s.status === "completed").length / schedules.length * 100) : 0,
+    total:           schedules.length,
+    totalAssets:     schedules.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    todayCount:      schedules.filter(s => (s.maintenance_date || "").startsWith(todayStr)).length,
+    todayAssets:     schedules.filter(s => (s.maintenance_date || "").startsWith(todayStr)).reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    completed:       completedSchedules.length,
+    completedAssets: schedules.reduce((sum, s) => sum + Number(s.completedAssets || 0), 0),
+    pending:         schedules.filter(s => s.status === "scheduled").length,
+    pendingAssets:   schedules.reduce((sum, s) => sum + Number(s.pendingAssets || 0), 0),
+    overdue:         overdueSchedules.length,
+    overdueAssets:   overdueSchedules.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    pct: schedules.length > 0 ? Math.round(completedSchedules.length / schedules.length * 100) : 0,
+    assetPct: 0,
   };
+  stats.assetPct = stats.totalAssets > 0 ? Math.round(stats.completedAssets / stats.totalAssets * 100) : 0;
 
   // Build date → events map
   // Real recurring occurrence rows are now created in DB, so no virtual projection needed
@@ -984,12 +993,12 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
       {/* ── KPI Stats ──────────────────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "12px", marginBottom: "20px" }}>
         {[
-          { label: "Total PMS",   value: stats.total,      icon: "📋", bg: "#eff6ff", tc: "#1d4ed8" },
-          { label: "Today",       value: stats.todayCount, icon: "📅", bg: "#f0fdf4", tc: "#15803d" },
-          { label: "Completed",   value: stats.completed,  icon: "✅", bg: "#dcfce7", tc: "#15803d" },
-          { label: "Pending",     value: stats.pending,    icon: "⏳", bg: "#fef9c3", tc: "#a16207" },
-          { label: "Overdue",     value: stats.overdue,    icon: "🚨", bg: "#fee2e2", tc: "#dc2626" },
-          { label: "Completion",  value: `${stats.pct}%`,  icon: "📊", bg: "#f5f3ff", tc: "#7c3aed" },
+          { label: "Total Assets",  value: stats.totalAssets,     sub: `${stats.total} schedules`,           icon: "📋", bg: "#eff6ff", tc: "#1d4ed8" },
+          { label: "Today",         value: stats.todayAssets,     sub: `${stats.todayCount} schedules`,      icon: "📅", bg: "#f0fdf4", tc: "#15803d" },
+          { label: "Completed",     value: stats.completedAssets, sub: `${stats.completed} schedules`,       icon: "✅", bg: "#dcfce7", tc: "#15803d" },
+          { label: "Pending",       value: stats.pendingAssets,   sub: `${stats.pending} schedules`,         icon: "⏳", bg: "#fef9c3", tc: "#a16207" },
+          { label: "Overdue",       value: stats.overdueAssets,   sub: `${stats.overdue} schedules`,         icon: "🚨", bg: "#fee2e2", tc: "#dc2626" },
+          { label: "Completion",    value: `${stats.assetPct}%`,  sub: `${stats.pct}% by schedules`,         icon: "📊", bg: "#f5f3ff", tc: "#7c3aed" },
         ].map(c => (
           <div key={c.label} style={{ background: c.bg, borderRadius: "14px", padding: "14px 16px", border: `1px solid ${c.bg}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
@@ -997,6 +1006,7 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
               <span style={{ fontSize: "10px", fontWeight: 700, color: c.tc, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</span>
             </div>
             <div style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{c.value}</div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>{c.sub}</div>
           </div>
         ))}
       </div>

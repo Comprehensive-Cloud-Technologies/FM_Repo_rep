@@ -38,6 +38,7 @@ import companyPortalAssetDashboardRouter from "./routes/companyPortalAssetDashbo
 import healthcareDashboardRouter from "./routes/healthcareDashboard.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
 import calibrationRouter from "./routes/calibration.js";
+import trainingRouter from "./routes/training.js";
 import uploadRouter from "./routes/upload.js";
 import softServiceRequestsRouter from "./routes/softServiceRequests.js";
 import publicDashboardRouter from "./routes/publicDashboard.js";
@@ -45,7 +46,6 @@ import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 import locationsRouter from "./routes/locations.js";
 import statesRouter from "./routes/states.js";
 import mobileNotificationsRouter from "./routes/mobileNotifications.js";
-import calibrationRouter from "./routes/calibration.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -114,6 +114,7 @@ app.use("/api/company-users", companyUsersRouter);
 app.use("/api/company-auth", authLimiter, companyAuthRouter);
 // Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
 app.use("/api/company-portal/calibration", calibrationRouter);
+app.use("/api/company-portal/training", trainingRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);

@@ -656,6 +656,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const [summary, setSummary]     = useState(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const [filters, setFilters]     = useState(EMPTY_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStFil]  = useState("all");   // quick tab filter
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
@@ -666,10 +667,16 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const [openStatusMenu, setOpenStatusMenu] = useState(null); // row id with open status dropdown
   const LIMIT = 30;
 
+  // Debounce the search input to avoid firing an API call on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => { setDebouncedSearch(filters.search); setPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const ef = { ...filters };
+      const ef = { ...filters, search: debouncedSearch };
       // merge status-tab filter with dropdown filter
       if (statusFilter !== "all" && !ef.status) {
         if (statusFilter === "escalated") ef.escalated = true;
@@ -684,7 +691,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       setPagination(data.pagination || { page: 1, total: 0, pages: 1 });
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [authToken, filters, statusFilter, page, allCompaniesMode]);
+  }, [authToken, filters, debouncedSearch, statusFilter, page, allCompaniesMode]);
 
   useEffect(() => { load(); }, [load]);
 
