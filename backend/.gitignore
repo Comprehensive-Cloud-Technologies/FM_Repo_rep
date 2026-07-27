@@ -4,10 +4,15 @@
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
 
+# Environment secrets â€” NEVER commit
+.env
+.env.local
+.env.production
+
 # User uploaded files - NEVER delete these during deployment
 uploads/query-images/
 uploads/
 
-# Firebase service account key (contains secrets — never commit)
+# Firebase service account key (contains secrets ï¿½ never commit)
 *firebase-adminsdk*.json
 firebase-service-account.json
