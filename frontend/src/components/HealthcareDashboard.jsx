@@ -1228,31 +1228,7 @@ function ReviewsSection({ token, compact = false }) {
             </div>
           </>
         )}
-        {/* Recent reviews in compact mode */}
-        {!loading && data && totalRatings > 0 && allReviews.length > 0 && (
-          <div style={{ marginTop: 10, borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-              Recent Reviews
-            </div>
-            {allReviews.slice(0, 3).map((r) => {
-              const text = (r.reviewText || '').trim();
-              const cfg = RR_STAR_COLORS[Math.min(5, Math.max(1, Math.round(r.rating)))];
-              return (
-                <div key={r.id} style={{ padding: '7px 8px', marginBottom: 5, borderRadius: 7, background: '#f8fafc', border: `1px solid ${cfg.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                    <UserAvatar name={r.reviewerName} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reviewerName || 'User'}</div>
-                      <StarDisplay rating={r.rating} size={9} />
-                    </div>
-                    <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
-                  </div>
-                  {text && <div style={{ fontSize: '10.5px', color: '#475569', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', paddingLeft: 4, borderLeft: `2px solid ${cfg.border}` }}>{text}</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* Recent reviews hidden — ratings only per requirement */}
       </div>
     );
   }
@@ -1436,22 +1412,17 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [filterOptions, setFilterOptions] = useState({ departments: [], categories: [], locations: [] });
   const [snapLoading, setSnapL]     = useState(false);
   const [showCostPopup, setShowCostPopup] = useState(false);  // cost breakdown popup
+  const [chartLoading, setChartL]   = useState(false);
   const [snapError, setSnapE]       = useState(null);
   const [activeRecord, setActiveRec]= useState("call-logs");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
+  const [chartDrilldown, setChartDrilldown] = useState(null); // { dept, criticality, data, loading }
   const [activeComplaintKey, setActiveComplaintKey] = useState(null); // complaint tile clicked
   const [complaintRequests, setComplaintRequests] = useState([]);
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [exportDDOpen, setExportDDOpen] = useState(false);
-  const [pmsStats, setPmsStats]           = useState(null);
-  const [pmsLoading, setPmsLoading]       = useState(false);
-  const [pmsOverdueItems, setPmsOverdue]  = useState([]);
-  const [overdueExpanded, setOverdueExp] = useState(false);
-  // KPI detail pane state — stores { section: 'pms'|'calibration', type, label, items, loading }
-  const [kpiPane, setKpiPane]             = useState(null);
-  const [ojtStats, setOjtStats]     = useState(null);
-  const [ojtLoading, setOjtLoading] = useState(false);
+  const [showDeptSummary, setShowDeptSummary] = useState(false);
   const complaintPanelRef = useRef(null);
 
   /* Load snapshot KPIs */
@@ -1462,7 +1433,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     const reqId = ++_hcReqId;
     _hcLastFetch = Date.now();
     // Clear stale data immediately so old company's numbers never linger
-    setSnapshot(null); setCharts(null);    setSnapL(true); setSnapE(null);
+    setSnapshot(null); setCharts(null);
+    setSnapL(true); setSnapE(null);
     try {
       if (allCompaniesMode) {
         const snap = await hcFetch('/aggregate-snapshot', token);
@@ -1485,6 +1457,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       setSnapE(e.message);
     }
     setSnapL(false);
+    setChartL(false);
   }, [token, appliedFilters, allCompaniesMode]);
 
   useEffect(() => { loadSnapshot(true); }, [loadSnapshot, refreshKey, externalRefreshKey, allCompaniesMode]);
@@ -1496,44 +1469,12 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     setActiveKpiKey(null);
     setActiveComplaintKey(null);
     setComplaintRequests([]);
+    setChartDrilldown(null);
     _hcLastFetch = 0; // force fresh fetch regardless of cache age
     // NOTE: do NOT reset _hcReqId here — resetting would allow the old in-flight fetch
     // to share the same reqId as the new one, defeating the stale-response guard.
     // The counter must only ever increment so old reqIds are always < current.
   }, [allCompaniesMode, token]);
-
-  // Load PMS dashboard stats + overdue details
-  useEffect(() => {
-    if (!token || allCompaniesMode) return;
-    setPmsLoading(true);
-    Promise.all([
-      fetch(`${BASE}/api/company-portal/pms/dashboard-stats`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${BASE}/api/company-portal/pms/overdue-details`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : []).catch(() => []),
-    ]).then(([stats, overdue]) => {
-      if (stats) setPmsStats(stats);
-      setPmsOverdue(Array.isArray(overdue) ? overdue : []);
-    }).finally(() => setPmsLoading(false));
-  }, [token, allCompaniesMode, refreshKey]);
-
-  // Load OJT/Training stats
-  useEffect(() => {
-    if (!token) return;
-    setOjtLoading(true);
-    fetch(`${BASE}/api/company-portal/ojt/trainings`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(rows => {
-        if (!rows) return;
-        const data = Array.isArray(rows.data) ? rows.data : (Array.isArray(rows) ? rows : []);
-        const total     = data.length;
-        const published = data.filter(t => t.status === "published").length;
-        const draft     = data.filter(t => t.status === "draft").length;
-        setOjtStats({ total, published, draft, active: published });
-      })
-      .catch(() => {})
-      .finally(() => setOjtLoading(false));
-  }, [token, refreshKey]);
 
   // Load filter options (departments, categories, locations) for the filter panel
   useEffect(() => {
@@ -1542,9 +1483,11 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       .then(d => { if (d) setFilterOptions(d); })
       .catch(() => {});
   }, [token, allCompaniesMode]);
-  const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
 
   const handleApply = () => { setApplied({ ...filters }); };
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
+
+  // Auto-apply search filter as user types (debounced 300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setApplied(prev => ({ ...prev, search: filters.search }));
@@ -1596,6 +1539,22 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     }
     setComplaintLoading(false);
     setTimeout(() => complaintPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
+  // Open drilldown panel when clicking a bar in the Criticality by Department chart
+  const openChartDrilldown = async (dept, criticality, deptId) => {
+    const key = `${dept}-${criticality}`;
+    if (chartDrilldown && chartDrilldown.key === key) { setChartDrilldown(null); return; }
+    setChartDrilldown({ key, dept, criticality, data: null, loading: true });
+    try {
+      const f = { ...appliedFilters, criticality, limit: 200 };
+      if (deptId) f.departmentId = deptId;
+      const qs = buildQS(f);
+      const res = await hcFetch(`/assets${qs}`, token);
+      setChartDrilldown({ key, dept, criticality, data: res.data || [], loading: false });
+    } catch (e) {
+      setChartDrilldown(prev => prev ? { ...prev, loading: false, error: e.message } : null);
+    }
   };
 
   const KPI_LIST = [
@@ -1876,239 +1835,109 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         {/* ── KPI Asset Panel — removed; replaced by always-visible table below filters ── */}
       </section>
 
-      {/* ── PMS OVERDUE ALERT BANNER ── */}
-      {pmsOverdueItems.length > 0 && (
-        <section style={{ marginBottom: "16px" }}>
-          <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: "14px", overflow: "hidden" }}>
-            {/* Banner header */}
-            <button
-              onClick={() => setOverdueExp(p => !p)}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px",
-                background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: "32px", height: "32px", borderRadius: "50%", background: "#dc2626", flexShrink: 0 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-              </span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", fontWeight: 800, color: "#991b1b" }}>
-                  {pmsOverdueItems.length} Overdue PMS {pmsOverdueItems.length === 1 ? "Task" : "Tasks"} Require Attention
-                </div>
-                <div style={{ fontSize: "12px", color: "#b91c1c", marginTop: "1px" }}>
-                  Preventive maintenance was not completed on the scheduled date.{" "}
-                  {!overdueExpanded ? "Click to view details." : ""}
-                </div>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"
-                style={{ transform: overdueExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
+      {/* ── CHARTS ROW ── */}
+      <section style={{ marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 14px" }}>Analytics & Charts</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
 
-            {/* Expandable detail table */}
-            {overdueExpanded && (
-              <div style={{ borderTop: "1px solid #fca5a5", overflowX: "auto", maxHeight: "300px", overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ background: "#fee2e2", position: "sticky", top: 0 }}>
-                      {["Asset", "Department", "Hospital", "Schedule", "Due Date", "Days Overdue", "Engineer"].map(h => (
-                        <th key={h} style={{ padding: "9px 14px", textAlign: "left", fontSize: "11px",
-                          fontWeight: 700, color: "#991b1b", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pmsOverdueItems.map((item, i) => (
-                      <tr key={item.psaId || i}
-                        style={{ background: i % 2 === 0 ? "#fff" : "#fff7f7", borderBottom: "1px solid #fee2e2" }}>
-                        <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
-                          {item.assetName}
-                          {item.assetCode && <span style={{ marginLeft: "6px", fontSize: "11px",
-                            background: "#fef2f2", color: "#dc2626", padding: "1px 6px", borderRadius: "4px", fontFamily: "monospace" }}>
-                            {item.assetCode}
-                          </span>}
-                        </td>
-                        <td style={{ padding: "9px 14px", color: "#475569" }}>{item.departmentName || "—"}</td>
-                        <td style={{ padding: "9px 14px", color: "#475569" }}>{item.companyName || "—"}</td>
-                        <td style={{ padding: "9px 14px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>
-                          {item.scheduleNumber || "—"}
-                        </td>
-                        <td style={{ padding: "9px 14px", color: "#dc2626", fontWeight: 600, whiteSpace: "nowrap" }}>
-                          {item.maintenanceDate ? String(item.maintenanceDate).slice(0, 10) : "—"}
-                        </td>
-                        <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                          <span style={{ display: "inline-block", background: "#dc2626", color: "#fff",
-                            padding: "2px 10px", borderRadius: "100px", fontSize: "12px", fontWeight: 700 }}>
-                            {item.daysOverdue}d
-                          </span>
-                        </td>
-                        <td style={{ padding: "9px 14px", color: "#475569" }}>{item.engineerName || <em style={{ color: "#94a3b8" }}>Unassigned</em>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+          {/* Pie: Working Status — now shown inline above, removed from here */}
 
-      {/* ── PMS PROFILE ── */}
-      <section style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-          {[
-            { key: "pmsDue",       label: "Due This Month",       icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonth,       type: "due_this_month"        },
-            { key: "pmsOverdue",   label: "Overdue",              icon: Icon.Pms, color: "red",    value: pmsStats?.overdue,            type: "overdue"               },
-            { key: "pmsUpcoming",  label: "Upcoming (30D)",       icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30d,        type: "upcoming_30d"          },
-            { key: "pmsCompleted", label: "Completed This Month", icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonth, type: "completed_this_month"  },
-          ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading}
-              isActive={kpiPane?.section === "pms" && kpiPane?.type === k.type}
-              onClick={() => {
-                if (kpiPane?.section === "pms" && kpiPane?.type === k.type) { setKpiPane(null); return; }
-                setKpiPane({ section: "pms", type: k.type, label: k.label, items: null, loading: true });
-                fetch(`${BASE}/api/company-portal/pms/kpi-details?type=${k.type}`, { headers: { Authorization: `Bearer ${token}` } })
-                  .then(r => r.ok ? r.json() : []).then(items => setKpiPane(p => p ? { ...p, items, loading: false } : null)).catch(() => setKpiPane(p => p ? { ...p, items: [], loading: false } : null));
-              }} />
-          ))}
+          {/* Bar: Criticality by Dept */}
+          <ChartCard
+            title="Criticality by Department"
+            subtitle="Click a bar to view those assets"
+            action={charts?.criticalityByDept?.length > 0 ? (
+              <button onClick={() => setShowDeptSummary(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="3"/></svg>
+                View Summary
+              </button>
+            ) : null}
+          >
+            {chartLoading ? <Spinner /> : charts?.criticalityByDept ?
+              <BarChart data={charts.criticalityByDept} onBarClick={allCompaniesMode ? null : openChartDrilldown} groupByHospital={allCompaniesMode} /> :
+              <EmptyState small />
+            }
+          </ChartCard>
         </div>
-        {/* PMS KPI detail pane */}
-        {kpiPane?.section === "pms" && (
-          <div style={{ marginTop: "12px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>PMS — {kpiPane.label}
-                {!kpiPane.loading && <span style={{ marginLeft: "8px", fontSize: "12px", color: "#64748b", fontWeight: 500 }}>({kpiPane.items?.length || 0} assets)</span>}
-              </div>
-              <button onClick={() => setKpiPane(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px", lineHeight: 1 }}>×</button>
-            </div>
-            {kpiPane.loading ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading…</div>
-            ) : !kpiPane.items?.length ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets found for this period.</div>
-            ) : (
-              <div style={{ overflowX: "auto", maxHeight: "320px", overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                      {["Asset", "Code", "Department", "Hospital", "Schedule", "Date", "Status", "Engineer"].map(h => (
-                        <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {kpiPane.items.map((r, i) => (
-                      <tr key={r.psaId || `${r.assetId}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{r.assetName}</td>
-                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{r.assetCode || "—"}</td>
-                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.departmentName || "—"}</td>
-                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.companyName || "—"}</td>
-                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>{r.scheduleNumber || "—"}</td>
-                        <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#374151" }}>{r.maintenanceDate ? String(r.maintenanceDate).slice(0,10) : "—"}</td>
-                        <td style={{ padding: "9px 12px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: "100px", fontSize: "11px", fontWeight: 700,
-                            background: r.psaStatus === "completed" ? "#dcfce7" : r.psaStatus === "in_progress" ? "#fef9c3" : "#dbeafe",
-                            color: r.psaStatus === "completed" ? "#15803d" : r.psaStatus === "in_progress" ? "#92400e" : "#1d4ed8" }}>
-                            {r.psaStatus || "—"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.engineerName || <em style={{ color: "#94a3b8" }}>Unassigned</em>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
       </section>
 
       {/* ── CALIBRATION PROFILE ── */}
-      <section style={{ marginBottom: "20px" }}>
+      <section style={{ marginBottom: "28px" }}>
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDue",       label: "Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth,      type: "due_this_month"        },
-            { key: "calibrationOverdue",   label: "Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue,           type: "overdue"               },
-            { key: "calibrationUpcoming",  label: "Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming,          type: "upcoming_30d"          },
-            { key: "calibrationCompleted", label: "Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth, type: "completed_this_month"  },
+            { key: "calibrationDueThisMonth", label: "Due This Month", icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
+            { key: "calibrationOverdue", label: "Overdue", icon: Icon.Calibration, color: "red", value: snapshot?.calibrationOverdue },
+            { key: "calibrationUpcoming", label: "Upcoming (30D)", icon: Icon.Calibration, color: "blue", value: snapshot?.calibrationUpcoming },
+            { key: "calibrationCompletedThisMonth", label: "Completed This Month", icon: Icon.Calibration, color: "green", value: snapshot?.calibrationCompletedThisMonth },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading}
-              isActive={kpiPane?.section === "calibration" && kpiPane?.type === k.type}
-              onClick={() => {
-                if (kpiPane?.section === "calibration" && kpiPane?.type === k.type) { setKpiPane(null); return; }
-                setKpiPane({ section: "calibration", type: k.type, label: k.label, items: null, loading: true });
-                fetch(`${BASE}/api/company-portal/calibration/kpi-details?type=${k.type}`, { headers: { Authorization: `Bearer ${token}` } })
-                  .then(r => r.ok ? r.json() : []).then(items => setKpiPane(p => p ? { ...p, items, loading: false } : null)).catch(() => setKpiPane(p => p ? { ...p, items: [], loading: false } : null));
-              }} />
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              loading={snapLoading}
+              isActive={false}
+            />
           ))}
         </div>
-        {/* Calibration KPI detail pane */}
-        {kpiPane?.section === "calibration" && (
-          <div style={{ marginTop: "12px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>Calibration — {kpiPane.label}
-                {!kpiPane.loading && <span style={{ marginLeft: "8px", fontSize: "12px", color: "#64748b", fontWeight: 500 }}>({kpiPane.items?.length || 0} assets)</span>}
-              </div>
-              <button onClick={() => setKpiPane(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px", lineHeight: 1 }}>×</button>
-            </div>
-            {kpiPane.loading ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>Loading…</div>
-            ) : !kpiPane.items?.length ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets found for this period.</div>
-            ) : (
-              <div style={{ overflowX: "auto", maxHeight: "320px", overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                      {["Asset", "Code", "Department", "Schedule", "Date", "Frequency", "Status", "Vendor"].map(h => (
-                        <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 700, fontSize: "11px", color: "#64748b", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {kpiPane.items.map((r, i) => (
-                      <tr key={`${r.assetId}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{r.assetName}</td>
-                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "11px", color: "#64748b" }}>{r.assetCode || "—"}</td>
-                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.departmentName || "—"}</td>
-                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>{r.scheduleNumber || "—"}</td>
-                        <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#374151" }}>{r.calibrationDate ? String(r.calibrationDate).slice(0,10) : "—"}</td>
-                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.frequency || "—"}</td>
-                        <td style={{ padding: "9px 12px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: "100px", fontSize: "11px", fontWeight: 700,
-                            background: r.status === "completed" ? "#dcfce7" : r.status === "in_progress" ? "#fef9c3" : "#dbeafe",
-                            color: r.status === "completed" ? "#15803d" : r.status === "in_progress" ? "#92400e" : "#1d4ed8" }}>
-                            {r.status || "—"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "9px 12px", color: "#475569", fontSize: "12px" }}>{r.vendorName || <em style={{ color: "#94a3b8" }}>—</em>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
       </section>
 
-      {/* ── TRAINING RECORDS ── */}
-      <section style={{ marginBottom: "28px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Training Records</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-          {[
-            { key: "ojtTotal",      label: "Total Programs",   icon: Icon.Training, color: "blue",   value: ojtStats?.total },
-            { key: "ojtPublished",  label: "Published",        icon: Icon.Training, color: "green",  value: ojtStats?.published },
-            { key: "ojtDraft",      label: "Draft",            icon: Icon.Training, color: "yellow", value: ojtStats?.draft },
-            { key: "ojtActive",     label: "Active",           icon: Icon.Training, color: "teal",   value: ojtStats?.active },
-          ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading} isActive={false} />
-          ))}
+      {/* ── CHART DRILLDOWN PANEL ── */}
+      {chartDrilldown && (
+        <div style={{ marginBottom: "28px", background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
+              {chartDrilldown.criticality === "Critical" ? "🔴" : "🔵"} {chartDrilldown.criticality.replace("_", " ")} Assets — {chartDrilldown.dept}
+            </span>
+            <button onClick={() => setChartDrilldown(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#94a3b8", lineHeight: 1 }}>×</button>
+          </div>
+          {chartDrilldown.loading ? (
+            <div style={{ padding: "30px", textAlign: "center" }}><Spinner /></div>
+          ) : chartDrilldown.error ? (
+            <div style={{ padding: "20px", color: "#dc2626", textAlign: "center" }}>{chartDrilldown.error}</div>
+          ) : (!chartDrilldown.data || chartDrilldown.data.length === 0) ? (
+            <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8" }}>No assets found</div>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "340px", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                    {["#", "QR Code", "Equipment Name", "Department", "Make", "Model", "Status"].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartDrilldown.data.map((a, i) => {
+                    const meta = typeof a.metadata === "string" ? JSON.parse(a.metadata || "{}") : (a.metadata || {});
+                    return (
+                      <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                        onMouseLeave={e => e.currentTarget.style.background = ""}>
+                        <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#2563eb", fontWeight: 600 }}>{a.asset_unique_id || "—"}</td>
+                        <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{a.asset_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{a.department_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{meta.make || meta.manufacturer || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{meta.model || "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700,
+                            background: meta.rber ? "#fef3c7" : a.working_status === "Not_Working" ? "#fef2f2" : a.working_status === "WIP" ? "#fef9c3" : "#f0fdf4",
+                            color: meta.rber ? "#d97706" : a.working_status === "Not_Working" ? "#dc2626" : a.working_status === "WIP" ? "#92400e" : "#16a34a" }}>
+                            {meta.rber ? "RBER" : (a.working_status || "Working").replace("_", " ")}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </section>
+      )}
 
       {/* ── RECORDS TABS ── */}
       <section>
@@ -2147,6 +1976,151 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       </section>
 
       {/* ── RATINGS & REVIEWS removed — shown inline beside Complaint Profile above ── */}
+
+      {/* ── DEPARTMENT SUMMARY MODAL ── */}
+      {showDeptSummary && charts?.criticalityByDept && (
+        <div
+          onClick={() => setShowDeptSummary(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: allCompaniesMode ? "820px" : "620px", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}
+          >
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>{allCompaniesMode ? "Hospital-wise Department Asset Summary" : "Department-wise Asset Summary"}</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{allCompaniesMode ? "Critical & Non-Critical breakdown across all hospitals" : "Critical & Non-Critical breakdown by department"}</div>
+              </div>
+              <button onClick={() => setShowDeptSummary(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8", lineHeight: 1 }}>✕</button>
+            </div>
+            {/* Table */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {allCompaniesMode ? (
+                /* ── Hospital-wise grouped view ── */
+                (() => {
+                  const groups = charts.criticalityByDept.reduce((acc, d) => {
+                    const h = d.hospital || 'Unknown Hospital';
+                    if (!acc[h]) acc[h] = [];
+                    acc[h].push(d);
+                    return acc;
+                  }, {});
+                  let globalSn = 0;
+                  return (
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                        <tr style={{ background: "#bfdbfe" }}>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
+                          <th style={{ padding: "9px 14px", textAlign: "left", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Hospital</th>
+                          <th style={{ padding: "9px 14px", textAlign: "left", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
+                          <th style={{ padding: "9px 10px", textAlign: "center", color: "#1e3a5f", fontWeight: 700, fontSize: "11px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(groups).map(([hospital, depts], hIdx) => {
+                          const hospTotal     = depts.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0);
+                          const hospCritical  = depts.reduce((s, d) => s + (d.critical || 0), 0);
+                          const hospNonCrit   = depts.reduce((s, d) => s + (d.nonCritical || 0), 0);
+                          const sortedDepts   = [...depts].sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical));
+                          return [
+                            /* Hospital subtotal row */
+                            <tr key={`h-${hIdx}`} style={{ background: "#dbeafe", borderTop: hIdx > 0 ? "2px solid #93c5fd" : undefined }}>
+                              <td colSpan={2} style={{ padding: "8px 14px", fontWeight: 800, color: "#1e40af", fontSize: "12px" }}>🏥 {hospital}</td>
+                              <td style={{ padding: "8px 14px", fontWeight: 800, color: "#1e40af", fontSize: "12px" }}>— {sortedDepts.length} depts</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#1e40af", fontSize: "13px", textAlign: "center" }}>{hospTotal}</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#dc2626", fontSize: "13px", textAlign: "center" }}>{hospCritical}</td>
+                              <td style={{ padding: "8px 10px", fontWeight: 900, color: "#0f172a", fontSize: "13px", textAlign: "center" }}>{hospNonCrit}</td>
+                            </tr>,
+                            /* Department rows under this hospital */
+                            ...sortedDepts.map((d, i) => {
+                              globalSn++;
+                              const qty = (d.critical || 0) + (d.nonCritical || 0);
+                              return (
+                                <tr key={`${hIdx}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
+                                  <td style={{ padding: "8px 10px", color: "#94a3b8", fontSize: "11px", textAlign: "center" }}>{globalSn}</td>
+                                  <td style={{ padding: "8px 14px", fontSize: "11px", color: "#64748b" }}>{hospital}</td>
+                                  <td style={{ padding: "8px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
+                                  <td style={{ padding: "8px 10px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
+                                  <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 700, color: qty > 0 && (d.critical || 0) === qty ? "#dc2626" : "#0f172a", fontSize: "12px" }}>{d.critical || 0}</td>
+                                  <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "12px" }}>{d.nonCritical || 0}</td>
+                                </tr>
+                              );
+                            }),
+                          ];
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: "#bfdbfe" }}>
+                          <td colSpan={3} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
+                          <td style={{ padding: "10px 10px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
+                          </td>
+                          <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 900, color: "#dc2626", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
+                          </td>
+                          <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                            {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()
+              ) : (
+                /* ── Single-hospital view (original) ── */
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                    <tr style={{ background: "#bfdbfe" }}>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>SN</th>
+                      <th style={{ padding: "9px 14px", textAlign: "left",    color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Department</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Qty</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Critical</th>
+                      <th style={{ padding: "9px 14px", textAlign: "center",  color: "#1e3a5f", fontWeight: 700, fontSize: "12px", borderBottom: "2px solid #93c5fd", whiteSpace: "nowrap" }}>Non Critical</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...charts.criticalityByDept]
+                      .sort((a, b) => (b.critical + b.nonCritical) - (a.critical + a.nonCritical))
+                      .map((d, i) => {
+                        const qty = (d.critical || 0) + (d.nonCritical || 0);
+                        return (
+                          <tr key={d.deptId || i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                            onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#f8fafc"}>
+                            <td style={{ padding: "9px 14px", color: "#94a3b8", fontSize: "12px", textAlign: "center" }}>{i + 1}</td>
+                            <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a" }}>{d.dept}</td>
+                            <td style={{ padding: "9px 14px", fontWeight: 700, color: "#1e3a5f", textAlign: "center" }}>{qty}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.critical || 0}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{d.nonCritical || 0}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#bfdbfe" }}>
+                      <td colSpan={2} style={{ padding: "10px 14px", fontWeight: 800, color: "#1e3a5f", fontSize: "13px", borderTop: "2px solid #93c5fd" }}>Grand Total</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", textAlign: "center", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0) + (d.nonCritical || 0), 0)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.critical || 0), 0)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 900, color: "#1e3a5f", fontSize: "14px", borderTop: "2px solid #93c5fd" }}>
+                        {charts.criticalityByDept.reduce((s, d) => s + (d.nonCritical || 0), 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

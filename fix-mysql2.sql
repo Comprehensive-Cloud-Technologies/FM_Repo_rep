@@ -1,8 +1,0 @@
-CREATE USER IF NOT EXISTS 'fmapp_user'@'127.0.0.1' IDENTIFIED BY 'FMapp@EC2#2026';
-GRANT ALL PRIVILEGES ON fmapp.* TO 'fmapp_user'@'127.0.0.1';
-ALTER USER 'fmapp_user'@'127.0.0.1' IDENTIFIED BY 'FMapp@EC2#2026';
-CREATE USER IF NOT EXISTS 'fmapp_user'@'%' IDENTIFIED BY 'FMapp@EC2#2026';
-GRANT ALL PRIVILEGES ON fmapp.* TO 'fmapp_user'@'%';
-ALTER USER 'fmapp_user'@'%' IDENTIFIED BY 'FMapp@EC2#2026';
-FLUSH PRIVILEGES;
-SELECT User, Host FROM mysql.user WHERE User='fmapp_user';

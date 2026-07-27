@@ -335,6 +335,16 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
       created_at DATETIME DEFAULT NOW(),
       UNIQUE KEY uq_asset_statuses (company_id, name)
     )`,
+    // Role-level permission defaults per company (used by /me endpoint)
+    `CREATE TABLE IF NOT EXISTS role_permissions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      company_id INT NOT NULL,
+      role VARCHAR(80) NOT NULL,
+      permissions JSON DEFAULT NULL,
+      created_at DATETIME DEFAULT NOW(),
+      updated_at DATETIME DEFAULT NOW() ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_role_perms (company_id, role)
+    )`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -1391,29 +1401,23 @@ router.delete("/departments/:id", async (req, res, next) => {
 /* ── Assets ─────────────────────────────────────────────────────────────────── */
 router.get("/assets", async (req, res, next) => {
   try {
-    // ── Composite index for (company_id, asset_name) ORDER BY — add once ──
-    pool.query(`ALTER TABLE assets ADD INDEX idx_assets_co_name (company_id, asset_name(80))`)
-       .catch(() => { /* already exists */ });
-
-    // ── Pre-fetch soft asset type codes (replaces correlated subquery) ──────
-    const [softTypeRows] = await pool.query(
-      `SELECT code FROM asset_types WHERE workflow_type = 'soft' AND status = 'Active'`
-    ).catch(() => [[]]);
+    // ── Pre-fetch soft asset type codes + user role in parallel ─────────────
+    const [[softTypeRows], [[cuRow]]] = await Promise.all([
+      pool.query(`SELECT code FROM asset_types WHERE workflow_type = 'soft' AND status = 'Active'`).catch(() => [[]]),
+      pool.query(
+        `SELECT cu.service_domain AS "serviceDomain",
+                COALESCE(cr.can_raise_soft_issue, FALSE) AS "canRaiseSoftIssue",
+                COALESCE(cr.is_technician, FALSE)        AS "isTechnician",
+                COALESCE(cr.is_technical_supervisor, FALSE) AS "isTechnicalSupervisor",
+                COALESCE(cr.is_soft_manager, FALSE)      AS "isSoftManager"
+         FROM company_users cu
+         LEFT JOIN company_roles cr
+           ON cr.company_id = cu.company_id AND cr.role_key = cu.role AND cr.is_active = TRUE
+         WHERE cu.id = ? LIMIT 1`,
+        [req.companyUser.id]
+      ).catch(() => [[null]]),
+    ]);
     const softTypeCodes = softTypeRows.map(r => r.code).filter(Boolean);
-
-    // ── Service domain: combined into a single query with the main fetch ─────
-    const [[cuRow]] = await pool.query(
-      `SELECT cu.service_domain AS "serviceDomain",
-              COALESCE(cr.can_raise_soft_issue, FALSE) AS "canRaiseSoftIssue",
-              COALESCE(cr.is_technician, FALSE)        AS "isTechnician",
-              COALESCE(cr.is_technical_supervisor, FALSE) AS "isTechnicalSupervisor",
-              COALESCE(cr.is_soft_manager, FALSE)      AS "isSoftManager"
-       FROM company_users cu
-       LEFT JOIN company_roles cr
-         ON cr.company_id = cu.company_id AND cr.role_key = cu.role AND cr.is_active = TRUE
-       WHERE cu.id = ? LIMIT 1`,
-      [req.companyUser.id]
-    );
 
     let serviceDomain = (cuRow?.serviceDomain || '').toLowerCase();
     const userRole   = req.companyUser?.role || '';
@@ -2527,7 +2531,9 @@ router.patch("/assets/:id", async (req, res, next) => {
             buildingId, floorId, roomId, locationId,
             status, criticality, workingStatus, metadata = {},
             pmsChecklistId: patchPmsChecklistId } = req.body;
-    const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const aInClause = accessibleIds.map(() => "?").join(",");
+    const [[check]] = await pool.query(`SELECT id FROM assets WHERE id = ? AND company_id IN (${aInClause})`, [id, ...accessibleIds]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
     const calibration = await deriveCalibrationFromInput(pool, req.body, metadata || {});
 
@@ -4269,7 +4275,7 @@ router.get("/me", async (req, res, next) => {
        WHERE company_id = ? AND role = ?
        LIMIT 1`,
       [row.companyId, row.role]
-    );
+    ).catch(() => [[null]]);
 
     const rolePerms = toObject(rolePermRow?.permissions);
     const userPerms = toObject(row.permissions);
@@ -7097,5 +7103,11 @@ router.delete("/pre-qr/:id", async (req, res, next) => {
     res.json({ message: "Deleted" });
   } catch (err) { next(err); }
 });
+
+// ── One-time startup indexes (run once, ignored if already exist) ───────────
+Promise.all([
+  pool.query(`ALTER TABLE assets ADD INDEX IF NOT EXISTS idx_assets_co_name (company_id, asset_name(80))`).catch(() => {}),
+  pool.query(`ALTER TABLE asset_details ADD INDEX IF NOT EXISTS idx_ad_asset_id (asset_id)`).catch(() => {}),
+]).catch(() => {});
 
 export default router;
