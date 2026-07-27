@@ -71,15 +71,6 @@ export default function AssetDetailPage() {
   const [selectedPms, setSelectedPms] = useState(null);
   const [pmsDetail, setPmsDetail] = useState(null);
   const [pmsDetailLoading, setPmsDetailLoading] = useState(false);
-  const [transferHistory, setTransferHistory] = useState(null);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [companies, setCompanies] = useState([]);
-  const [transferDepts, setTransferDepts] = useState([]);
-  const [transferForm, setTransferForm] = useState({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
-  const [transferring, setTransferring] = useState(false);
-  const [transferError, setTransferError] = useState(null);
-  const [transferSuccess, setTransferSuccess] = useState(null);
-  const [loadingDepts, setLoadingDepts] = useState(false);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -113,28 +104,23 @@ export default function AssetDetailPage() {
       return;
     }
     const base = getApiBaseUrl();
-    // Use full-history so downtime/MTTR/MTBF span pre-transfer data
-    fetch(`${base}/api/company-portal/assets/${id}/full-history`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => {
-        const workOrders = Array.isArray(d.workOrders) ? d.workOrders : [];
-        const assetQueries = (Array.isArray(d.assetQueries) ? d.assetQueries : []).map(q => ({
-          ...q, wipAt: q.wipAt || null,
-          resolutionAt: q.resolutionAt || q.resolvedAt || null,
-          closedAt: q.resolutionAt || q.resolvedAt || null,
-        }));
-        setCallLogs([...workOrders, ...assetQueries]);
-      })
-      .catch(() => {
-        Promise.all([
-          fetch(`${base}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : Promise.reject()).then(d => Array.isArray(d?.data) ? d.data : []).catch(() => []),
-          fetch(`${base}/api/company-portal/asset-queries?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : Promise.reject())
-            .then(d => (Array.isArray(d) ? d : []).map(q => ({ ...q, wipAt: q.wipAt || null, resolutionAt: q.resolvedAt || null, closedAt: q.resolvedAt || null })))
-            .catch(() => []),
-        ]).then(([wo, aq]) => setCallLogs([...wo, ...aq]));
-      });
+    // Fetch work-orders AND asset queries (QR-scan requests) so downtime includes both sources
+    Promise.all([
+      fetch(`${base}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => Array.isArray(d?.data) ? d.data : [])
+        .catch(() => []),
+      fetch(`${base}/api/company-portal/asset-queries?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => (Array.isArray(d) ? d : []).map(q => ({
+          ...q,
+          // Normalise to work-order field names used in downtime calculation
+          wipAt: q.wipAt || null,
+          resolutionAt: q.resolvedAt || null,
+          closedAt: q.resolvedAt || null,
+        })))
+        .catch(() => []),
+    ]).then(([workOrders, assetQueries]) => setCallLogs([...workOrders, ...assetQueries]));
     fetch(`${base}/api/company-portal/assets/${id}/calibration-records`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => setCalibration(Array.isArray(d) ? d : []))
@@ -268,7 +254,6 @@ export default function AssetDetailPage() {
     { key: "calibration",label: "Calibration History" },
     { key: "purchase",   label: "Purchase History" },
     { key: "pms_history",label: "PMS History" },
-    { key: "transfer",   label: "Transfer History" },
     { key: "indent",     label: "Indent Details" },
   ];
 
@@ -756,35 +741,9 @@ export default function AssetDetailPage() {
           {(asset.working_status || m.workingStatus) && (
             <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{(asset.working_status || m.workingStatus).replace(/_/g, " ")}</span>
           )}
-          {asset.transfer_count > 0 && (
-            <span title={`Originally from: ${asset.last_transferred_from_name || "Unknown"} · Transferred ${asset.transfer_count} time(s)`}
-              style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", cursor: "default", display: "flex", alignItems: "center", gap: "5px" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              Transferred
-              {asset.transfer_count > 1 && <span style={{ background: "#c2410c", color: "#fff", borderRadius: "100px", padding: "0 5px", fontSize: "10px" }}>{asset.transfer_count}</span>}
-            </span>
-          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>{asset.departmentName && `Dept: ${asset.departmentName}`}</div>
-          {!isAdmin && (() => {
-            try { return JSON.parse(sessionStorage.getItem("cp_user") || "null")?.role === "admin"; }
-            catch { return false; }
-          })() && (
-            <button onClick={() => {
-              setTransferError(null); setTransferSuccess(null);
-              setTransferForm({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
-              setTransferDepts([]);
-              const base = getApiBaseUrl();
-              fetch(`${base}/api/company-portal/assets/transfer/companies`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.ok ? r.json() : []).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => setCompanies([]));
-              setShowTransferModal(true);
-            }}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "none", background: "#f97316", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              Transfer
-            </button>
-          )}
           <button onClick={openEditModal}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -803,12 +762,6 @@ export default function AssetDetailPage() {
               .then(r => r.ok ? r.json() : Promise.reject())
               .then(d => { setPmsHistory(d); setPmsHistoryLoading(false); })
               .catch(() => { setPmsHistory({ history: [] }); setPmsHistoryLoading(false); });
-          }
-          if (t.key === "transfer" && !transferHistory && token && !isAdmin) {
-            fetch(`${getApiBaseUrl()}/api/company-portal/assets/${id}/transfer-history`, { headers: { Authorization: `Bearer ${token}` } })
-              .then(r => r.ok ? r.json() : Promise.reject())
-              .then(d => setTransferHistory(d))
-              .catch(() => setTransferHistory({ asset: null, transfers: [] }));
           }
         }}>{t.label}</button>)}
       </div>
@@ -1107,182 +1060,7 @@ export default function AssetDetailPage() {
           </div>
         )}
 
-        {/* Transfer History */}
-        {tab === "transfer" && (
-          <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-            <div style={{ marginBottom: "20px" }}>
-              <h4 style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Transfer History</h4>
-              <p style={{ fontSize: "12px", color: "#64748b", margin: "3px 0 0" }}>
-                {!transferHistory ? "" : `${(transferHistory.transfers || []).length} transfer(s) · Currently at: ${transferHistory.asset?.currentCompanyName || "—"}${transferHistory.asset?.currentDepartmentName ? ` / ${transferHistory.asset.currentDepartmentName}` : ""}`}
-              </p>
-            </div>
-            {!transferHistory ? (
-              <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>Loading…</div>
-            ) : (transferHistory.transfers || []).length === 0 ? (
-              <div style={{ textAlign: "center", padding: "56px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", color: "#94a3b8" }}>
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" style={{ display: "block", margin: "0 auto 14px" }}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                <div style={{ fontWeight: 600, fontSize: "14px", color: "#64748b", marginBottom: "4px" }}>No Transfer History</div>
-                <div style={{ fontSize: "13px" }}>This asset has never been transferred.</div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {(transferHistory.transfers || []).map((t, i) => {
-                  const fromLabel = t.from_company_name || `Company ${t.from_company_id}`;
-                  const toLabel   = t.to_company_name   || `Company ${t.to_company_id}`;
-                  const fmtDt = d => d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
-                  return (
-                    <div key={t.id} style={{ display: "flex", alignItems: "stretch" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48px", flexShrink: 0 }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#fff7ed", border: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#c2410c", fontWeight: 800, fontSize: "12px", marginTop: "4px" }}>{i + 1}</div>
-                        {i < (transferHistory.transfers.length - 1) && <div style={{ width: "2px", flex: 1, background: "#fed7aa", margin: "4px 0" }} />}
-                      </div>
-                      <div style={{ flex: 1, background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "16px 20px", marginBottom: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", flexWrap: "wrap", gap: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            {t.transfer_reference && <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700, background: "#eff6ff", color: "#2563eb", padding: "2px 8px", borderRadius: "6px", border: "1px solid #bfdbfe" }}>{t.transfer_reference}</span>}
-                            <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>Completed</span>
-                          </div>
-                          <span style={{ fontSize: "12px", color: "#94a3b8" }}>{fmtDt(t.transferred_at)}</span>
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
-                          <div style={{ background: "#fef2f2", borderRadius: "8px", padding: "10px 12px", border: "1px solid #fecaca" }}>
-                            <div style={{ fontSize: "10px", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", marginBottom: "3px" }}>From</div>
-                            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{fromLabel}</div>
-                            {t.from_department_name && <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "2px" }}>{t.from_department_name}</div>}
-                          </div>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                          <div style={{ background: "#f0fdf4", borderRadius: "8px", padding: "10px 12px", border: "1px solid #bbf7d0" }}>
-                            <div style={{ fontSize: "10px", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", marginBottom: "3px" }}>To</div>
-                            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>{toLabel}</div>
-                            {t.to_department_name && <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "2px" }}>{t.to_department_name}</div>}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: "20px", fontSize: "12px", color: "#64748b", flexWrap: "wrap", borderTop: "1px solid #f1f5f9", paddingTop: "10px" }}>
-                          <span>By: <strong style={{ color: "#374151" }}>{t.transferred_by_name || "—"}</strong></span>
-                          {(t.reason || t.notes) && <span>Reason: <em style={{ color: "#374151" }}>{t.reason || t.notes}</em></span>}
-                          {t.remarks && <span>Remarks: <em style={{ color: "#374151" }}>{t.remarks}</em></span>}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ display: "flex", alignItems: "flex-start" }}>
-                  <div style={{ width: "48px", display: "flex", justifyContent: "center" }}>
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#dcfce7", border: "2px solid #16a34a", display: "flex", alignItems: "center", justifyContent: "center", color: "#16a34a", marginTop: "4px" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                    </div>
-                  </div>
-                  <div style={{ flex: 1, background: "#f0fdf4", borderRadius: "12px", border: "1px solid #bbf7d0", padding: "14px 20px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", marginBottom: "3px" }}>Current Location</div>
-                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px" }}>{transferHistory.asset?.currentCompanyName || "—"}</div>
-                    {transferHistory.asset?.currentDepartmentName && <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{transferHistory.asset.currentDepartmentName}</div>}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
       </div>
-
-      {/* Transfer Modal */}
-      {showTransferModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-          onClick={e => e.target === e.currentTarget && !transferring && setShowTransferModal(false)}>
-          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "520px", boxShadow: "0 24px 64px rgba(0,0,0,0.22)", display: "flex", flexDirection: "column", maxHeight: "92vh" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Transfer Asset</h3>
-                <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#64748b" }}>QR code stays intact · All history preserved</p>
-              </div>
-              <button onClick={() => setShowTransferModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "32px", height: "32px", cursor: "pointer", color: "#64748b", fontSize: "20px", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
-              {transferError && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", fontSize: "13px", fontWeight: 600, border: "1px solid #fecaca" }}>⚠ {transferError}</div>}
-              {transferSuccess && (
-                <div style={{ padding: "14px 16px", borderRadius: "10px", background: "#f0fdf4", color: "#16a34a", fontSize: "13.5px", fontWeight: 700, border: "1px solid #bbf7d0" }}>
-                  <div>✓ {transferSuccess.message}</div>
-                  {transferSuccess.transferReference && <div style={{ fontSize: "12px", marginTop: "4px" }}>Ref: <span style={{ fontFamily: "monospace" }}>{transferSuccess.transferReference}</span></div>}
-                  <div style={{ fontSize: "12px", marginTop: "4px" }}>Reloading…</div>
-                </div>
-              )}
-              <div style={{ background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Asset Being Transferred</div>
-                <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{m.equipmentName || asset.assetName}</div>
-                <div style={{ display: "flex", gap: "12px", marginTop: "4px", fontSize: "12px", color: "#64748b" }}>
-                  {(asset.generatedAssetId || asset.assetUniqueId) && <span style={{ fontFamily: "monospace", color: "#2563eb", background: "#eff6ff", padding: "1px 7px", borderRadius: "4px" }}>{asset.generatedAssetId || asset.assetUniqueId}</span>}
-                  <span>From: <strong style={{ color: "#374151" }}>{asset.companyName || "Current Company"}{asset.departmentName ? ` / ${asset.departmentName}` : ""}</strong></span>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Destination Company <span style={{ color: "#dc2626" }}>*</span></label>
-                <select value={transferForm.toCompanyId}
-                  onChange={e => {
-                    const coId = e.target.value;
-                    setTransferForm(p => ({ ...p, toCompanyId: coId, toDepartmentId: "" }));
-                    setTransferDepts([]);
-                    if (coId) {
-                      setLoadingDepts(true);
-                      fetch(`${getApiBaseUrl()}/api/company-portal/assets/transfer/departments?companyId=${coId}`, { headers: { Authorization: `Bearer ${token}` } })
-                        .then(r => r.ok ? r.json() : []).then(d => { setTransferDepts(Array.isArray(d) ? d : []); setLoadingDepts(false); }).catch(() => { setTransferDepts([]); setLoadingDepts(false); });
-                    }
-                  }}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13.5px", background: "#fff", outline: "none" }}>
-                  <option value="">— Select Destination Company —</option>
-                  {companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Destination Department <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
-                <select value={transferForm.toDepartmentId} disabled={!transferForm.toCompanyId || loadingDepts}
-                  onChange={e => setTransferForm(p => ({ ...p, toDepartmentId: e.target.value }))}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13.5px", background: "#fff", outline: "none", opacity: (!transferForm.toCompanyId || loadingDepts) ? 0.6 : 1 }}>
-                  <option value="">{loadingDepts ? "Loading departments…" : "— No Department —"}</option>
-                  {transferDepts.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
-                </select>
-                {transferForm.toCompanyId && !loadingDepts && transferDepts.length === 0 && <p style={{ fontSize: "11.5px", color: "#94a3b8", margin: "4px 0 0" }}>No departments found.</p>}
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Reason <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
-                <textarea value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))} rows={2} placeholder="e.g. Asset reallocation…" style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500, textTransform: "none" }}>(optional)</span></label>
-                <textarea value={transferForm.remarks} onChange={e => setTransferForm(p => ({ ...p, remarks: e.target.value }))} rows={2} placeholder="Additional audit notes…" style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div style={{ padding: "12px 14px", background: "#fffbeb", borderRadius: "8px", border: "1px solid #fde68a", fontSize: "12.5px", color: "#92400e", display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2" style={{ flexShrink: 0, marginTop: "1px" }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <div><strong>What changes:</strong> Company &amp; department. <strong>What stays:</strong> Asset ID, QR, all history, MTTR, MTBF.</div>
-              </div>
-            </div>
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
-              <button onClick={() => setShowTransferModal(false)} disabled={transferring} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", fontWeight: 600, cursor: "pointer", fontSize: "13.5px" }}>Cancel</button>
-              <button disabled={!transferForm.toCompanyId || transferring || !!transferSuccess}
-                onClick={async () => {
-                  if (!transferForm.toCompanyId || transferring) return;
-                  setTransferring(true); setTransferError(null);
-                  try {
-                    const resp = await fetch(`${getApiBaseUrl()}/api/company-portal/assets/${id}/transfer`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ toCompanyId: Number(transferForm.toCompanyId), toDepartmentId: transferForm.toDepartmentId ? Number(transferForm.toDepartmentId) : null, reason: transferForm.reason, remarks: transferForm.remarks }),
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || "Transfer failed");
-                    setTransferSuccess({ message: data.message, transferReference: data.transferReference });
-                    setTimeout(() => { window.location.reload(); }, 2000);
-                  } catch (e) { setTransferError(e.message); setTransferring(false); }
-                }}
-                style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: transferSuccess ? "#16a34a" : "#f97316", color: "#fff", fontWeight: 700, fontSize: "13.5px", cursor: (!transferForm.toCompanyId || transferring || !!transferSuccess) ? "not-allowed" : "pointer", opacity: (!transferForm.toCompanyId || transferring) ? 0.6 : 1, display: "flex", alignItems: "center", gap: "6px" }}>
-                {transferring ? (
-                  <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Transferring…</>
-                ) : transferSuccess ? "✓ Transferred!" : "Confirm Transfer"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

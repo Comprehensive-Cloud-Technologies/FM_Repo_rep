@@ -976,7 +976,8 @@ router.get("/verify-asset-qr", async (req, res, next) => {
 /* GET /dashboard-stats — aggregate PMS KPI counts for the company dashboard */
 router.get("/dashboard-stats", async (req, res, next) => {
   try {
-    const companyId = cid(req);
+    const ids        = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph         = ids.map(() => "?").join(",");
     const today      = new Date().toISOString().slice(0, 10);
     const monthStart = today.slice(0, 7) + "-01";
     const nextMonthDate = new Date(monthStart);
@@ -986,67 +987,39 @@ router.get("/dashboard-stats", async (req, res, next) => {
 
     const [[stats]] = await pool.query(
       `SELECT
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                         AS dueThisMonth,
-         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                       AS overdue,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled')) AS upcoming30d,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')             AS completedThisMonth
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                                   AS dueThisMonth,
+         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                                 AS overdue,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled'))   AS upcoming30d,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')                       AS completedThisMonth,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN ac.cnt ELSE 0 END)                  AS dueThisMonthAssets,
+         SUM(CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS overdueAssets,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS upcoming30dAssets,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ac.cnt ELSE 0 END) AS completedThisMonthAssets
        FROM pms_schedules ps
-       WHERE ps.company_id = ?`,
-      [monthStart, monthEnd, today, today, upcoming30, monthStart, monthEnd, companyId]
+       LEFT JOIN (SELECT schedule_id, COUNT(*) AS cnt FROM pms_schedule_assets GROUP BY schedule_id) ac ON ac.schedule_id = ps.id
+       WHERE ps.company_id IN (${ph})`,
+      [
+        monthStart, monthEnd,
+        today,
+        today, upcoming30,
+        monthStart, monthEnd,
+        monthStart, monthEnd,
+        today,
+        today, upcoming30,
+        monthStart, monthEnd,
+        ...ids,
+      ]
     );
     res.json({
-      dueThisMonth:       Number(stats?.dueThisMonth       || 0),
-      overdue:            Number(stats?.overdue            || 0),
-      upcoming30d:        Number(stats?.upcoming30d        || 0),
-      completedThisMonth: Number(stats?.completedThisMonth || 0),
+      dueThisMonth:              Number(stats?.dueThisMonth              || 0),
+      overdue:                   Number(stats?.overdue                   || 0),
+      upcoming30d:               Number(stats?.upcoming30d               || 0),
+      completedThisMonth:        Number(stats?.completedThisMonth        || 0),
+      dueThisMonthAssets:        Number(stats?.dueThisMonthAssets        || 0),
+      overdueAssets:             Number(stats?.overdueAssets             || 0),
+      upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
+      completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
     });
-  } catch (err) { next(err); }
-});
-
-/* GET /kpi-details?type=due_this_month|overdue|upcoming_30d|completed_this_month
-   Returns the individual asset+schedule rows that make up each KPI count */
-router.get("/kpi-details", async (req, res, next) => {
-  try {
-    const { type } = req.query;
-    const ids   = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
-    const today      = new Date().toISOString().slice(0, 10);
-    const monthStart = today.slice(0, 7) + "-01";
-    const nextMonth  = new Date(monthStart); nextMonth.setMonth(nextMonth.getMonth() + 1);
-    const monthEnd   = nextMonth.toISOString().slice(0, 10);
-    const upcoming30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-
-    let dateFilter = "";
-    if (type === "due_this_month")        dateFilter = `AND ps.maintenance_date >= '${monthStart}' AND ps.maintenance_date < '${monthEnd}'`;
-    else if (type === "overdue")          dateFilter = `AND ps.maintenance_date < '${today}' AND ps.status NOT IN ('completed','cancelled') AND psa.status NOT IN ('completed','cancelled')`;
-    else if (type === "upcoming_30d")     dateFilter = `AND ps.maintenance_date >= '${today}' AND ps.maintenance_date <= '${upcoming30}' AND ps.status NOT IN ('completed','cancelled')`;
-    else if (type === "completed_this_month") dateFilter = `AND ps.maintenance_date >= '${monthStart}' AND ps.maintenance_date < '${monthEnd}' AND psa.status = 'completed'`;
-    else return res.status(400).json({ message: "Invalid type" });
-
-    const [rows] = await pool.query(
-      `SELECT
-         a.id AS assetId, a.asset_name AS assetName,
-         a.generated_asset_id AS assetCode,
-         d.name AS departmentName,
-         co.company_name AS companyName,
-         ps.id AS scheduleId, ps.schedule_number AS scheduleNumber,
-         ps.maintenance_date AS maintenanceDate,
-         ps.frequency,
-         psa.status AS psaStatus,
-         psa.engineer_name AS engineerName,
-         psa.completed_at AS completedAt,
-         DATEDIFF('${today}', ps.maintenance_date) AS daysOverdue
-       FROM pms_schedules ps
-       JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
-       JOIN assets a ON a.id = psa.asset_id
-       LEFT JOIN departments d ON d.id = a.department_id
-       LEFT JOIN companies co ON co.id = ps.company_id
-       WHERE ps.company_id IN (${ids.map(() => "?").join(",")})
-         ${dateFilter}
-       ORDER BY ps.maintenance_date ASC, a.asset_name ASC
-       LIMIT 200`,
-      ids
-    );
-    res.json(rows || []);
   } catch (err) { next(err); }
 });
 

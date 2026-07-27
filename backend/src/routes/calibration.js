@@ -669,50 +669,6 @@ router.get("/assets/:assetId/certificates", async (req, res, next) => {
 // REPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// GET /kpi-details?type=due_this_month|overdue|upcoming_30d|completed_this_month
-router.get("/kpi-details", async (req, res, next) => {
-  try {
-    const { type } = req.query;
-    const companyId  = cid(req);
-    const today      = new Date().toISOString().slice(0, 10);
-    const monthStart = today.slice(0, 7) + "-01";
-    const nextMonth  = new Date(monthStart); nextMonth.setMonth(nextMonth.getMonth() + 1);
-    const monthEnd   = nextMonth.toISOString().slice(0, 10);
-    const upcoming30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-
-    let dateFilter = "";
-    if (type === "due_this_month")        dateFilter = `AND cs.calibration_date >= '${monthStart}' AND cs.calibration_date < '${monthEnd}'`;
-    else if (type === "overdue")          dateFilter = `AND cs.calibration_date < '${today}' AND cs.status NOT IN ('completed','cancelled') AND csa.status NOT IN ('completed','cancelled')`;
-    else if (type === "upcoming_30d")     dateFilter = `AND cs.calibration_date >= '${today}' AND cs.calibration_date <= '${upcoming30}' AND cs.status NOT IN ('completed','cancelled')`;
-    else if (type === "completed_this_month") dateFilter = `AND cs.calibration_date >= '${monthStart}' AND cs.calibration_date < '${monthEnd}' AND csa.status = 'completed'`;
-    else return res.status(400).json({ message: "Invalid type" });
-
-    const [rows] = await pool.query(
-      `SELECT
-         a.id AS assetId, a.asset_name AS assetName,
-         a.generated_asset_id AS assetCode,
-         d.name AS departmentName,
-         cs.id AS scheduleId, cs.schedule_number AS scheduleNumber,
-         cs.calibration_date AS calibrationDate,
-         cs.frequency,
-         csa.status AS status,
-         csa.vendor_name AS vendorName,
-         csa.completed_at AS completedAt,
-         DATEDIFF('${today}', cs.calibration_date) AS daysOverdue
-       FROM calibration_schedules cs
-       JOIN calibration_schedule_assets csa ON csa.schedule_id = cs.id
-       JOIN assets a ON a.id = csa.asset_id
-       LEFT JOIN departments d ON d.id = a.department_id
-       WHERE cs.company_id = ?
-         ${dateFilter}
-       ORDER BY cs.calibration_date ASC, a.asset_name ASC
-       LIMIT 200`,
-      [companyId]
-    );
-    res.json(rows || []);
-  } catch (err) { next(err); }
-});
-
 // GET /reports — asset-wise calibration summary
 router.get("/reports", async (req, res, next) => {
   try {

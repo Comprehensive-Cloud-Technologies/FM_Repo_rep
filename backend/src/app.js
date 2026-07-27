@@ -46,6 +46,7 @@ import locationsRouter from "./routes/locations.js";
 import statesRouter from "./routes/states.js";
 import mobileNotificationsRouter from "./routes/mobileNotifications.js";
 import calibrationRouter from "./routes/calibration.js";
+import trainingRouter from "./routes/training.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -114,6 +115,7 @@ app.use("/api/company-users", companyUsersRouter);
 app.use("/api/company-auth", authLimiter, companyAuthRouter);
 // Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
 app.use("/api/company-portal/calibration", calibrationRouter);
+app.use("/api/company-portal/training", trainingRouter);
 // Asset transfer — must be registered BEFORE the broad companyPortalRouter
 app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal", companyPortalRouter);
