@@ -5226,6 +5226,9 @@ export default function CompanyEmployeePortal() {
     if (nav === "requests") {
       setAssetQueriesLoading(true);
       getAssetQueries(token, acParam).then((d) => { setAssetQueries(d || []); setAssetQueriesLoading(false); }).catch((e) => { setAssetQueriesLoading(false); console.warn("asset-queries:", e?.message); });
+      // Ensure employees and departments are loaded for Ticket Master filters
+      if (!employees.length) getCompanyPortalEmployees(token).then((d) => d && setEmployees(d)).catch(() => {});
+      if (!departments.length) getCompanyPortalDepartments(token, allCompaniesMode).then((d) => d && setDepartments(d)).catch(() => {});
     }
     if (nav === "qrcodes") {
       setPreQrLoading(true);

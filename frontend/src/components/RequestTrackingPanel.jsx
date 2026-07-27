@@ -163,20 +163,34 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
 function FiltersBar({ filters, setFilters, employees, departments, onReset, searchInput, setSearchInput, allCompaniesMode, hospitalInput, setHospitalInput, assetNameInput, setAssetNameInput, raisedByInput, setRaisedByInput }) {
   const [open, setOpen] = useState(false);
   const inputSt = { padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", width: "100%", boxSizing: "border-box", outline: "none", background: "#fff" };
-  const activeCount = Object.entries(filters).filter(([k, v]) => k !== "search" && v !== "" && v !== false).length;
+  const activeCount = Object.entries(filters).filter(([k, v]) => !["search","escalated","overdue"].includes(k) && v !== "" && v !== false).length;
+
+  // Wrapper: text input with a × clear button on the right
+  const ClearInput = ({ value, onChange, onClear, placeholder, type = "text", style = {} }) => (
+    <div style={{ position: "relative" }}>
+      <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+        style={{ ...inputSt, paddingRight: value ? "28px" : "10px", ...style }} />
+      {value && (
+        <button onClick={onClear} style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>
+      )}
+    </div>
+  );
 
   return (
     <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
       <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-        {/* Search */}
+        {/* Search with clear button */}
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             placeholder="Search by WO#, AQ-ID, asset name, asset ID, location, raised by…"
-            style={{ ...inputSt, paddingLeft: "32px", minWidth: "220px" }}
+            style={{ ...inputSt, paddingLeft: "32px", paddingRight: searchInput ? "28px" : "10px", minWidth: "220px" }}
           />
+          {searchInput && (
+            <button onClick={() => setSearchInput("")} style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear search">×</button>
+          )}
         </div>
         {/* Status quick */}
         <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
@@ -200,7 +214,7 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           More Filters {activeCount > 0 && <span style={{ background: "#2563eb", color: "#fff", borderRadius: "9px", padding: "0 6px", fontSize: "11px" }}>{activeCount}</span>}
         </button>
-        {(activeCount > 0 || filters.search) && (
+        {(activeCount > 0 || searchInput) && (
           <button onClick={onReset} style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "12.5px", color: "#64748b" }}>Reset</button>
         )}
       </div>
@@ -210,66 +224,59 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px", paddingTop: "12px" }}>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Date From</label>
-              <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} style={inputSt} />
+              <ClearInput type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} onClear={() => setFilters(f => ({ ...f, dateFrom: "" }))} />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Date To</label>
-              <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={inputSt} />
+              <ClearInput type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} onClear={() => setFilters(f => ({ ...f, dateTo: "" }))} />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Assigned To</label>
-              <select value={filters.assignedTo} onChange={e => setFilters(f => ({ ...f, assignedTo: e.target.value }))} style={inputSt}>
-                <option value="">Any Employee</option>
-                {employees.map(u => <option key={u.id} value={u.id}>{u.fullName || u.full_name}</option>)}
-              </select>
+              <div style={{ position: "relative" }}>
+                <select value={filters.assignedTo} onChange={e => setFilters(f => ({ ...f, assignedTo: e.target.value }))} style={{ ...inputSt, paddingRight: filters.assignedTo ? "28px" : "10px" }}>
+                  <option value="">Any Employee</option>
+                  {employees.map(u => <option key={u.id} value={u.id}>{u.fullName || u.full_name}</option>)}
+                </select>
+                {filters.assignedTo && <button onClick={() => setFilters(f => ({ ...f, assignedTo: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
+              </div>
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Department</label>
-              <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))} style={inputSt}>
-                <option value="">All Departments</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
-              </select>
+              <div style={{ position: "relative" }}>
+                <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))} style={{ ...inputSt, paddingRight: filters.departmentId ? "28px" : "10px" }}>
+                  <option value="">All Departments</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
+                </select>
+                {filters.departmentId && <button onClick={() => setFilters(f => ({ ...f, departmentId: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
+              </div>
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Asset / Location</label>
-              <input type="text" value={assetNameInput} onChange={e => setAssetNameInput(e.target.value)} placeholder="Filter by asset name or location…" style={inputSt} />
+              <ClearInput value={assetNameInput} onChange={e => setAssetNameInput(e.target.value)} onClear={() => setAssetNameInput("")} placeholder="Filter by asset name or location…" />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Raised By</label>
-              <input type="text" value={raisedByInput} onChange={e => setRaisedByInput(e.target.value)} placeholder="Filter by requester name…" style={inputSt} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
-                <input type="checkbox" checked={!!filters.escalated} onChange={e => setFilters(f => ({ ...f, escalated: e.target.checked }))} style={{ width: "15px", height: "15px" }} />
-                <span style={{ fontWeight: 600 }}>Escalated Only</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
-                <input type="checkbox" checked={!!filters.overdue} onChange={e => setFilters(f => ({ ...f, overdue: e.target.checked }))} style={{ width: "15px", height: "15px" }} />
-                <span style={{ fontWeight: 600 }}>Overdue Only</span>
-              </label>
+              <ClearInput value={raisedByInput} onChange={e => setRaisedByInput(e.target.value)} onClear={() => setRaisedByInput("")} placeholder="Filter by requester name…" />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Source</label>
-              <select value={filters.source || ""} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))} style={inputSt}>
-                <option value="">All Sources</option>
-                <option value="qr scan">QR Scan</option>
-                <option value="flag">Flag</option>
-                <option value="manual">Manual</option>
-                <option value="mobile case log">Mobile</option>
-                <option value="checklist">Checklist</option>
-                <option value="logsheet">Logsheet</option>
-              </select>
+              <div style={{ position: "relative" }}>
+                <select value={filters.source || ""} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))} style={{ ...inputSt, paddingRight: filters.source ? "28px" : "10px" }}>
+                  <option value="">All Sources</option>
+                  <option value="qr scan">QR Scan</option>
+                  <option value="flag">Flag</option>
+                  <option value="manual">Manual</option>
+                  <option value="mobile case log">Mobile</option>
+                  <option value="checklist">Checklist</option>
+                  <option value="logsheet">Logsheet</option>
+                </select>
+                {filters.source && <button onClick={() => setFilters(f => ({ ...f, source: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
+              </div>
             </div>
             {allCompaniesMode && (
               <div>
                 <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Hospital</label>
-                <input
-                  type="text"
-                  value={hospitalInput}
-                  onChange={e => setHospitalInput(e.target.value)}
-                  placeholder="Filter by hospital name…"
-                  style={inputSt}
-                />
+                <ClearInput value={hospitalInput} onChange={e => setHospitalInput(e.target.value)} onClear={() => setHospitalInput("")} placeholder="Filter by hospital name…" />
               </div>
             )}
           </div>

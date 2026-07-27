@@ -1208,6 +1208,7 @@ router.get("/requests", validate([
   query("hospitalName").optional().isString().trim(),
   query("assetName").optional().isString().trim(),
   query("raisedBy").optional().isString().trim(),
+  query("departmentId").optional().isInt({ min: 1 }),
   query("source").optional().isString(),
 ]), async (req, res, next) => {
   try {
@@ -1237,6 +1238,7 @@ router.get("/requests", validate([
     if (req.query.overdue === "true")   { woWhere += " AND wo.is_overdue = 1"; }
     if (req.query.source) { woWhere += " AND LOWER(wo.source_label) LIKE ?"; woP.push(`%${req.query.source.toLowerCase()}%`); }
     if (req.query.hospitalName) { woWhere += " AND c.company_name LIKE ?"; woP.push(`%${req.query.hospitalName}%`); }
+    if (req.query.departmentId) { woWhere += " AND (wo.department_id = ? OR d.id = ?)"; woP.push(Number(req.query.departmentId), Number(req.query.departmentId)); }
     if (req.query.assetName) { woWhere += " AND (wo.asset_name LIKE ? OR wo.location LIKE ?)"; const an = `%${req.query.assetName}%`; woP.push(an, an); }
     if (req.query.raisedBy) { woWhere += " AND COALESCE(cb.full_name,'') LIKE ?"; woP.push(`%${req.query.raisedBy}%`); }
     if (req.query.search) {
