@@ -241,39 +241,14 @@ function InfoTab({ session, onStatusChange }: { session: any; onStatusChange: (s
   const color = SESSION_STATUS_COLOR[status] ?? '#64748B';
 
   return (
-    <ScrollView contentContainerStyle={{ padding: Spacing.lg, gap: Spacing.lg }} showsVerticalScrollIndicator={false}>
-      {/* Status card */}
-      <View style={[it.card, { backgroundColor: color + '10', borderColor: color + '40' }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={[it.cardLabel, { color: theme.textSecondary }]}>STATUS</Text>
-          <View style={[it.statusBadge, { backgroundColor: color, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 }]}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12, textTransform: 'capitalize' }}>{status.replace(/_/g, ' ')}</Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: Spacing.md }}>
-          {Object.keys(SESSION_STATUS_COLOR).map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[it.statusBtn, { borderColor: SESSION_STATUS_COLOR[s], backgroundColor: status === s ? SESSION_STATUS_COLOR[s] : 'transparent', opacity: saving ? 0.5 : 1 }]}
-              onPress={() => void handleStatusChange(s)}
-              disabled={saving || status === s}
-            >
-              <Text style={{ color: status === s ? '#fff' : SESSION_STATUS_COLOR[s], fontSize: 12, fontWeight: '600', textTransform: 'capitalize' }}>
-                {s.replace(/_/g, ' ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
+    <View style={{ padding: Spacing.lg, gap: Spacing.lg }}>
       {/* Details */}
       <View style={[it.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Row icon="tag-outline"           label="Session #"    value={session.session_number} />
         <Row icon="calendar-outline"      label="Date"         value={fmt(session.training_date)} />
         <Row icon="clock-outline"         label="Time"         value={[session.start_time?.slice(0, 5), session.end_time?.slice(0, 5)].filter(Boolean).join(' – ') || '—'} />
         <Row icon="account-tie-outline"   label="Trainer"      value={session.trainer_name || '—'} />
-        <Row icon="map-marker-outline"    label="Venue"        value={session.venue || '—'} />
-        <Row icon="shape-outline"         label="Category"     value={session.category || '—'} />
+
         <Row icon="account-group-outline" label="Registered"   value={String(session.total_registered ?? 0)} />
         <Row icon="check-circle-outline"  label="Present"      value={String(session.total_present ?? 0)} />
         <Row icon="close-circle-outline"  label="Absent"       value={String(session.total_absent ?? 0)} />
@@ -301,7 +276,7 @@ function InfoTab({ session, onStatusChange }: { session: any; onStatusChange: (s
             : <Text style={{ color: '#fff', fontWeight: '700' }}>Save Notes</Text>}
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 function Row({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -465,7 +440,7 @@ function AttendanceTab({ sessionId }: { sessionId: number }) {
       {loading ? (
         <ActivityIndicator color={theme.primary} style={{ marginTop: Spacing.xxl }} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <View style={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: 20 }}>
           {/* Company employees */}
           {filteredEmps.map(e => {
             const rec = attMap.get(Number(e.id));
@@ -510,35 +485,33 @@ function AttendanceTab({ sessionId }: { sessionId: number }) {
             </View>
           )}
 
-          {/* Manual entries */}
-          {manualEntries.length > 0 && (
-            <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED', letterSpacing: 0.8, paddingHorizontal: 4 }}>EXTERNAL / MANUAL ENTRIES</Text>
-              {manualEntries.map(r => (
-                <View key={r.id} style={[ar.row, { backgroundColor: '#FAF5FF', borderColor: '#D8B4FE' }]}>
-                  <View style={[ar.avatar, { backgroundColor: '#EDE9FE' }]}>
-                    <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 14 }}>{(r.employee_name ?? '?')[0]}</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[ar.name, { color: '#1E293B' }]} numberOfLines={1}>{r.employee_name}</Text>
-                      <View style={{ backgroundColor: '#EDE9FE', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }}>
-                        <Text style={{ fontSize: 9, color: '#7C3AED', fontWeight: '700' }}>manual</Text>
-                      </View>
-                    </View>
-                    <Text style={[ar.sub, { color: '#64748B' }]}>{r.employee_code ?? '—'} · {r.designation ?? '—'}</Text>
-                  </View>
-                  <View style={[ar.badge, { backgroundColor: ATT_COLOR[r.attendance_status as AttStatus]?.concat('18') ?? '#F1F5F9', borderColor: ATT_COLOR[r.attendance_status as AttStatus]?.concat('50') ?? '#E2E8F0' }]}>
-                    <Text style={{ color: ATT_COLOR[r.attendance_status as AttStatus] ?? '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'capitalize' }}>{r.attendance_status}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => removeEmployee(null as any, r.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <MaterialCommunityIcons name="close" size={16} color="#94A3B8" />
-                  </TouchableOpacity>
+          {/* Manual entries — rendered inline with regular employees */}
+          {manualEntries.map(r => {
+            const mColor = ATT_COLOR[r.attendance_status as AttStatus] ?? '#94A3B8';
+            return (
+              <View key={`m-${r.id}`} style={[ar.row, { backgroundColor: mColor + '0D', borderColor: mColor + '40' }]}>
+                <View style={[ar.avatar, { backgroundColor: mColor + '20' }]}>
+                  <Text style={{ color: mColor, fontWeight: '700', fontSize: 14 }}>{(r.employee_name ?? '?')[0]}</Text>
                 </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[ar.name, { color: '#1E293B' }]} numberOfLines={1}>{r.employee_name}</Text>
+                    <View style={{ backgroundColor: '#EDE9FE', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 9, color: '#7C3AED', fontWeight: '700' }}>ext</Text>
+                    </View>
+                  </View>
+                  <Text style={[ar.sub, { color: '#64748B' }]}>{r.employee_code ?? '—'} · {r.designation ?? '—'}</Text>
+                </View>
+                <View style={[ar.badge, { backgroundColor: mColor + '18', borderColor: mColor + '50' }]}>
+                  <Text style={{ color: mColor, fontSize: 11, fontWeight: '700', textTransform: 'capitalize' }}>{r.attendance_status}</Text>
+                </View>
+                <TouchableOpacity onPress={() => removeEmployee(null as any, r.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialCommunityIcons name="close" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
       )}
 
       {/* Manual entry modal */}
@@ -670,17 +643,15 @@ function DocumentsTab({ sessionId }: { sessionId: number }) {
   };
 
   const showUploadMenu = () => {
-    Alert.alert('Upload Document', 'Choose type and source', [
-      { text: '📸 Camera — Attendance Sheet',  onPress: () => void takeAndUpload('attendance_sheet') },
-      { text: '🖼 Gallery — Attendance Sheet', onPress: () => void pickAndUpload('attendance_sheet') },
-      { text: '📸 Camera — Training Image',    onPress: () => void takeAndUpload('image') },
-      { text: '🖼 Gallery — Training Image',   onPress: () => void pickAndUpload('image') },
+    Alert.alert('Upload Image', 'Choose source', [
+      { text: '📸 Take Photo',          onPress: () => void takeAndUpload('image') },
+      { text: '🖼 Choose from Gallery', onPress: () => void pickAndUpload('image') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View>
       {/* Upload bar */}
       <View style={[doct.uploadBar, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Text style={[{ fontSize: 14, fontWeight: '600', flex: 1 }, { color: theme.textPrimary }]}>
@@ -703,7 +674,7 @@ function DocumentsTab({ sessionId }: { sessionId: number }) {
       {loading ? (
         <ActivityIndicator color={theme.primary} style={{ marginTop: Spacing.xxl }} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <View style={{ padding: Spacing.md, gap: Spacing.sm, paddingBottom: 20 }}>
           {docs.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: Spacing.xxl }}>
               <MaterialCommunityIcons name="file-image-outline" size={44} color={theme.textMuted} />
@@ -737,7 +708,7 @@ function DocumentsTab({ sessionId }: { sessionId: number }) {
               </View>
             );
           })}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -750,9 +721,17 @@ const doct = StyleSheet.create({
   typeBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
 });
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-const TABS = ['Info', 'Attendance', 'Documents'] as const;
+// ─── Section divider ─────────────────────────────────────────────────────────
+function SectionDivider({ title }: { title: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: 10, backgroundColor: theme.surfaceAlt ?? '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: theme.border }}>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: '#7C3AED', letterSpacing: 1, textTransform: 'uppercase' }}>{title}</Text>
+    </View>
+  );
+}
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function TrainingSessionDetailScreen() {
   const { theme } = useTheme();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -760,7 +739,6 @@ export default function TrainingSessionDetailScreen() {
 
   const [session,  setSession]  = useState<any>(null);
   const [loading,  setLoading]  = useState(true);
-  const [activeTab, setTab]     = useState<typeof TABS[number]>('Info');
 
   useEffect(() => {
     fetchTrainingSession(id)
@@ -805,24 +783,36 @@ export default function TrainingSessionDetailScreen() {
         </View>
       </View>
 
-      {/* Tab bar */}
-      <View style={[tabs.bar, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        {TABS.map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[tabs.tab, activeTab === t && { borderBottomColor: '#7C3AED', borderBottomWidth: 2.5 }]}
-            onPress={() => setTab(t)}
-          >
-            <Text style={[tabs.label, { color: activeTab === t ? '#7C3AED' : theme.textSecondary }]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Tab content */}
+      {/* Single scrollable page */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {activeTab === 'Info'       && <InfoTab session={session} onStatusChange={s => setSession((p: any) => ({ ...p, status: s }))} />}
-        {activeTab === 'Attendance' && <AttendanceTab sessionId={id} />}
-        {activeTab === 'Documents'  && <DocumentsTab  sessionId={id} />}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <InfoTab session={session} onStatusChange={s => setSession((p: any) => ({ ...p, status: s }))} />
+          <SectionDivider title="Attendance" />
+          <AttendanceTab sessionId={id} />
+          <SectionDivider title="Documents" />
+          <DocumentsTab sessionId={id} />
+          {session.status !== 'completed' && (
+              <View style={{ padding: Spacing.lg, paddingTop: Spacing.md }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#16a34a', borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
+                  onPress={async () => {
+                    Alert.alert('Mark as Completed', 'Mark this training session as completed?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Confirm', style: 'default', onPress: async () => {
+                        try {
+                          await updateTrainingSession(String(id), { status: 'completed' });
+                          setSession((p: any) => p ? { ...p, status: 'completed' } : p);
+                        } catch (e: any) { Alert.alert('Error', e.message ?? 'Failed'); }
+                      }},
+                    ]);
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✓ Mark as Completed</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          <View style={{ height: 48 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -833,9 +823,4 @@ const hero = StyleSheet.create({
   sno:   { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '700' },
   date:  { color: '#fff', fontSize: 14, fontWeight: '600', marginTop: 2 },
   stat:  { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600' },
-});
-const tabs = StyleSheet.create({
-  bar:   { flexDirection: 'row', borderBottomWidth: 1 },
-  tab:   { flex: 1, alignItems: 'center', paddingVertical: 13, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
-  label: { fontSize: 14, fontWeight: '600' },
 });

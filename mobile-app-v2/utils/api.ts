@@ -9,6 +9,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
+import { uploadAsync as fsUploadAsync, FileSystemUploadType, getInfoAsync as fsGetInfoAsync } from 'expo-file-system/legacy';
 import { cacheData, getCachedData, addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from './offlineStorage';
 import { notifyNetworkStatus } from './networkStatus';
 import type { RoleCapabilities } from './permissions';
@@ -818,12 +819,12 @@ export async function uploadTrainingDocument(
   documentType: string,
 ): Promise<any> {
   const token = await getToken();
-  const result = await FileSystem.uploadAsync(
+  const result = await fsUploadAsync(
     `${API_BASE}/api/company-portal/training/sessions/${sessionId}/documents`,
     fileUri,
     {
       httpMethod: 'POST',
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      uploadType: FileSystemUploadType.MULTIPART,
       fieldName: 'file',
       headers: { Authorization: `Bearer ${token ?? ''}` },
       parameters: { documentType, fileName },
@@ -912,7 +913,7 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 /** Compress an image so it is under 5 MB. Returns the (possibly new) URI. */
 async function compressToUnder5MB(uri: string): Promise<string> {
   try {
-    const info = await FileSystem.getInfoAsync(uri);
+    const info = await fsGetInfoAsync(uri);
     const size = (info as any).size as number | undefined;
     if (!size || size <= MAX_PHOTO_BYTES) return uri; // already fine
 
@@ -921,7 +922,7 @@ async function compressToUnder5MB(uri: string): Promise<string> {
       const result = await ImageManipulator.manipulateAsync(
         uri, [], { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
       );
-      const info2 = await FileSystem.getInfoAsync(result.uri);
+      const info2 = await fsGetInfoAsync(result.uri);
       if (!(info2 as any).size || (info2 as any).size <= MAX_PHOTO_BYTES) {
         return result.uri;
       }

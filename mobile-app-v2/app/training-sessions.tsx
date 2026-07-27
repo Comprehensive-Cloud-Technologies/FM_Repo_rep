@@ -76,12 +76,7 @@ function SessionCard({ item, onPress }: { item: any; onPress: () => void }) {
           <MaterialCommunityIcons name="account-group-outline" size={13} color="#64748B" />
           <Text style={[sc.chipText, { color: '#64748B' }]}>{item.total_present ?? 0}/{item.total_registered ?? 0} present</Text>
         </View>
-        {item.venue ? (
-          <View style={sc.chip}>
-            <MaterialCommunityIcons name="map-marker-outline" size={13} color="#64748B" />
-            <Text style={[sc.chipText, { color: '#64748B' }]} numberOfLines={1}>{item.venue}</Text>
-          </View>
-        ) : null}
+
       </View>
       <Text style={[sc.sessionNo, { color: '#7C3AED' }]}>{item.session_number}</Text>
     </TouchableOpacity>
@@ -116,7 +111,7 @@ function CreateModal({ visible, onClose, onCreated }: {
   const { theme } = useTheme();
   const [title,        setTitle]        = useState('');
   const [trainerName,  setTrainerName]  = useState('');
-  const [venue,        setVenue]        = useState('');
+
   const [notes,        setNotes]        = useState('');
   const [trainingDate, setTrainingDate] = useState(new Date());
   const [startTime,    setStartTime]    = useState<Date | null>(null);
@@ -137,13 +132,12 @@ function CreateModal({ visible, onClose, onCreated }: {
         trainingDate: fmtDate(trainingDate),
         startTime:    startTime ? fmtTime(startTime) : undefined,
         endTime:      endTime   ? fmtTime(endTime)   : undefined,
-        venue:        venue.trim() || undefined,
         notes:        notes.trim() || undefined,
         status:       'scheduled',
       });
       onCreated(created);
       // Reset form
-      setTitle(''); setTrainerName(''); setVenue(''); setNotes('');
+      setTitle(''); setTrainerName(''); setNotes('');
       setTrainingDate(new Date()); setStartTime(null); setEndTime(null);
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Failed to create session');
@@ -248,7 +242,6 @@ function CreateModal({ visible, onClose, onCreated }: {
               )}
             </View>
 
-            <Field label="Venue" value={venue} onChange={setVenue} placeholder="Conference Room A" />
             <Field label="Notes" value={notes} onChange={setNotes} placeholder="Additional details..." multiline />
           </ScrollView>
         </KeyboardAvoidingView>

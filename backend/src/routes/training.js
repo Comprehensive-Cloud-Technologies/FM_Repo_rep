@@ -14,6 +14,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { isMigrationSafeError } from "../db.js";
@@ -400,23 +401,49 @@ router.post("/sessions/:id/attendance/import", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /sessions/:id/attendance/manual — add external/manual attendee by name
+// POST /sessions/:id/attendance/manual — add external/manual attendee; creates company_users entry if not found
 router.post("/sessions/:id/attendance/manual", async (req, res, next) => {
   try {
     const sessionId = Number(req.params.id);
     const [[session]] = await pool.query("SELECT id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
     if (!session) return res.status(404).json({ message: "Session not found" });
     const { name, code, designation, departmentName, attendanceStatus } = req.body;
-    if (!name?.trim()) return res.status(400).json({ message: "Name is required for manual entry" });
+    if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
     const status = ["present", "absent", "excused"].includes(attendanceStatus) ? attendanceStatus : "present";
+
+    // Try to find existing employee by code within this company
+    let employeeId = null;
+    if (code?.trim()) {
+      const [[existing]] = await pool.query(
+        "SELECT id FROM company_users WHERE company_id = ? AND username = ? LIMIT 1",
+        [cid(req), code.trim()]
+      );
+      if (existing) employeeId = existing.id;
+    }
+
+    // Create new company_users entry if not found
+    if (!employeeId) {
+      const placeholderEmail = `trn_${cid(req)}_${crypto.randomBytes(6).toString('hex')}@noemail.local`;
+      // Use an impossible-to-match password hash (not a valid bcrypt hash)
+      const placeholderHash = `!manual_${crypto.randomBytes(8).toString('hex')}`;
+      const [ins] = await pool.query(
+        `INSERT INTO company_users (company_id, full_name, email, designation, role, status, password_hash, username)
+         VALUES (?, ?, ?, ?, 'hc_engineer', 'active', ?, ?)`,
+        [cid(req), name.trim(), placeholderEmail, sanitize(designation) || null, placeholderHash, sanitize(code) || null]
+      );
+      employeeId = ins.insertId;
+    }
+
+    // Upsert attendance record with real employee_id
     await pool.query(
       `INSERT INTO training_attendance (session_id, company_id, employee_id, employee_name, employee_code, designation, department_name, attendance_status, is_manual, recorded_by, recorded_by_name, recorded_at)
-       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 1, ?, ?, NOW())`,
-      [sessionId, cid(req), name.trim(), sanitize(code) || null, sanitize(designation) || null, sanitize(departmentName) || null, status, uid(req), uname(req)]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE attendance_status = VALUES(attendance_status), recorded_at = NOW()`,
+      [sessionId, cid(req), employeeId, name.trim(), sanitize(code) || null, sanitize(designation) || null, sanitize(departmentName) || null, status, uid(req), uname(req)]
     );
     await refreshAttendanceCounts(sessionId);
-    await auditLog(cid(req), "MANUAL_ATTENDANCE_ADDED", uid(req), uname(req), urole(req), "session", sessionId, { name, status }, req);
-    res.json({ success: true });
+    await auditLog(cid(req), "EMPLOYEE_CREATED_VIA_TRAINING", uid(req), uname(req), urole(req), "session", sessionId, { name, employeeId, status }, req);
+    res.json({ success: true, employeeId });
   } catch (e) { next(e); }
 });
 

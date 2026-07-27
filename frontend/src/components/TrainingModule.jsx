@@ -395,24 +395,26 @@ function AttendancePanel({ token, sessionId, onUpdate }) {
                   </tr>
                 );
               })}
-              {filteredEmps.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#94a3b8", padding: 24 }}>No employees found</td></tr>}
-              {/* Manual/external entries */}
-              {manualEntries.length > 0 && (
-                <>
-                  <tr><td colSpan={7} style={{ ...S.td, background: "#f5f3ff", fontWeight: 700, fontSize: "12px", color: "#7c3aed", paddingTop: 12 }}>External / Manual Entries</td></tr>
-                  {manualEntries.map(a => (
-                    <tr key={a.id} style={{ background: "#faf5ff" }}>
-                      <td style={{ ...S.td, fontWeight: 600 }}>{a.employee_name} <span style={{ fontSize: "10px", color: "#7c3aed", background: "#ede9fe", padding: "1px 5px", borderRadius: 4 }}>manual</span></td>
-                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.employee_code || "—"}</td>
-                      <td style={S.td}>{a.department_name || "—"}</td>
-                      <td style={S.td}>{a.designation || "—"}</td>
-                      <td style={S.td}><span style={{ color: statusColor[a.attendance_status], fontWeight: 700 }}>{a.attendance_status}</span></td>
-                      <td style={{ ...S.td, fontSize: "12px", color: "#64748b" }}>{a.recorded_at ? new Date(a.recorded_at).toLocaleString() : "—"}</td>
-                      <td style={S.td}><button style={{ ...S.btn("danger"), padding: "3px 8px", fontSize: "11px" }} onClick={() => removeAtt(null, a.id)}>Remove</button></td>
-                    </tr>
-                  ))}
-                </>
-              )}
+              {/* Manual entries inline in same table */}
+              {manualEntries.map(a => (
+                <tr key={`manual-${a.id}`} style={{ background: a.attendance_status === "present" ? "#f0fdf4" : a.attendance_status === "absent" ? "#fef2f2" : "#fffbeb" }}>
+                  <td style={{ ...S.td, fontWeight: 600 }}>
+                    {a.employee_name}
+                    <span style={{ fontSize: "10px", color: "#7c3aed", background: "#ede9fe", padding: "1px 5px", borderRadius: 4, marginLeft: 6, verticalAlign: "middle" }}>ext</span>
+                  </td>
+                  <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.employee_code || "—"}</td>
+                  <td style={S.td}>{a.department_name || "—"}</td>
+                  <td style={S.td}>{a.designation || "—"}</td>
+                  <td style={S.td}>
+                    <span style={{ ...S.input, width: 110, padding: "4px 6px", display: "inline-block", borderColor: statusColor[a.attendance_status], color: statusColor[a.attendance_status], fontWeight: 700, textTransform: "capitalize", fontSize: "13px" }}>
+                      {a.attendance_status}
+                    </span>
+                  </td>
+                  <td style={{ ...S.td, fontSize: "12px", color: "#64748b" }}>{a.recorded_at ? new Date(a.recorded_at).toLocaleString() : "—"}</td>
+                  <td style={S.td}><button style={{ ...S.btn("danger"), padding: "3px 8px", fontSize: "11px" }} onClick={() => removeAtt(null, a.id)}>Remove</button></td>
+                </tr>
+              ))}
+              {filteredEmps.length === 0 && manualEntries.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#94a3b8", padding: 24 }}>No employees found</td></tr>}
             </tbody>
           </table>
         </div>
@@ -463,8 +465,6 @@ function DocumentsPanel({ token, sessionId }) {
   const SECTIONS = [
     { type: "attendance_sheet", label: "📄 Attendance Sheet", accept: ".pdf,.xlsx,.xls,.jpg,.jpeg,.png", multi: false },
     { type: "image",            label: "🖼 Training Images",   accept: ".jpg,.jpeg,.png",                 multi: true  },
-    { type: "presentation",     label: "📊 Presentation",      accept: ".pdf,.ppt,.pptx,.doc,.docx",       multi: true  },
-    { type: "supporting",       label: "📁 Supporting Docs",   accept: ".pdf,.xlsx,.xls,.doc,.docx",       multi: true  },
   ];
 
   const isImage = (mimetype) => mimetype?.startsWith("image/");
@@ -495,7 +495,7 @@ function DocumentsPanel({ token, sessionId }) {
                     {latestDocs.map(d => (
                       <div key={d.id} style={{ width: 120, position: "relative" }}>
                         {isImage(d.mimetype)
-                          ? <img src={S3_READY ? d.file_url : `${BASE}${d.file_url}`} alt={d.file_name} style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0", cursor: "pointer" }} onClick={() => window.open(d.file_url, "_blank")} />
+                          ? <img src={d.file_url?.startsWith('http') ? d.file_url : `${BASE}${d.file_url}`} alt={d.file_name} style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0", cursor: "pointer" }} onClick={() => window.open(d.file_url, "_blank")} />
                           : <div style={{ width: "100%", height: 90, borderRadius: 8, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#64748b", textAlign: "center", padding: 4 }}>{d.file_name}</div>}
                         <div style={{ fontSize: "11px", color: "#64748b", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.file_name}</div>
                         <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
@@ -552,7 +552,6 @@ function DocumentsPanel({ token, sessionId }) {
 function SessionDetail({ sessionId, token, onBack }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("info");
   const [toast, setToast] = useState(null);
   const [editing, setEditing] = useState(false);
   const [departments, setDepartments] = useState([]);
@@ -580,14 +579,14 @@ function SessionDetail({ sessionId, token, onBack }) {
 
   if (loading) return <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>Loading session…</div>;
 
-  const tabs = [
-    { key: "info",       label: "ℹ Session Info" },
-    { key: "attendance", label: "✅ Attendance" },
-    { key: "documents",  label: "📁 Documents" },
-  ];
-
   const present  = session?.total_present || 0;
   const pct      = session?.total_registered ? Math.round(100 * present / session.total_registered) : 0;
+
+  const SectionHead = ({ label }) => (
+    <div style={{ padding: "10px 0 8px", margin: "24px 0 14px", borderBottom: "2px solid #e2e8f0" }}>
+      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>{label}</span>
+    </div>
+  );
 
   return (
     <div>
@@ -621,19 +620,11 @@ function SessionDetail({ sessionId, token, onBack }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 20 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{ padding: "10px 20px", background: "none", border: "none", borderBottom: activeTab === t.key ? `3px solid ${ACCENT}` : "3px solid transparent", marginBottom: "-2px", fontSize: "13px", fontWeight: activeTab === t.key ? 700 : 500, color: activeTab === t.key ? ACCENT : "#64748b", cursor: "pointer" }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div>
 
-      {/* Info tab */}
-      {activeTab === "info" && (
-        <div style={{ ...S.card }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "14px 24px", fontSize: "13px" }}>
+      {/* Info section */}
+      <div style={{ ...S.card, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "14px 24px", fontSize: "13px" }}>
             {[
               ["Session Number", session?.session_number],
               ["Title", session?.title],
@@ -641,8 +632,6 @@ function SessionDetail({ sessionId, token, onBack }) {
               ["Date", session?.training_date?.slice(0, 10)],
               ["Time", session?.start_time && session?.end_time ? `${session.start_time} – ${session.end_time}` : session?.start_time || "—"],
               ["Duration", session?.duration_minutes ? `${session.duration_minutes} min` : "—"],
-              ["Venue", session?.venue || "—"],
-              ["Category", session?.category || "—"],
               ["Department", session?.department_name || "All Departments"],
               ["Status", session?.status],
               ["Created By", session?.created_by_name || "—"],
@@ -664,17 +653,14 @@ function SessionDetail({ sessionId, token, onBack }) {
             </div>
           )}
         </div>
-      )}
 
-      {/* Attendance tab */}
-      {activeTab === "attendance" && (
-        <AttendancePanel token={token} sessionId={sessionId} onUpdate={load} />
-      )}
+      <SectionHead label="✅ Attendance" />
+      <AttendancePanel token={token} sessionId={sessionId} onUpdate={load} />
 
-      {/* Documents tab */}
-      {activeTab === "documents" && (
-        <DocumentsPanel token={token} sessionId={sessionId} />
-      )}
+      <SectionHead label="📁 Documents" />
+      <DocumentsPanel token={token} sessionId={sessionId} />
+
+      </div>
     </div>
   );
 }
@@ -1279,16 +1265,27 @@ function ReportsTab({ token }) {
       {detailReport.documents.length > 0 && (
         <div style={{ ...S.card, marginBottom: 14 }}>
           <h3 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: 700 }}>Documents</h3>
-          {detailReport.documents.map(d => (
-            <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, marginBottom: 6 }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: "13px" }}>{d.file_name}</span>
-                <span style={{ marginLeft: 8, fontSize: "11px", padding: "1px 8px", borderRadius: 10, background: "#ede9fe", color: ACCENT }}>{d.document_type.replace("_", " ")}</span>
-                <span style={{ fontSize: "11px", color: "#64748b", marginLeft: 8 }}>v{d.version} · {d.uploaded_by_name} · {new Date(d.created_at).toLocaleDateString()}</span>
+          {detailReport.documents.map(d => {
+            const isImg = d.mimetype?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(d.file_name);
+            const src = d.file_url?.startsWith('http') ? d.file_url : `${BASE}${d.file_url}`;
+            return (
+              <div key={d.id} style={{ marginBottom: 8 }}>
+                {isImg && (
+                  <div style={{ marginBottom: 4 }}>
+                    <img src={src} alt={d.file_name} style={{ maxWidth: 280, maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: "13px" }}>{d.file_name}</span>
+                    <span style={{ marginLeft: 8, fontSize: "11px", padding: "1px 8px", borderRadius: 10, background: "#ede9fe", color: ACCENT }}>{d.document_type.replace("_", " ")}</span>
+                    <span style={{ fontSize: "11px", color: "#64748b", marginLeft: 8 }}>v{d.version} · {d.uploaded_by_name} · {new Date(d.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <button style={{ ...S.btn("ghost"), padding: "4px 10px", fontSize: "12px" }} onClick={() => downloadDoc(d.id, d.file_name)}>↓ Download</button>
+                </div>
               </div>
-              <button style={{ ...S.btn("ghost"), padding: "4px 10px", fontSize: "12px" }} onClick={() => downloadDoc(d.id, d.file_name)}>↓ Download</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
