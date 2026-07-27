@@ -150,7 +150,8 @@ const upload = multer({
     KEY idx_train_audit_target (target_type, target_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  // Safety: add missing columns on pre-existing tables
+  await safe(`ALTER TABLE training_attendance ADD COLUMN IF NOT EXISTS is_manual TINYINT(1) NOT NULL DEFAULT 0`);
+  await safe(`ALTER TABLE training_attendance MODIFY COLUMN employee_id INT UNSIGNED NULL`);
   await safe(`ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS venue VARCHAR(300) NULL`);
   await safe(`ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS category VARCHAR(100) NULL`);
   await safe(`ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS duration_minutes INT UNSIGNED NULL`);
@@ -399,14 +400,46 @@ router.post("/sessions/:id/attendance/import", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// DELETE /sessions/:id/attendance/:empId — remove attendance record
-router.delete("/sessions/:id/attendance/:empId", async (req, res, next) => {
+// POST /sessions/:id/attendance/manual — add external/manual attendee by name
+router.post("/sessions/:id/attendance/manual", async (req, res, next) => {
   try {
+    const sessionId = Number(req.params.id);
+    const [[session]] = await pool.query("SELECT id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    const { name, code, designation, departmentName, attendanceStatus } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: "Name is required for manual entry" });
+    const status = ["present", "absent", "excused"].includes(attendanceStatus) ? attendanceStatus : "present";
+    await pool.query(
+      `INSERT INTO training_attendance (session_id, company_id, employee_id, employee_name, employee_code, designation, department_name, attendance_status, is_manual, recorded_by, recorded_by_name, recorded_at)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 1, ?, ?, NOW())`,
+      [sessionId, cid(req), name.trim(), sanitize(code) || null, sanitize(designation) || null, sanitize(departmentName) || null, status, uid(req), uname(req)]
+    );
+    await refreshAttendanceCounts(sessionId);
+    await auditLog(cid(req), "MANUAL_ATTENDANCE_ADDED", uid(req), uname(req), urole(req), "session", sessionId, { name, status }, req);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /sessions/:id/attendance/:empId — remove attendance record by employee_id
+router.delete("/sessions/:id/attendance/:empId", async (req, res, next) => {  try {
     const sessionId = Number(req.params.id);
     const empId = Number(req.params.empId);
     const [[session]] = await pool.query("SELECT id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
     if (!session) return res.status(404).json({ message: "Session not found" });
     await pool.query("DELETE FROM training_attendance WHERE session_id = ? AND employee_id = ?", [sessionId, empId]);
+    await refreshAttendanceCounts(sessionId);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /sessions/:id/attendance/record/:recordId — remove manual/any attendance record by row id
+router.delete("/sessions/:id/attendance/record/:recordId", async (req, res, next) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const recordId = Number(req.params.recordId);
+    const [[session]] = await pool.query("SELECT id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    await pool.query("DELETE FROM training_attendance WHERE id = ? AND session_id = ?", [recordId, sessionId]);
     await refreshAttendanceCounts(sessionId);
     res.json({ success: true });
   } catch (e) { next(e); }

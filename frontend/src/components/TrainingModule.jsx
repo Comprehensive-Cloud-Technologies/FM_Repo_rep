@@ -4,7 +4,7 @@
  *
  * Tabs: Scheduler (Calendar) | Employees | Reports
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
@@ -232,11 +232,11 @@ function AttendancePanel({ token, sessionId, onUpdate }) {
   const [empSearch, setEmpSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
   const [departments, setDepartments] = useState([]);
-  const [selected, setSelected] = useState(new Set());
-  const [bulkStatus, setBulkStatus] = useState("present");
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(null);
   const [toast, setToast] = useState(null);
-  const [tab, setTab] = useState("manage"); // manage | add
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualForm, setManualForm] = useState({ name: "", code: "", designation: "", departmentName: "", status: "present" });
+  const [submittingManual, setSubmittingManual] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,41 +254,65 @@ function AttendancePanel({ token, sessionId, onUpdate }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const existingEmpIds = new Set(attendance.map(a => a.employee_id));
+  const attMap = useMemo(() => {
+    const m = new Map();
+    attendance.forEach(a => { if (a.employee_id) m.set(Number(a.employee_id), a); });
+    return m;
+  }, [attendance]);
 
   const markSingle = async (empId, status) => {
+    setSaving(empId);
     try {
       await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance`, { method: "POST", body: JSON.stringify({ employeeId: empId, attendanceStatus: status }) }, token);
+      await load(); onUpdate();
+    } catch (e) { setToast({ msg: e.message, type: "error" }); } finally { setSaving(null); }
+  };
+
+  const removeAtt = async (empId, recordId) => {
+    if (!window.confirm("Remove this attendance record?")) return;
+    try {
+      if (recordId && !empId) {
+        await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance/record/${recordId}`, { method: "DELETE" }, token);
+      } else {
+        await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance/${empId}`, { method: "DELETE" }, token);
+      }
       await load(); onUpdate();
     } catch (e) { setToast({ msg: e.message, type: "error" }); }
   };
 
-  const bulkMark = async () => {
-    if (!selected.size) return setToast({ msg: "Select employees first", type: "error" });
-    setSaving(true);
+  const markAll = async (status) => {
+    setSaving("bulk");
     try {
-      const records = [...selected].map(id => ({ employeeId: id, attendanceStatus: bulkStatus }));
+      const records = employees.map(e => ({ employeeId: e.id, attendanceStatus: status }));
+      if (!records.length) return;
       const r = await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance/bulk`, { method: "POST", body: JSON.stringify({ records }) }, token);
-      setToast({ msg: `${r.saved} attendance records saved` });
-      setSelected(new Set()); await load(); onUpdate();
-    } catch (e) { setToast({ msg: e.message, type: "error" }); } finally { setSaving(false); }
+      setToast({ msg: `${r.saved} records saved` });
+      await load(); onUpdate();
+    } catch (e) { setToast({ msg: e.message, type: "error" }); } finally { setSaving(null); }
   };
 
-  const removeAtt = async (empId) => {
-    if (!window.confirm("Remove this attendance record?")) return;
-    try { await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance/${empId}`, { method: "DELETE" }, token); await load(); onUpdate(); }
-    catch (e) { setToast({ msg: e.message, type: "error" }); }
+  const submitManual = async () => {
+    if (!manualForm.name.trim()) return setToast({ msg: "Name is required", type: "error" });
+    setSubmittingManual(true);
+    try {
+      await apiFetch(`${TRN_API}/sessions/${sessionId}/attendance/manual`, { method: "POST", body: JSON.stringify({ name: manualForm.name, code: manualForm.code, designation: manualForm.designation, departmentName: manualForm.departmentName, attendanceStatus: manualForm.status }) }, token);
+      setToast({ msg: "Manual entry added!" }); setShowManualForm(false); setManualForm({ name: "", code: "", designation: "", departmentName: "", status: "present" });
+      await load(); onUpdate();
+    } catch (e) { setToast({ msg: e.message, type: "error" }); } finally { setSubmittingManual(false); }
   };
 
   const filteredEmps = employees.filter(e =>
     (!deptFilter || String(e.departmentId || e.department_id) === String(deptFilter)) &&
     (!empSearch || (e.fullName || e.full_name || "").toLowerCase().includes(empSearch.toLowerCase()) || (e.username || "").toLowerCase().includes(empSearch.toLowerCase()))
   );
+  const manualEntries = attendance.filter(a => a.is_manual || !a.employee_id);
 
   const present  = attendance.filter(a => a.attendance_status === "present").length;
   const absent   = attendance.filter(a => a.attendance_status === "absent").length;
   const excused  = attendance.filter(a => a.attendance_status === "excused").length;
   const pct      = attendance.length ? Math.round(100 * present / attendance.length) : 0;
+
+  const statusColor = { present: "#16a34a", absent: "#dc2626", excused: "#d97706" };
 
   return (
     <div>
@@ -296,111 +320,101 @@ function AttendancePanel({ token, sessionId, onUpdate }) {
 
       {/* Summary */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
-        <StatCard label="Registered" value={attendance.length} color={ACCENT} />
+        <StatCard label="Total Employees" value={employees.length} color={ACCENT} />
         <StatCard label="Present" value={present} color="#16a34a" />
         <StatCard label="Absent" value={absent} color="#dc2626" />
         <StatCard label="Excused" value={excused} color="#d97706" />
         <StatCard label="Attendance %" value={`${pct}%`} color="#0891b2" />
       </div>
 
-      {/* Sub-tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 16 }}>
-        {[["manage", "📋 Manage Attendance"], ["add", "➕ Add Employees"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 18px", background: "none", border: "none", borderBottom: tab === k ? `3px solid ${ACCENT}` : "3px solid transparent", marginBottom: "-2px", fontSize: "13px", fontWeight: tab === k ? 700 : 500, color: tab === k ? ACCENT : "#64748b", cursor: "pointer" }}>{l}</button>
-        ))}
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
+        <input value={empSearch} onChange={e => setEmpSearch(e.target.value)} placeholder="Search employee…" style={{ ...S.input, flex: 1, minWidth: 160 }} />
+        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} style={{ ...S.input, width: 170 }}>
+          <option value="">All Departments</option>
+          {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
+        </select>
+        <button style={S.btn("success")} disabled={saving === "bulk"} onClick={() => markAll("present")}>✔ Mark All Present</button>
+        <button style={S.btn("danger")} disabled={saving === "bulk"} onClick={() => markAll("absent")}>✘ Mark All Absent</button>
+        <button style={{ ...S.btn("primary"), background: "#7c3aed" }} onClick={() => setShowManualForm(v => !v)}>+ Add Manual</button>
       </div>
 
-      {/* Manage tab */}
-      {tab === "manage" && (
-        <div>
-          {/* Bulk action bar */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, alignItems: "center", padding: "10px 12px", background: "#f8fafc", borderRadius: 8 }}>
-            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>{selected.size} selected</span>
-            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} style={{ ...S.input, width: 130 }}>
+      {/* Manual entry form */}
+      {showManualForm && (
+        <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: 10, padding: "16px", marginBottom: 14 }}>
+          <h4 style={{ margin: "0 0 12px", fontSize: "14px", color: "#7c3aed" }}>Add External / Manual Attendee</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
+            <input placeholder="Full Name *" value={manualForm.name} onChange={e => setManualForm(p => ({ ...p, name: e.target.value }))} style={S.input} />
+            <input placeholder="Employee Code" value={manualForm.code} onChange={e => setManualForm(p => ({ ...p, code: e.target.value }))} style={S.input} />
+            <input placeholder="Designation" value={manualForm.designation} onChange={e => setManualForm(p => ({ ...p, designation: e.target.value }))} style={S.input} />
+            <input placeholder="Department" value={manualForm.departmentName} onChange={e => setManualForm(p => ({ ...p, departmentName: e.target.value }))} style={S.input} />
+            <select value={manualForm.status} onChange={e => setManualForm(p => ({ ...p, status: e.target.value }))} style={S.input}>
               <option value="present">Present</option>
               <option value="absent">Absent</option>
               <option value="excused">Excused</option>
             </select>
-            <button style={S.btn("primary")} onClick={bulkMark} disabled={saving}>{saving ? "Saving…" : "Apply to Selected"}</button>
-            <button style={{ ...S.btn("ghost"), marginLeft: 4 }} onClick={() => setSelected(new Set(attendance.map(a => a.employee_id)))}>Select All</button>
-            <button style={S.btn("ghost")} onClick={() => setSelected(new Set())}>Clear</button>
           </div>
-          {loading ? <Empty msg="Loading attendance…" /> : attendance.length === 0 ? <Empty msg="No attendance records yet. Add employees using the Add tab." /> : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr>
-                  <th style={S.th}><input type="checkbox" checked={selected.size === attendance.length && attendance.length > 0} onChange={e => setSelected(e.target.checked ? new Set(attendance.map(a => a.employee_id)) : new Set())} /></th>
-                  {["Employee","Code","Department","Designation","Status","Recorded","Actions"].map(h => <th key={h} style={S.th}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {attendance.map(a => (
-                    <tr key={a.id}>
-                      <td style={S.td}><input type="checkbox" checked={selected.has(a.employee_id)} onChange={() => setSelected(p => { const s = new Set(p); s.has(a.employee_id) ? s.delete(a.employee_id) : s.add(a.employee_id); return s; })} /></td>
-                      <td style={{ ...S.td, fontWeight: 600 }}>{a.employee_name || "—"}</td>
-                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.employee_code || "—"}</td>
-                      <td style={S.td}>{a.department_name || "—"}</td>
-                      <td style={S.td}>{a.designation || "—"}</td>
-                      <td style={S.td}>
-                        <select value={a.attendance_status} onChange={e => markSingle(a.employee_id, e.target.value)} style={{ ...S.input, width: 100, padding: "4px 6px" }}>
-                          <option value="present">Present</option>
-                          <option value="absent">Absent</option>
-                          <option value="excused">Excused</option>
-                        </select>
-                      </td>
-                      <td style={{ ...S.td, fontSize: "12px", color: "#64748b" }}>{a.recorded_at ? new Date(a.recorded_at).toLocaleString() : "—"}</td>
-                      <td style={S.td}><button style={{ ...S.btn("danger"), padding: "3px 8px", fontSize: "11px" }} onClick={() => removeAtt(a.employee_id)}>Remove</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={S.btn("primary")} onClick={submitManual} disabled={submittingManual}>{submittingManual ? "Saving…" : "Save Manual Entry"}</button>
+            <button style={S.btn("ghost")} onClick={() => setShowManualForm(false)}>Cancel</button>
+          </div>
         </div>
       )}
 
-      {/* Add employees tab */}
-      {tab === "add" && (
-        <div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <input value={empSearch} onChange={e => setEmpSearch(e.target.value)} placeholder="Search name or employee ID…" style={{ ...S.input, flex: 1, minWidth: 180 }} />
-            <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} style={{ ...S.input, width: 180 }}>
-              <option value="">All Departments</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
-            </select>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: "12px", color: "#64748b" }}>{selected.size} selected</span>
-              <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} style={{ ...S.input, width: 120 }}>
-                <option value="present">Present</option>
-                <option value="absent">Absent</option>
-                <option value="excused">Excused</option>
-              </select>
-              <button style={S.btn("primary")} onClick={bulkMark} disabled={saving || !selected.size}>{saving ? "Adding…" : "Add Selected"}</button>
-            </div>
-          </div>
-          <div style={{ maxHeight: 360, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                <tr>{["", "Employee", "Code", "Department", "Designation", "Status"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {filteredEmps.map(e => {
-                  const empId = e.id;
-                  const existing = attendance.find(a => a.employee_id === empId);
-                  return (
-                    <tr key={empId} style={{ background: existing ? "#f0fdf4" : "transparent" }}>
-                      <td style={{ ...S.td, width: 36 }}><input type="checkbox" checked={selected.has(empId)} onChange={() => setSelected(p => { const s = new Set(p); s.has(empId) ? s.delete(empId) : s.add(empId); return s; })} /></td>
-                      <td style={{ ...S.td, fontWeight: 600 }}>{e.fullName || e.full_name}</td>
-                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{e.username || "—"}</td>
-                      <td style={S.td}>{e.departmentName || e.department_name || "—"}</td>
-                      <td style={S.td}>{e.designation || "—"}</td>
-                      <td style={S.td}>{existing ? <span style={S.badge(existing.attendance_status)}>{existing.attendance_status}</span> : <span style={{ fontSize: "12px", color: "#94a3b8" }}>Not added</span>}</td>
+      {loading ? <Empty msg="Loading…" /> : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["Employee", "Code", "Department", "Designation", "Status", "Recorded", "Actions"].map(h => <th key={h} style={S.th}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {filteredEmps.map(e => {
+                const empId = e.id;
+                const rec = attMap.get(Number(empId));
+                return (
+                  <tr key={empId} style={{ background: rec ? (rec.attendance_status === "present" ? "#f0fdf4" : rec.attendance_status === "absent" ? "#fef2f2" : "#fffbeb") : "transparent" }}>
+                    <td style={{ ...S.td, fontWeight: 600 }}>{e.fullName || e.full_name}</td>
+                    <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{e.username || "—"}</td>
+                    <td style={S.td}>{e.departmentName || e.department_name || "—"}</td>
+                    <td style={S.td}>{e.designation || "—"}</td>
+                    <td style={S.td}>
+                      <select
+                        value={rec?.attendance_status || ""}
+                        onChange={e2 => markSingle(empId, e2.target.value)}
+                        disabled={saving === empId}
+                        style={{ ...S.input, width: 110, padding: "4px 6px", borderColor: rec ? statusColor[rec.attendance_status] : "#e2e8f0", color: rec ? statusColor[rec.attendance_status] : "#94a3b8", fontWeight: rec ? 700 : 400 }}
+                      >
+                        <option value="" disabled>Not Marked</option>
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="excused">Excused</option>
+                      </select>
+                    </td>
+                    <td style={{ ...S.td, fontSize: "12px", color: "#64748b" }}>{rec?.recorded_at ? new Date(rec.recorded_at).toLocaleString() : "—"}</td>
+                    <td style={S.td}>{rec && <button style={{ ...S.btn("danger"), padding: "3px 8px", fontSize: "11px" }} onClick={() => removeAtt(empId, null)}>Remove</button>}</td>
+                  </tr>
+                );
+              })}
+              {filteredEmps.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#94a3b8", padding: 24 }}>No employees found</td></tr>}
+              {/* Manual/external entries */}
+              {manualEntries.length > 0 && (
+                <>
+                  <tr><td colSpan={7} style={{ ...S.td, background: "#f5f3ff", fontWeight: 700, fontSize: "12px", color: "#7c3aed", paddingTop: 12 }}>External / Manual Entries</td></tr>
+                  {manualEntries.map(a => (
+                    <tr key={a.id} style={{ background: "#faf5ff" }}>
+                      <td style={{ ...S.td, fontWeight: 600 }}>{a.employee_name} <span style={{ fontSize: "10px", color: "#7c3aed", background: "#ede9fe", padding: "1px 5px", borderRadius: 4 }}>manual</span></td>
+                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: "12px" }}>{a.employee_code || "—"}</td>
+                      <td style={S.td}>{a.department_name || "—"}</td>
+                      <td style={S.td}>{a.designation || "—"}</td>
+                      <td style={S.td}><span style={{ color: statusColor[a.attendance_status], fontWeight: 700 }}>{a.attendance_status}</span></td>
+                      <td style={{ ...S.td, fontSize: "12px", color: "#64748b" }}>{a.recorded_at ? new Date(a.recorded_at).toLocaleString() : "—"}</td>
+                      <td style={S.td}><button style={{ ...S.btn("danger"), padding: "3px 8px", fontSize: "11px" }} onClick={() => removeAtt(null, a.id)}>Remove</button></td>
                     </tr>
-                  );
-                })}
-                {filteredEmps.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#94a3b8" }}>No employees found</td></tr>}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

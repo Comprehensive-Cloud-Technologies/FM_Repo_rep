@@ -760,6 +760,103 @@ export async function markNotificationRead(id: number) {
   return authenticatedFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
 }
 
+// ─── Training Management ──────────────────────────────────────────────────────
+export async function fetchTrainingSessions(params?: { from?: string; to?: string; status?: string; search?: string }) {
+  const q = new URLSearchParams();
+  if (params?.from)   q.set('from',   params.from);
+  if (params?.to)     q.set('to',     params.to);
+  if (params?.status) q.set('status', params.status);
+  if (params?.search) q.set('search', params.search);
+  const qs = q.toString() ? `?${q}` : '';
+  return apiGet<any[]>(`/api/company-portal/training/sessions${qs}`);
+}
+
+export async function fetchTrainingSession(id: number) {
+  return apiGet<any>(`/api/company-portal/training/sessions/${id}`);
+}
+
+export async function createTrainingSession(data: {
+  title: string; trainingDate: string; trainerName?: string;
+  startTime?: string; endTime?: string; venue?: string; category?: string;
+  description?: string; notes?: string; status?: string;
+}) {
+  return apiPost<any>('/api/company-portal/training/sessions', data);
+}
+
+export async function updateTrainingSession(id: number, data: Record<string, unknown>) {
+  return apiPatch<any>(`/api/company-portal/training/sessions/${id}`, data);
+}
+
+export async function fetchTrainingAttendance(sessionId: number) {
+  return apiGet<any[]>(`/api/company-portal/training/sessions/${sessionId}/attendance`);
+}
+
+export async function markTrainingAttendance(sessionId: number, data: { employeeId: number; attendanceStatus: string; remarks?: string }) {
+  return apiPost<any>(`/api/company-portal/training/sessions/${sessionId}/attendance`, data);
+}
+
+export async function bulkMarkTrainingAttendance(sessionId: number, records: Array<{ employeeId: number; attendanceStatus: string }>) {
+  return apiPost<any>(`/api/company-portal/training/sessions/${sessionId}/attendance/bulk`, { records });
+}
+
+export async function fetchTrainingEmployeesList(params?: { search?: string; page?: number; pageSize?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search)   q.set('search',   params.search);
+  q.set('page',     String(params?.page     ?? 1));
+  q.set('pageSize', String(params?.pageSize ?? 100));
+  return apiGet<{ total: number; rows: any[] }>(`/api/company-portal/training/employees?${q}`);
+}
+
+export async function fetchTrainingDocuments(sessionId: number) {
+  return apiGet<any[]>(`/api/company-portal/training/sessions/${sessionId}/documents`);
+}
+
+export async function uploadTrainingDocument(
+  sessionId: number,
+  fileUri: string,
+  fileName: string,
+  documentType: string,
+): Promise<any> {
+  const token = await getToken();
+  const result = await FileSystem.uploadAsync(
+    `${API_BASE}/api/company-portal/training/sessions/${sessionId}/documents`,
+    fileUri,
+    {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'file',
+      headers: { Authorization: `Bearer ${token ?? ''}` },
+      parameters: { documentType, fileName },
+    },
+  );
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiError(result.status, result.body || `HTTP ${result.status}`);
+  }
+  try { return JSON.parse(result.body); } catch { return {}; }
+}
+
+export async function addManualTrainingAttendance(
+  sessionId: number,
+  data: { name: string; code?: string; designation?: string; departmentName?: string; attendanceStatus?: string },
+): Promise<any> {
+  const res = await authenticatedFetch(`/api/company-portal/training/sessions/${sessionId}/attendance/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => `HTTP ${res.status}`));
+  return res.json();
+}
+
+export async function deleteTrainingAttendanceRecord(sessionId: number, empId: number | null, recordId?: number) {
+  const url = recordId
+    ? `/api/company-portal/training/sessions/${sessionId}/attendance/record/${recordId}`
+    : `/api/company-portal/training/sessions/${sessionId}/attendance/${empId}`;
+  const res = await authenticatedFetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => `HTTP ${res.status}`));
+  return res.json();
+}
+
 // ─── OJT Training ────────────────────────────────────────────────────────────
 export async function fetchMyTrainings() {
   return apiGet<unknown[]>('/api/company-portal/ojt/mobile/my-assignments');
