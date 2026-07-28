@@ -247,6 +247,22 @@ function HCEngineerHome({ user }: { user: any }) {
               <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
             </TouchableOpacity>
 
+            <Text style={[ss.sectionTitle, { color: theme.textMuted, marginTop: 16 }]}>TRAINING</Text>
+            <TouchableOpacity
+              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#e9d5ff' }]}
+              onPress={() => router.push('/training-sessions' as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[ss.pmsIconBox, { backgroundColor: '#f3e8ff' }]}>
+                <MaterialCommunityIcons name="school-outline" size={26} color="#7c3aed" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Training Sessions</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>Schedule, attend & manage training</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
+            </TouchableOpacity>
+
             {cases.filter(item => !['resolved','closed'].includes(item.status)).length > 0 && (
               <>
                 <View style={ss.rowBetween}>
@@ -348,6 +364,22 @@ function HCAdminHome({ user }: { user: any }) {
                 ))}
               </>
             )}
+
+            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>TRAINING</Text>
+            <TouchableOpacity
+              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#e9d5ff' }]}
+              onPress={() => router.push('/training-sessions' as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[ss.pmsIconBox, { backgroundColor: '#f3e8ff' }]}>
+                <MaterialCommunityIcons name="school-outline" size={26} color="#7c3aed" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Training Sessions</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>Schedule, attend & manage training</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
+            </TouchableOpacity>
 
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
             <View style={ss.actionsRow}>

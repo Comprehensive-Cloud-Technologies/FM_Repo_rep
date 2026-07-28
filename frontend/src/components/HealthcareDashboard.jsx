@@ -1502,7 +1502,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
 
   // Load PMS dashboard stats + overdue details
   useEffect(() => {
-    if (!token || allCompaniesMode) return;
+    if (!token) return;
     setPmsLoading(true);
     Promise.all([
       fetch(`${BASE}/api/company-portal/pms/dashboard-stats`, { headers: { Authorization: `Bearer ${token}` } })
@@ -1515,19 +1515,21 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     }).finally(() => setPmsLoading(false));
   }, [token, allCompaniesMode, refreshKey]);
 
-  // Load OJT/Training stats
+  // Load Training session stats
   useEffect(() => {
     if (!token) return;
     setOjtLoading(true);
-    fetch(`${BASE}/api/company-portal/ojt/trainings`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${BASE}/api/company-portal/training/sessions?from=2020-01-01&to=2030-12-31`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(rows => {
         if (!rows) return;
         const data = Array.isArray(rows.data) ? rows.data : (Array.isArray(rows) ? rows : []);
+        const today = new Date().toISOString().slice(0, 10);
         const total     = data.length;
-        const published = data.filter(t => t.status === "published").length;
-        const draft     = data.filter(t => t.status === "draft").length;
-        setOjtStats({ total, published, draft, active: published });
+        const scheduled = data.filter(t => t.status === "scheduled").length;
+        const completed = data.filter(t => t.status === "completed").length;
+        const overdue   = data.filter(t => t.status === "overdue" || (t.status === "scheduled" && (t.training_date || "").slice(0,10) < today)).length;
+        setOjtStats({ total, scheduled, completed, overdue });
       })
       .catch(() => {})
       .finally(() => setOjtLoading(false));
@@ -1958,10 +1960,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "pmsDue",       label: "Due This Month",      icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonth },
-            { key: "pmsOverdue",   label: "Overdue",             icon: Icon.Pms, color: "red",    value: pmsStats?.overdue },
-            { key: "pmsUpcoming",  label: "Upcoming (30D)",      icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30d },
-            { key: "pmsCompleted", label: "Completed This Month",icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonth },
+            { key: "pmsDueAssets",       label: "Assets Due This Month",      icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonthAssets },
+            { key: "pmsOverdueAssets",   label: "Assets Overdue",             icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets },
+            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)",      icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets },
+            { key: "pmsCompletedAssets", label: "Assets Completed This Month",icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonthAssets },
           ].map(k => (
             <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading} isActive={false} />
           ))}
@@ -1973,10 +1975,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDueThisMonth",        label: "Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
-            { key: "calibrationOverdue",             label: "Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
-            { key: "calibrationUpcoming",            label: "Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
-            { key: "calibrationCompletedThisMonth",  label: "Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
+            { key: "calibrationDueThisMonth",        label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
+            { key: "calibrationOverdue",             label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
+            { key: "calibrationUpcoming",            label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
+            { key: "calibrationCompletedThisMonth",  label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
           ].map(k => (
             <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading} isActive={false} />
           ))}
@@ -1988,10 +1990,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Training Records</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "ojtTotal",      label: "Total Programs",   icon: Icon.Training, color: "blue",   value: ojtStats?.total },
-            { key: "ojtPublished",  label: "Published",        icon: Icon.Training, color: "green",  value: ojtStats?.published },
-            { key: "ojtDraft",      label: "Draft",            icon: Icon.Training, color: "yellow", value: ojtStats?.draft },
-            { key: "ojtActive",     label: "Active",           icon: Icon.Training, color: "teal",   value: ojtStats?.active },
+            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",   value: ojtStats?.total },
+            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",   value: ojtStats?.scheduled },
+            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green",  value: ojtStats?.completed },
+            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",    value: ojtStats?.overdue },
           ].map(k => (
             <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading} isActive={false} />
           ))}

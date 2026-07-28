@@ -686,6 +686,37 @@ function SchedulerTab({ token }) {
         </div>
       </div>
 
+      {/* KPI Stats */}
+      {(() => {
+        const overdueSchs = schedules.filter(s => s.status === "overdue");
+        const completedSchs = schedules.filter(s => s.status === "completed");
+        const totalAssets     = schedules.reduce((s, x) => s + Number(x.total_assets || 0), 0);
+        const completedAssets = schedules.reduce((s, x) => s + Number(x.completed_assets || 0), 0);
+        const pendingAssets   = schedules.reduce((s, x) => s + Number(x.pending_assets || 0), 0);
+        const overdueAssets   = overdueSchs.reduce((s, x) => s + Number(x.total_assets || 0), 0);
+        const assetPct = totalAssets > 0 ? Math.round(completedAssets / totalAssets * 100) : 0;
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "12px", marginBottom: "20px" }}>
+            {[
+              { label: "Total Assets",   value: totalAssets,     sub: `${schedules.length} schedules`,         icon: "🔬", bg: "#eff6ff", tc: "#1d4ed8" },
+              { label: "Today",          value: schedules.filter(s => s.calibration_date?.startsWith(new Date().toISOString().slice(0,10))).reduce((s,x)=>s+Number(x.total_assets||0),0), sub: `${schedules.filter(s=>s.calibration_date?.startsWith(new Date().toISOString().slice(0,10))).length} schedules`, icon: "📅", bg: "#f0fdf4", tc: "#15803d" },
+              { label: "Completed",      value: completedAssets, sub: `${completedSchs.length} schedules`,    icon: "✅", bg: "#dcfce7", tc: "#15803d" },
+              { label: "Pending",        value: pendingAssets,   sub: `${schedules.filter(s=>s.status==="scheduled").length} schedules`, icon: "⏳", bg: "#fef9c3", tc: "#a16207" },
+              { label: "Overdue",        value: overdueAssets,   sub: `${overdueSchs.length} schedules`,      icon: "🚨", bg: "#fee2e2", tc: "#dc2626" },
+              { label: "Completion",     value: `${assetPct}%`,  sub: `${schedules.length > 0 ? Math.round(completedSchs.length/schedules.length*100) : 0}% by schedules`, icon: "📊", bg: "#f0fdf4", tc: "#0891b2" },
+            ].map(c => (
+              <div key={c.label} style={{ background: c.bg, borderRadius: "14px", padding: "14px 16px", border: `1px solid ${c.bg}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "16px" }}>{c.icon}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: c.tc, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</span>
+                </div>
+                <div style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{c.value}</div>
+                <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       {/* Calendar navigation */}
       {view === "calendar" && (
         <div style={{ ...S.card }}>

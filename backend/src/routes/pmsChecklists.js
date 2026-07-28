@@ -976,7 +976,8 @@ router.get("/verify-asset-qr", async (req, res, next) => {
 /* GET /dashboard-stats — aggregate PMS KPI counts for the company dashboard */
 router.get("/dashboard-stats", async (req, res, next) => {
   try {
-    const companyId = cid(req);
+    const ids        = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph         = ids.map(() => "?").join(",");
     const today      = new Date().toISOString().slice(0, 10);
     const monthStart = today.slice(0, 7) + "-01";
     const nextMonthDate = new Date(monthStart);
@@ -986,19 +987,39 @@ router.get("/dashboard-stats", async (req, res, next) => {
 
     const [[stats]] = await pool.query(
       `SELECT
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                         AS dueThisMonth,
-         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                       AS overdue,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled')) AS upcoming30d,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')             AS completedThisMonth
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                                   AS dueThisMonth,
+         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                                 AS overdue,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled'))   AS upcoming30d,
+         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')                       AS completedThisMonth,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN ac.cnt ELSE 0 END)                  AS dueThisMonthAssets,
+         SUM(CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS overdueAssets,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS upcoming30dAssets,
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ac.cnt ELSE 0 END) AS completedThisMonthAssets
        FROM pms_schedules ps
-       WHERE ps.company_id = ?`,
-      [monthStart, monthEnd, today, today, upcoming30, monthStart, monthEnd, companyId]
+       LEFT JOIN (SELECT schedule_id, COUNT(*) AS cnt FROM pms_schedule_assets GROUP BY schedule_id) ac ON ac.schedule_id = ps.id
+       WHERE ps.company_id IN (${ph})`,
+      [
+        monthStart, monthEnd,
+        today,
+        today, upcoming30,
+        monthStart, monthEnd,
+        monthStart, monthEnd,
+        today,
+        today, upcoming30,
+        monthStart, monthEnd,
+        ...ids,
+      ]
     );
     res.json({
-      dueThisMonth:       Number(stats?.dueThisMonth       || 0),
-      overdue:            Number(stats?.overdue            || 0),
-      upcoming30d:        Number(stats?.upcoming30d        || 0),
-      completedThisMonth: Number(stats?.completedThisMonth || 0),
+      dueThisMonth:              Number(stats?.dueThisMonth              || 0),
+      overdue:                   Number(stats?.overdue                   || 0),
+      upcoming30d:               Number(stats?.upcoming30d               || 0),
+      completedThisMonth:        Number(stats?.completedThisMonth        || 0),
+      dueThisMonthAssets:        Number(stats?.dueThisMonthAssets        || 0),
+      overdueAssets:             Number(stats?.overdueAssets             || 0),
+      upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
+      completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
+    });
     });
   } catch (err) { next(err); }
 });
