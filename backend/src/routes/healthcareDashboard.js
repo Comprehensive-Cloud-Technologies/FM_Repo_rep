@@ -1212,6 +1212,11 @@ router.get("/requests", validate([
   query("escalated").optional().isBoolean(),
   query("overdue").optional().isBoolean(),
   query("search").optional().isString().trim(),
+  query("hospitalName").optional().isString().trim(),
+  query("assetName").optional().isString().trim(),
+  query("raisedBy").optional().isString().trim(),
+  query("departmentId").optional().isInt({ min: 1 }),
+  query("source").optional().isString(),
 ]), async (req, res, next) => {
   try {
     const companyId = req.companyUser.companyId;
@@ -1238,9 +1243,14 @@ router.get("/requests", validate([
     if (req.query.dateTo)     { woWhere += " AND DATE(wo.created_at) <= ?"; woP.push(req.query.dateTo); }
     if (req.query.escalated === "true") { woWhere += " AND wo.escalation_level > 0"; }
     if (req.query.overdue === "true")   { woWhere += " AND wo.is_overdue = 1"; }
+    if (req.query.source) { woWhere += " AND LOWER(wo.source_label) LIKE ?"; woP.push(`%${req.query.source.toLowerCase()}%`); }
+    if (req.query.hospitalName) { woWhere += " AND c.company_name LIKE ?"; woP.push(`%${req.query.hospitalName}%`); }
+    if (req.query.departmentId) { woWhere += " AND (wo.department_id = ? OR d.id = ?)"; woP.push(Number(req.query.departmentId), Number(req.query.departmentId)); }
+    if (req.query.assetName) { woWhere += " AND (wo.asset_name LIKE ? OR wo.location LIKE ?)"; const an = `%${req.query.assetName}%`; woP.push(an, an); }
+    if (req.query.raisedBy) { woWhere += " AND COALESCE(cb.full_name,'') LIKE ?"; woP.push(`%${req.query.raisedBy}%`); }
     if (req.query.search) {
-      woWhere += " AND (wo.work_order_number LIKE ? OR wo.asset_name LIKE ? OR wo.issue_description LIKE ?)";
-      const s = `%${req.query.search}%`; woP.push(s, s, s);
+      woWhere += " AND (wo.work_order_number LIKE ? OR wo.asset_name LIKE ? OR wo.issue_description LIKE ? OR wo.location LIKE ? OR COALESCE(a.generated_asset_id,'') LIKE ? OR COALESCE(cb.full_name,'') LIKE ? OR COALESCE(c.company_name,'') LIKE ?)";
+      const s = `%${req.query.search}%`; woP.push(s, s, s, s, s, s, s);
     }
 
     // ── Asset queries query (QR scan submissions) ─────────────────────────────
@@ -1255,9 +1265,12 @@ router.get("/requests", validate([
     }
     if (req.query.dateFrom) { aqWhere += " AND aq.created_at >= ?"; aqP.push(req.query.dateFrom); }
     if (req.query.dateTo)   { aqWhere += " AND DATE(aq.created_at) <= ?"; aqP.push(req.query.dateTo); }
+    if (req.query.hospitalName) { aqWhere += " AND c.company_name LIKE ?"; aqP.push(`%${req.query.hospitalName}%`); }
+    if (req.query.assetName) { aqWhere += " AND (a.asset_name LIKE ? OR aq.message LIKE ?)"; const an = `%${req.query.assetName}%`; aqP.push(an, an); }
+    if (req.query.raisedBy) { aqWhere += " AND aq.requester_name LIKE ?"; aqP.push(`%${req.query.raisedBy}%`); }
     if (req.query.search) {
-      aqWhere += " AND (a.asset_name LIKE ? OR aq.query_type LIKE ? OR aq.message LIKE ? OR aq.requester_name LIKE ?)";
-      const s = `%${req.query.search}%`; aqP.push(s, s, s, s);
+      aqWhere += " AND (a.asset_name LIKE ? OR aq.query_type LIKE ? OR aq.message LIKE ? OR aq.requester_name LIKE ? OR COALESCE(a.asset_unique_id,'') LIKE ? OR COALESCE(a.generated_asset_id,'') LIKE ? OR CONCAT('AQ-', aq.id) LIKE ? OR COALESCE(c.company_name,'') LIKE ?)";
+      const s = `%${req.query.search}%`; aqP.push(s, s, s, s, s, s, s, s);
     }
     // Skip asset_queries for escalated/overdue/priority/assignedTo filters, or when status has no AQ equivalent
     const skipAQ = forceSkipAQStatus || req.query.escalated === "true" || req.query.overdue === "true" || req.query.priority || req.query.assignedTo;

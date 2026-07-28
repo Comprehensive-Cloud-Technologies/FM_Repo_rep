@@ -25,13 +25,18 @@ const BUCKET  = process.env.AWS_S3_BUCKET  || "catalysthtmappuploads";
 const REGION  = process.env.AWS_REGION     || "ap-south-1";
 const EXPIRY  = Number(process.env.AWS_S3_URL_EXPIRY || 3600); // seconds
 
-export const s3Client = new S3Client({
-  region: REGION,
-  credentials: {
+// Use explicit credentials from env vars when provided; otherwise fall back to
+// the SDK default credential provider chain (reads ~/.aws/credentials, IAM roles,
+// environment variables etc.) — this lets EC2 instances with IAM roles or an
+// existing ~/.aws/credentials file work without any .env changes.
+const clientConfig = { region: REGION };
+if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+  clientConfig.credentials = {
     accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
+  };
+}
+export const s3Client = new S3Client(clientConfig);
 
 // ── Folder mapping ────────────────────────────────────────────────────────────
 export const S3_FOLDERS = {

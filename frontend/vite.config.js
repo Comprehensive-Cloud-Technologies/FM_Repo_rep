@@ -66,6 +66,11 @@ export default defineConfig(({ mode }) => {
           target: apiTarget,
           changeOrigin: true,
         },
+        "/socket.io": {
+          target: apiTarget,
+          changeOrigin: true,
+          ws: true,          // enable WebSocket proxying
+        },
       },
     },
   };
