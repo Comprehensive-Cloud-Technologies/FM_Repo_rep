@@ -55,17 +55,24 @@ async function runEscalationCheck() {
     } catch { /* table may not exist yet – use defaults */ }
 
     // Find un-escalated open flags; include company_id and supervisor_id for notifications
-    const [staleFlags] = await pool.query(
-      `SELECT f.id, f.asset_id AS assetId, f.company_id AS companyId,
-              f.severity, f.status, f.supervisor_id AS supervisorId,
-              f.description,
-              a.asset_name AS assetName,
-              EXTRACT(EPOCH FROM (NOW() - f.created_at)) / 3600 AS ageHours
-       FROM flags f
-       LEFT JOIN assets a ON a.id = f.asset_id
-       WHERE f.status IN ('open', 'in_progress')
-         AND f.escalated = FALSE`
-    );
+    // NOTE: TIMESTAMPDIFF(HOUR, ...) is MySQL-compatible; EXTRACT(EPOCH FROM ...) is PostgreSQL only.
+    let staleFlags;
+    try {
+      [staleFlags] = await pool.query(
+        `SELECT f.id, f.asset_id AS assetId, f.company_id AS companyId,
+                f.severity, f.status, f.supervisor_id AS supervisorId,
+                f.description,
+                a.asset_name AS assetName,
+                TIMESTAMPDIFF(HOUR, f.created_at, NOW()) AS ageHours
+         FROM flags f
+         LEFT JOIN assets a ON a.id = f.asset_id
+         WHERE f.status IN ('open', 'in_progress')
+           AND f.escalated = FALSE`
+      );
+    } catch (queryErr) {
+      console.error("[EscalationJob] Main escalation query failed:", queryErr.message);
+      return;
+    }
 
     if (!staleFlags.length) return;
 

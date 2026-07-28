@@ -223,11 +223,26 @@ export async function verifyToken(): Promise<{ user: AppUser } | null> {
     const token = await getToken();
     if (!token) return null;
     const res = await authenticatedFetch('/api/mobile-auth/verify');
-    if (!res.ok) { await clearSession(); return null; }
+    // M-9: Only clear the session on definitive auth failures (401/403).
+    // Server errors (5xx) and network timeouts must NOT log the user out —
+    // in a healthcare facility with spotty Wi-Fi, that would unexpectedly
+    // evict nurses mid-shift. Fall back to the cached user instead.
+    if (res.status === 401 || res.status === 403) {
+      await clearSession();
+      return null;
+    }
+    if (!res.ok) {
+      const cached = await getStoredUser();
+      return cached ? { user: cached } : null;
+    }
     const data = await res.json() as { user: AppUser };
     await setStoredUser(data.user);
     return data;
-  } catch { return null; }
+  } catch {
+    // Network unreachable or request timed out — return cached user without logging out
+    const cached = await getStoredUser();
+    return cached ? { user: cached } : null;
+  }
 }
 
 export async function logout() {

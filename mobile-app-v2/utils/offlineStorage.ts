@@ -42,7 +42,10 @@ export async function getOfflineQueue(): Promise<QueuedSubmission[]> {
 export async function addToOfflineQueue(item: Omit<QueuedSubmission, 'id' | 'queuedAt'>): Promise<void> {
   try {
     const queue = await getOfflineQueue();
-    queue.push({ ...item, id: `${Date.now()}_${Math.random()}`, queuedAt: Date.now() });
+    // M-11: crypto.randomUUID() (available in RN 0.73+) prevents the collision
+    // risk of Math.random() — two items queued in the same millisecond would
+    // share the same id and silently overwrite each other.
+    queue.push({ ...item, id: crypto.randomUUID(), queuedAt: Date.now() });
     await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
   } catch { /* non-fatal */ }
 }

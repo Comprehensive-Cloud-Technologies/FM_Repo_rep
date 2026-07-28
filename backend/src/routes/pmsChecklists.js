@@ -1020,7 +1020,6 @@ router.get("/dashboard-stats", async (req, res, next) => {
       upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
       completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
     });
-    });
   } catch (err) { next(err); }
 });
 

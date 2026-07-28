@@ -1,4 +1,5 @@
 import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
+import DOMPurify from "dompurify";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7398,7 +7399,7 @@ export default function CompanyEmployeePortal() {
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
               <div style={{ background: "transparent", textAlign: "center", transform: "scale(0.7)", transformOrigin: "center center" }} onClick={(e) => e.stopPropagation()}>
                 {viewQrCardHtml
-                  ? <div dangerouslySetInnerHTML={{ __html: viewQrCardHtml }} style={{ display: "inline-block" }} />
+                  ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(viewQrCardHtml) }} style={{ display: "inline-block" }} />
                   : <div style={{ width: "300px", height: "380px", background: "#fff", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "14px" }}>Generating card…</div>
                 }
                 <div style={{ display: "flex", gap: "10px", marginTop: "16px", justifyContent: "center" }}>
@@ -8520,7 +8521,7 @@ export default function CompanyEmployeePortal() {
             onClick={() => setAssetViewQrModal(null)}>
             <div style={{ background: "transparent", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
               {assetViewQrCardHtml
-                ? <div dangerouslySetInnerHTML={{ __html: assetViewQrCardHtml }} style={{ display: "inline-block" }} />
+                ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(assetViewQrCardHtml) }} style={{ display: "inline-block" }} />
                 : <div style={{ width: "300px", height: "380px", background: "#fff", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "14px" }}>Generating card…</div>
               }
               <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "center" }}>
