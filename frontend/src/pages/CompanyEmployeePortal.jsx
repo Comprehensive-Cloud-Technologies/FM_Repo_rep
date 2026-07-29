@@ -7353,17 +7353,19 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", color: (a.isVerified || Number(a.verified) === 1) ? "#16a34a" : "#dc2626", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
                               title="Click to open asset details in new window"
                               onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
-                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer" }}
+                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap" }}
                               title="Click to view asset details"
                               onClick={() => setAssetDetailModal(a)}>
-                              {m.equipmentName || a.assetName || "—"}
-                              {(a.transferCount > 0 || a.transfer_count > 0) && (
-                                <span title={`Transferred ${a.transferCount || a.transfer_count} time(s) — from ${a.lastTransferredFromName || a.last_transferred_from_name || "another company"}`}
-                                  style={{ marginLeft: "6px", display: "inline-flex", alignItems: "center", gap: "3px", padding: "1px 7px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", verticalAlign: "middle" }}>
-                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                  Transferred
-                                </span>
-                              )}
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", maxWidth: "240px" }}>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "1 1 auto", minWidth: 0 }}>{m.equipmentName || a.assetName || "—"}</span>
+                                {(a.transferCount > 0 || a.transfer_count > 0) && (
+                                  <span title={`Transferred ${a.transferCount || a.transfer_count} time(s) — from ${a.lastTransferredFromName || a.last_transferred_from_name || "another company"}`}
+                                    style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: "3px", padding: "2px 7px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>
+                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    Transferred
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: "#475569", fontSize: "13px" }}>{(a.criticality || m.criticality) === "Critical" ? "Critical" : "Non-Critical"}</td>
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.make || m.manufacturer || "—"}</td>
@@ -9936,6 +9938,13 @@ export default function CompanyEmployeePortal() {
                   {(Number(a.isVerified) === 1 || a.isVerified === true) && (
                     <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>Verified</span>
                   )}
+                  {Number(a.transferCount || a.transfer_count || 0) > 0 && (
+                    <span title={`Transferred ${a.transferCount || a.transfer_count} time(s) — originally from ${a.lastTransferredFromName || a.last_transferred_from_name || 'another company'}`}
+                      style={{ padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      Transferred ×{a.transferCount || a.transfer_count}
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                   <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); setEditAsset(a); setShowAssetModal(true); }}
@@ -9984,8 +9993,8 @@ export default function CompanyEmployeePortal() {
                       {[
                         ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
                         ["Total Down Time", totalDownLabel],
-                        ["MTBF (hh:mm:ss)", "00:00:00"],
-                        ["MTTR (hh:mm:ss)", "00:00:00"],
+                        ["MTBF (hh:mm:ss)", mtbfLabel],
+                        ["MTTR (hh:mm:ss)", mttrLabel],
                       ].map(([lbl, val]) => (
                         <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
                           <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>
@@ -10007,17 +10016,60 @@ export default function CompanyEmployeePortal() {
                 {/* Call Logs */}
                 {assetDetailTab === "calllogs" && (
                   <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Call Log History / Work Orders for this Asset</h4>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                      <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Call Log History / Work Orders for this Asset</h4>
+                      {Array.isArray(assetDetailCallLogs) && assetDetailCallLogs.length > 0 && (
+                        <button onClick={() => {
+                          const headers = ["WO Number", "Description", "Priority", "Status", "Assigned To", "Created", "Closed", "Down Time (hh:mm:ss)"];
+                          const fmtMsExcel = (ms) => { if (!ms) return "—"; const h = Math.floor(ms/3600000); const min = Math.floor((ms%3600000)/60000); const sec = Math.floor((ms%60000)/1000); return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`; };
+                          const rows = assetDetailCallLogs.map(wo => {
+                            const downMs = wo.downtimeMinutes != null
+                              ? wo.downtimeMinutes * 60000
+                              : (wo.status==="closed"||wo.status==="resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt)-new Date(wo.createdAt)) : 0;
+                            return [
+                              wo.workOrderNumber || `WO-${wo.id}`,
+                              wo.issueDescription || "",
+                              wo.priority || "",
+                              wo.status || "",
+                              wo.assignedToName || "Unassigned",
+                              wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "",
+                              wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "",
+                              fmtMsExcel(downMs),
+                            ];
+                          });
+                          const totalDownMs = assetDetailCallLogs.reduce((s,wo)=>{ const dm = wo.downtimeMinutes != null ? wo.downtimeMinutes * 60000 : (wo.status==="closed"||wo.status==="resolved")&&wo.createdAt&&wo.closedAt?Math.max(0,new Date(wo.closedAt)-new Date(wo.createdAt)):0; return s+dm; }, 0);
+                          const summary = [["Asset", m.equipmentName||a.assetName, "Asset ID", a.generatedAssetId||a.assetUniqueId, "Total Calls", assetDetailCallLogs.length, "Total Down Time", fmtMsExcel(totalDownMs)]];
+                          const ws = XLSX.utils.aoa_to_sheet([...summary, [], headers, ...rows]);
+                          ws["!cols"] = [16,40,12,14,20,14,14,20].map(w=>({wch:w}));
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, "Call Log History");
+                          XLSX.writeFile(wb, `call-log-${a.generatedAssetId||a.id}-${new Date().toISOString().slice(0,10)}.xlsx`);
+                        }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#16a34a", color: "#fff", border: "none", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export Excel
+                        </button>
+                      )}
+                    </div>
                     {assetDetailCallLogs === null ? (
                       <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
                     ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
-                      // Calculate total downtime across all closed/resolved work orders
-                      const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => {
-                        if ((wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt) {
-                          return sum + (new Date(wo.closedAt) - new Date(wo.createdAt));
+                      // Use stored downtimeMinutes (accumulates correctly across reopen cycles).
+                      // For currently open/reopened tickets, include live elapsed time.
+                      const woDownMs = (wo) => {
+                        if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
+                        const isOpen = wo.status !== "closed" && wo.status !== "resolved" && wo.status !== "completed";
+                        if (isOpen) {
+                          // elapsed since last reopen (or original creation if never reopened)
+                          const cycleStart = wo.lastReopenedAt || wo.createdAt;
+                          const elapsed = cycleStart ? Math.max(0, Date.now() - new Date(cycleStart)) : 0;
+                          return (wo.priorDowntimeMinutes || 0) * 60000 + elapsed;
                         }
-                        return sum;
-                      }, 0);
+                        if ((wo.status === "closed" || wo.status === "resolved" || wo.status === "completed") && wo.createdAt && wo.closedAt)
+                          return Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt));
+                        return 0;
+                      };
+                      const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => sum + woDownMs(wo), 0);
                       const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
                       const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
                       const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
@@ -10048,9 +10100,15 @@ export default function CompanyEmployeePortal() {
                               </thead>
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
-                                  const downMs = (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt
-                                    ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
-                                  const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
+                                  const isOpen = wo.status !== "closed" && wo.status !== "resolved" && wo.status !== "completed";
+                                  const downMs = wo.downtimeMinutes != null
+                                    ? wo.downtimeMinutes * 60000
+                                    : isOpen
+                                      ? (wo.priorDowntimeMinutes || 0) * 60000 + Math.max(0, Date.now() - new Date(wo.lastReopenedAt || wo.createdAt))
+                                      : (wo.status === "closed" || wo.status === "resolved" || wo.status === "completed") && wo.createdAt && wo.closedAt
+                                        ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
+                                  const isReopened = isOpen && wo.priorDowntimeMinutes > 0;
+                                  const downLabel = downMs > 0 ? `${fmtMs(downMs)}${isOpen ? " ⏳" : ""}` : "—";
                                   return (
                                     <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                       <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
@@ -10064,7 +10122,7 @@ export default function CompanyEmployeePortal() {
                                       <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
                                       <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
                                       <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
+                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : isReopened ? "#b45309" : "#94a3b8", fontWeight: downMs > 0 || isReopened ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
                                     </tr>
                                   );
                                 })}

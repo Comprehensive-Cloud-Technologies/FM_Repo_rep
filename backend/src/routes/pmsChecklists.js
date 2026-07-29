@@ -1034,7 +1034,9 @@ router.get("/dashboard-stats", async (req, res, next) => {
          SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN ac.cnt ELSE 0 END)                  AS dueThisMonthAssets,
          SUM(CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS overdueAssets,
          SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS upcoming30dAssets,
-         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ac.cnt ELSE 0 END) AS completedThisMonthAssets
+         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ac.cnt ELSE 0 END) AS completedThisMonthAssets,
+         SUM(ac.cnt)                                                                                                 AS totalAssetsInPms,
+         SUM(CASE WHEN ps.status = 'completed' THEN ac.cnt ELSE 0 END)                                             AS totalCompletedAssets
        FROM pms_schedules ps
        LEFT JOIN (SELECT schedule_id, COUNT(*) AS cnt FROM pms_schedule_assets GROUP BY schedule_id) ac ON ac.schedule_id = ps.id
        WHERE ps.company_id IN (${ph})`,
@@ -1059,6 +1061,8 @@ router.get("/dashboard-stats", async (req, res, next) => {
       overdueAssets:             Number(stats?.overdueAssets             || 0),
       upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
       completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
+      totalAssetsInPms:          Number(stats?.totalAssetsInPms          || 0),
+      totalCompletedAssets:      Number(stats?.totalCompletedAssets      || 0),
     });
   } catch (err) { next(err); }
 });

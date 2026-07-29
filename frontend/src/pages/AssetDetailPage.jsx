@@ -199,24 +199,31 @@ export default function AssetDetailPage() {
     ...(m.invoiceUrl ? [m.invoiceUrl] : []),
   ].map(normalizeImgUrl).filter(Boolean);
 
-  // ── Downtime formula: resolutionAt − wipAt
-  // If wipAt is missing, fall back to createdAt so every completed issue contributes downtime.
-  // Only called for tickets in a FINISHED state (completed/closed/resolved).
+  // ── Downtime formula: prefer stored downtimeMinutes (survives reopen cycles),
+  // then resolutionAt − wipAt, then createdAt as last resort.
   const calcDownMs = (wo) => {
+    // Use backend-stored accumulated downtime if available
+    if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
     const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
-    if (!isFinished) return 0;                    // reopened / open tickets do NOT count
-    const end   = wo.resolutionAt || wo.closedAt; // when repair was completed
-    const start = wo.wipAt || wo.createdAt;       // WIP start; fallback to issue-raised time
+    // For open/in-progress tickets, count elapsed time since lastReopenedAt or createdAt
+    if (!isFinished) {
+      const cycleStart = wo.lastReopenedAt || wo.wipAt || wo.createdAt;
+      const priorMs = (wo.priorDowntimeMinutes || 0) * 60000;
+      return priorMs + (cycleStart ? Math.max(0, Date.now() - new Date(cycleStart)) : 0);
+    }
+    const end   = wo.resolutionAt || wo.closedAt;
+    const start = wo.wipAt || wo.createdAt;
     if (!end || !start) return 0;
     return Math.max(0, new Date(end) - new Date(start));
   };
 
   // ── MTTR: Mean Time To Repair = Total Repair Time ÷ Number of Completed Breakdowns ──────
   const completedBreakdowns = (callLogs || []).filter(wo =>
-    (wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
-    wo.createdAt && (wo.resolutionAt || wo.closedAt)
+    wo.downtimeMinutes != null ||
+    ((wo.status === "completed" || wo.status === "closed" || wo.status === "resolved") &&
+    wo.createdAt && (wo.resolutionAt || wo.closedAt))
   );
-  const totalRepairMs  = completedBreakdowns.reduce((s, wo) => s + calcDownMs(wo), 0);
+  const totalRepairMs  = (callLogs || []).reduce((s, wo) => s + calcDownMs(wo), 0);
   const breakdownCount = completedBreakdowns.length;
 
   const fmtMs = (ms) => {
@@ -966,10 +973,45 @@ export default function AssetDetailPage() {
                           <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
                           <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
                           <td style={{ padding: "10px 14px", color: dtMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: dtMs > 0 ? 600 : 400, fontSize: "12px" }}>{dtMs > 0 ? fmtMs(dtMs) : "—"}</td>
+                          
+                            
+                          
                         </tr>
                       );
                     })}
                   </tbody>
+
+                  <tfoot>
+  <tr
+    style={{
+      background: "#f8fafc",
+      fontWeight: 700,
+      borderTop: "2px solid #e2e8f0"
+    }}
+  >
+    <td
+      colSpan={7}
+      style={{
+        padding: "12px 14px",
+        textAlign: "right"
+      }}
+    >
+      TOTAL
+    </td>
+
+    <td
+      style={{
+        padding: "12px 14px",
+        color: "#dc2626",
+        fontWeight: 700
+      }}
+    >
+      {totalDownLabel}
+    </td>
+
+   
+  </tr>
+</tfoot>
                 </table>
               </div>
 

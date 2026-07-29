@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -401,6 +401,7 @@ import SubmissionsPanel from "../components/SubmissionsPanel.jsx";
 
 
 import WarningsPanel from "../components/WarningsPanel.jsx";
+import ReportBuilderPanel from "../components/ReportBuilderPanel.jsx";
 
 
 
@@ -448,7 +449,7 @@ const TOKEN_KEY = "company_portal_token";
 
 
 
-/* ��������� Photo thumbnail + full-screen lightbox ��������������������������������������������������������� */
+/* ????????? Photo thumbnail + full-screen lightbox ????????????????????????????????????????????????????????? */
 
 
 
@@ -694,7 +695,7 @@ function PhotoAnswer({ src, alt = "Photo" }) {
 
 
 
-              �
+              ?
 
 
 
@@ -1397,7 +1398,7 @@ const emptyAsset = {
 
 
 
-  // ������ Healthcare-specific fields (stored in metadata) ������
+  // ?????? Healthcare-specific fields (stored in metadata) ??????
 
 
 
@@ -1640,7 +1641,7 @@ const assetTypeLabels = {
 
 
 
-/* ��������� Admin OJT Section ������������������������������������������������������������������������������������������������������������������������������������ */
+/* ????????? Admin OJT Section ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */
 
 
 
@@ -2438,7 +2439,7 @@ function AdminOjtSection({ token, companies = [] }) {
 
 
 
-/* ��������� Admin Work Orders Section ������������������������������������������������������������������������������������������������������������������������������������ */
+/* ????????? Admin Work Orders Section ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */
 
 
 
@@ -2551,7 +2552,7 @@ function AdminStatesSection({ token }) {
         <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
           {states.length === 0 ? (
             <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
-              <div style={{ fontSize: "28px", marginBottom: "8px" }}>??n�</div>
+              <div style={{ fontSize: "28px", marginBottom: "8px" }}>??n?</div>
               <div style={{ fontWeight: 600 }}>No states yet</div>
               <div style={{ fontSize: "13px" }}>Add states so companies can be linked to a state for asset ID generation.</div>
             </div>
@@ -2592,7 +2593,7 @@ function AdminStatesSection({ token }) {
           <div style={{ background: "#fff", borderRadius: "14px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>{modal.mode === "edit" ? "Edit" : "Add"} State</h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>�</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>?</button>
             </div>
             <div style={{ marginBottom: "14px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "5px" }}>State Name <span style={{ color: "#ef4444" }}>*</span></label>
@@ -3091,7 +3092,7 @@ function AdminLocationsSection({ token, companies = [] }) {
               <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
                 {modal.mode === "edit" ? "Edit" : "Add"} {modal.type.charAt(0).toUpperCase() + modal.type.slice(1)}
               </h2>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>�</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px" }}>?</button>
             </div>
 
             {/* Building form */}
@@ -3292,7 +3293,7 @@ function AdminQrCodesSection({ token, companies = [] }) {
             } catch (err) {
               setMsg(err.message || "Failed to remove logo");
             }
-          }} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>�</button>
+          }} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>?</button>
         )}
         <input type="number" min={0} value={generateCount} onChange={e => {
           const raw = Number(e.target.value);
@@ -3474,7 +3475,7 @@ function AssetQueriesSection({ token }) {
       </div>
 
       {loading ? (
-        <p style={{ color: "#94A3B8" }}>Loading�</p>
+        <p style={{ color: "#94A3B8" }}>Loading?</p>
       ) : filtered.length === 0 ? (
         <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "40px 24px", textAlign: "center", color: "#94A3B8", border: "1px solid #E2E8F0" }}>
           <p style={{ fontWeight: 600, marginBottom: 4 }}>No issues found</p>
@@ -3495,11 +3496,11 @@ function AssetQueriesSection({ token }) {
                 return (
                   <tr key={q.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
                     <td style={{ padding: "10px 12px", color: "#94A3B8" }}>{idx + 1}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1E293B" }}>{q.assetName || "�"}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1E293B" }}>{q.assetName || "?"}</td>
                     <td style={{ padding: "10px 12px", maxWidth: 200 }}>
                       <span title={q.title} style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1E293B" }}>{q.title}</span>
                     </td>
-                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.raisedByName || "�"}</td>
+                    <td style={{ padding: "10px 12px", color: "#475569" }}>{q.raisedByName || "?"}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, textTransform: "capitalize", color: PRIORITY_DOT[q.priority] || "#64748B" }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_DOT[q.priority] || "#94A3B8", display: "inline-block" }} />
@@ -3511,7 +3512,7 @@ function AssetQueriesSection({ token }) {
                     </td>
                     <td style={{ padding: "10px 12px", color: "#475569" }}>{q.assignedToName || q.assignedName || <em style={{ color: "#CBD5E1" }}>Unassigned</em>}</td>
                     <td style={{ padding: "10px 12px", color: "#94A3B8", whiteSpace: "nowrap" }}>
-                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "�"}
+                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "?"}
                     </td>
                     <td style={{ padding: "10px 12px" }}>
                       {q.status !== "closed" ? (
@@ -3522,12 +3523,12 @@ function AssetQueriesSection({ token }) {
                             disabled={assigning[q.id]}
                             style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 12, cursor: "pointer", maxWidth: 160 }}
                           >
-                            <option value="">� Select engineer �</option>
+                            <option value="">? Select engineer ?</option>
                             {employees.map((e) => (
                               <option key={e.id} value={e.id}>{e.fullName}</option>
                             ))}
                           </select>
-                          {assigning[q.id] && <span style={{ fontSize: 11, color: "#94A3B8" }}>Saving�</span>}
+                          {assigning[q.id] && <span style={{ fontSize: 11, color: "#94A3B8" }}>Saving?</span>}
                         </div>
                       ) : (
                         <span style={{ color: "#CBD5E1", fontSize: 12 }}>Closed</span>
@@ -3642,9 +3643,9 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
   }).filter(w => !search || (w.workOrderNumber||"").toLowerCase().includes(search.toLowerCase()) || (w.issueDescription||"").toLowerCase().includes(search.toLowerCase()) || (w.assetName||"").toLowerCase().includes(search.toLowerCase()) || (w.companyName||"").toLowerCase().includes(search.toLowerCase()));
 
   const formatDowntime = (wipAt, resolutionAt) => {
-    if (!wipAt || !resolutionAt) return "—";
+    if (!wipAt || !resolutionAt) return "�";
     const mins = Math.round((new Date(resolutionAt) - new Date(wipAt)) / 60000);
-    if (mins < 0) return "—";
+    if (mins < 0) return "�";
     if (mins < 60) return `${mins}m`;
     const hours = Math.floor(mins / 60);
     const m = mins % 60;
@@ -3794,14 +3795,14 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                     <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"-"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
-                    <td style={{ padding:"11px 14px", fontSize:"12.5px", color:"#0f172a", fontWeight:600 }}>{w.createdByName||<span style={{ color:"#94a3b8" }}>—</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12.5px", color:"#0f172a", fontWeight:600 }}>{w.createdByName||<span style={{ color:"#94a3b8" }}>�</span>}</td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
-                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>—</span>}</td>
-                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>—</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>�</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>�</span>}</td>
                     <td style={{ padding:"11px 14px", whiteSpace:"nowrap" }}>
                       {w.wipAt && w.resolutionAt ? (
                         <span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:"#fef9c3", color:"#854d0e" }}>{formatDowntime(w.wipAt, w.resolutionAt)}</span>
-                      ) : <span style={{ color:"#94a3b8", fontSize:"12px" }}>—</span>}
+                      ) : <span style={{ color:"#94a3b8", fontSize:"12px" }}>�</span>}
                     </td>
                     <td style={{ padding:"11px 14px" }}>
                       <div style={{ display:"flex", gap:"6px", alignItems:"center" }}>
@@ -3821,14 +3822,14 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
         </div>
       )}
 
-      {/* ── Work Order Detail Modal ─────────────────────────────────────────── */}
+      {/* -- Work Order Detail Modal ------------------------------------------- */}
       {selectedWODetail && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}
           onClick={e => e.target === e.currentTarget && setSelectedWODetail(null)}>
           <div style={{ background:"#fff", borderRadius:"16px", width:"640px", maxWidth:"96vw", maxHeight:"90vh", overflow:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.2)" }}>
             <div style={{ padding:"20px 24px", borderBottom:"1px solid #f1f5f9", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:"#fff", zIndex:1 }}>
               <h3 style={{ margin:0, fontSize:"16px", fontWeight:800, color:"#0f172a" }}>Request: {selectedWODetail.workOrderNumber || `WO-${selectedWODetail.id}`}</h3>
-              <button onClick={() => setSelectedWODetail(null)} style={{ width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:"16px", color:"#475569" }}>×</button>
+              <button onClick={() => setSelectedWODetail(null)} style={{ width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:"16px", color:"#475569" }}>�</button>
             </div>
             <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:"12px", fontSize:"13.5px" }}>
               {[
@@ -3858,7 +3859,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                 <div style={{ paddingTop:"12px", borderTop:"1px solid #f1f5f9" }}>
                   <button onClick={() => window.open(`/company/asset/${selectedWODetail.assetId}`, '_blank')}
                     style={{ padding:"8px 16px", borderRadius:"8px", background:"#eff6ff", color:"#2563eb", border:"1px solid #bfdbfe", fontWeight:700, cursor:"pointer", fontSize:"13px" }}>
-                    View Asset Details →
+                    View Asset Details ?
                   </button>
                 </div>
               )}
@@ -3876,7 +3877,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
 
 
 
-/* ��������� Admin Shifts Section ��������������������������������������������������������������������������������������������������������������������������������������������������� */
+/* ????????? Admin Shifts Section ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */
 
 
 
@@ -4542,7 +4543,7 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
-/* ��������� Admin Employees Section ������������������������������������������������������������������������������������������������������������������������������������������ */
+/* ????????? Admin Employees Section ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */
 
 
 
@@ -4751,7 +4752,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <input value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" type="password" style={{ width:"100%", padding:"9px 12px", borderRadius:"8px", border:"1px solid #e2e8f0", fontSize:"13.5px", boxSizing:"border-box", background:"#f8fafc" }} />
                 </div>
               </div>
-              {/* Company Access � unified primary + additional */}
+              {/* Company Access ? unified primary + additional */}
               <div>
                 <label style={{ fontSize:"12px", fontWeight:700, color:"#374151", display:"block", marginBottom:"4px" }}>
                   Company Access <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:400 }}>(search and select companies this user should access)</span>
@@ -4820,7 +4821,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"6px" }}>
                   {(selCo || formCompanyId) && (
                     <span style={{ fontSize:"11px", color:"#2563eb", background:"#eff6ff", border:"1px solid #bfdbfe", padding:"2px 7px", borderRadius:"999px", fontWeight:700 }}>
-                      Primary: {allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || allCos.find(c=>c.id===(selCo||formCompanyId))?.name || "�"}
+                      Primary: {allCos.find(c=>c.id===(selCo||formCompanyId))?.companyName || allCos.find(c=>c.id===(selCo||formCompanyId))?.name || "?"}
                     </span>
                   )}
                   {extraCompanyIds.map(id => {
@@ -4832,7 +4833,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                     );
                   })}
                 </div>
-                {!selCo && !editEmp && !formCompanyId && extraCompanyIds.length === 0 && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>No company assigned � employee can be added and assigned later</p>}
+                {!selCo && !editEmp && !formCompanyId && extraCompanyIds.length === 0 && <p style={{ fontSize:"11px", color:"#94a3b8", margin:"4px 0 0" }}>No company assigned ? employee can be added and assigned later</p>}
               </div>
             </div>
             <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", marginTop:"22px" }}>
@@ -4872,7 +4873,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <td style={{ padding:"10px 14px" }}>
                     {e.username
                       ? <span style={{ fontFamily:"monospace", fontSize:"13px", color:"#0f172a", background:"#f1f5f9", padding:"2px 8px", borderRadius:"6px" }}>{e.username}</span>
-                      : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>—</span>}
+                      : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>�</span>}
                   </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"-"}</td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
@@ -4904,7 +4905,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
         </div>
       )}
 
-    {/* ── View Credentials Dialog ───────────────────────────────────── */}
+    {/* -- View Credentials Dialog ------------------------------------- */}
     {viewEmp && (
       <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}
         onClick={e => { if (e.target === e.currentTarget) setViewEmp(null); }}>
@@ -4916,20 +4917,20 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div>
               <p style={{ fontWeight:800, fontSize:"16px", color:"#0f172a", margin:0 }}>{viewEmp.fullName}</p>
-              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{viewEmp.role} · {viewEmp.status}</p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{viewEmp.role} � {viewEmp.status}</p>
             </div>
-            <button onClick={() => setViewEmp(null)} style={{ marginLeft:"auto", width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b", fontSize:"16px" }}>×</button>
+            <button onClick={() => setViewEmp(null)} style={{ marginLeft:"auto", width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b", fontSize:"16px" }}>�</button>
           </div>
 
           {/* Details grid */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"20px" }}>
             {[
               ["Email", viewEmp.email],
-              ["Phone", viewEmp.phone || "—"],
-              ["Designation", viewEmp.designation || "—"],
+              ["Phone", viewEmp.phone || "�"],
+              ["Designation", viewEmp.designation || "�"],
               ["Role", viewEmp.role],
               ["Status", viewEmp.status],
-              ["Company", viewEmp.companyName || "—"],
+              ["Company", viewEmp.companyName || "�"],
             ].map(([lbl, val]) => (
               <div key={lbl} style={{ background:"#f8fafc", borderRadius:"8px", padding:"10px 12px", border:"1px solid #e2e8f0" }}>
                 <p style={{ fontSize:"10px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 3px" }}>{lbl}</p>
@@ -4953,9 +4954,9 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                   <p style={{ fontFamily:"monospace", fontSize:"15px", fontWeight:700, color:"#0f172a", margin:0, background:"#fff", padding:"6px 10px", borderRadius:"6px", border:"1px solid #bfdbfe", flex:1, letterSpacing: viewShowPwd ? "normal" : "0.2em" }}>
                     {viewEmp.plainPassword
-                      ? (viewShowPwd ? viewEmp.plainPassword : "••••••••")
+                      ? (viewShowPwd ? viewEmp.plainPassword : "��������")
                       : viewEmp.hasPassword
-                        ? <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"12px", letterSpacing:"normal" }}>Set before this update — use Change Password below to set a new visible one</span>
+                        ? <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"12px", letterSpacing:"normal" }}>Set before this update � use Change Password below to set a new visible one</span>
                         : <span style={{ color:"#ef4444", fontStyle:"italic", fontFamily:"inherit", fontSize:"13px", letterSpacing:"normal" }}>Not set</span>}
                   </p>
                   {viewEmp.plainPassword && (
@@ -4977,7 +4978,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             {viewPwdErr && <div style={{ background:"#fef2f2", color:"#dc2626", padding:"8px 12px", borderRadius:"7px", marginBottom:"10px", fontSize:"12.5px" }}>{viewPwdErr}</div>}
             {viewPwdDone && (
               <div style={{ background:"#f0fdf4", border:"1px solid #86efac", borderRadius:"7px", padding:"10px 12px", marginBottom:"10px", fontSize:"13px", color:"#16a34a", fontWeight:600 }}>
-                ✓ Password updated to: <span style={{ fontFamily:"monospace" }}>{viewNewPwd}</span>
+                ? Password updated to: <span style={{ fontFamily:"monospace" }}>{viewNewPwd}</span>
               </div>
             )}
             <div style={{ display:"flex", gap:"8px" }}>
@@ -5010,7 +5011,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 } catch(err) { setViewPwdErr(err.message); }
                 finally { setViewPwdSaving(false); }
               }} style={{ padding:"9px 16px", borderRadius:"8px", border:"none", background: viewPwdSaving || !viewNewPwd.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: viewPwdSaving || !viewNewPwd.trim() ? "default":"pointer", whiteSpace:"nowrap" }}>
-                {viewPwdSaving ? "Saving…" : "Set Password"}
+                {viewPwdSaving ? "Saving�" : "Set Password"}
               </button>
             </div>
           </div>
@@ -5018,7 +5019,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
       </div>
     )}
 
-    {/* ── Set Password Dialog ───────────────────────────────────────── */}
+    {/* -- Set Password Dialog ----------------------------------------- */}
     {setPwdEmp && (
       <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
         <div style={{ background:"#fff", borderRadius:"16px", width:"100%", maxWidth:"400px", padding:"28px", boxShadow:"0 24px 64px rgba(0,0,0,0.2)" }}>
@@ -5028,13 +5029,13 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div>
               <p style={{ fontWeight:800, fontSize:"15px", color:"#0f172a", margin:0 }}>Set Password</p>
-              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{setPwdEmp.fullName} · <span style={{ fontFamily:"monospace" }}>{setPwdEmp.username || "no username"}</span></p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{setPwdEmp.fullName} � <span style={{ fontFamily:"monospace" }}>{setPwdEmp.username || "no username"}</span></p>
             </div>
           </div>
 
           {setPwdDone ? (
             <div style={{ textAlign:"center", padding:"10px 0 20px" }}>
-              <div style={{ fontSize:"36px", marginBottom:"8px" }}>✅</div>
+              <div style={{ fontSize:"36px", marginBottom:"8px" }}>?</div>
               <p style={{ fontWeight:700, color:"#16a34a", fontSize:"15px", margin:"0 0 6px" }}>Password updated!</p>
               <p style={{ color:"#64748b", fontSize:"13px", margin:"0 0 18px" }}>New password has been set for {setPwdEmp.fullName}.</p>
               <div style={{ background:"#f0fdf4", border:"1px solid #86efac", borderRadius:"10px", padding:"12px 16px", marginBottom:"18px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -5082,7 +5083,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   } catch(err) { setSetPwdErr(err.message); }
                   finally { setSetPwdSaving(false); }
                 }} style={{ flex:2, padding:"10px", borderRadius:"8px", border:"none", background: setPwdSaving || !setPwdVal.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: setPwdSaving || !setPwdVal.trim() ? "default":"pointer" }}>
-                  {setPwdSaving ? "Saving…" : "Set Password"}
+                  {setPwdSaving ? "Saving�" : "Set Password"}
                 </button>
               </div>
             </>
@@ -5479,12 +5480,12 @@ const CompanyPortal = () => {
 
 
   const [tableSearch, setTableSearch] = useState("");
-  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings) � applied
+  const [dashCompanyFilters, setDashCompanyFilters] = useState([]); // array of company IDs (strings) ? applied
   const [dashCompanyPending, setDashCompanyPending] = useState([]); // pending selection before Apply
   const [dashCompanyFilter, setDashCompanyFilter] = useState(""); // legacy single (for export)
   const [dashFilterOpen, setDashFilterOpen] = useState(false);
   const [dashView, setDashView] = useState("company"); // "company" | "user"
-  const [dashUserFilters, setDashUserFilters] = useState([]); // array of composite user-company keys (strings) � applied in User View
+  const [dashUserFilters, setDashUserFilters] = useState([]); // array of composite user-company keys (strings) ? applied in User View
   const [dashUserFilterOpen, setDashUserFilterOpen] = useState(false);
   const [dashCompanySearch, setDashCompanySearch] = useState("");
   const [dashUserSearch, setDashUserSearch] = useState("");
@@ -7977,7 +7978,7 @@ const CompanyPortal = () => {
 
 
 
-  // ������ Poll for new flags every 30 s - show toast when count increases ���������������������������
+  // ?????? Poll for new flags every 30 s - show toast when count increases ???????????????????????????
 
 
 
@@ -8181,7 +8182,7 @@ const CompanyPortal = () => {
 
 
 
-  // ������ Initial data load on login ������������������������������������������������������������������������������������������������������������������������������������
+  // ?????? Initial data load on login ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 
 
@@ -11980,7 +11981,7 @@ const CompanyPortal = () => {
 
 
 
-      `�?��?-+??� WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
+      `?????-+??? WARNING: This will permanently delete ALL assets for this company. This action cannot be undone.\n\nType OK to confirm.`
 
 
 
@@ -12687,7 +12688,7 @@ const CompanyPortal = () => {
 
 
 
-  // ������ Company Users (Admin) ���������������������������������������������������������������������������������������������������������������������������������������������������
+  // ?????? Company Users (Admin) ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 
 
@@ -12941,6 +12942,7 @@ const CompanyPortal = () => {
     { key: "pms", label: "PMS (Preventive Maintenance)" },
     { key: "calibration", label: "Calibration" },
     { key: "training", label: "Training" },
+    { key: "asset_transfer", label: "Asset Transfer" },
   ];
 
   const normalizePortalModuleKey = (value) => {
@@ -14252,7 +14254,7 @@ const CompanyPortal = () => {
 
 
 
-      {/* ������ Submission Detail Modal ��������������������������������������������������������������������������������������������������������������������������� */}
+      {/* ?????? Submission Detail Modal ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????? */}
 
 
 
@@ -14366,7 +14368,7 @@ const CompanyPortal = () => {
 
 
 
-                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>�</button>
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "34px", height: "34px", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>?</button>
 
 
 
@@ -14402,7 +14404,7 @@ const CompanyPortal = () => {
 
 
 
-              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>?n� {detailModal.error}</div>}
+              {detailModal.error && <div style={{ color: "#dc2626", padding: "20px", fontWeight: 600 }}>?n? {detailModal.error}</div>}
 
 
 
@@ -15188,7 +15190,7 @@ const CompanyPortal = () => {
 
 
 
-                                  {isIssue && <span style={{ marginRight: "4px" }}>?n�</span>}
+                                  {isIssue && <span style={{ marginRight: "4px" }}>?n?</span>}
 
 
 
@@ -15389,7 +15391,7 @@ const CompanyPortal = () => {
                 <div style={{ borderTop: "1px solid #f1f5f9", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: "10px", color: "#94a3b8" }}>Alert sounds</span>
                   <div style={{ display: "flex", gap: "5px" }}>
-                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">?n�</button>
+                    <button className={`fm-alarm-gear${alarmSettingsOpen ? " fm-open" : ""}`} onClick={() => setAlarmSettingsOpen(v => !v)} title="Alarm settings">?n?</button>
                     <button className={`fm-sound-toggle ${soundEnabled ? "fm-enabled" : "fm-muted"}`} onClick={toggleSound}>{soundEnabled ? "?? On" : "?? Off"}</button>
                   </div>
                 </div>
@@ -15405,7 +15407,7 @@ const CompanyPortal = () => {
                         <div key={key} className="fm-sev-row">
                           <span className="fm-sev-badge" style={{ background: bg, color }}>{label}</span>
                           <div className="fm-sev-actions">
-                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>�++? Test</button>
+                            <button className="fm-preview-btn" title={`Preview ${label}`} onClick={() => previewAlertSound(key)}>?++? Test</button>
                             <button className={`fm-sev-toggle ${isOn ? "on" : "off"}`} onClick={() => updateAlarmSevConfig(key, !isOn)}>{isOn ? "ON" : "OFF"}</button>
                           </div>
                         </div>
@@ -15859,7 +15861,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Users", value: userStats.inactive, sub: "��? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+                  { label: "Inactive Users", value: userStats.inactive, sub: "??? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
 
 
 
@@ -15937,7 +15939,7 @@ const CompanyPortal = () => {
 
 
 
-              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>�?��?-+??� {companyUsersError}</div>}
+              {companyUsersError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "14px" }}>?????-+??? {companyUsersError}</div>}
 
 
 
@@ -16535,7 +16537,7 @@ const CompanyPortal = () => {
 
 
 
-                  <div style={{ background: "#fff", borderRadius: "16px", padding: "28px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ background: "#fff", borderRadius: "16px", padding: "24px 28px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
 
 
 
@@ -16553,7 +16555,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                      <button onClick={() => setShowAddUserModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -16565,7 +16567,7 @@ const CompanyPortal = () => {
 
 
 
-                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>�?��?-+??� {userFormError}</div>}
+                    {userFormError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "14px", fontSize: "13.5px" }}>?????-+??? {userFormError}</div>}
 
 
 
@@ -16943,7 +16945,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Company Data Overview ������ */}
+              {/* ?????? Company Data Overview ?????? */}
 
 
 
@@ -18071,7 +18073,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Header ������ */}
+              {/* ?????? Header ?????? */}
 
 
 
@@ -18143,7 +18145,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Stat Cards ������ */}
+              {/* ?????? Stat Cards ?????? */}
 
 
 
@@ -18179,7 +18181,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Companies", value: companyStats.inactive, sub: "��? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+                  { label: "Inactive Companies", value: companyStats.inactive, sub: "??? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
 
 
 
@@ -18257,7 +18259,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Companies Table Card ������ */}
+              {/* ?????? Companies Table Card ?????? */}
 
 
 
@@ -19181,7 +19183,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ View Company Modal ������ */}
+              {/* ?????? View Company Modal ?????? */}
 
 
 
@@ -19271,7 +19273,7 @@ const CompanyPortal = () => {
 
 
 
-                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                        <button onClick={() => setViewCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -19409,7 +19411,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Edit Company Modal ������ */}
+              {/* ?????? Edit Company Modal ?????? */}
 
 
 
@@ -19445,7 +19447,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                      <button onClick={() => setEditCompanyId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -19457,7 +19459,7 @@ const CompanyPortal = () => {
 
 
 
-                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>�?��?-+??� {editCompanyError}</div>}
+                    {editCompanyError && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>?????-+??? {editCompanyError}</div>}
 
 
 
@@ -19910,7 +19912,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Module Access Modal ������ */}
+              {/* ?????? Module Access Modal ?????? */}
 
 
 
@@ -19928,25 +19930,19 @@ const CompanyPortal = () => {
 
 
 
-                  <div style={{ background: "#fff", borderRadius: "16px", padding: "28px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ background: "#fff", borderRadius: "16px", padding: "24px 28px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
 
 
 
 
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}><h2 style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a" }}>Module Access</h2>
 
 
 
 
 
-                      <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a" }}>Module Access</h2>
-
-
-
-
-
-                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                      <button onClick={() => setModulesModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -19964,7 +19960,7 @@ const CompanyPortal = () => {
 
 
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "0", overflowY: "auto", flex: "1", paddingRight: "4px" }}>
 
 
 
@@ -19976,7 +19972,7 @@ const CompanyPortal = () => {
 
 
 
-                        <label key={m.key} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", padding: "10px 14px", border: "1px solid #e2e8f0", borderRadius: "8px", background: modulesForm.includes(m.key) ? "#eff6ff" : "#fff", transition: "background 0.15s" }}>
+                        <label key={m.key} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: modulesForm.includes(m.key) ? "#eff6ff" : "#fff", transition: "background 0.15s" }}>
 
 
 
@@ -20012,13 +20008,7 @@ const CompanyPortal = () => {
 
 
 
-                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-
-
-
-
-
-                      <button type="button" onClick={() => setModulesModalId(null)} className="btn-cancel">Cancel</button>
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", paddingTop: "14px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }}><button type="button" onClick={() => setModulesModalId(null)} className="btn-cancel">Cancel</button>
 
 
 
@@ -20060,7 +20050,7 @@ const CompanyPortal = () => {
 
 
 
-              {/* ������ Role Permissions Modal ������ */}
+              {/* ?????? Role Permissions Modal ?????? */}
 
 
 
@@ -20096,7 +20086,7 @@ const CompanyPortal = () => {
 
 
 
-                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                      <button onClick={() => setRolePermsModalId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -20426,7 +20416,7 @@ const CompanyPortal = () => {
 
 
 
-            �?��?-+??� {companyError}
+            ?????-+??? {companyError}
 
 
 
@@ -20462,7 +20452,7 @@ const CompanyPortal = () => {
 
 
 
-            �?��?-+??� {assetError}
+            ?????-+??? {assetError}
 
 
 
@@ -21005,8 +20995,8 @@ const CompanyPortal = () => {
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{m.purchaseCost ? `Rs. ${m.purchaseCost}` : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{m.rber ? "Yes" : "-"}</td>
                               <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis" }}>{m.remarks || "-"}</td>
-                              <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "�"}</td>
-                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "�"}</td>
+                              <td style={{ padding: "10px 14px", color: "#475569", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdByName || "?"}</td>
+                              <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{a.createdAt ? new Date(a.createdAt).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "?"}</td>
                               <td style={{ padding: "10px 14px" }}>
                                 {!a.verified && <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", background: "#fef9c3", color: "#92400e", fontSize: "10px", fontWeight: 700, marginBottom: "4px" }}>Unverified</span>}
                                 <select
@@ -21132,7 +21122,7 @@ const CompanyPortal = () => {
 
 
 
-                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>�</button>
+                  <button onClick={() => { setShowAssetModal(false); setEditingAssetId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -21150,7 +21140,7 @@ const CompanyPortal = () => {
 
 
 
-                  {/* ������ Asset Type - filtered by company sector ������ */}
+                  {/* ?????? Asset Type - filtered by company sector ?????? */}
 
 
 
@@ -21656,7 +21646,7 @@ const CompanyPortal = () => {
 
 
 
-                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>?�</button>
+                                  style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>??</button>
 
 
 
@@ -23550,7 +23540,7 @@ const CompanyPortal = () => {
 
 
 
-                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>✕</button>
+                    <button onClick={() => setShowBulkImport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: 1 }}>?</button>
 
 
 
@@ -23577,7 +23567,7 @@ const CompanyPortal = () => {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       {[
                         { value: "add", label: "Add New Assets", desc: "Create new assets with new Asset IDs & QR Codes", icon: "+" },
-                        { value: "update", label: "Update Existing Assets", desc: "Update existing assets using Asset ID as the key", icon: "✎" },
+                        { value: "update", label: "Update Existing Assets", desc: "Update existing assets using Asset ID as the key", icon: "?" },
                       ].map(({ value, label, desc, icon }) => (
                         <label key={value} style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "12px", borderRadius: "10px", border: `2px solid ${bulkImportMode === value ? "#2563eb" : "#e2e8f0"}`, background: bulkImportMode === value ? "#eff6ff" : "#f8fafc", cursor: "pointer" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -23590,7 +23580,7 @@ const CompanyPortal = () => {
                     </div>
                     {bulkImportMode === "update" && (
                       <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "6px", padding: "8px 12px" }}>
-                        ⚠️ Update mode uses <strong>Asset ID</strong> (e.g. 004-27-000142) from the Excel column &quot;assetId&quot; to match records. QR Codes and Asset IDs will NOT be changed.
+                        ?? Update mode uses <strong>Asset ID</strong> (e.g. 004-27-000142) from the Excel column &quot;assetId&quot; to match records. QR Codes and Asset IDs will NOT be changed.
                       </p>
                     )}
                   </div>
@@ -23929,7 +23919,7 @@ const CompanyPortal = () => {
                         <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
                           <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#7c3aed" }}>Asset IDs not found ({bulkImportResult.notFoundRows.length}):</p>
                           {bulkImportResult.notFoundRows.map((e, i) => (
-                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; — not found in this company</p>
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; � not found in this company</p>
                           ))}
                         </div>
                       )}
@@ -24072,7 +24062,7 @@ const CompanyPortal = () => {
 
 
 
-                    /* ������ Barcode label preview (industry standard 3.5" x 2" ratio) ������ */
+                    /* ?????? Barcode label preview (industry standard 3.5" x 2" ratio) ?????? */
 
 
 
@@ -24440,7 +24430,7 @@ const CompanyPortal = () => {
 
 
 
-            {/* Asset Detail � Full-width page with tabs */}
+            {/* Asset Detail ? Full-width page with tabs */}
             {viewingAsset && (() => {
               const a = viewingAsset;
               const m = typeof a.metadata === "string"
@@ -24560,14 +24550,14 @@ const CompanyPortal = () => {
                           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
                           <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
                         </div>
-                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "�"}</span>
+                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "?"}</span>
                         {a.companyName && <span style={{ fontSize: "12px", color: "#64748b", background: "#f1f5f9", padding: "4px 10px", borderRadius: "8px" }}>{a.companyName}</span>}
                       </div>
                       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                         <button onClick={() => { closeDetail(); setEditingAssetId(a.id); setAssetForm({ ...emptyAsset, ...a, metadata: m, companyId: a.companyId || "" }); setShowAssetModal(true); }}
                           style={{ padding: "8px 16px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
                         <button onClick={closeDetail}
-                          style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>�</button>
+                          style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>?</button>
                       </div>
                     </div>
                     {/* Tabs */}
@@ -24618,12 +24608,12 @@ const CompanyPortal = () => {
                                     if (!w.wipAt || !w.resolutionAt) return s;
                                     return s + Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000));
                                   }, 0) / completedWos.length))
-                                : "—";
+                                : "�";
                               return [
-                                ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
-                                ["Total Down Time", viewingAssetCallLogs === null ? "Loading…" : (totalMins > 0 ? fmtDt(totalMins) : "—")],
-                                ["Total Tickets", viewingAssetCallLogs === null ? "…" : String(wos.length)],
-                                ["Avg Resolution Time (MTTR)", viewingAssetCallLogs === null ? "Loading…" : mttr],
+                                ["Cost of Asset", m.purchaseCost ? `? ${m.purchaseCost}` : "�"],
+                                ["Total Down Time", viewingAssetCallLogs === null ? "Loading�" : (totalMins > 0 ? fmtDt(totalMins) : "�")],
+                                ["Total Tickets", viewingAssetCallLogs === null ? "�" : String(wos.length)],
+                                ["Avg Resolution Time (MTTR)", viewingAssetCallLogs === null ? "Loading�" : mttr],
                               ].map(([lbl, val]) => (
                                 <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
                                   <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
@@ -24645,7 +24635,7 @@ const CompanyPortal = () => {
 
                       {/* -- Call Log History -- */}
                       {viewingAssetTab === "calllogs" && (
-                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs�" /> :
+                        viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs?" /> :
                         viewingAssetCallLogs.length === 0 ? <EmptyMsg msg="No call log history" /> :
                         <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -24657,11 +24647,11 @@ const CompanyPortal = () => {
                             <tbody>{viewingAssetCallLogs.map((w, i) => (
                               <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                 <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "�"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "�"}</td>
-                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "�"}</span></td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "�"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "�"}</td>
+                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "?"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "?"}</td>
+                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "?"}</span></td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "?"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "?"}</td>
                               </tr>
                             ))}</tbody>
                           </table>
@@ -24670,7 +24660,7 @@ const CompanyPortal = () => {
 
                       {/* -- Calibration History -- */}
                       {viewingAssetTab === "calibration" && (
-                        viewingAssetCalibration === null ? <EmptyMsg msg="Loading calibration records�" /> :
+                        viewingAssetCalibration === null ? <EmptyMsg msg="Loading calibration records?" /> :
                         viewingAssetCalibration.length === 0 ? <EmptyMsg msg="No calibration records" /> :
                         <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -24682,11 +24672,11 @@ const CompanyPortal = () => {
                             <tbody>{viewingAssetCalibration.map((c, i) => (
                               <tr key={c.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                 <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                <td style={{ padding: "10px 14px", color: "#0f172a" }}>{c.calibrationDate || "�"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.doneBy || "�"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.nextDueDate || "�"}</td>
-                                <td style={{ padding: "10px 14px" }}>{c.certificateUrl ? <a href={c.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>View</a> : "�"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.notes || "�"}</td>
+                                <td style={{ padding: "10px 14px", color: "#0f172a" }}>{c.calibrationDate || "?"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.doneBy || "?"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.nextDueDate || "?"}</td>
+                                <td style={{ padding: "10px 14px" }}>{c.certificateUrl ? <a href={c.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>View</a> : "?"}</td>
+                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{c.notes || "?"}</td>
                               </tr>
                             ))}</tbody>
                           </table>
@@ -24700,9 +24690,9 @@ const CompanyPortal = () => {
                             ["Invoice No.", m.invoiceNo], ["Purchase Date", dateField(m.purchaseDate)],
                             ["Purchase Cost", m.purchaseCost ? `? ${m.purchaseCost}` : null],
                             ["Dealer / Distributor", m.dealer],
-                            ["Warranty", maintenanceTypes.warranty ? `${warrantyStart || "�"} ? ${warrantyEnd || "�"}` : null],
-                            ["AMC", maintenanceTypes.amc ? `${amcStart || "�"} ? ${amcEnd || "�"}` : null],
-                            ["CMC", maintenanceTypes.cmc ? `${cmcStart || "�"} ? ${cmcEnd || "�"}` : null],
+                            ["Warranty", maintenanceTypes.warranty ? `${warrantyStart || "?"} ? ${warrantyEnd || "?"}` : null],
+                            ["AMC", maintenanceTypes.amc ? `${amcStart || "?"} ? ${amcEnd || "?"}` : null],
+                            ["CMC", maintenanceTypes.cmc ? `${cmcStart || "?"} ? ${cmcEnd || "?"}` : null],
                             ["Remarks", m.remarks],
                           ].filter(([, v]) => v).map(([label, val]) => (
                             <div key={label} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
@@ -26195,59 +26185,9 @@ const CompanyPortal = () => {
 
 
         {nav === "reports" && (
-
-
-
-
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-
-
-
-
-
-            <WarningsPanel
-
-
-
-
-
-              token={token}
-
-
-
-
-
-              companyId={selectedCompanyId || companies[0]?.id || null}
-
-
-
-
-
-              companies={companies.map((c) => ({ id: c.id, companyName: c.companyName || c.company || "(unnamed)" }))}
-
-
-
-
-
-            />
-
-
-
-
-
-            <AdminWorkOrdersSection token={token} companies={companies} />
-
-
-
-
-
+          <div style={{ position: "fixed", inset: 0, zIndex: 5, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f1f5f9" }}>
+            <ReportBuilderPanel token={token} />
           </div>
-
-
-
-
-
         )}
 
 
@@ -26339,7 +26279,7 @@ const CompanyPortal = () => {
 
 
 
-        {/* ������ Toast notifications (fixed overlay on every page) ������ */}
+        {/* ?????? Toast notifications (fixed overlay on every page) ?????? */}
 
 
 
@@ -28929,7 +28869,7 @@ const CompanyPortal = () => {
             );
           };
 
-          // Export helpers — generates a real .xlsx workbook so all Excel formulas work natively
+          // Export helpers � generates a real .xlsx workbook so all Excel formulas work natively
           const exportToXLSX = (rows, headers, filename, colWidths = []) => {
             const wsData = [
               headers,
@@ -29156,7 +29096,7 @@ const CompanyPortal = () => {
           return (
             <div style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
-              {/* ������ Header ������ */}
+              {/* ?????? Header ?????? */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "3px" }}>
@@ -29250,10 +29190,10 @@ const CompanyPortal = () => {
                       </div>
                     )}
                   </div>
-                  {/* Multi-user filter � show each user once; selecting picks ALL their company composite keys */}
+                  {/* Multi-user filter ? show each user once; selecting picks ALL their company composite keys */}
                   <div style={{ position: "relative" }}>
                     {(() => {
-                      // Deduplicate: one entry per (userName, companyId) — handles re-created users
+                      // Deduplicate: one entry per (userName, companyId) � handles re-created users
                       const userMap = new Map();
                       for (const u of byUser) {
                         const key = `${(u.userName||"").toLowerCase().trim()}||${u.companyId}`;
@@ -29442,7 +29382,7 @@ const CompanyPortal = () => {
               {/* --- COMPANY-WISE VIEW --- */}
               {dashView === "company" && (<>
 
-              {/* ������ ASSET PROFILE ������ */}
+              {/* ?????? ASSET PROFILE ?????? */}
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ marginBottom: "10px" }}>
                   <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Asset Profile</h2>
@@ -29456,7 +29396,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ������ COMPLAINT PROFILE ������ */}
+              {/* ?????? COMPLAINT PROFILE ?????? */}
               <div style={{ marginBottom: "24px" }}>
                 <div style={{ marginBottom: "10px" }}>
                   <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Complaint Profile</h2>
@@ -29470,7 +29410,7 @@ const CompanyPortal = () => {
                 </div>
               </div>
 
-              {/* ������ CALIBRATION PROFILE ������ */}
+              {/* ?????? CALIBRATION PROFILE ?????? */}
               {dashboardStats?.calibrationProfile && (() => {
                 const cp = dashboardStats.calibrationProfile;
                 const calTiles = [
@@ -29502,7 +29442,7 @@ const CompanyPortal = () => {
                 );
               })()}
 
-              {/* ������ Drill-down panel (when tile clicked) ������ */}
+              {/* ?????? Drill-down panel (when tile clicked) ?????? */}
               {activeTile && (
                 <div ref={drillDownRef} style={{ marginBottom: "24px", background: "#fff", borderRadius: "12px", border: `1px solid ${tileConfig[activeTile]?.col}33`, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
                   <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -29510,7 +29450,7 @@ const CompanyPortal = () => {
                       <span style={{ color: tileConfig[activeTile]?.col }}>{TILE_ICONS[activeTile]}</span>
                       <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
                         {tileConfig[activeTile]?.label}
-                        {ASSET_TILES.includes(activeTile) ? " � Asset List" : " � Company Breakdown"}
+                        {ASSET_TILES.includes(activeTile) ? " ? Asset List" : " ? Company Breakdown"}
                       </span>
                       <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>Total: <strong style={{ color: tileConfig[activeTile]?.col }}>{tileConfig[activeTile]?.value ?? "..."}</strong></span>
                     </div>
@@ -29528,7 +29468,7 @@ const CompanyPortal = () => {
                   <div style={{ padding: "0", maxHeight: "420px", overflowY: "auto" }}>
                     {ASSET_TILES.includes(activeTile) ? (
                       tileAssetsLoading ? (
-                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>Loading assets�</div>
+                        <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>Loading assets?</div>
                       ) : !tileAssets || tileAssets.length === 0 ? (
                         <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px", fontSize: "13px" }}>No assets found for this filter.</div>
                       ) : (
@@ -29544,17 +29484,17 @@ const CompanyPortal = () => {
                             {tileAssets.map((a, i) => (
                               <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                 <td style={{ padding: "9px 12px", color: "#94a3b8", fontSize: "11px" }}>{i + 1}</td>
-                                <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "�"}</td>
-                                <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "�"}</td>
+                                <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{a.companyName || "?"}</td>
+                                <td style={{ padding: "9px 12px", color: "#1e293b", cursor: "pointer" }} onClick={() => setViewingAsset(a)}>{a.assetName || a.equipmentName || "?"}</td>
                                 <td style={{ padding: "9px 12px" }}>
-                                  <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "�"}</button>
+                                  <button onClick={() => window.open(`/company/asset/${a.id}`, '_blank')} style={{ background: "none", border: "none", fontFamily: "monospace", color: "#2563eb", fontSize: "11.5px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 600 }}>{a.assetUniqueId || "?"}</button>
                                 </td>
-                                <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "�"}</td>
+                                <td style={{ padding: "9px 12px", color: "#475569" }}>{a.assetType || "?"}</td>
                                 <td style={{ padding: "9px 12px" }}>
-                                  <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: tileConfig[activeTile]?.col + "22", color: tileConfig[activeTile]?.col }}>{a.status || "�"}</span>
+                                  <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: tileConfig[activeTile]?.col + "22", color: tileConfig[activeTile]?.col }}>{a.status || "?"}</span>
                                 </td>
-                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.departmentName || "�"}</td>
-                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.building || "�"}</td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.departmentName || "?"}</td>
+                                <td style={{ padding: "9px 12px", color: "#64748b" }}>{a.building || "?"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -29593,7 +29533,7 @@ const CompanyPortal = () => {
                 </div>
               )}
 
-              {/* ������ Charts Row ������ */}
+              {/* ?????? Charts Row ?????? */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
 
                 {/* Asset Status Pie */}
@@ -29625,7 +29565,7 @@ const CompanyPortal = () => {
 
               </div>
 
-              {/* ������ Summary Stats Row ������ */}
+              {/* ?????? Summary Stats Row ?????? */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
                 {[
                   { label: "Total Companies", value: totalCompanies, col: "#2563eb", bg: "#eff6ff", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 13h1"/><path d="M14 13h1"/></svg> },

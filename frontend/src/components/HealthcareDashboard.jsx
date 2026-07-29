@@ -1450,7 +1450,11 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [overdueExpanded, setOverdueExp] = useState(false);
   const [ojtStats, setOjtStats]     = useState(null);
   const [ojtLoading, setOjtLoading] = useState(false);
+  const [activeProfileKpi, setActiveProfileKpi]         = useState(null);
+  const [activeCalibrationKpi, setActiveCalibrationKpi] = useState(null);
+  const [activeTrainingKpi, setActiveTrainingKpi]       = useState(null);
   const complaintPanelRef = useRef(null);
+  const recordsSectionRef = useRef(null);
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async (force = false) => {
@@ -1960,14 +1964,21 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "pmsDueAssets",       label: "Assets Due This Month",      icon: Icon.Pms, color: "orange", value: pmsStats?.dueThisMonthAssets },
-            { key: "pmsOverdueAssets",   label: "Assets Overdue",             icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets },
-            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)",      icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets },
-            { key: "pmsCompletedAssets", label: "Assets Completed This Month",icon: Icon.Pms, color: "green",  value: pmsStats?.completedThisMonthAssets },
+            { key: "pmsTotalAssets",     label: "Total PMS Assets",     icon: Icon.Pms, color: "orange", value: pmsStats?.totalAssetsInPms,     tab: "pms" },
+            { key: "pmsOverdueAssets",   label: "Assets Overdue",       icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets,         tab: "pms" },
+            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)",icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets,     tab: "pms" },
+            { key: "pmsCompletedAssets", label: "Total Completed",      icon: Icon.Pms, color: "green",  value: pmsStats?.totalCompletedAssets,  tab: "pms" },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading} isActive={false} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading}
+              isActive={activeProfileKpi === k.key}
+              onClick={() => {
+                const next = activeProfileKpi === k.key ? null : k.key;
+                setActiveProfileKpi(next);
+                if (next) { setActiveRec("pms"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
+              }} />
           ))}
         </div>
+        {activeProfileKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ PMS history shown below</p>}
       </section>
 
       {/* ── CALIBRATION PROFILE ── */}
@@ -1975,14 +1986,21 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDueThisMonth",        label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
-            { key: "calibrationOverdue",             label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
-            { key: "calibrationUpcoming",            label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
-            { key: "calibrationCompletedThisMonth",  label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
+            { key: "calibrationDueThisMonth",       label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
+            { key: "calibrationOverdue",            label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
+            { key: "calibrationUpcoming",           label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
+            { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading} isActive={false} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading}
+              isActive={activeCalibrationKpi === k.key}
+              onClick={() => {
+                const next = activeCalibrationKpi === k.key ? null : k.key;
+                setActiveCalibrationKpi(next);
+                if (next) { setActiveRec("calibration"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
+              }} />
           ))}
         </div>
+        {activeCalibrationKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ Calibration records shown below</p>}
       </section>
 
       {/* ── TRAINING RECORDS ── */}
@@ -1990,18 +2008,26 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Training Records</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",   value: ojtStats?.total },
-            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",   value: ojtStats?.scheduled },
-            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green",  value: ojtStats?.completed },
-            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",    value: ojtStats?.overdue },
+            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",  value: ojtStats?.total },
+            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",  value: ojtStats?.scheduled },
+            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green", value: ojtStats?.completed },
+            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",   value: ojtStats?.overdue },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading} isActive={false} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading}
+              isActive={activeTrainingKpi === k.key}
+              onClick={() => {
+                const next = activeTrainingKpi === k.key ? null : k.key;
+                setActiveTrainingKpi(next);
+                if (next) { setActiveRec("training"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
+              }} />
           ))}
         </div>
+        {activeTrainingKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ Training records shown below</p>}
       </section>
 
+
       {/* ── RECORDS TABS ── */}
-      <section>
+      <section ref={recordsSectionRef}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Records</h2>
         </div>

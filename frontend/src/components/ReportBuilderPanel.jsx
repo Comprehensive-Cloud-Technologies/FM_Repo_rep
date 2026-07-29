@@ -190,6 +190,184 @@ const MODULE_REGISTRY = {
     ],
     defaultFields:["departmentName","description","status"],
   },
+
+  employees: {
+    label:"Employees", icon:"👤", color:"#0891b2",
+    apiPath:"/api/company-portal/employees",
+    transform:(raw)=>(Array.isArray(raw)?raw:[]).map(e=>({
+      id:e.id,
+      fullName:e.fullName||e.full_name||"",
+      username:e.username||"",
+      role:e.role||"",
+      designation:e.designation||"",
+      department:e.departmentName||e.department_name||"",
+      email:e.email||"",
+      phone:e.phone||"",
+      shift:e.shift||"",
+      status:e.status||"Active",
+      serviceDomain:e.serviceDomain||e.service_domain||"",
+      createdAt:e.createdAt||e.created_at||"",
+      _raw:e,
+    })),
+    fields:[
+      {key:"fullName",     label:"Full Name",      type:"text",   group:"Identity"},
+      {key:"username",     label:"Username",       type:"text",   group:"Identity"},
+      {key:"role",         label:"Role",           type:"select", group:"Identity", options:["admin","supervisor","engineer","doctor","nurse","ward_boy","department_head"]},
+      {key:"designation",  label:"Designation",    type:"text",   group:"Identity"},
+      {key:"department",   label:"Department",     type:"text",   group:"Location"},
+      {key:"email",        label:"Email",          type:"text",   group:"Contact"},
+      {key:"phone",        label:"Phone",          type:"text",   group:"Contact"},
+      {key:"shift",        label:"Shift",          type:"text",   group:"Details"},
+      {key:"serviceDomain",label:"Service Domain", type:"text",   group:"Details"},
+      {key:"status",       label:"Status",         type:"select", group:"Status",  options:["Active","Inactive"]},
+      {key:"createdAt",    label:"Added On",       type:"datetime",group:"Details"},
+    ],
+    defaultFields:["fullName","role","designation","department","shift","status"],
+  },
+
+  transfers: {
+    label:"Asset Transfers", icon:"↗", color:"#c2410c",
+    apiPath:"/api/company-portal/assets/transfer/company-history?limit=500",
+    transform:(raw)=>(raw?.rows||[]).map(r=>({
+      id:r.id,
+      reference:r.transfer_reference||"",
+      assetName:r.assetName||"",
+      assetCode:r.assetCode||"",
+      fromCompany:r.from_company_name||"",
+      toCompany:r.to_company_name||"",
+      fromDept:r.from_department_name||"",
+      toDept:r.to_department_name||"",
+      transferredBy:r.transferred_by_name||"",
+      transferredAt:r.transferred_at||"",
+      direction:r.direction||"",
+      reason:r.reason||"",
+      remarks:r.remarks||"",
+      status:r.status||"completed",
+      _raw:r,
+    })),
+    fields:[
+      {key:"reference",    label:"Transfer Ref",     type:"text",    group:"Identity"},
+      {key:"assetName",    label:"Asset Name",        type:"text",    group:"Asset"},
+      {key:"assetCode",    label:"Asset ID",          type:"text",    group:"Asset"},
+      {key:"fromCompany",  label:"From Company",      type:"text",    group:"Transfer"},
+      {key:"toCompany",    label:"To Company",        type:"text",    group:"Transfer"},
+      {key:"fromDept",     label:"From Department",   type:"text",    group:"Transfer"},
+      {key:"toDept",       label:"To Department",     type:"text",    group:"Transfer"},
+      {key:"direction",    label:"Direction",         type:"select",  group:"Transfer", options:["in","out"]},
+      {key:"transferredBy",label:"Transferred By",   type:"text",    group:"People"},
+      {key:"transferredAt",label:"Transferred On",   type:"datetime",group:"Time"},
+      {key:"reason",       label:"Reason",            type:"text",    group:"Details"},
+      {key:"remarks",      label:"Remarks",           type:"text",    group:"Details"},
+      {key:"status",       label:"Status",            type:"select",  group:"Status", options:["completed","pending","cancelled"]},
+    ],
+    defaultFields:["reference","assetName","assetCode","fromCompany","toCompany","direction","transferredBy","transferredAt"],
+  },
+
+  pms: {
+    label:"PMS", icon:"🔩", color:"#0d9488",
+    apiPath:"/api/company-portal/pms/reports",
+    transform:(raw)=>(Array.isArray(raw)?raw:[]).map(r=>({
+      id:r.assetId,
+      assetName:r.assetName||"",
+      assetCode:r.generatedAssetId||"",
+      building:r.building||"",
+      floor:r.floor||"",
+      room:r.room||"",
+      department:r.departmentName||"",
+      totalPms:Number(r.totalPms||0),
+      closedPms:Number(r.closedPms||0),
+      pendingApproval:Number(r.pendingApproval||0),
+      lastPmsDate:r.lastPmsDate||"",
+      nextPmsDate:r.nextPmsDate||"",
+      _raw:r,
+    })),
+    fields:[
+      {key:"assetCode",      label:"Asset ID",          type:"text",    group:"Identity"},
+      {key:"assetName",      label:"Asset Name",        type:"text",    group:"Identity"},
+      {key:"department",     label:"Department",        type:"text",    group:"Location"},
+      {key:"building",       label:"Building",          type:"text",    group:"Location"},
+      {key:"floor",          label:"Floor",             type:"text",    group:"Location"},
+      {key:"room",           label:"Room",              type:"text",    group:"Location"},
+      {key:"totalPms",       label:"Total PMS",         type:"number",  group:"Metrics"},
+      {key:"closedPms",      label:"Completed PMS",     type:"number",  group:"Metrics"},
+      {key:"pendingApproval",label:"Pending Approval",  type:"number",  group:"Metrics"},
+      {key:"lastPmsDate",    label:"Last PMS Date",     type:"date",    group:"Time"},
+      {key:"nextPmsDate",    label:"Next PMS Date",     type:"date",    group:"Time"},
+    ],
+    defaultFields:["assetCode","assetName","department","totalPms","closedPms","pendingApproval","lastPmsDate","nextPmsDate"],
+  },
+
+  calibration: {
+    label:"Calibration", icon:"⊙", color:"#7c3aed",
+    apiPath:"/api/company-portal/calibration/records?limit=500",
+    transform:(raw)=>{
+      const rows=Array.isArray(raw)?raw:(raw?.data??[]);
+      return rows.map(r=>({
+        id:r.id,
+        assetName:r.assetName||r.asset_name||"",
+        assetCode:r.generatedAssetId||r.generated_asset_id||"",
+        department:r.departmentName||r.department_name||"",
+        calibrationDate:r.calibrationDate||r.calibration_date||"",
+        nextDueDate:r.nextDueDate||r.next_due_date||"",
+        vendorName:r.vendorName||r.vendor_name||"",
+        calibratedBy:r.calibratedBy||r.calibrated_by||"",
+        certificateNo:r.certificateNumber||r.certificate_number||"",
+        status:r.status||"",
+        result:r.calibrationResult||r.calibration_result||"",
+        remarks:r.remarks||"",
+        _raw:r,
+      }));
+    },
+    fields:[
+      {key:"assetCode",      label:"Asset ID",          type:"text",    group:"Identity"},
+      {key:"assetName",      label:"Asset Name",        type:"text",    group:"Identity"},
+      {key:"department",     label:"Department",        type:"text",    group:"Location"},
+      {key:"calibrationDate",label:"Calibration Date",  type:"date",    group:"Time"},
+      {key:"nextDueDate",    label:"Next Due Date",     type:"date",    group:"Time"},
+      {key:"vendorName",     label:"Vendor",            type:"text",    group:"Details"},
+      {key:"calibratedBy",   label:"Calibrated By",     type:"text",    group:"Details"},
+      {key:"certificateNo",  label:"Certificate No.",   type:"text",    group:"Details"},
+      {key:"result",         label:"Result",            type:"select",  group:"Status", options:["Pass","Fail","Pending","NA"]},
+      {key:"status",         label:"Status",            type:"select",  group:"Status", options:["Active","Expired","Due Soon"]},
+      {key:"remarks",        label:"Remarks",           type:"text",    group:"Details"},
+    ],
+    defaultFields:["assetCode","assetName","department","calibrationDate","nextDueDate","vendorName","certificateNo","result"],
+  },
+
+  training: {
+    label:"Training", icon:"📘", color:"#ea580c",
+    apiPath:"/api/company-portal/training/sessions?from=2020-01-01&to=2030-12-31&limit=500",
+    transform:(raw)=>{
+      const rows=Array.isArray(raw?.data)?raw.data:(Array.isArray(raw)?raw:[]);
+      return rows.map(r=>({
+        id:r.id,
+        title:r.training_title||r.trainingTitle||"",
+        employeeName:r.employee_name||r.employeeName||"",
+        department:r.department_name||r.departmentName||"",
+        trainerName:r.trainer_name||r.trainerName||"",
+        trainingDate:r.training_date||r.trainingDate||"",
+        expiryDate:r.expiry_date||r.expiryDate||"",
+        status:r.status||"",
+        result:r.result||"",
+        durationHours:r.duration_hours!=null?Number(r.duration_hours):"",
+        remarks:r.remarks||"",
+        _raw:r,
+      }));
+    },
+    fields:[
+      {key:"title",         label:"Training Title",    type:"text",    group:"Identity"},
+      {key:"employeeName",  label:"Employee",          type:"text",    group:"People"},
+      {key:"department",    label:"Department",        type:"text",    group:"Location"},
+      {key:"trainerName",   label:"Trainer",           type:"text",    group:"People"},
+      {key:"trainingDate",  label:"Training Date",     type:"date",    group:"Time"},
+      {key:"expiryDate",    label:"Expiry Date",       type:"date",    group:"Time"},
+      {key:"durationHours", label:"Duration (hrs)",    type:"number",  group:"Metrics"},
+      {key:"status",        label:"Status",            type:"select",  group:"Status", options:["scheduled","completed","overdue","cancelled"]},
+      {key:"result",        label:"Result",            type:"select",  group:"Status", options:["Pass","Fail","Pending","NA"]},
+      {key:"remarks",       label:"Remarks",           type:"text",    group:"Details"},
+    ],
+    defaultFields:["title","employeeName","department","trainerName","trainingDate","expiryDate","status","result"],
+  },
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -421,19 +599,9 @@ function doCSV(rows,defs){
    ─────────────────────────────────────────────────────────────────────────── */
 const PAGE_SIZE=100;
 
-export default function ReportBuilderPanel({token, companies=[], defaultCompanyId=null}){
+export default function ReportBuilderPanel({token}){
   const[moduleKey,setModuleKey]=useState("assets");
   const mod=MODULE_REGISTRY[moduleKey];
-
-  // Company selector: "" = current company (default), or a specific companyId
-  const[selectedCompanyId,setSelectedCompanyId]=useState("");
-
-  // Build the effective API path with companyId param if a specific company is chosen
-  const buildPath=(basePath)=>{
-    if(!selectedCompanyId) return basePath;
-    const sep=basePath.includes("?")?"&":"?";
-    return `${basePath}${sep}companyId=${selectedCompanyId}`;
-  };
 
   const[rawData,setRawData]=useState([]);
   const[loading,setLoading]=useState(false);
@@ -487,11 +655,11 @@ export default function ReportBuilderPanel({token, companies=[], defaultCompanyI
     if(!token) return;
     setLoading(true);setLoadError(null);
     try{
-      const raw=await apiFetch(buildPath(MODULE_REGISTRY[moduleKey].apiPath),token);
+      const raw=await apiFetch(MODULE_REGISTRY[moduleKey].apiPath,token);
       setRawData(MODULE_REGISTRY[moduleKey].transform(raw));
       setLastLoaded(new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}));
     }catch(e){setLoadError(e.message);}finally{setLoading(false);}
-  },[moduleKey,token,selectedCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[moduleKey,token]);
 
   useEffect(()=>{loadData();},[loadData]);
 
@@ -624,62 +792,23 @@ export default function ReportBuilderPanel({token, companies=[], defaultCompanyI
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:"#f1f5f9",fontFamily:"system-ui,-apple-system,sans-serif"}}>
 
       {/* ══ TOP TOOLBAR ══════════════════════════════════════════════════════ */}
-      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",height:56,padding:"0 20px",gap:0,flexShrink:0}}>
+      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",height:52,padding:"0 20px",gap:0,flexShrink:0}}>
 
-        {/* Page title + icon */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginRight:20}}>
-          <div style={{width:32,height:32,borderRadius:8,background:mod.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{mod.icon}</div>
-          <div>
-            <div style={{fontSize:"15px",fontWeight:800,color:"#0f172a",letterSpacing:"-0.3px",lineHeight:1.1}}>Reports</div>
-            <div style={{fontSize:"11px",color:"#94a3b8",fontWeight:500,lineHeight:1.2}}>{loading?"Loading…":`${processedData.length.toLocaleString("en-IN")} records`}</div>
-          </div>
+        {/* Module tabs */}
+        <div style={{display:"flex",alignItems:"stretch",height:"100%",marginRight:12}}>
+          {Object.entries(MODULE_REGISTRY).map(([k,v])=>(
+            <button key={k} onClick={()=>setModuleKey(k)}
+              style={{padding:"0 16px",background:"none",border:"none",borderBottom:moduleKey===k?`2.5px solid ${v.color}`:"2.5px solid transparent",marginBottom:"-1px",fontSize:"13px",fontWeight:moduleKey===k?700:500,color:moduleKey===k?v.color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
+              {v.icon} {v.label}
+            </button>
+          ))}
         </div>
-
-        <div style={{width:1,height:28,background:"#e2e8f0",marginRight:16}}/>
-
-        {/* Module Dropdown */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginRight:16}}>
-          <span style={{fontSize:"11px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",whiteSpace:"nowrap"}}>Data Source</span>
-          <div style={{position:"relative"}}>
-            <select
-              value={moduleKey}
-              onChange={e=>setModuleKey(e.target.value)}
-              style={{appearance:"none",WebkitAppearance:"none",padding:"7px 32px 7px 12px",border:`1.5px solid ${mod.color}`,borderRadius:"8px",fontSize:"13px",fontWeight:700,color:mod.color,background:mod.color+"12",cursor:"pointer",outline:"none",minWidth:"158px",boxShadow:`0 0 0 3px ${mod.color}18`}}>
-              {Object.entries(MODULE_REGISTRY).map(([k,v])=>(
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
-            <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={mod.color} strokeWidth={2.5} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-        </div>
-
-        {/* Company Selector – only shown when there are multiple accessible companies */}
-        {companies.length > 0 && (
-          <>
-            <div style={{width:1,height:28,background:"#e2e8f0",marginRight:10}}/>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginRight:16}}>
-              <span style={{fontSize:"11px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",whiteSpace:"nowrap"}}>Company</span>
-              <div style={{position:"relative"}}>
-                <select
-                  value={selectedCompanyId}
-                  onChange={e=>{setSelectedCompanyId(e.target.value);setPage(1);setRawData([]);}}
-                  style={{appearance:"none",WebkitAppearance:"none",padding:"7px 28px 7px 10px",border:"1.5px solid #e2e8f0",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"#334155",background:"#f8fafc",cursor:"pointer",outline:"none",minWidth:"160px",maxWidth:"200px"}}>
-                  <option value="">My Company</option>
-                  {companies.map(c=>(
-                    <option key={c.id} value={c.id}>{c.companyName || c.company_name}</option>
-                  ))}
-                </select>
-                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth={2.5} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-            </div>
-          </>
-        )}
 
         <div style={{width:1,height:28,background:"#e2e8f0",marginRight:10}}/>
 
         {/* View toggle */}
         <div style={{display:"flex",background:"#f1f5f9",borderRadius:8,padding:3,gap:2,marginRight:12}}>
-          {[["table","⊞ Table"],["pivot","↔ Pivot"],["chart","📊 Chart"]].map(([v,l])=>(
+          {[["table","⊞ Table"],["pivot","↔ Pivot"],["chart","📊 Chart"],["kpi","🎯 KPI"]].map(([v,l])=>(
             <button key={v} onClick={()=>setView(v)}
               style={{padding:"5px 13px",borderRadius:6,border:"none",background:view===v?"#fff":"transparent",color:view===v?"#2563eb":"#64748b",fontWeight:view===v?700:500,fontSize:"12.5px",cursor:"pointer",boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.1)":undefined}}>
               {l}
@@ -1165,6 +1294,72 @@ export default function ReportBuilderPanel({token, companies=[], defaultCompanyI
           </div>
         )}
       </div>
+
+      {/* KPI VIEW */}
+      {view==="kpi"&&(
+        <div style={{flex:1,overflow:"auto",padding:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14,marginBottom:20}}>
+            {/* Total records */}
+            <div style={{background:"#fff",borderRadius:12,padding:"18px 20px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+              <div style={{fontSize:"11px",fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Total Records</div>
+              <div style={{fontSize:"32px",fontWeight:800,color:"#2563eb"}}>{processedData.length.toLocaleString("en-IN")}</div>
+              <div style={{fontSize:"11.5px",color:"#94a3b8",marginTop:4}}>from {rawData.length.toLocaleString("en-IN")} total</div>
+            </div>
+            {/* Numeric KPIs */}
+            {visibleFields.filter(f=>f.type==="number").map(f=>{
+              const s=summary[f.key];
+              if(!s) return null;
+              return(
+                <div key={f.key} style={{background:"#fff",borderRadius:12,padding:"18px 20px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>{f.label}</div>
+                  <div style={{fontSize:"28px",fontWeight:800,color:"#0f172a"}}>{s.sum.toLocaleString("en-IN")}</div>
+                  <div style={{fontSize:"11.5px",color:"#94a3b8",marginTop:4}}>Avg: {s.avg} · across {processedData.length} records</div>
+                </div>
+              );
+            })}
+            {/* Category breakdowns */}
+            {visibleFields.filter(f=>f.type==="select").map(f=>{
+              const map=new Map();
+              for(const r of processedData){const k=String(r[f.key]||"(blank)");map.set(k,(map.get(k)||0)+1);}
+              const entries=[...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
+              if(!entries.length) return null;
+              const max=entries[0][1];
+              return(
+                <div key={f.key} style={{background:"#fff",borderRadius:12,padding:"18px 20px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)",gridColumn:"span 2"}}>
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:12}}>{f.label} Breakdown</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {entries.map(([k,v],i)=>{
+                      const s=BADGE_MAP[k]||BADGE_MAP[k.toLowerCase()]||{bg:"#f1f5f9",color:"#475569"};
+                      return(
+                        <div key={k} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{minWidth:120,fontSize:"12px",fontWeight:600,color:s.color,background:s.bg,padding:"2px 8px",borderRadius:12,textAlign:"center",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{k}</span>
+                          <div style={{flex:1,height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${Math.round((v/max)*100)}%`,background:CC[i%10],borderRadius:4,transition:"width 0.3s"}}/>
+                          </div>
+                          <span style={{fontSize:"12px",fontWeight:700,color:"#0f172a",minWidth:32,textAlign:"right"}}>{v}</span>
+                          <span style={{fontSize:"11px",color:"#94a3b8",minWidth:36,textAlign:"right"}}>{Math.round((v/processedData.length)*100)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Top records table */}
+          {processedData.length>0&&(
+            <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #e2e8f0",fontWeight:700,fontSize:"13px",color:"#0f172a"}}>Top 10 Records</div>
+              <div style={{overflow:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:"12.5px"}}>
+                  <thead><tr style={{background:"#f8fafc"}}>{visibleFields.slice(0,6).map(f=><th key={f.key} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:"11px",color:"#475569",textTransform:"uppercase",borderBottom:"1px solid #e2e8f0"}}>{f.label}</th>)}</tr></thead>
+                  <tbody>{processedData.slice(0,10).map((row,ri)=><tr key={ri} style={{borderBottom:"1px solid #f1f5f9",background:ri%2===0?"#fff":"#fafafa"}}>{visibleFields.slice(0,6).map(f=><td key={f.key} style={{padding:"9px 14px",color:"#374151"}}>{BADGE_KEYS.has(f.key)&&row[f.key]?<CellBadge val={String(row[f.key])}/>:fmtCell(row[f.key],f.type)||<span style={{color:"#d1d5db"}}>—</span>}</td>)}</tr>)}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══ SAVE MODAL ════════════════════════════════════════════════════════ */}
       {showSave&&(

@@ -243,6 +243,8 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS wip_at DATETIME DEFAULT NULL`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS resolution_at DATETIME DEFAULT NULL`,
     `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS downtime_minutes INT DEFAULT NULL`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS prior_downtime_minutes INT NOT NULL DEFAULT 0`,
+    `ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS last_reopened_at DATETIME DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS shift VARCHAR(60) DEFAULT NULL`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS service_domain VARCHAR(60) DEFAULT 'technical'`,
     `ALTER TABLE company_users ADD COLUMN IF NOT EXISTS supervisor_id INT DEFAULT NULL`,
@@ -1509,8 +1511,8 @@ router.get("/assets", async (req, res, next) => {
     if (verified === "true")  { extraFilters += ` AND a.is_verified = 1`; }
     if (verified === "false") { extraFilters += ` AND (a.is_verified = 0 OR a.is_verified IS NULL)`; }
     if (search) {
-      extraFilters += ` AND (a.asset_name LIKE ? OR a.asset_unique_id LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`);
+      extraFilters += ` AND (a.asset_name LIKE ? OR a.generated_asset_id LIKE ? OR a.asset_unique_id LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (assignedToMe === 'true' && req.companyUser?.id) {
       extraFilters += ` AND a.assigned_to = ?`;
@@ -1552,7 +1554,10 @@ router.get("/assets", async (req, res, next) => {
               a.is_verified AS "isVerified",
               a.created_by AS "createdBy",
               a.created_at AS "createdAt",
-              COALESCE(a.last_transferred_to_name, NULL) AS "lastTransferredFromName",
+              COALESCE(a.transfer_count, 0) AS "transferCount",
+              a.last_transferred_from_name AS "lastTransferredFromName",
+              a.last_transferred_to_name AS "lastTransferredToName",
+              a.last_transferred_at AS "lastTransferredAt",
               cu.full_name AS "assignedToName",
               d.name AS "departmentName",
               ad.metadata
@@ -2794,8 +2799,9 @@ router.get("/assets/by-barcode/:barcode", async (req, res, next) => {
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
-       WHERE a.company_id = ? AND a.asset_unique_id = ?`,
-      [cid(req), barcode]
+       WHERE a.company_id = ? AND (a.asset_unique_id = ? OR a.generated_asset_id = ?)
+      LIMIT 1`,
+      [cid(req), barcode, barcode]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     const meta = asset.metadata == null ? {} : (typeof asset.metadata === "string" ? JSON.parse(asset.metadata) : asset.metadata);
@@ -2888,7 +2894,13 @@ router.get("/asset-queries", async (req, res, next) => {
     const { assetId, status, assignedTo, limit } = req.query;
     let params;
     let where;
-    if (req.query.allCompanies === "true") {
+
+    if (assetId) {
+      // When filtering by assetId, return all queries for that asset across all companies
+      // so transferred assets retain their full history.
+      where = "WHERE aq.asset_id = ?";
+      params = [Number(assetId)];
+    } else if (req.query.allCompanies === "true") {
       const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
       where = `WHERE aq.company_id IN (${ids.map(() => "?").join(",")})`;
       params = [...ids];
@@ -2896,7 +2908,7 @@ router.get("/asset-queries", async (req, res, next) => {
       params = [cid(req)];
       where = "WHERE aq.company_id = ?";
     }
-    if (assetId)    { where += " AND aq.asset_id = ?";    params.push(Number(assetId)); }
+
     if (status) {
       const statuses = status.split(",").map(s => s.trim()).filter(Boolean);
       if (statuses.length === 1) {
@@ -4800,13 +4812,22 @@ router.get("/work-orders", async (req, res, next) => {
     }
     const { status, priority, assignedTo, assetId, limit = 200, offset = 0 } = req.query;
 
-    let where = "WHERE wo.company_id = ?";
-    const params = [companyId];
+    let where;
+    let params;
 
-    if (status)     { where += " AND wo.status = ?";      params.push(status); }
-    if (priority)   { where += " AND wo.priority = ?";    params.push(priority); }
+    if (assetId) {
+      // When fetching by assetId, include ALL work orders for that asset across ALL companies
+      // so transferred assets retain their full call-log and downtime history.
+      where = "WHERE wo.asset_id = ?";
+      params = [Number(assetId)];
+    } else {
+      where = "WHERE wo.company_id = ?";
+      params = [companyId];
+    }
+
+    if (status)     { where += " AND wo.status = ?";         params.push(status); }
+    if (priority)   { where += " AND wo.priority = ?";       params.push(priority); }
     if (assignedTo) { where += " AND wo.cp_assigned_to = ?"; params.push(Number(assignedTo)); }
-    if (assetId)    { where += " AND wo.asset_id = ?";    params.push(Number(assetId)); }
 
     const [rows] = await pool.query(
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",
@@ -4826,6 +4847,9 @@ router.get("/work-orders", async (req, res, next) => {
               wo.wip_at AS "wipAt",
               wo.resolution_at AS "resolutionAt",
               wo.closed_at AS "closedAt",
+              wo.downtime_minutes AS "downtimeMinutes",
+              wo.prior_downtime_minutes AS "priorDowntimeMinutes",
+              wo.last_reopened_at AS "lastReopenedAt",
               f.severity AS "flagSeverity", f.source AS "flagSource",
               COALESCE(f.escalated, FALSE) AS "flagEscalated"
        FROM work_orders wo
@@ -5117,10 +5141,15 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
       `UPDATE work_orders SET status = ?, closed_at = ?,
         wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
         resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
-        downtime_minutes = CASE WHEN ? IN ('completed', 'closed') AND downtime_minutes IS NULL
-          THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, NOW())) ELSE downtime_minutes END
+        prior_downtime_minutes = CASE WHEN ? = 'open' THEN COALESCE(downtime_minutes, prior_downtime_minutes) ELSE prior_downtime_minutes END,
+        last_reopened_at       = CASE WHEN ? = 'open' THEN NOW() ELSE last_reopened_at END,
+        downtime_minutes       = CASE
+          WHEN ? IN ('completed', 'closed')
+            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, COALESCE(last_reopened_at, created_at), NOW()))
+          WHEN ? = 'open' THEN NULL
+          ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, status, woId]
+      [status, closedAt, status, status, status, status, status, status, woId]
     );
 
     await pool.execute(
@@ -5172,10 +5201,15 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
       `UPDATE work_orders SET status = ?, closed_at = ?,
         wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
         resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
-        downtime_minutes = CASE WHEN ? IN ('completed', 'closed') AND downtime_minutes IS NULL
-          THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, NOW())) ELSE downtime_minutes END
+        prior_downtime_minutes = CASE WHEN ? = 'open' THEN COALESCE(downtime_minutes, prior_downtime_minutes) ELSE prior_downtime_minutes END,
+        last_reopened_at       = CASE WHEN ? = 'open' THEN NOW() ELSE last_reopened_at END,
+        downtime_minutes       = CASE
+          WHEN ? IN ('completed', 'closed')
+            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, COALESCE(last_reopened_at, created_at), NOW()))
+          WHEN ? = 'open' THEN NULL
+          ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, status, woId]
+      [status, closedAt, status, status, status, status, status, status, woId]
     );
     await pool.execute(
       `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks) VALUES (?, ?, NULL, ?)`,
