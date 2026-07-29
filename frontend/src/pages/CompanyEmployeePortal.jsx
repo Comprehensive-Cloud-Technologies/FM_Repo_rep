@@ -18,6 +18,7 @@ import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
 import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
 import CalibrationModule from "../components/CalibrationModule.jsx";
+import TrainingModule from "../components/TrainingModule.jsx";
 import { useAlertSound } from "../hooks/useAlertSound";
 import {
   getCompanyPortalMe,
@@ -130,21 +131,30 @@ const Btn = ({ children, onClick, outline, color = "#2563eb", bg, disabled, styl
 
 /* ─── Role Definitions & Hierarchy ─────────────────────────────── */
 const ROLES = [
-  { value: "admin",     label: "Admin",    color: "#7c3aed", bg: "#f3e8ff" },
-  { value: "engineer",  label: "Engineer", color: "#1d4ed8", bg: "#dbeafe" },
-  { value: "doctor",    label: "Doctor",   color: "#0e7490", bg: "#cffafe" },
-  { value: "nurse",     label: "Nurse",    color: "#059669", bg: "#d1fae5" },
-  { value: "ward_boy",  label: "Ward Boy", color: "#ca8a04", bg: "#fefce8" },
+  { value: "admin",           label: "Admin",            color: "#7c3aed", bg: "#f3e8ff" },
+  { value: "department_head", label: "Department Head",  color: "#be185d", bg: "#fdf2f8" },
+  { value: "engineer",        label: "Engineer",         color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "doctor",          label: "Doctor",           color: "#0e7490", bg: "#cffafe" },
+  { value: "nurse",           label: "Nurse",            color: "#059669", bg: "#d1fae5" },
+  { value: "ward_boy",        label: "Ward Boy",         color: "#ca8a04", bg: "#fefce8" },
 ];
-const roleInfo = (r) => ROLES.find((x) => x.value === r) || ROLES[ROLES.length - 1];
+const roleInfo = (r) => {
+  const fromRoles = ROLES.find((x) => x.value === r);
+  if (fromRoles) return fromRoles;
+  // Also check dynamically-loaded custom roles (e.g. dept_head)
+  const fromChain = HIERARCHY_CHAIN.find((x) => x.role === r);
+  if (fromChain) return { value: fromChain.role, label: fromChain.label, color: fromChain.color, bg: fromChain.bg };
+  return ROLES[ROLES.length - 1];
+};
 
 // Default hierarchy for healthcare org
 const DEFAULT_HIERARCHY_CHAIN = [
-  { role: "admin",    label: "Admin",    parentRole: null,      color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
-  { role: "engineer", label: "Engineer", parentRole: "admin",   color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-  { role: "doctor",   label: "Doctor",   parentRole: "admin",   color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
-  { role: "nurse",    label: "Nurse",    parentRole: "doctor",  color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
-  { role: "ward_boy", label: "Ward Boy", parentRole: "nurse",   color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
+  { role: "admin",           label: "Admin",           parentRole: null,              color: "#7c3aed", bg: "#f3e8ff", border: "#d8b4fe" },
+  { role: "department_head", label: "Department Head", parentRole: "admin",           color: "#be185d", bg: "#fdf2f8", border: "#fbcfe8" },
+  { role: "engineer",        label: "Engineer",        parentRole: "department_head", color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
+  { role: "doctor",          label: "Doctor",          parentRole: "department_head", color: "#0e7490", bg: "#cffafe", border: "#a5f3fc" },
+  { role: "nurse",           label: "Nurse",           parentRole: "doctor",          color: "#059669", bg: "#d1fae5", border: "#6ee7b7" },
+  { role: "ward_boy",        label: "Ward Boy",        parentRole: "nurse",           color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
 ];
 
 // Runtime-mutable hierarchy — can be replaced by admin-defined custom roles.
@@ -4084,6 +4094,7 @@ const NAV_ALL = [
   { key: "asset_transfer", label: "Asset Transfers",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/><path d="M19 12H5M12 19l-7-7 7-7" opacity=".4"/></svg> },
   { key: "pms",           label: "PMS",              roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><polyline points="12 14 14 16 18 12"/></svg> },
   { key: "calibration",   label: "Calibration",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
+  { key: "training",      label: "Training",         roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -4649,6 +4660,7 @@ export default function CompanyEmployeePortal() {
       shifts: ["shifts"],
       pms: ["pms", "preventive_maintenance", "preventivemaintenance"],
       calibration: ["calibration"],
+      training: ["training"],
     };
 
     const candidates = keyMap[navKey] || [navKey];
@@ -9634,12 +9646,23 @@ export default function CompanyEmployeePortal() {
 
       {/* ── PMS (Preventive Maintenance) ────────────────────────── */}
       {nav === "pms" && (
-        <PMSChecklistModule token={token} companyId={currentUser?.companyId} />
+        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          <PMSChecklistModule token={token} companyId={currentUser?.companyId} currentUser={currentUser} />
+        </div>
       )}
 
       {/* ── Calibration ─────────────────────────────────────────── */}
       {nav === "calibration" && (
-        <CalibrationModule token={token} />
+        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          <CalibrationModule token={token} />
+        </div>
+      )}
+
+      {/* ── Training ────────────────────────────────────────────── */}
+      {nav === "training" && (
+        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          <TrainingModule token={token} />
+        </div>
       )}
 
       {/* ── Reports / Report Builder ──────────────────────────── */}

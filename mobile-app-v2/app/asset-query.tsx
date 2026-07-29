@@ -1,4 +1,4 @@
-﻿/**
+/**
  * asset-query.tsx
  * Shown after scanning an asset barcode/QR. Displays asset details and lets
  * the user raise a query / report an issue, capturing or picking images.

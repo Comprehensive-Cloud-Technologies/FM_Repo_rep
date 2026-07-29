@@ -12940,6 +12940,7 @@ const CompanyPortal = () => {
     { key: "reports", label: "Reports" },
     { key: "pms", label: "PMS (Preventive Maintenance)" },
     { key: "calibration", label: "Calibration" },
+    { key: "training", label: "Training" },
   ];
 
   const normalizePortalModuleKey = (value) => {

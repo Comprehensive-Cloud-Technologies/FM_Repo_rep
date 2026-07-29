@@ -8,6 +8,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
+import PmsReportsPanel from "./PmsReportsPanel.jsx";
+import PmsApprovalsPanel from "./PmsApprovalsPanel.jsx";
 
 const BASE = getApiBaseUrl();
 
@@ -2340,7 +2342,7 @@ function ScheduleDetailView({ scheduleId, token }) {
 }
 
 // ─── Root Component ───────────────────────────────────────────────────────────
-export default function PMSChecklistModule({ token, companyId, extraTabs = [], extraTabContent = {}, initialTab }) {
+export default function PMSChecklistModule({ token, companyId, extraTabs = [], extraTabContent = {}, initialTab, currentUser }) {
   const [tab, setTab]             = useState(initialTab || "checklists");
   const [assignChecklist, setAssignChecklist] = useState(null);
 
@@ -2420,6 +2422,8 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
         {tabBtn("checklists", "📋 Checklists")}
         {tabBtn("assign", "🔗 Assign to Assets")}
         {tabBtn("schedules", "📅 Schedules")}
+        {tabBtn("approvals", "✅ Approvals")}
+        {tabBtn("reports", "📊 Reports")}
         {extraTabs.map(t => <span key={t.key}>{tabBtn(t.key, t.label)}</span>)}
       </div>
 
@@ -2437,6 +2441,12 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
         <SchedulesTab token={token}
           selectedCompanyId={selectedCompanyId}
           selectedCompanyName={selectedCompanyName} />
+      )}
+      {tab === "approvals" && (
+        <PmsApprovalsPanel token={token} currentUser={currentUser} />
+      )}
+      {tab === "reports" && (
+        <PmsReportsPanel token={token} />
       )}
       {extraTabs.map(t => tab === t.key ? <div key={t.key}>{extraTabContent[t.key]}</div> : null)}
     </div>
