@@ -1530,13 +1530,7 @@ router.get("/assets", async (req, res, next) => {
       params.push(req.companyUser.id, cid(req));
     }
 
-    // Cap at 1000 rows to prevent multi-megabyte responses that block the event loop (M-7)
-    const reqLimit  = req.query.limit  ? Math.min(Number(req.query.limit), 1000) : (req.query.allCompanies === "true" ? 1000 : 200);
-    const reqOffset = req.query.offset ? Number(req.query.offset) : 0;
-
-    // ── Main query — no documents JOIN, no creator JOIN ──────────────────────
-    // `ad.documents` is large and only needed in the detail view.
-    // `creator` JOIN (createdByName) is not displayed in the list.
+    // No row limit — return all assets
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
               a.generated_asset_id AS "generatedAssetId",
@@ -1558,8 +1552,7 @@ router.get("/assets", async (req, res, next) => {
               a.is_verified AS "isVerified",
               a.created_by AS "createdBy",
               a.created_at AS "createdAt",
-              a.transfer_count AS "transferCount",
-              a.last_transferred_from_name AS "lastTransferredFromName",
+              COALESCE(a.last_transferred_to_name, NULL) AS "lastTransferredFromName",
               cu.full_name AS "assignedToName",
               d.name AS "departmentName",
               ad.metadata
@@ -1569,9 +1562,8 @@ router.get("/assets", async (req, res, next) => {
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
        LEFT JOIN company_users cu ON cu.id = a.assigned_to
        WHERE ${companyWhereClause} ${extraFilters}
-       ORDER BY a.asset_name
-       LIMIT ? OFFSET ?`,
-      [...params, reqLimit, reqOffset]
+       ORDER BY a.asset_name`,
+      params
     );
 
     // List view: skip document/image pre-signing — handled in detail view only.

@@ -62,6 +62,8 @@ export default function AssetDetailPage() {
   const adminToken = localStorage.getItem("company_portal_token");
   const token      = cpToken || adminToken;
   const isAdmin    = !cpToken && !!adminToken;
+  const cpUser     = (() => { try { return JSON.parse(sessionStorage.getItem("cp_user") || "null"); } catch { return null; } })();
+  const canTransfer = isAdmin || (!!cpToken && cpUser?.role === "admin");
 
   const [asset, setAsset] = useState(null);
   const [callLogs, setCallLogs] = useState(null);
@@ -84,6 +86,15 @@ export default function AssetDetailPage() {
   const [locFloors, setLocFloors] = useState([]);
   const [locRooms, setLocRooms] = useState([]);
   const [locDepts, setLocDepts] = useState([]);
+  const [transferHistory, setTransferHistory] = useState(null);
+  const [transferHistoryLoading, setTransferHistoryLoading] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferForm, setTransferForm] = useState({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState(null);
+  const [transferSuccess, setTransferSuccess] = useState(null);
+  const [transferCompanies, setTransferCompanies] = useState([]);
+  const [transferDepts, setTransferDepts] = useState([]);
 
   useEffect(() => {
     if (!token || !id) { setError("Not authenticated or asset not found."); setLoading(false); return; }
@@ -249,12 +260,13 @@ export default function AssetDetailPage() {
   ].filter(([, v]) => v && v !== "—");
 
   const TABS = [
-    { key: "overview",    label: "Overview" },
-    { key: "calllogs",   label: "Call Log History" },
-    { key: "calibration",label: "Calibration History" },
-    { key: "purchase",   label: "Purchase History" },
-    { key: "pms_history",label: "PMS History" },
-    { key: "indent",     label: "Indent Details" },
+    { key: "overview",          label: "Overview" },
+    { key: "calllogs",          label: "Call Log History" },
+    { key: "calibration",       label: "Calibration History" },
+    { key: "purchase",          label: "Purchase History" },
+    { key: "pms_history",       label: "PMS History" },
+    { key: "transfer_history",  label: "Transfer History" },
+    { key: "indent",            label: "Indent Details" },
   ];
 
   const tabStyle = (key) => ({
@@ -494,6 +506,94 @@ export default function AssetDetailPage() {
         <div style={{ position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 2000, background: "#16a34a", color: "#fff", padding: "12px 24px", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 700, animation: "fadeIn 0.2s ease" }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
           Asset details updated successfully!
+        </div>
+      )}
+      {/* Transfer Modal */}
+      {showTransferModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+          onClick={e => e.target === e.currentTarget && setShowTransferModal(false)}>
+          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "500px", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding: "20px 28px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>Transfer Asset</h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>Move this asset to another company or department</p>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", width: "32px", height: "32px", fontSize: "18px", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+            </div>
+            <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: "14px" }}>
+              {transferError && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", fontSize: "13px" }}>{transferError}</div>}
+              {transferSuccess && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#dcfce7", color: "#166534", fontSize: "13px", fontWeight: 600 }}>{transferSuccess}</div>}
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase" }}>Destination Company *</label>
+                <select value={transferForm.toCompanyId} onChange={e => {
+                  const cId = e.target.value;
+                  setTransferForm(p => ({ ...p, toCompanyId: cId, toDepartmentId: "" }));
+                  setTransferDepts([]);
+                  if (cId) {
+                    fetch(`${getApiBaseUrl()}/api/company-portal/assets/transfer/departments?companyId=${cId}`, { headers: { Authorization: `Bearer ${token}` } })
+                      .then(r => r.ok ? r.json() : Promise.reject())
+                      .then(d => setTransferDepts(Array.isArray(d) ? d : []))
+                      .catch(() => setTransferDepts([]));
+                  }
+                }}
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", background: "#fff", boxSizing: "border-box" }}>
+                  <option value="">— Select company —</option>
+                  {transferCompanies.map(c => <option key={c.id} value={String(c.id)}>{c.companyName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase" }}>Destination Department</label>
+                <select value={transferForm.toDepartmentId} onChange={e => setTransferForm(p => ({ ...p, toDepartmentId: e.target.value }))}
+                  disabled={!transferForm.toCompanyId}
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", background: transferForm.toCompanyId ? "#fff" : "#f8fafc", boxSizing: "border-box" }}>
+                  <option value="">{transferForm.toCompanyId ? "— None (company level) —" : "— Select company first —"}</option>
+                  {transferDepts.map(d => <option key={d.id} value={String(d.id)}>{d.departmentName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase" }}>Reason</label>
+                <input value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))} placeholder="Reason for transfer"
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "4px", textTransform: "uppercase" }}>Remarks</label>
+                <textarea value={transferForm.remarks} onChange={e => setTransferForm(p => ({ ...p, remarks: e.target.value }))} rows={2} placeholder="Additional remarks"
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
+              </div>
+            </div>
+            <div style={{ padding: "16px 28px", borderTop: "1px solid #e2e8f0", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button onClick={() => setShowTransferModal(false)} style={{ padding: "9px 20px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", fontWeight: 600, cursor: "pointer", fontSize: "13.5px" }}>Cancel</button>
+              <button disabled={!transferForm.toCompanyId || transferSaving || !!transferSuccess} onClick={async () => {
+                setTransferSaving(true);
+                setTransferError(null);
+                try {
+                  const base = getApiBaseUrl();
+                  const resp = await fetch(`${base}/api/company-portal/assets/${id}/transfer`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      toCompanyId: Number(transferForm.toCompanyId),
+                      toDepartmentId: transferForm.toDepartmentId ? Number(transferForm.toDepartmentId) : undefined,
+                      reason: transferForm.reason,
+                      remarks: transferForm.remarks,
+                    }),
+                  });
+                  const data = await resp.json();
+                  if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+                  setTransferSuccess(data.message || "Asset transferred successfully!");
+                  // Reload transfer history
+                  setTransferHistory(null);
+                } catch (e) {
+                  setTransferError(e.message || "Transfer failed");
+                } finally {
+                  setTransferSaving(false);
+                }
+              }}
+                style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: "#f97316", color: "#fff", fontWeight: 700, cursor: transferForm.toCompanyId && !transferSaving && !transferSuccess ? "pointer" : "not-allowed", fontSize: "13.5px", opacity: (!transferForm.toCompanyId || transferSaving || !!transferSuccess) ? 0.6 : 1 }}>
+                {transferSaving ? "Transferring…" : "Confirm Transfer"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {/* Full Edit Modal */}
@@ -744,6 +844,24 @@ export default function AssetDetailPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>{asset.departmentName && `Dept: ${asset.departmentName}`}</div>
+          {canTransfer && (
+            <button onClick={() => {
+              setTransferForm({ toCompanyId: "", toDepartmentId: "", reason: "", remarks: "" });
+              setTransferError(null);
+              setTransferSuccess(null);
+              setTransferDepts([]);
+              const base = getApiBaseUrl();
+              fetch(`${base}/api/company-portal/assets/transfer/companies`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.ok ? r.json() : Promise.reject())
+                .then(d => setTransferCompanies(Array.isArray(d) ? d : []))
+                .catch(() => setTransferCompanies([]));
+              setShowTransferModal(true);
+            }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "none", background: "#f97316", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              Transfer
+            </button>
+          )}
           <button onClick={openEditModal}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -762,6 +880,13 @@ export default function AssetDetailPage() {
               .then(r => r.ok ? r.json() : Promise.reject())
               .then(d => { setPmsHistory(d); setPmsHistoryLoading(false); })
               .catch(() => { setPmsHistory({ history: [] }); setPmsHistoryLoading(false); });
+          }
+          if (t.key === "transfer_history" && !transferHistory && !transferHistoryLoading && token) {
+            setTransferHistoryLoading(true);
+            fetch(`${getApiBaseUrl()}/api/company-portal/assets/${id}/transfer-history`, { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.ok ? r.json() : Promise.reject())
+              .then(d => { setTransferHistory(d); setTransferHistoryLoading(false); })
+              .catch(() => { setTransferHistory({ transfers: [] }); setTransferHistoryLoading(false); });
           }
         }}>{t.label}</button>)}
       </div>
@@ -961,6 +1086,55 @@ export default function AssetDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Transfer History */}
+        {tab === "transfer_history" && (
+          <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+            <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Transfer History</h4>
+            {transferHistoryLoading ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading transfer history…</div>
+            ) : !transferHistory ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Click the tab to load transfer history.</div>
+            ) : (transferHistory.transfers || []).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", color: "#94a3b8", fontSize: "14px" }}>
+                No transfer records found for this asset.
+              </div>
+            ) : (
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      {["Ref.", "From Company", "From Dept.", "To Company", "To Dept.", "Transferred By", "Date", "Reason", "Status"].map(h => (
+                        <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(transferHistory.transfers || []).map(tr => (
+                      <tr key={tr.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700 }}>{tr.transfer_reference || `#${tr.id}`}</td>
+                        <td style={{ padding: "10px 14px", color: "#334155" }}>{tr.from_company_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{tr.from_department_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#334155", fontWeight: 600 }}>{tr.to_company_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{tr.to_department_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#475569" }}>{tr.transferred_by_name || "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{tr.transferred_at ? new Date(tr.transferred_at).toLocaleDateString("en-IN") : "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b", maxWidth: "180px" }}>{tr.reason || tr.remarks || "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700,
+                            background: tr.status === "completed" ? "#dcfce7" : tr.status === "pending" ? "#fef3c7" : "#fee2e2",
+                            color: tr.status === "completed" ? "#166534" : tr.status === "pending" ? "#92400e" : "#991b1b" }}>
+                            {tr.status || "completed"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

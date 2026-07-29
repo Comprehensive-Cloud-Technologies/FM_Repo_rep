@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
+import * as XLSX from "xlsx";
 
 const BASE = getApiBaseUrl();
 
@@ -805,9 +806,56 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
   const [bulkSaving,     setBulkSaving]     = useState(false);
   const [dayPopup,       setDayPopup]       = useState(null);
   const [toast,          setToast]          = useState("");
-  const [filters,        setFilters]        = useState({ search: "", engineer: "", status: "" });
+  const [filters,        setFilters]        = useState({ search: "", engineer: "", status: "", fromDate: "", toDate: "" });
+  const [exporting,      setExporting]      = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+
+  const exportAssetMonthlyReport = async () => {
+    const year = viewDate.getFullYear();
+    if (!window.confirm(`Export Asset-wise Monthly Report for ${year}?`)) return;
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams({ year });
+      if (selectedCompanyId) qs.append("companyId", selectedCompanyId);
+      else qs.append("allCompanies", "true");
+      
+      const data = await apiFetch("GET", `/api/company-portal/pms/schedules/export?${qs}`, null, token);
+      
+      const assetMap = {};
+      data.forEach(row => {
+        if (!assetMap[row.generatedAssetId]) {
+          assetMap[row.generatedAssetId] = {
+            "S.no": Object.keys(assetMap).length + 1,
+            "Asset id": row.generatedAssetId || "",
+            "Asset Name": row.assetName || "",
+            "Jan": "", "Feb": "", "Mar": "", "Apr": "", "May": "", "Jun": "",
+            "Jul": "", "Aug": "", "Sep": "", "Oct": "", "Nov": "", "Dec": ""
+          };
+        }
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthKey = monthNames[row.monthIdx - 1];
+        if (monthKey) {
+          assetMap[row.generatedAssetId][monthKey] = "✔️";
+        }
+      });
+      
+      const rows = Object.values(assetMap);
+      if (rows.length === 0) {
+        showToast("No data to export for this year.");
+        return;
+      }
+      
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "PMS_Report");
+      XLSX.writeFile(wb, `PMS_Asset_Monthly_Report_${year}.xlsx`);
+    } catch (e) {
+      alert("Failed to export: " + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -916,26 +964,29 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
     }
     if (filters.engineer && s.engineer_name !== filters.engineer) return false;
     if (filters.status   && s.status !== filters.status)          return false;
+    const mDate = (s.maintenance_date || "").split("T")[0];
+    if (filters.fromDate && mDate < filters.fromDate) return false;
+    if (filters.toDate   && mDate > filters.toDate)   return false;
     return true;
   });
 
   const engineers = [...new Set(schedules.map(s => s.engineer_name).filter(Boolean))];
 
-  const overdueSchedules = schedules.filter(s => s.status === "overdue" ||
+  const overdueSchedules = filtered.filter(s => s.status === "overdue" ||
     (s.status === "scheduled" && (s.maintenance_date || "").split("T")[0] < todayStr));
-  const completedSchedules = schedules.filter(s => s.status === "completed");
+  const completedSchedules = filtered.filter(s => s.status === "completed");
   const stats = {
-    total:           schedules.length,
-    totalAssets:     schedules.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
-    todayCount:      schedules.filter(s => (s.maintenance_date || "").startsWith(todayStr)).length,
-    todayAssets:     schedules.filter(s => (s.maintenance_date || "").startsWith(todayStr)).reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    total:           filtered.length,
+    totalAssets:     filtered.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    todayCount:      filtered.filter(s => (s.maintenance_date || "").startsWith(todayStr)).length,
+    todayAssets:     filtered.filter(s => (s.maintenance_date || "").startsWith(todayStr)).reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
     completed:       completedSchedules.length,
-    completedAssets: schedules.reduce((sum, s) => sum + Number(s.completedAssets || 0), 0),
-    pending:         schedules.filter(s => s.status === "scheduled").length,
-    pendingAssets:   schedules.reduce((sum, s) => sum + Number(s.pendingAssets || 0), 0),
+    completedAssets: filtered.reduce((sum, s) => sum + Number(s.completedAssets || 0), 0),
+    pending:         filtered.filter(s => s.status === "scheduled").length,
+    pendingAssets:   filtered.reduce((sum, s) => sum + Number(s.pendingAssets || 0), 0),
     overdue:         overdueSchedules.length,
     overdueAssets:   overdueSchedules.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
-    pct: schedules.length > 0 ? Math.round(completedSchedules.length / schedules.length * 100) : 0,
+    pct: filtered.length > 0 ? Math.round(completedSchedules.length / filtered.length * 100) : 0,
     assetPct: 0,
   };
   stats.assetPct = stats.totalAssets > 0 ? Math.round(stats.completedAssets / stats.totalAssets * 100) : 0;
@@ -1018,23 +1069,24 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
           onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
           placeholder="🔍  Search schedule or engineer…"
           style={{ ...S.input, maxWidth: "230px" }} />
-        <select value={filters.engineer}
-          onChange={e => setFilters(p => ({ ...p, engineer: e.target.value }))}
-          style={{ ...S.input, maxWidth: "180px", background: "#fff" }}>
-          <option value="">All Engineers</option>
-          {engineers.map(e => <option key={e} value={e}>{e}</option>)}
-        </select>
-        <select value={filters.status}
-          onChange={e => setFilters(p => ({ ...p, status: e.target.value }))}
-          style={{ ...S.input, maxWidth: "160px", background: "#fff" }}>
-          <option value="">All Statuses</option>
-          {Object.entries(STATUS_COLORS).map(([k, v]) =>
-            <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        {(filters.search || filters.engineer || filters.status) && (
-          <button style={S.btn("ghost")} onClick={() => setFilters({ search: "", engineer: "", status: "" })}>✕ Reset</button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>From:</span>
+          <input type="date" value={filters.fromDate}
+            onChange={e => setFilters(p => ({ ...p, fromDate: e.target.value }))}
+            style={{ ...S.input, padding: "8px", width: "120px" }} />
+          <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>To:</span>
+          <input type="date" value={filters.toDate}
+            onChange={e => setFilters(p => ({ ...p, toDate: e.target.value }))}
+            style={{ ...S.input, padding: "8px", width: "120px" }} />
+        </div>
+        {(filters.search || filters.engineer || filters.status || filters.fromDate || filters.toDate) && (
+          <button style={S.btn("ghost")} onClick={() => setFilters({ search: "", engineer: "", status: "", fromDate: "", toDate: "" })}>✕ Reset</button>
         )}
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
+          <button style={S.btn("secondary")} onClick={exportAssetMonthlyReport} disabled={exporting}>
+            {exporting ? "⏳ Exporting..." : "📥 Export Excel"}
+          </button>
           <button style={S.btn("primary")} onClick={() => setModal("create")}>+ Create PMS Schedule</button>
         </div>
       </div>

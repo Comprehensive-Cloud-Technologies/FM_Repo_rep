@@ -644,7 +644,47 @@ router.post("/schedules", validate([
   finally { conn.release(); }
 });
 
-// GET /schedules/:id — get single schedule with full asset list
+router.get("/schedules/export", async (req, res, next) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const cId = req.query.companyId && req.query.companyId !== "undefined" ? req.query.companyId : null;
+    let accessibleIds = [];
+    if (!cId) {
+      accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    }
+
+    let whereClause = `YEAR(ps.maintenance_date) = ?`;
+    let params = [year];
+
+    if (cId) {
+      whereClause += ` AND ps.company_id = ?`;
+      params.push(cId);
+    } else {
+      whereClause += ` AND ps.company_id IN (?)`;
+      params.push(accessibleIds.length ? accessibleIds : [cid(req)]);
+    }
+
+    const query = `
+      SELECT 
+        a.generated_asset_id AS generatedAssetId,
+        a.asset_name AS assetName,
+        MONTH(ps.maintenance_date) AS monthIdx,
+        psa.status
+      FROM pms_schedule_assets psa
+      JOIN pms_schedules ps ON ps.id = psa.schedule_id
+      JOIN assets a ON a.id = psa.asset_id
+      WHERE ${whereClause}
+      ORDER BY a.asset_name, ps.maintenance_date
+    `;
+
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /schedules/:id — details of a specific schedule with full asset list
 router.get("/schedules/:id", async (req, res, next) => {
   try {
     const [[schedule]] = await pool.query(
