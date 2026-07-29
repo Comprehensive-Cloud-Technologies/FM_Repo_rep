@@ -47,6 +47,7 @@ import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 import locationsRouter from "./routes/locations.js";
 import statesRouter from "./routes/states.js";
 import mobileNotificationsRouter from "./routes/mobileNotifications.js";
+import assetTransferRouter from "./routes/assetTransfer.js";
 import { flexCompanyAuth } from "./middleware/companyAuth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -134,6 +135,7 @@ app.use("/api/company-auth", authLimiter, companyAuthRouter);
 // Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
 app.use("/api/company-portal/calibration", calibrationRouter);
 app.use("/api/company-portal/training", trainingRouter);
+app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);
