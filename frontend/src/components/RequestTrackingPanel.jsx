@@ -160,37 +160,23 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
 }
 
 /* ─── Filters Bar ─────────────────────────────────────────────────────────── */
-function FiltersBar({ filters, setFilters, employees, departments, onReset, searchInput, setSearchInput, allCompaniesMode, hospitalInput, setHospitalInput, assetNameInput, setAssetNameInput, raisedByInput, setRaisedByInput }) {
+function FiltersBar({ filters, setFilters, employees, departments, onReset }) {
   const [open, setOpen] = useState(false);
   const inputSt = { padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", width: "100%", boxSizing: "border-box", outline: "none", background: "#fff" };
-  const activeCount = Object.entries(filters).filter(([k, v]) => !["search","escalated","overdue"].includes(k) && v !== "" && v !== false).length;
-
-  // Wrapper: text input with a × clear button on the right
-  const ClearInput = ({ value, onChange, onClear, placeholder, type = "text", style = {} }) => (
-    <div style={{ position: "relative" }}>
-      <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-        style={{ ...inputSt, paddingRight: value ? "28px" : "10px", ...style }} />
-      {value && (
-        <button onClick={onClear} style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>
-      )}
-    </div>
-  );
+  const activeCount = Object.entries(filters).filter(([k, v]) => k !== "search" && v !== "" && v !== false).length;
 
   return (
     <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
       <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-        {/* Search with clear button */}
+        {/* Search */}
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
-            value={searchInput}
-            onChange={e => setSearchInput(e.target.value)}
-            placeholder="Search by WO#, AQ-ID, asset name, asset ID, location, raised by…"
-            style={{ ...inputSt, paddingLeft: "32px", paddingRight: searchInput ? "28px" : "10px", minWidth: "220px" }}
+            value={filters.search}
+            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            placeholder="Search by WO#, asset, description…"
+            style={{ ...inputSt, paddingLeft: "32px", minWidth: "220px" }}
           />
-          {searchInput && (
-            <button onClick={() => setSearchInput("")} style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear search">×</button>
-          )}
         </div>
         {/* Status quick */}
         <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
@@ -214,7 +200,7 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           More Filters {activeCount > 0 && <span style={{ background: "#2563eb", color: "#fff", borderRadius: "9px", padding: "0 6px", fontSize: "11px" }}>{activeCount}</span>}
         </button>
-        {(activeCount > 0 || searchInput) && (
+        {(activeCount > 0 || filters.search) && (
           <button onClick={onReset} style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "12.5px", color: "#64748b" }}>Reset</button>
         )}
       </div>
@@ -224,61 +210,36 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px", paddingTop: "12px" }}>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Date From</label>
-              <ClearInput type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} onClear={() => setFilters(f => ({ ...f, dateFrom: "" }))} />
+              <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} style={inputSt} />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Date To</label>
-              <ClearInput type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} onClear={() => setFilters(f => ({ ...f, dateTo: "" }))} />
+              <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={inputSt} />
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Assigned To</label>
-              <div style={{ position: "relative" }}>
-                <select value={filters.assignedTo} onChange={e => setFilters(f => ({ ...f, assignedTo: e.target.value }))} style={{ ...inputSt, paddingRight: filters.assignedTo ? "28px" : "10px" }}>
-                  <option value="">Any Employee</option>
-                  {employees.map(u => <option key={u.id} value={u.id}>{u.fullName || u.full_name}</option>)}
-                </select>
-                {filters.assignedTo && <button onClick={() => setFilters(f => ({ ...f, assignedTo: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
-              </div>
+              <select value={filters.assignedTo} onChange={e => setFilters(f => ({ ...f, assignedTo: e.target.value }))} style={inputSt}>
+                <option value="">Any Employee</option>
+                {employees.map(u => <option key={u.id} value={u.id}>{u.fullName || u.full_name}</option>)}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Department</label>
-              <div style={{ position: "relative" }}>
-                <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))} style={{ ...inputSt, paddingRight: filters.departmentId ? "28px" : "10px" }}>
-                  <option value="">All Departments</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>)}
-                </select>
-                {filters.departmentId && <button onClick={() => setFilters(f => ({ ...f, departmentId: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
-              </div>
+              <select value={filters.departmentId} onChange={e => setFilters(f => ({ ...f, departmentId: e.target.value }))} style={inputSt}>
+                <option value="">All Departments</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
             </div>
-            <div>
-              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Asset / Location</label>
-              <ClearInput value={assetNameInput} onChange={e => setAssetNameInput(e.target.value)} onClear={() => setAssetNameInput("")} placeholder="Filter by asset name or location…" />
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!filters.escalated} onChange={e => setFilters(f => ({ ...f, escalated: e.target.checked }))} style={{ width: "15px", height: "15px" }} />
+                <span style={{ fontWeight: 600 }}>Escalated Only</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!filters.overdue} onChange={e => setFilters(f => ({ ...f, overdue: e.target.checked }))} style={{ width: "15px", height: "15px" }} />
+                <span style={{ fontWeight: 600 }}>Overdue Only</span>
+              </label>
             </div>
-            <div>
-              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Raised By</label>
-              <ClearInput value={raisedByInput} onChange={e => setRaisedByInput(e.target.value)} onClear={() => setRaisedByInput("")} placeholder="Filter by requester name…" />
-            </div>
-            <div>
-              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Source</label>
-              <div style={{ position: "relative" }}>
-                <select value={filters.source || ""} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))} style={{ ...inputSt, paddingRight: filters.source ? "28px" : "10px" }}>
-                  <option value="">All Sources</option>
-                  <option value="qr scan">QR Scan</option>
-                  <option value="flag">Flag</option>
-                  <option value="manual">Manual</option>
-                  <option value="mobile case log">Mobile</option>
-                  <option value="checklist">Checklist</option>
-                  <option value="logsheet">Logsheet</option>
-                </select>
-                {filters.source && <button onClick={() => setFilters(f => ({ ...f, source: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
-              </div>
-            </div>
-            {allCompaniesMode && (
-              <div>
-                <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Hospital</label>
-                <ClearInput value={hospitalInput} onChange={e => setHospitalInput(e.target.value)} onClear={() => setHospitalInput("")} placeholder="Filter by hospital name…" />
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -689,38 +650,33 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const canManage = isAdmin || isSupervisor;
   const authToken = companyPortalToken || token;
 
-  const EMPTY_FILTERS = { search: "", status: "", priority: "", assignedTo: "", departmentId: "", dateFrom: "", dateTo: "", escalated: false, overdue: false, source: "", hospitalName: "", assetName: "", raisedBy: "" };
+  const EMPTY_FILTERS = { search: "", status: "", priority: "", assignedTo: "", departmentId: "", dateFrom: "", dateTo: "", escalated: false, overdue: false };
 
   const [requests, setRequests]   = useState([]);
   const [summary, setSummary]     = useState(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const [filters, setFilters]     = useState(EMPTY_FILTERS);
-  const [searchInput, setSearchInput] = useState(""); // debounced input
-  const [hospitalInput, setHospitalInput] = useState("");
-  const [assetNameInput, setAssetNameInput] = useState("");
-  const [raisedByInput, setRaisedByInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStFil]  = useState("all");   // quick tab filter
-
-  // Debounce text inputs → fire API 400ms after user stops typing
-  useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, search: searchInput })), 400); return () => clearTimeout(t); }, [searchInput]);
-  useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, hospitalName: hospitalInput })), 400); return () => clearTimeout(t); }, [hospitalInput]);
-  useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, assetName: assetNameInput })), 400); return () => clearTimeout(t); }, [assetNameInput]);
-  useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, raisedBy: raisedByInput })), 400); return () => clearTimeout(t); }, [raisedByInput]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [selectedWO, setSelectedWO] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [cutoffWO, setCutoffWO]     = useState(null);
-  const [page, setPage]             = useState(1);
-  const [openStatusMenu, setOpenStatusMenu] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());   // bulk selection
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [cutoffWO, setCutoffWO]     = useState(null);  // request whose cutoff modal is open
+  const [page, setPage]           = useState(1);
+  const [openStatusMenu, setOpenStatusMenu] = useState(null); // row id with open status dropdown
   const LIMIT = 30;
+
+  // Debounce the search input to avoid firing an API call on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => { setDebouncedSearch(filters.search); setPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const ef = { ...filters };
+      const ef = { ...filters, search: debouncedSearch };
       // merge status-tab filter with dropdown filter
       if (statusFilter !== "all" && !ef.status) {
         if (statusFilter === "escalated") ef.escalated = true;
@@ -728,8 +684,6 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         else ef.status = statusFilter;
       }
       if (allCompaniesMode) ef.allCompanies = true;
-      // Strip hospitalName if not in allCompanies mode
-      if (!allCompaniesMode) delete ef.hospitalName;
       const qs = buildQS({ ...ef, page, limit: LIMIT });
       const data = await apiFetch("GET", `/api/company-portal/healthcare/requests${qs}`, undefined, authToken);
       setRequests(Array.isArray(data.data) ? data.data : []);
@@ -737,21 +691,18 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       setPagination(data.pagination || { page: 1, total: 0, pages: 1 });
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [authToken, filters, statusFilter, page, allCompaniesMode]);
+  }, [authToken, filters, debouncedSearch, statusFilter, page, allCompaniesMode]);
 
   useEffect(() => { load(); }, [load]);
 
   // ── Real-time Socket.IO subscription ──────────────────────────────────────
+  // Connect to the backend Socket.IO server and join this company's room so
+  // we receive live updates whenever an issue is created or its status changes.
   useEffect(() => {
     if (!companyId) return;
-    // Use the runtime API base for Socket.IO.
-    // In dev with Vite proxy (BASE=""), fall back to the VITE_API_URL env var or
-    // the explicit backend origin so the WebSocket reaches the right server.
-    const socketBase = BASE ||
-      import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? "http://localhost:4000" : window.location.origin);
-    const socket = io(socketBase, { transports: ["websocket", "polling"], autoConnect: true });
+    const socket = io(BASE, { transports: ["websocket", "polling"], autoConnect: true });
     socket.on("connect", () => { socket.emit("join-company", companyId); });
+    // Refresh the list when a new issue arrives or any issue status changes
     socket.on("issue:new",     () => { load(); });
     socket.on("issue:updated", () => { load(); });
     return () => {
@@ -768,29 +719,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
     return () => window.removeEventListener('click', handler, true);
   }, [openStatusMenu]);
 
-  const handleReset = () => { setFilters(EMPTY_FILTERS); setSearchInput(""); setHospitalInput(""); setAssetNameInput(""); setRaisedByInput(""); setStFil("all"); setPage(1); setSelectedIds(new Set()); };
-
-  const bulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.size} selected request(s) permanently? This cannot be undone.`)) return;
-    setBulkDeleting(true);
-    const ids = [...selectedIds];
-    let failed = 0;
-    for (const id of ids) {
-      const wo = requests.find(r => r.id === id);
-      try {
-        if (wo?.source_type === 'asset_query' || wo?.is_asset_query) {
-          await apiFetch('DELETE', `/api/company-portal/asset-queries/${id}`, undefined, authToken);
-        } else {
-          await apiFetch('DELETE', `/api/company-portal/work-orders/${id}`, undefined, authToken);
-        }
-      } catch { failed++; }
-    }
-    setBulkDeleting(false);
-    setSelectedIds(new Set());
-    load();
-    if (failed) alert(`${ids.length - failed} deleted, ${failed} failed.`);
-  };
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setStFil("all"); setPage(1); };
 
   const exportExcel = async () => {
     const ef = { ...filters };
@@ -857,15 +786,6 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         employees={employees}
         departments={departments}
         onReset={handleReset}
-        searchInput={searchInput}
-        setSearchInput={setSearchInput}
-        allCompaniesMode={allCompaniesMode}
-        hospitalInput={hospitalInput}
-        setHospitalInput={setHospitalInput}
-        assetNameInput={assetNameInput}
-        setAssetNameInput={setAssetNameInput}
-        raisedByInput={raisedByInput}
-        setRaisedByInput={setRaisedByInput}
       />
 
       {/* Status Tab Bar */}
@@ -890,38 +810,6 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         </div>
       )}
 
-      {/* Cutoff escalation alert — requests past cutoff time */}
-      {!loading && requests.some(r => r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()) && (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "10px", marginBottom: "12px" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div>
-            <span style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c" }}>
-              {requests.filter(r => r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()).length} request(s) have exceeded their cutoff time
-            </span>
-            <span style={{ fontSize: "12px", color: "#9a3412", marginLeft: "8px" }}>— Immediate attention required</span>
-          </div>
-          <button onClick={() => setFilters(f => ({ ...f, overdue: true }))}
-            style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: "7px", border: "1px solid #fed7aa", background: "#fff", color: "#c2410c", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-            View Overdue
-          </button>
-        </div>
-      )}
-
-      {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", marginBottom: "12px" }}>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#1d4ed8" }}>{selectedIds.size} request{selectedIds.size > 1 ? "s" : ""} selected</span>
-          <button onClick={() => setSelectedIds(new Set())} style={{ fontSize: "12px", color: "#64748b", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Deselect All</button>
-          {canManage && (
-            <button onClick={bulkDelete} disabled={bulkDeleting}
-              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 16px", borderRadius: "7px", border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: bulkDeleting ? "not-allowed" : "pointer", opacity: bulkDeleting ? 0.7 : 1 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Table */}
       <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
         {loading ? <Spinner /> : requests.length === 0 ? <EmptyState /> : (
@@ -929,13 +817,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  <th style={{ padding: "11px 12px", borderBottom: "1px solid #e2e8f0", width: "40px" }}>
-                    <input type="checkbox"
-                      checked={requests.length > 0 && selectedIds.size === requests.length}
-                      onChange={e => setSelectedIds(e.target.checked ? new Set(requests.map(r => r.id)) : new Set())}
-                      style={{ cursor: "pointer" }} />
-                  </th>
-                  {["#","Request #","Hospital","Department","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Response Time","Resolution Date","TAT","Status","Created","Cutoff","Actions"].map(h => (
+                  {["#","Request #","Hospital","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Response Time","Resolution Date","TAT","Status","Created","Cutoff","Actions"].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -948,14 +830,9 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                   const src = SOURCE_STYLE[(wo.source_label || wo.issue_source || wo.issueSource || "manual").toLowerCase()] || SOURCE_STYLE.manual;
 
                   return (
-                    <tr key={wo.id} style={{ borderBottom: "1px solid #f8fafc", background: selectedIds.has(wo.id) ? "#eff6ff" : rowBg }}
-                      onMouseEnter={e => { if (!rowBg && !selectedIds.has(wo.id)) e.currentTarget.style.background = "#fafafa"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = selectedIds.has(wo.id) ? "#eff6ff" : rowBg || ""; }}>
-                      <td style={{ padding: "11px 12px" }}>
-                        <input type="checkbox" checked={selectedIds.has(wo.id)}
-                          onChange={e => setSelectedIds(p => { const s = new Set(p); e.target.checked ? s.add(wo.id) : s.delete(wo.id); return s; })}
-                          style={{ cursor: "pointer" }} />
-                      </td>
+                    <tr key={wo.id} style={{ borderBottom: "1px solid #f8fafc", background: rowBg }}
+                      onMouseEnter={e => { if (!rowBg) e.currentTarget.style.background = "#fafafa"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = rowBg || ""; }}>
                       <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: "12px" }}>{(page - 1) * LIMIT + i + 1}</td>
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         <button onClick={() => setSelectedWO(wo)} style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</button>
@@ -965,12 +842,6 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       {/* Hospital / Site Name */}
                       <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
                         {wo.company_name || <span style={{ color: "#94a3b8" }}>—</span>}
-                      </td>
-                      {/* Department */}
-                      <td style={{ padding: "11px 14px", fontSize: "12px", color: "#475569", whiteSpace: "nowrap" }}>
-                        {wo.department_name
-                          ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{wo.department_name}</span>
-                          : <span style={{ color: "#cbd5e1" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <p style={{ margin: "0 0 2px", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>{wo.assetName || wo.asset_name || "—"}</p>

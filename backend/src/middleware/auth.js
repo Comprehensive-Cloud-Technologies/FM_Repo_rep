@@ -8,7 +8,12 @@ export const requireAuth = (req, res, next) => {
   const token = authHeader.split(" ")[1];
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: payload.sub, email: payload.email };
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      // company JWTs embed companyId — capture it so routes can enforce tenant isolation
+      companyId: payload.companyId != null ? parseInt(payload.companyId, 10) : null,
+    };
     return next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token" });

@@ -4,14 +4,30 @@
 # EC2 IP: 13.206.99.117 | GitHub repo: Comprehensive-Cloud-Technologies/FM_Repo_rep
 set -e
 
-EC2_IP="13.206.99.117"
+# ── Required runtime secrets — must be exported before running this script ─────
+# In GitHub Actions, configure as Actions secrets and pass them via env: block:
+#   env:
+#     EC2_IP:        ${{ secrets.EC2_IP }}
+#     DB_PASS:       ${{ secrets.DB_PASS }}
+#     JWT_SECRET:    ${{ secrets.JWT_SECRET }}
+#     ROOT_PASSWORD: ${{ secrets.ROOT_PASSWORD }}
+# Locally: export each variable in your shell before invoking.
+# NEVER hard-code values in this file — it is version-controlled.
+EC2_IP="${EC2_IP:?ERROR: EC2_IP must be exported (e.g. export EC2_IP=1.2.3.4)}"
+DB_PASS="${DB_PASS:?ERROR: DB_PASS must be exported as an environment variable}"
+JWT_SECRET="${JWT_SECRET:?ERROR: JWT_SECRET must be exported (generate: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\")}"
+ROOT_PASSWORD="${ROOT_PASSWORD:?ERROR: ROOT_PASSWORD must be exported as an environment variable}"
+
+# ── Optional — set DOMAIN_NAME to enable HTTPS via Let's Encrypt ───────────────
+# export DOMAIN_NAME=htm.yourdomain.com
+# If unset, Nginx will serve HTTP only (NOT recommended for production).
+DOMAIN_NAME="${DOMAIN_NAME:-}"
+
 REPO_URL="https://github.com/Comprehensive-Cloud-Technologies/FM_Repo_rep.git"
 BRANCH="develop"
 APP_DIR="/home/ec2-user/fmapp"
 DB_NAME="fmapp"
 DB_USER="fmapp_user"
-DB_PASS="FMapp@EC2#2026"
-JWT_SECRET="fmapp_ec2_prod_jwt_2026_secure"
 BACKEND_PORT=4000
 
 echo "====== Installing dependencies ======"
@@ -85,6 +101,11 @@ echo "====== Configuring backend .env ======"
 # Only write .env if it does not already exist — never overwrite to preserve
 # secrets like ROOT_PASSWORD that are added manually after initial deploy.
 if [ ! -f "$APP_DIR/backend/.env" ]; then
+  if [ -n "$DOMAIN_NAME" ]; then
+    ALLOW_ORIGIN_VAL="https://${DOMAIN_NAME},http://${EC2_IP},http://${EC2_IP}:3000"
+  else
+    ALLOW_ORIGIN_VAL="http://${EC2_IP},http://${EC2_IP}:3000"
+  fi
 cat > "$APP_DIR/backend/.env" <<ENVEOF
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -94,11 +115,11 @@ DB_NAME=${DB_NAME}
 DB_POOL_SIZE=10
 DB_CONNECT_TIMEOUT_MS=10000
 PORT=${BACKEND_PORT}
-ALLOW_ORIGIN=http://${EC2_IP},http://${EC2_IP}:3000
+ALLOW_ORIGIN=${ALLOW_ORIGIN_VAL}
 JWT_SECRET=${JWT_SECRET}
 NODE_ENV=production
 ROOT_USERNAME=rootadmin
-ROOT_PASSWORD=Root@12345
+ROOT_PASSWORD=${ROOT_PASSWORD}
 ENVEOF
 else
   echo ".env already exists, skipping overwrite."
@@ -117,15 +138,78 @@ echo "====== Installing frontend dependencies & building ======"
 cd "$APP_DIR/frontend"
 npm ci
 
-# Set API base URL to EC2 IP
+# Set API base URL — use HTTPS domain if available, HTTP IP fallback otherwise
+if [ -n "$DOMAIN_NAME" ]; then
+  VITE_API_BASE="https://${DOMAIN_NAME}"
+else
+  VITE_API_BASE="http://${EC2_IP}:${BACKEND_PORT}"
+fi
 cat > "$APP_DIR/frontend/.env.production" <<FEENV
-VITE_API_BASE_URL=http://${EC2_IP}:${BACKEND_PORT}
+VITE_API_BASE_URL=${VITE_API_BASE}
 FEENV
 
 npm run build
 
 echo "====== Configuring Nginx ======"
-sudo tee /etc/nginx/conf.d/fmapp.conf > /dev/null <<NGINXCONF
+if [ -n "$DOMAIN_NAME" ]; then
+  # HTTPS mode: redirect HTTP → HTTPS; TLS via Let's Encrypt certificate
+  sudo tee /etc/nginx/conf.d/fmapp.conf > /dev/null <<NGINXCONF
+server {
+    listen 80;
+    server_name ${DOMAIN_NAME};
+    # Redirect all HTTP to HTTPS
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${DOMAIN_NAME};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # Frontend (built React app)
+    root ${APP_DIR}/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Backend API proxy
+    location /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        client_max_body_size 50m;
+    }
+
+    # Uploaded files
+    location /uploads/ {
+        alias ${APP_DIR}/backend/uploads/;
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+}
+NGINXCONF
+  # Install certbot if not present
+  if ! command -v certbot &> /dev/null; then
+    sudo yum install -y certbot python3-certbot-nginx 2>/dev/null || true
+  fi
+  echo "INFO: To obtain a TLS certificate run:"
+  echo "  sudo certbot --nginx -d ${DOMAIN_NAME} --non-interactive --agree-tos -m admin@${DOMAIN_NAME}"
+else
+  # HTTP-only fallback — NOT recommended for production
+  sudo tee /etc/nginx/conf.d/fmapp.conf > /dev/null <<NGINXCONF
 server {
     listen 80;
     server_name ${EC2_IP} _;
@@ -147,6 +231,7 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
         proxy_read_timeout 300s;
         client_max_body_size 50m;
@@ -160,6 +245,9 @@ server {
     }
 }
 NGINXCONF
+  echo "WARNING: DOMAIN_NAME is not set. Nginx is configured for HTTP only."
+  echo "WARNING: Set DOMAIN_NAME environment variable to enable HTTPS for production."
+fi
 
 # Remove default config if exists
 sudo rm -f /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default 2>/dev/null || true
@@ -182,8 +270,14 @@ pm2 save
 echo ""
 echo "============================================"
 echo " Deployment complete!"
-echo " App URL:     http://${EC2_IP}"
-echo " Backend API: http://${EC2_IP}:${BACKEND_PORT}/api"
+if [ -n "$DOMAIN_NAME" ]; then
+  echo " App URL:     https://${DOMAIN_NAME}"
+  echo " Backend API: https://${DOMAIN_NAME}/api"
+else
+  echo " App URL:     http://${EC2_IP}  (WARNING: HTTP only)"
+  echo " Backend API: http://${EC2_IP}:${BACKEND_PORT}/api"
+  echo " WARNING: Set DOMAIN_NAME and re-run to enable HTTPS."
+fi
 echo " PM2 status:  pm2 status"
 echo " Nginx logs:  sudo journalctl -u nginx"
 echo " Backend logs: pm2 logs fmapp-backend"

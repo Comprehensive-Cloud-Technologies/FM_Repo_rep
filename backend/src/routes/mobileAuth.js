@@ -12,7 +12,8 @@ import jwt from "jsonwebtoken";
 import pool from "../db.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET;
+// M-8: Do NOT cache JWT_SECRET at module load time — read from process.env inline at each call
+// site so the value is always current and undefined is caught before jwt.sign/verify.
 
 function toObject(value) {
   if (!value) return {};
@@ -178,14 +179,23 @@ async function getRoleCapabilities(companyId, roleKey) {
 /* ── Mobile Login (username + password) ──────────────────────────────────────── */
 router.post("/login", async (req, res, next) => {
   try {
-    const { username, password, companyId } = req.body;
+    const rawUsername = req.body.username;
+    const rawPassword = req.body.password;
+    const companyId = req.body.companyId;
 
-    if (!username || !password) {
+    if (!rawUsername || !rawPassword) {
       return res.status(400).json({ message: "Username and password are required" });
     }
 
     if (!companyId) {
       return res.status(400).json({ message: "Company ID is required" });
+    }
+
+    const username = String(rawUsername).trim().slice(0, 64);
+    const password = String(rawPassword).slice(0, 128);
+
+    if (!username) {
+      return res.status(400).json({ message: "Username cannot be blank" });
     }
 
     // Find user by username and company (case-insensitive)
@@ -246,7 +256,7 @@ router.post("/login", async (req, res, next) => {
         role: user.role,
         type: "company_user",
       },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: "90d" }
     );
 
@@ -285,7 +295,7 @@ router.get("/verify", async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (decoded.type !== "company_user") {
       return res.status(401).json({ message: "Invalid token type" });
@@ -328,7 +338,7 @@ router.post("/push-token", async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
     }
-    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    const decoded = jwt.verify(authHeader.substring(7), process.env.JWT_SECRET);
     if (decoded.type !== "company_user") {
       return res.status(401).json({ message: "Invalid token type" });
     }

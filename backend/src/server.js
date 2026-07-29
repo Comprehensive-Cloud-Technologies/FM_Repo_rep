@@ -13,7 +13,7 @@ const httpServer = createServer(app);
 const allowedOrigins = process.env.ALLOW_ORIGIN?.split(",").map((o) => o.trim());
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins?.length ? allowedOrigins : "*",
+    origin: allowedOrigins?.length ? allowedOrigins : false,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -29,12 +29,25 @@ io.on("connection", (socket) => {
   // Portal/dashboard clients join a company-specific room so we can broadcast
   // targeted updates without sending events to all connected clients.
   socket.on("join-company", (companyId) => {
-    if (companyId) socket.join(`company-${companyId}`);
+    const id = Number(companyId);
+    if (Number.isInteger(id) && id > 0) socket.join(`company-${id}`);
   });
 
   socket.on("leave-company", (companyId) => {
-    if (companyId) socket.leave(`company-${companyId}`);
+    const id = Number(companyId);
+    if (Number.isInteger(id) && id > 0) socket.leave(`company-${id}`);
   });
+});
+
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.error("[server] Unhandled rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  // eslint-disable-next-line no-console
+  console.error("[server] Uncaught exception:", err);
+  process.exit(1);
 });
 
 httpServer.listen(port, () => {

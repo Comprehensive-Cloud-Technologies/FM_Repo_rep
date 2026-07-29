@@ -717,7 +717,6 @@ function SchedulerTab({ token }) {
           </div>
         );
       })()}
-
       {/* Calendar navigation */}
       {view === "calendar" && (
         <div style={{ ...S.card }}>

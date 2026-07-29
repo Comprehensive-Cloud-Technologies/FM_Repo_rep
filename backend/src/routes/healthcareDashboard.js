@@ -54,9 +54,9 @@ function buildAssetWhere(companyId, q) {
   const p = [companyId];
 
   if (q.departmentId) { where += " AND a.department_id = ?"; p.push(Number(q.departmentId)); }
-  if (q.location)     { where += " AND (a.building LIKE ? OR a.floor LIKE ? OR a.room LIKE ? OR a.location_detail LIKE ?)";
-    const loc = `%${q.location}%`; p.push(loc, loc, loc, loc); }
-  if (q.assetCategory){ where += " AND a.asset_category = ?"; p.push(q.assetCategory); }
+  if (q.location)     { where += " AND (a.building LIKE ? OR a.floor LIKE ? OR a.room LIKE ?)";
+    const loc = `%${q.location}%`; p.push(loc, loc, loc); }
+  if (q.assetCategory){ where += " AND a.asset_type = ?"; p.push(q.assetCategory); }
   if (q.criticality)  { where += " AND a.criticality = ?";    p.push(q.criticality); }
   if (q.workingStatus){ where += " AND a.working_status = ?"; p.push(q.workingStatus); }
   if (q.status) {
@@ -289,20 +289,27 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
       ),
       pool.query(
         `SELECT
-           SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date IS NOT NULL
-             AND YEAR(a.next_calibration_due_date) = YEAR(CURDATE())
-             AND MONTH(a.next_calibration_due_date) = MONTH(CURDATE()) THEN 1 ELSE 0 END) AS due_this_month,
-           SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date IS NOT NULL
-             AND a.next_calibration_due_date < CURDATE() THEN 1 ELSE 0 END) AS overdue,
-           SUM(CASE WHEN a.calibration_required = 1
-             AND a.next_calibration_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS upcoming,
-           (SELECT COUNT(*) FROM calibration_records cr JOIN assets ax ON ax.id = cr.asset_id
-            WHERE ax.company_id IN (${placeholders})
-              AND YEAR(cr.calibration_date) = YEAR(CURDATE())
-              AND MONTH(cr.calibration_date) = MONTH(CURDATE())
-              AND LOWER(COALESCE(cr.status, '')) IN ('active', 'pass', 'completed')) AS completed_this_month
-         FROM assets a WHERE a.company_id IN (${placeholders})`,
-        [...companyIds, ...companyIds]
+           COALESCE(SUM(CASE WHEN YEAR(cs.calibration_date)  = YEAR(CURDATE())
+                               AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               AND cs.status != 'completed'
+                             THEN csa_cnt.cnt ELSE 0 END), 0) AS due_this_month,
+           COALESCE(SUM(CASE WHEN cs.calibration_date < CURDATE()
+                               AND cs.status != 'completed'
+                             THEN csa_cnt.cnt ELSE 0 END), 0) AS overdue,
+           COALESCE(SUM(CASE WHEN cs.calibration_date BETWEEN CURDATE()
+                                                          AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+                               AND cs.status != 'completed'
+                             THEN csa_cnt.cnt ELSE 0 END), 0) AS upcoming,
+           COALESCE(SUM(CASE WHEN YEAR(cs.calibration_date)  = YEAR(CURDATE())
+                               AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               AND cs.status = 'completed'
+                             THEN csa_cnt.cnt ELSE 0 END), 0) AS completed_this_month
+         FROM calibration_schedules cs
+         JOIN (SELECT schedule_id, COUNT(*) AS cnt
+               FROM calibration_schedule_assets
+               GROUP BY schedule_id) csa_cnt ON csa_cnt.schedule_id = cs.id
+         WHERE cs.company_id IN (${placeholders})`,
+        companyIds
       ),
       pool.query(
         `SELECT c.id AS company_id, COALESCE(c.company_name,'Unknown Hospital') AS hospital,
@@ -450,8 +457,8 @@ router.get("/assets", validate(filterParams), async (req, res, next) => {
 
     const [rows] = await pool.query(
       `SELECT a.id, a.asset_name, a.asset_unique_id, a.generated_asset_id,
-              a.asset_type, a.asset_category,
-              a.building, a.floor, a.room, a.location_detail, a.status,
+              a.asset_type,
+              a.building, a.floor, a.room, a.status,
               a.is_verified, a.criticality, a.working_status, a.health_status, a.risk_level,
               a.created_at, d.name AS department_name,
               ad.metadata
@@ -841,8 +848,8 @@ router.patch("/assets/:id", validate([
     if (status        !== undefined) { sets.push("status = ?");         vals.push(status); }
     if (criticality   !== undefined) { sets.push("criticality = ?");    vals.push(criticality); }
     if (workingStatus !== undefined) { sets.push("working_status = ?"); vals.push(workingStatus); }
-    if (assetCategory !== undefined) { sets.push("asset_category = ?"); vals.push(assetCategory); }
-    if (locationDetail !== undefined){ sets.push("location_detail = ?");vals.push(locationDetail); }
+    if (assetCategory !== undefined) { sets.push("asset_type = ?");    vals.push(assetCategory); }
+    if (locationDetail !== undefined){ /* location_detail column removed */ }
 
     if (sets.length > 0) {
       await pool.query(
@@ -881,9 +888,9 @@ router.get("/filter-options", async (req, res, next) => {
       "SELECT id, name FROM departments WHERE company_id = ? ORDER BY name", [companyId]
     );
     const [categories] = await pool.query(
-      `SELECT DISTINCT asset_category AS category
-       FROM assets WHERE company_id = ? AND asset_category IS NOT NULL
-       ORDER BY asset_category`,
+      `SELECT DISTINCT asset_type AS category
+       FROM assets WHERE company_id = ? AND asset_type IS NOT NULL
+       ORDER BY asset_type`,
       [companyId]
     );
     const [locations] = await pool.query(
@@ -923,7 +930,7 @@ router.get("/export", validate([
       const { where, p } = buildAssetWhere(companyId, req.query);
       const [rows] = await pool.query(
         `SELECT a.asset_name AS "Asset Name", a.asset_unique_id AS "Asset ID",
-                a.asset_type AS "Type", a.asset_category AS "Category",
+                a.asset_type AS "Type", a.asset_type AS "Category",
                 d.name AS "Department",
                 CONCAT(COALESCE(a.building,''),IF(a.floor,' / ',''),COALESCE(a.floor,''),IF(a.room,' / ',''),COALESCE(a.room,'')) AS "Location",
                 IF(a.is_verified,'Yes','No') AS "Verified",

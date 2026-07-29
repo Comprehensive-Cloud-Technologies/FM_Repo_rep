@@ -1,5 +1,6 @@
 ﻿import { Router } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -228,17 +229,25 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
+    const requesterCompanyId = req.user.companyId ?? null;
 
-    const [check] = await pool.query(
-      `SELECT cu.id
-       FROM company_users cu
-       JOIN companies c ON c.id = cu.company_id
-       WHERE cu.id = ?`,
-      [id]
-    );
-    if (!check.length) return res.status(403).json({ message: "Access denied" });
-
-    await pool.query("DELETE FROM company_users WHERE id = ?", [id]);
+    if (requesterCompanyId) {
+      // Company-scoped token: restrict deletion to own company (prevents cross-tenant delete)
+      const [check] = await pool.query(
+        `SELECT cu.id FROM company_users cu WHERE cu.id = ? AND cu.company_id = ?`,
+        [id, requesterCompanyId]
+      );
+      if (!check.length) return res.status(403).json({ message: "Access denied" });
+      await pool.query("DELETE FROM company_users WHERE id = ? AND company_id = ?", [id, requesterCompanyId]);
+    } else {
+      // Platform admin token: verify user exists, then delete
+      const [check] = await pool.query(
+        `SELECT cu.id FROM company_users cu WHERE cu.id = ?`,
+        [id]
+      );
+      if (!check.length) return res.status(403).json({ message: "Access denied" });
+      await pool.query("DELETE FROM company_users WHERE id = ?", [id]);
+    }
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -491,7 +500,7 @@ router.get("/employees", requireAuth, async (req, res, next) => {
     if (!companyId) return res.status(400).json({ message: "companyId is required" });
     const [rows] = await pool.query(
       `SELECT id, company_id AS "companyId", full_name AS "fullName", email, phone, role, designation,
-              username, plain_password AS "plainPassword",
+              username,
               IF(password_hash IS NOT NULL AND password_hash != '', 1, 0) AS "hasPassword",
               COALESCE(department_id, NULL) AS "departmentId", status,
               COALESCE(permissions, '{}') AS "permissions",
@@ -508,15 +517,14 @@ router.post("/employees", requireAuth, async (req, res, next) => {
   try {
     const { companyId, fullName, email, phone, role = "technician", designation, departmentId, password, permissions, moduleAccess } = req.body;
     if (!companyId || !fullName || !email) return res.status(400).json({ message: "companyId, fullName, email required" });
-    const bcrypt = (await import("bcryptjs")).default;
-    const hashedPw = password ? await bcrypt.hash(password, 10) : await bcrypt.hash("changeme123", 10);
-    const plainPw  = password || "changeme123";
+    const defaultPw = password || crypto.randomBytes(12).toString("hex");
+    const hashedPw  = await bcrypt.hash(defaultPw, 10);
     const permJson = JSON.stringify(permissions && typeof permissions === "object" ? permissions : {});
     const modJson  = JSON.stringify(Array.isArray(moduleAccess) ? moduleAccess : []);
     const [result] = await pool.execute(
-      `INSERT INTO company_users (company_id, full_name, email, phone, role, designation, department_id, password_hash, plain_password, status, permissions, module_access)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-      [companyId, fullName, email, phone || null, role, designation || null, departmentId || null, hashedPw, plainPw, permJson, modJson]
+      `INSERT INTO company_users (company_id, full_name, email, phone, role, designation, department_id, password_hash, status, permissions, module_access)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+      [companyId, fullName, email, phone || null, role, designation || null, departmentId || null, hashedPw, permJson, modJson]
     );
     res.status(201).json({ id: result.insertId, fullName, email, role, status: "active", permissions: JSON.parse(permJson), moduleAccess: JSON.parse(modJson) });
   } catch (err) { next(err); }
@@ -540,7 +548,6 @@ router.put("/employees/:id", requireAuth, async (req, res, next) => {
     if (password && password.trim()) {
       const hashed = await bcrypt.hash(password.trim(), 10);
       fields.push("password_hash = ?"); params.push(hashed);
-      fields.push("plain_password = ?"); params.push(password.trim());
     }
     if (!fields.length) return res.status(400).json({ message: "No fields" });
     params.push(req.params.id);
@@ -559,8 +566,6 @@ router.patch("/employees/:id", requireAuth, async (req, res, next) => {
       const hashed = await bcrypt.hash(password.trim(), 10);
       fields.push("password_hash = ?");
       params.push(hashed);
-      fields.push("plain_password = ?");
-      params.push(password.trim());
     }
     if (!fields.length) return res.status(400).json({ message: "No fields to update" });
     params.push(req.params.id);
@@ -572,7 +577,25 @@ router.patch("/employees/:id", requireAuth, async (req, res, next) => {
 // DELETE /api/company-users/employees/:id
 router.delete("/employees/:id", requireAuth, async (req, res, next) => {
   try {
-    await pool.query("DELETE FROM company_users WHERE id = ?", [req.params.id]);
+    const requesterCompanyId = req.user.companyId ?? null;
+
+    if (requesterCompanyId) {
+      // Company-scoped token: restrict deletion to own company (prevents cross-tenant delete)
+      const [check] = await pool.query(
+        "SELECT id FROM company_users WHERE id = ? AND company_id = ?",
+        [req.params.id, requesterCompanyId]
+      );
+      if (!check.length) return res.status(404).json({ message: "Employee not found" });
+      await pool.query("DELETE FROM company_users WHERE id = ? AND company_id = ?", [req.params.id, requesterCompanyId]);
+    } else {
+      // Platform admin token: no company restriction
+      const [check] = await pool.query(
+        "SELECT id FROM company_users WHERE id = ?",
+        [req.params.id]
+      );
+      if (!check.length) return res.status(404).json({ message: "Employee not found" });
+      await pool.query("DELETE FROM company_users WHERE id = ?", [req.params.id]);
+    }
     res.json({ message: "Deleted" });
   } catch (err) { next(err); }
 });
@@ -606,7 +629,7 @@ router.post("/qr-codes/generate", requireAuth, async (req, res, next) => {
     const n = Math.max(Number(count) || 1, 1);
     const created = [];
     for (let i = 0; i < n; i++) {
-      const uid = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const uid = `QR-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
       await pool.query("INSERT INTO asset_pre_qr (company_id, qr_unique_id) VALUES (?, ?)", [companyId, uid]);
       const [[row]] = await pool.query(
         `SELECT id, qr_unique_id AS qrUniqueId, asset_id AS assetId, NULL AS assetName, linked_at AS linkedAt, created_at AS createdAt FROM asset_pre_qr WHERE qr_unique_id = ?`,
@@ -623,6 +646,7 @@ router.delete("/qr-codes/bulk", requireAuth, async (req, res, next) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ message: "ids required" });
+    if (ids.length > 200) return res.status(400).json({ message: "Cannot delete more than 200 QR codes at once" });
     await pool.query(`DELETE FROM asset_pre_qr WHERE id IN (${ids.map(() => "?").join(",")})`, ids);
     res.json({ message: "Deleted" });
   } catch (err) { next(err); }

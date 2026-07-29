@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -37,7 +38,8 @@ import assetDashboardRouter from "./routes/assetDashboard.js";
 import companyPortalAssetDashboardRouter from "./routes/companyPortalAssetDashboard.js";
 import healthcareDashboardRouter from "./routes/healthcareDashboard.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
-import assetTransferRouter from "./routes/assetTransfer.js";
+import calibrationRouter from "./routes/calibration.js";
+import trainingRouter from "./routes/training.js";
 import uploadRouter from "./routes/upload.js";
 import softServiceRequestsRouter from "./routes/softServiceRequests.js";
 import publicDashboardRouter from "./routes/publicDashboard.js";
@@ -45,8 +47,7 @@ import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 import locationsRouter from "./routes/locations.js";
 import statesRouter from "./routes/states.js";
 import mobileNotificationsRouter from "./routes/mobileNotifications.js";
-import calibrationRouter from "./routes/calibration.js";
-import trainingRouter from "./routes/training.js";
+import { flexCompanyAuth } from "./middleware/companyAuth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -56,7 +57,22 @@ app.set("trust proxy", 1);
 
 const allowedOrigins = process.env.ALLOW_ORIGIN?.split(",").map((o) => o.trim());
 
-app.use(helmet());
+// M-13: Explicit CSP — helmet() defaults omit Content-Security-Policy which is the
+// primary XSS defence in Express apps. For a REST API server that also serves static
+// uploads, 'none' defaults are appropriate; only same-origin images/media are permitted.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:      ["'none'"],
+      scriptSrc:       ["'none'"],
+      objectSrc:       ["'none'"],
+      frameAncestors:  ["'none'"],
+      imgSrc:          ["'self'", "data:", "blob:"],
+      mediaSrc:        ["'self'"],
+      connectSrc:      ["'self'"],
+    },
+  },
+}));
 app.use(
   cors({
     origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : false,
@@ -86,12 +102,14 @@ const authLimiter = rateLimit({
   message: { message: "Too many login attempts. Please try again in 5 minutes." },
 });
 
-// Global rate limiter — 2000 requests per minute per IP across all API routes
-// The company portal dashboard fires ~20 parallel requests on load plus polling
-// intervals for alerts/work-orders; 300/min was too low for real usage.
+// Global rate limiter — 600 requests per minute per IP (M-14).
+// Reduced from 2000: the dashboard fires ~20 parallel requests on load plus
+// polling intervals, but 2000/min (33 req/s) is effectively no limit.
+// 600/min (10 req/s) comfortably handles legitimate multi-tab portal usage
+// while blocking credential-stuffing and enumeration attempts.
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 2000,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests. Please slow down." },
@@ -116,8 +134,6 @@ app.use("/api/company-auth", authLimiter, companyAuthRouter);
 // Mount specific sub-paths BEFORE the broad /api/company-portal catch-all so they take precedence
 app.use("/api/company-portal/calibration", calibrationRouter);
 app.use("/api/company-portal/training", trainingRouter);
-// Asset transfer — must be registered BEFORE the broad companyPortalRouter
-app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);
 app.use("/api/asset-qr", assetQRRouter);
@@ -143,6 +159,13 @@ app.use("/api/locations", locationsRouter);
 app.use("/api/states", statesRouter);
 app.use("/api/mobile/notifications", mobileNotificationsRouter);
 
+// M-12: Calibration certificates may contain PHI — require authentication before
+// serving them from the local disk fallback. This guard runs BEFORE the general
+// static handler below so that it can reject unauthenticated requests early.
+// In production (S3 enabled) the calibration route returns presigned URLs and
+// files are never served from disk.
+app.use("/uploads/calibration", flexCompanyAuth);
+
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
@@ -157,7 +180,12 @@ app.post("/api/root-login", authLimiter, express.json(), (req, res) => {
     return res.status(503).json({ ok: false, message: "Root login not configured" });
   }
   if (!username || !password) return res.status(400).json({ ok: false, message: "Missing credentials" });
-  if (username.trim() === validUser && password === validPass) {
+  // Timing-safe comparison to prevent username/password enumeration via timing
+  const userMatch = username.trim().length === validUser.length &&
+    crypto.timingSafeEqual(Buffer.from(username.trim()), Buffer.from(validUser));
+  const passMatch = password.length === validPass.length &&
+    crypto.timingSafeEqual(Buffer.from(password), Buffer.from(validPass));
+  if (userMatch && passMatch) {
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, message: "Invalid username or password" });

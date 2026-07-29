@@ -18,14 +18,19 @@ const sharedUserRules = [
 const createUserRules = [...sharedUserRules];
 const updateUserRules = [...sharedUserRules];
 
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
+    // M-6: enforce a max page size to prevent unbounded result sets
+    const limit  = Math.min(Number(req.query.limit)  || 200, 500);
+    const offset = Math.max(Number(req.query.offset) || 0,   0);
     const [rows] = await pool.query(
       `SELECT u.id, u.full_name AS "fullName", u.email, u.phone, u.role, u.status, u.client_id AS "clientId",
               COALESCE(NULLIF(TRIM(c.client_name), ''), c.company_name, '') AS "clientName", u.created_at AS "createdAt"
        FROM users u
        LEFT JOIN clients c ON c.id = u.client_id
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
     );
     res.json(rows);
   } catch (err) {

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import multer from "multer";
 import path from "path";
 import { requireAuth } from "../middleware/auth.js";
@@ -21,7 +22,7 @@ router.post("/", requireAuth, upload.single("file"), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
   try {
     const ext      = path.extname(req.file.originalname) || ".bin";
-    const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`;
     const url = await uploadToS3({
       buffer:   req.file.buffer,
       mimetype: req.file.mimetype,

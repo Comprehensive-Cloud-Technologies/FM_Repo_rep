@@ -1,5 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -25,20 +27,23 @@ const uploadOjt = multer({
   storage: memStorage,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
   fileFilter: (_req, file, cb) => {
-    const allowed = /\.(mp4|mkv|avi|mov|webm|wmv|flv|3gp|pdf|doc|docx|csv|xlsx|xls|pptx|ppt|txt|odt|ods)$/i;
+    // .odt and .ods removed — OpenDocument formats can contain macros (M-5)
+    const allowed = /\.(mp4|mkv|avi|mov|webm|wmv|flv|3gp|pdf|doc|docx|csv|xlsx|xls|pptx|ppt|txt)$/i;
     if (allowed.test(file.originalname)) cb(null, true);
     else cb(new Error("File type not allowed"));
   },
 });
 
 // Image uploads (reference photos, query photos, etc.)
+// SVG excluded — SVG is XML that can embed <script> tags (M-4)
 const uploadImage = multer({
   storage: memStorage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
-    if (allowed.test(file.originalname) || file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only image files are allowed"));
+    const allowed = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
+    const allowedMime = /^image\/(jpeg|png|gif|webp|bmp)$/;
+    if (allowed.test(file.originalname) && allowedMime.test(file.mimetype)) cb(null, true);
+    else cb(new Error("Only image files are allowed (jpg, png, gif, webp, bmp)"));
   },
 });
 
@@ -151,11 +156,21 @@ router.get("/assets/bulk-import/template", (req, res) => {
 
 router.use(requireCompanyAuth);
 
-// ── GET /all-companies  (engineer: list all companies for asset assignment) ───
+// ── GET /all-companies  (engineer/catalyst_admin: list all companies for asset assignment) ───
 router.get("/all-companies", async (req, res, next) => {
   try {
+    const { role, companyId } = req.companyUser;
+    // Only engineers and catalyst_admins may enumerate all companies.
+    // All other roles receive only their own company to prevent tenant enumeration.
+    if (role === "catalyst_admin" || role === "engineer") {
+      const [rows] = await pool.query(
+        "SELECT id, company_name AS companyName FROM companies ORDER BY company_name"
+      );
+      return res.json(rows);
+    }
     const [rows] = await pool.query(
-      "SELECT id, company_name AS companyName FROM companies ORDER BY company_name"
+      "SELECT id, company_name AS companyName FROM companies WHERE id = ?",
+      [companyId]
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -164,25 +179,49 @@ router.get("/all-companies", async (req, res, next) => {
 // ── GET /departments-by-company/:companyId  (engineer: deps for any company) ──
 router.get("/departments-by-company/:companyId", async (req, res, next) => {
   try {
+    const requestedId = Number(req.params.companyId);
+    const { role, companyId: tokenCompanyId, id: userId } = req.companyUser;
+    // Engineers and catalyst_admins may read departments for any company.
+    // All other roles are restricted to their primary company or companies
+    // they have been explicitly granted access to via user_company_access.
+    if (role !== "catalyst_admin" && role !== "engineer") {
+      if (requestedId !== Number(tokenCompanyId)) {
+        const [access] = await pool.query(
+          "SELECT id FROM user_company_access WHERE user_id = ? AND company_id = ? LIMIT 1",
+          [userId, requestedId]
+        );
+        if (!access.length) return res.status(403).json({ message: "Access denied" });
+      }
+    }
     const [rows] = await pool.query(
       "SELECT id, name FROM departments WHERE company_id = ? ORDER BY name",
-      [req.params.companyId]
+      [requestedId]
     );
     res.json(rows);
   } catch (err) { next(err); }
 });
 
-// ── POST /departments-by-company/:companyId  (any company user: add dept from mobile) ──
+// ── POST /departments-by-company/:companyId  (engineers may add dept for any company) ──
 router.post("/departments-by-company/:companyId", async (req, res, next) => {
   try {
-    const { companyId } = req.params;
-    // Engineers may register assets for any company, so no company-match guard here.
-    // Authentication is already enforced by requireCompanyAuth above.
+    const requestedId = Number(req.params.companyId);
+    const { role, companyId: tokenCompanyId, id: userId } = req.companyUser;
+    // Engineers and catalyst_admins may create departments for any company.
+    // All other roles are restricted to their own company or explicitly granted companies.
+    if (role !== "catalyst_admin" && role !== "engineer") {
+      if (requestedId !== Number(tokenCompanyId)) {
+        const [access] = await pool.query(
+          "SELECT id FROM user_company_access WHERE user_id = ? AND company_id = ? LIMIT 1",
+          [userId, requestedId]
+        );
+        if (!access.length) return res.status(403).json({ message: "Access denied" });
+      }
+    }
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "name is required" });
     const [result] = await pool.query(
       "INSERT INTO departments (company_id, name) VALUES (?, ?)",
-      [Number(companyId), name.trim()]
+      [requestedId, name.trim()]
     );
     res.status(201).json({ id: result.insertId, name: name.trim() });
   } catch (err) {
@@ -1491,7 +1530,8 @@ router.get("/assets", async (req, res, next) => {
       params.push(req.companyUser.id, cid(req));
     }
 
-    const reqLimit  = req.query.limit  ? Math.min(Number(req.query.limit), 5000) : (req.query.allCompanies === "true" ? 5000 : 2000);
+    // Cap at 1000 rows to prevent multi-megabyte responses that block the event loop (M-7)
+    const reqLimit  = req.query.limit  ? Math.min(Number(req.query.limit), 1000) : (req.query.allCompanies === "true" ? 1000 : 200);
     const reqOffset = req.query.offset ? Number(req.query.offset) : 0;
 
     // ── Main query — no documents JOIN, no creator JOIN ──────────────────────
@@ -1553,7 +1593,8 @@ const excelAssetUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   fileFilter: (_req, file, cb) => {
-    /\.(xlsx|xls|csv)$/i.test(file.originalname) ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
+    /\.(xlsx|xls|csv)$/i.test(file.originalname) && ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel','text/csv','application/csv','application/octet-stream'].includes(file.mimetype)
+      ? cb(null, true) : cb(new Error("Only .xlsx/.xls/.csv files allowed"));
   },
 });
 
@@ -1594,7 +1635,7 @@ router.post("/assets/bulk-import", (req, res, next) => {
 
     const generateUniqueId = () => {
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
       return isHC ? `HC-${dateStr}-${rand}` : `AST-${Date.now().toString(36).toUpperCase()}-${rand}`;
     };
 
@@ -2362,7 +2403,7 @@ router.post("/assets", async (req, res, next) => {
 
     const uniqueIdToUse = assetUniqueId || (() => {
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
       return `HC-${dateStr}-${rand}`;
     })();
     const generatedAssetId = await getNextGeneratedAssetId(pool, cid(req));
@@ -2462,7 +2503,7 @@ router.post("/assets/manual", async (req, res, next) => {
 
     // Auto-generate barcode
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
     const barcodeNo = `HC-${dateStr}-${rand}`;
     await pool.query("UPDATE assets SET asset_unique_id = ? WHERE id = ?", [barcodeNo, newId]);
     if (manualPmsChecklistId) {
@@ -2972,8 +3013,8 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
     );
     if (!query) return res.status(404).json({ message: "Query not found" });
 
-    // Generate a 6-digit close code
-    const closeCode = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate a 6-digit close code (cryptographically random)
+    const closeCode = String(crypto.randomInt(100000, 1000000));
 
     await pool.query(
       `UPDATE asset_queries SET status = 'resolved', resolved_by = ?, resolved_at = NOW(),
@@ -3042,8 +3083,17 @@ router.delete("/asset-queries/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Rate limiter — close-code verification: 10 attempts per minute per IP
+const closeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many close attempts. Please wait a minute." },
+});
+
 // Close a resolved request — close code is optional (pass it to verify, or omit to skip verification)
-router.patch("/asset-queries/:id/close", async (req, res, next) => {
+router.patch("/asset-queries/:id/close", closeLimiter, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { closeCode } = req.body;
@@ -3984,7 +4034,8 @@ router.get("/employees", async (req, res, next) => {
        FROM company_users cu
        LEFT JOIN company_users s ON s.id = cu.supervisor_id
        WHERE cu.company_id = ?
-       ORDER BY cu.role ASC, cu.full_name ASC`,
+       ORDER BY cu.role ASC, cu.full_name ASC
+       LIMIT 500`,
       [cid(req)]
     );
     res.json(rows);
@@ -4053,6 +4104,13 @@ router.post("/employees", async (req, res, next) => {
   try {
     const { fullName, email, phone, designation, role = "employee", status = "Active", password, username, supervisorId, shift, serviceDomain = "technical", departmentId } = req.body;
     if (!fullName || !email) return res.status(400).json({ message: "fullName and email are required" });
+    // M-3: field length validation to prevent storage overflow
+    if (typeof fullName !== "string" || fullName.trim().length > 160) return res.status(400).json({ message: "fullName must be a string ≤ 160 characters" });
+    if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160) return res.status(400).json({ message: "A valid email address ≤ 160 characters is required" });
+    if (phone !== undefined && phone !== null && (typeof phone !== "string" || phone.length > 32)) return res.status(400).json({ message: "phone must be ≤ 32 characters" });
+    if (designation !== undefined && designation !== null && (typeof designation !== "string" || designation.length > 120)) return res.status(400).json({ message: "designation must be ≤ 120 characters" });
+    if (username !== undefined && username !== null && (typeof username !== "string" || username.length > 100)) return res.status(400).json({ message: "username must be ≤ 100 characters" });
+    if (password !== undefined && password !== null && (typeof password !== "string" || password.length < 6 || password.length > 255)) return res.status(400).json({ message: "password must be between 6 and 255 characters" });
 
     if (req.companyUser.role !== "admin" && req.companyUser.role !== "supervisor") {
       return res.status(403).json({ message: "Only admin or supervisor can add employees" });
@@ -4101,6 +4159,13 @@ router.put("/employees/:id", async (req, res, next) => {
     if (req.companyUser.role !== "admin" && req.companyUser.role !== "supervisor") {
       return res.status(403).json({ message: "Not authorised" });
     }
+    // M-3: field length validation
+    if (fullName !== undefined && (typeof fullName !== "string" || fullName.trim().length === 0 || fullName.length > 160)) return res.status(400).json({ message: "fullName must be a non-empty string ≤ 160 characters" });
+    if (email !== undefined && (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160)) return res.status(400).json({ message: "A valid email address ≤ 160 characters is required" });
+    if (phone !== undefined && phone !== null && (typeof phone !== "string" || phone.length > 32)) return res.status(400).json({ message: "phone must be ≤ 32 characters" });
+    if (designation !== undefined && designation !== null && (typeof designation !== "string" || designation.length > 120)) return res.status(400).json({ message: "designation must be ≤ 120 characters" });
+    if (username !== undefined && username !== null && (typeof username !== "string" || username.length > 100)) return res.status(400).json({ message: "username must be ≤ 100 characters" });
+    if (password !== undefined && password !== null && (typeof password !== "string" || password.length < 6 || password.length > 255)) return res.status(400).json({ message: "password must be between 6 and 255 characters" });
 
     const [[check]] = await pool.query(
       "SELECT id FROM company_users WHERE id = ? AND company_id = ?",
@@ -4564,7 +4629,7 @@ router.get("/template-user-assignments/mine", async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const generateWONumber = () =>
-  `WO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  `WO-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
 /* GET /work-orders/users  – list company users available for assignment */
 router.get("/work-orders/users", async (req, res, next) => {
@@ -6347,7 +6412,7 @@ router.post("/upload-image", (req, res, next) => {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     if (!req.file) return res.status(400).json({ message: "No file provided" });
     const ext = path.extname(req.file.originalname).toLowerCase() || ".jpg";
-    const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
     const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.uploads, filename });
     res.json({ url, filename, size: req.file.size, mimetype: req.file.mimetype });
   } catch (err) { next(err); }
@@ -6372,7 +6437,7 @@ router.post("/upload-query-image", (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No image provided" });
     const ext = path.extname(req.file.originalname).toLowerCase() || ".jpg";
-    const filename = `query_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+    const filename = `query_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
     const url = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: S3_FOLDERS.queryImages, filename });
     res.json({ url });
   } catch (err) { next(err); }
