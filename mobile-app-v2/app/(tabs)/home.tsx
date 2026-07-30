@@ -52,7 +52,7 @@ function CaseRow({ item, onPress }: { item: any; onPress: () => void }) {
     >
       <View style={{ flex: 1 }}>
         <Text style={[ss.caseTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-          {item.work_order_number} ┬╖ {item.asset_name || 'Asset'}
+          {item.work_order_number} {item.asset_name || 'Asset'}
         </Text>
         <Text style={[ss.caseDesc, { color: theme.textSecondary }]} numberOfLines={1}>
           {item.issue_description}
@@ -111,7 +111,7 @@ function HCStaffHome({ user }: { user: any }) {
         {/* Header */}
         <View style={ss.topBar}>
           <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting} ≡ƒæï</Text>
+            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
             <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
             <Text style={[ss.roleTag, { color: theme.primary, backgroundColor: theme.primaryBg }]}>{roleLabel}</Text>
           </View>
@@ -151,7 +151,7 @@ function HCStaffHome({ user }: { user: any }) {
   );
 }
 
-// ΓöÇΓöÇΓöÇ HC Engineer Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+//  HC Engineer Home
 function HCEngineerHome({ user }: { user: any }) {
   const { theme } = useTheme();
   const [dash, setDash]         = useState<any>(null);
@@ -198,7 +198,7 @@ function HCEngineerHome({ user }: { user: any }) {
       >
         <View style={ss.topBar}>
           <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting} ≡ƒæï</Text>
+            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
             <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
             <Text style={[ss.roleTag, { color: '#1d4ed8', backgroundColor: '#dbeafe' }]}>Engineer</Text>
           </View>
@@ -234,7 +234,7 @@ function HCEngineerHome({ user }: { user: any }) {
               <View style={{ flex: 1 }}>
                 <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Preventive Maintenance</Text>
                 <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>
-                  {Number(pmsDash?.assigned ?? 0)} assigned ┬╖ {Number(pmsDash?.inProgress ?? 0)} in progress
+                  {Number(pmsDash?.assigned ?? 0)} assigned  {Number(pmsDash?.inProgress ?? 0)} in progress
                 </Text>
               </View>
               {(Number(pmsDash?.assigned ?? 0) + Number(pmsDash?.inProgress ?? 0)) > 0 && (
@@ -322,7 +322,7 @@ function HCAdminHome({ user }: { user: any }) {
       >
         <View style={ss.topBar}>
           <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting} ≡ƒæï</Text>
+            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
             <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
             <Text style={[ss.roleTag, { color: '#7c3aed', backgroundColor: '#f3e8ff' }]}>Admin</Text>
           </View>
@@ -620,7 +620,7 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
         {/* ΓöÇΓöÇ Header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
         <View style={styles.topBar}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{greeting} ≡ƒæï</Text>
+            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
             <Text style={[styles.name, { color: theme.textPrimary }]}>{firstName}</Text>
             <Text style={[styles.company, { color: theme.textMuted }]}>{user?.companyName}</Text>
           </View>
@@ -705,7 +705,7 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
           ) : null}
         </View>
 
-        {/* ΓöÇΓöÇ Dept Head PMS Review ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+        {/*Dept Head PMS Review*/}
         {(user?.role === 'department_head' || user?.role === 'dept_head') && (
           <>
             <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>PMS REVIEW</Text>

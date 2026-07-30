@@ -18,6 +18,15 @@
         "buildType": "apk"
       }
     },
+    "ec2": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://htm.catalystservices.eco"
+      }
+    },
     "production": {
       "autoIncrement": true
     }

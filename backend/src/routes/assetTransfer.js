@@ -94,12 +94,17 @@ async function nextTransferReference() {
 }
 
 // ── GET /transfer/companies ───────────────────────────────────────────────────
+// Returns only companies accessible to the current user (primary + user_company_access rows)
 router.get("/transfer/companies", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
+    if (!accessibleIds.length) return res.json([]);
+    const placeholders = accessibleIds.map(() => "?").join(",");
     const [rows] = await pool.query(
       `SELECT id, company_name AS companyName, status
-       FROM companies WHERE status = "Active" ORDER BY company_name`
+       FROM companies WHERE id IN (${placeholders}) AND status = "Active" ORDER BY company_name`,
+      accessibleIds
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -111,6 +116,9 @@ router.get("/transfer/departments", async (req, res, next) => {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const companyId = Number(req.query.companyId);
     if (!companyId) return res.status(400).json({ message: "companyId required" });
+    // Verify the requested company is accessible to this user
+    const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
+    if (!accessibleIds.includes(companyId)) return res.status(403).json({ message: "Access denied to this company" });
     const [rows] = await pool.query(
       `SELECT id, name AS departmentName FROM departments WHERE company_id = ? ORDER BY name`,
       [companyId]

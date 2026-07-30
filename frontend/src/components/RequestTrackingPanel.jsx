@@ -160,21 +160,25 @@ function SummaryCards({ summary, activeFilter, onFilterClick }) {
 }
 
 /* ─── Filters Bar ─────────────────────────────────────────────────────────── */
-function FiltersBar({ filters, setFilters, employees, departments, onReset, searchInput, setSearchInput, allCompaniesMode, hospitalInput, setHospitalInput, assetNameInput, setAssetNameInput, raisedByInput, setRaisedByInput }) {
-  const [open, setOpen] = useState(false);
-  const inputSt = { padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", width: "100%", boxSizing: "border-box", outline: "none", background: "#fff" };
-  const activeCount = Object.entries(filters).filter(([k, v]) => !["search","escalated","overdue"].includes(k) && v !== "" && v !== false).length;
+// Defined at module scope so React never sees a "new" component type on re-render,
+// which would cause inputs to lose focus after every keystroke.
+const inputSt = { padding: "7px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", width: "100%", boxSizing: "border-box", outline: "none", background: "#fff" };
 
-  // Wrapper: text input with a × clear button on the right
-  const ClearInput = ({ value, onChange, onClear, placeholder, type = "text", style = {} }) => (
+function ClearInput({ value, onChange, onClear, placeholder, type = "text", style: extraStyle = {} }) {
+  return (
     <div style={{ position: "relative" }}>
       <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-        style={{ ...inputSt, paddingRight: value ? "28px" : "10px", ...style }} />
+        style={{ ...inputSt, paddingRight: value ? "28px" : "10px", ...extraStyle }} />
       {value && (
         <button onClick={onClear} style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>
       )}
     </div>
   );
+}
+
+function FiltersBar({ filters, setFilters, employees, departments, onReset, searchInput, setSearchInput, allCompaniesMode, hospitalInput, setHospitalInput, assetNameInput, setAssetNameInput, raisedByInput, setRaisedByInput }) {
+  const [open, setOpen] = useState(false);
+  const activeCount = Object.entries(filters).filter(([k, v]) => !["search","escalated","overdue"].includes(k) && v !== "" && v !== false).length;
 
   return (
     <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
