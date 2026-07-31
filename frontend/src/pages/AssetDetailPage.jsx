@@ -199,20 +199,14 @@ export default function AssetDetailPage() {
     ...(m.invoiceUrl ? [m.invoiceUrl] : []),
   ].map(normalizeImgUrl).filter(Boolean);
 
-  // ── Downtime formula: prefer stored downtimeMinutes (survives reopen cycles),
-  // then resolutionAt − wipAt, then createdAt as last resort.
+  // Downtime = resolutionAt − wipAt (only for resolved/completed/closed tickets; 0 otherwise)
   const calcDownMs = (wo) => {
-    // Use backend-stored accumulated downtime if available
-    if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
     const isFinished = wo.status === "closed" || wo.status === "completed" || wo.status === "resolved";
-    // For open/in-progress tickets, count elapsed time since lastReopenedAt or createdAt
-    if (!isFinished) {
-      const cycleStart = wo.lastReopenedAt || wo.wipAt || wo.createdAt;
-      const priorMs = (wo.priorDowntimeMinutes || 0) * 60000;
-      return priorMs + (cycleStart ? Math.max(0, Date.now() - new Date(cycleStart)) : 0);
-    }
+    if (!isFinished) return 0;
+    // Backend stores accumulated minutes across reopen cycles — use it when available
+    if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
     const end   = wo.resolutionAt || wo.closedAt;
-    const start = wo.wipAt || wo.createdAt;
+    const start = wo.wipAt;
     if (!end || !start) return 0;
     return Math.max(0, new Date(end) - new Date(start));
   };

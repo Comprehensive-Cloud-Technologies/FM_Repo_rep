@@ -10055,20 +10055,15 @@ export default function CompanyEmployeePortal() {
                     {assetDetailCallLogs === null ? (
                       <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
                     ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
-                      // Use stored downtimeMinutes (accumulates correctly across reopen cycles).
-                      // For currently open/reopened tickets, include live elapsed time.
+                      // Downtime = resolutionAt − wipAt, only for resolved/completed/closed tickets
                       const woDownMs = (wo) => {
+                        const isFinished = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
+                        if (!isFinished) return 0;
                         if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
-                        const isOpen = wo.status !== "closed" && wo.status !== "resolved" && wo.status !== "completed";
-                        if (isOpen) {
-                          // elapsed since last reopen (or original creation if never reopened)
-                          const cycleStart = wo.lastReopenedAt || wo.createdAt;
-                          const elapsed = cycleStart ? Math.max(0, Date.now() - new Date(cycleStart)) : 0;
-                          return (wo.priorDowntimeMinutes || 0) * 60000 + elapsed;
-                        }
-                        if ((wo.status === "closed" || wo.status === "resolved" || wo.status === "completed") && wo.createdAt && wo.closedAt)
-                          return Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt));
-                        return 0;
+                        const end = wo.resolutionAt || wo.closedAt;
+                        const start = wo.wipAt;
+                        if (!end || !start) return 0;
+                        return Math.max(0, new Date(end) - new Date(start));
                       };
                       const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => sum + woDownMs(wo), 0);
                       const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
@@ -10102,14 +10097,8 @@ export default function CompanyEmployeePortal() {
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
                                   const isOpen = wo.status !== "closed" && wo.status !== "resolved" && wo.status !== "completed";
-                                  const downMs = wo.downtimeMinutes != null
-                                    ? wo.downtimeMinutes * 60000
-                                    : isOpen
-                                      ? (wo.priorDowntimeMinutes || 0) * 60000 + Math.max(0, Date.now() - new Date(wo.lastReopenedAt || wo.createdAt))
-                                      : (wo.status === "closed" || wo.status === "resolved" || wo.status === "completed") && wo.createdAt && wo.closedAt
-                                        ? Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)) : 0;
-                                  const isReopened = isOpen && wo.priorDowntimeMinutes > 0;
-                                  const downLabel = downMs > 0 ? `${fmtMs(downMs)}${isOpen ? " ⏳" : ""}` : "—";
+                                  const downMs = woDownMs(wo);
+                                  const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
                                   return (
                                     <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
                                       <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
