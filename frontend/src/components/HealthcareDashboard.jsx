@@ -545,13 +545,15 @@ const RECORD_CONFIGS = {
   "call-logs": {
     label: "Call Log History", icon: Icon.CallLog, color: "blue",
     columns: [
+      { key: "id",             label: "Req. ID",    link: "calllog" },
       { key: "call_date",      label: "Date" },
       { key: "asset_name",     label: "Asset" },
+      { key: "asset_unique_id",label: "Asset ID",   link: "asset", idKey: "asset_id" },
       { key: "department_name",label: "Department" },
       { key: "caller_name",    label: "Caller" },
-      { key: "issue_reported", label: "Issue", wrap: true },
-      { key: "priority",       label: "Priority", badge: true },
-      { key: "status",         label: "Status", badge: true },
+      { key: "issue_reported", label: "Issue",      wrap: true },
+      { key: "priority",       label: "Priority",   badge: true },
+      { key: "status",         label: "Status",     badge: true },
     ],
   },
   pms: {
@@ -559,10 +561,11 @@ const RECORD_CONFIGS = {
     columns: [
       { key: "scheduled_date",    label: "Scheduled" },
       { key: "asset_name",        label: "Asset" },
+      { key: "asset_unique_id",   label: "Asset ID",  link: "asset", idKey: "asset_id" },
       { key: "department_name",   label: "Department" },
       { key: "maintenance_type",  label: "Type" },
       { key: "technician_name",   label: "Technician" },
-      { key: "status",            label: "Status", badge: true },
+      { key: "status",            label: "Status",    badge: true },
       { key: "next_due_date",     label: "Next Due" },
     ],
   },
@@ -571,10 +574,11 @@ const RECORD_CONFIGS = {
     columns: [
       { key: "calibration_date",   label: "Date" },
       { key: "asset_name",         label: "Asset" },
+      { key: "asset_unique_id",    label: "Asset ID",  link: "asset", idKey: "asset_id" },
       { key: "department_name",    label: "Department" },
       { key: "calibrated_by",      label: "Calibrated By" },
       { key: "certificate_no",     label: "Certificate No." },
-      { key: "calibration_result", label: "Result", badge: true },
+      { key: "calibration_result", label: "Result",    badge: true },
       { key: "next_due_date",      label: "Next Due" },
     ],
   },
@@ -582,11 +586,11 @@ const RECORD_CONFIGS = {
     label: "Training Records", icon: Icon.Training, color: "orange",
     columns: [
       { key: "training_date",  label: "Date" },
-      { key: "training_title", label: "Title", wrap: true },
+      { key: "training_title", label: "Title",      wrap: true },
       { key: "employee_name",  label: "Employee" },
       { key: "department_name",label: "Department" },
       { key: "trainer_name",   label: "Trainer" },
-      { key: "result",         label: "Result", badge: true },
+      { key: "result",         label: "Result",     badge: true },
       { key: "expiry_date",    label: "Expiry" },
     ],
   },
@@ -595,11 +599,12 @@ const RECORD_CONFIGS = {
     columns: [
       { key: "review_date",      label: "Date" },
       { key: "asset_name",       label: "Asset" },
+      { key: "asset_unique_id",  label: "Asset ID",  link: "asset", idKey: "asset_id" },
       { key: "department_name",  label: "Department" },
       { key: "reviewer_name",    label: "Reviewer" },
       { key: "risk_score",       label: "Score" },
       { key: "risk_level",       label: "Risk Level", badge: true },
-      { key: "status",           label: "Status", badge: true },
+      { key: "status",           label: "Status",     badge: true },
       { key: "next_review_date", label: "Next Review" },
     ],
   },
@@ -638,7 +643,107 @@ function BadgeCell({ val }) {
   );
 }
 
-function RecordsTable({ type, token, globalFilters }) {
+/* ─── Call-Log detail modal ──────────────────────────────────────────────── */
+function CallLogDetailModal({ id, token, onClose }) {
+  const [rec, setRec]         = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    hcFetch(`/records/call-logs/${id}`, token)
+      .then(d => setRec(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id, token]);
+
+  const exportExcel = () => {
+    if (!rec) return;
+    const rows = [
+      ["Field", "Value"],
+      ["Request ID",     `REQ-${rec.id}`],
+      ["Date",           rec.call_date || ""],
+      ["Asset Name",     rec.asset_name || ""],
+      ["Asset ID",       rec.asset_unique_id || rec.generated_asset_id || ""],
+      ["Department",     rec.department_name || ""],
+      ["Location",       rec.location || ""],
+      ["Caller Name",    rec.caller_name || ""],
+      ["Caller Contact", rec.caller_contact || ""],
+      ["Issue Reported", rec.issue_reported || ""],
+      ["Call Type",      rec.call_type || ""],
+      ["Priority",       rec.priority || ""],
+      ["Status",         rec.status || ""],
+      ["Assigned To",    rec.assigned_to_name || ""],
+      ["Resolution",     rec.resolution_notes || ""],
+      ["Resolution Date",rec.resolution_date || ""],
+      ["Created At",     rec.created_at ? String(rec.created_at).slice(0,19) : ""],
+    ];
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `call-log-REQ-${rec.id}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  const Field = ({ label, value }) => value ? (
+    <div style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9", display: "flex", gap: "12px" }}>
+      <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", width: "130px", flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: "13px", color: "#0f172a", flex: 1, wordBreak: "break-word" }}>{value}</span>
+    </div>
+  ) : null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: "16px", width: "min(620px,95vw)", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div>
+            <p style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a", margin: 0 }}>
+              {rec ? `REQ-${rec.id} — ${rec.asset_name || "Call Log"}` : "Call Log Detail"}
+            </p>
+            {rec && <p style={{ fontSize: "12px", color: "#64748b", margin: "2px 0 0" }}>{rec.call_date}</p>}
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={exportExcel} disabled={!rec}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+              <Icon.Download /> Export CSV
+            </button>
+            <button onClick={onClose}
+              style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              ×
+            </button>
+          </div>
+        </div>
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {loading ? <Spinner /> : !rec ? <ErrorState message="Record not found" onRetry={() => {}} /> : (
+            <>
+              <Field label="Request ID"      value={`REQ-${rec.id}`} />
+              <Field label="Date"            value={rec.call_date} />
+              <Field label="Asset Name"      value={rec.asset_name} />
+              <Field label="Asset ID"        value={rec.asset_unique_id || rec.generated_asset_id} />
+              <Field label="Department"      value={rec.department_name} />
+              <Field label="Location"        value={rec.location} />
+              <Field label="Caller"          value={rec.caller_name} />
+              <Field label="Contact"         value={rec.caller_contact} />
+              <Field label="Issue Reported"  value={rec.issue_reported} />
+              <Field label="Call Type"       value={rec.call_type} />
+              <Field label="Priority"        value={rec.priority} />
+              <Field label="Status"          value={rec.status} />
+              <Field label="Assigned To"     value={rec.assigned_to_name} />
+              <Field label="Resolution"      value={rec.resolution_notes} />
+              <Field label="Resolved On"     value={rec.resolution_date} />
+              <Field label="Created At"      value={rec.created_at ? String(rec.created_at).slice(0,19) : null} />
+              {rec.remarks && <Field label="Remarks" value={rec.remarks} />}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecordsTable({ type, token, globalFilters, kpiFilter, kpiFilterLabel }) {
   const cfg = RECORD_CONFIGS[type];
   const [data, setData]       = useState([]);
   const [total, setTotal]     = useState(0);
@@ -646,26 +751,52 @@ function RecordsTable({ type, token, globalFilters }) {
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [detailId, setDetailId] = useState(null); // call-log detail modal
   const LIMIT = 20;
   const c = COLORS[cfg.color] || COLORS.blue;
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const qs = buildQS({ ...globalFilters, search, page, limit: LIMIT });
+      const qs = buildQS({ ...globalFilters, search, page, limit: LIMIT, ...(kpiFilter ? { kpiFilter } : {}) });
       const res = await hcFetch(`/records/${type}${qs}`, token);
       setData(res.data || []);
       setTotal(res.pagination?.total || 0);
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [type, token, globalFilters, search, page]);
+  }, [type, token, globalFilters, search, page, kpiFilter]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleExport = () => {
-    const qs = buildQS({ ...globalFilters, search, type });
+    const qs = buildQS({ ...globalFilters, search, type, ...(kpiFilter ? { kpiFilter } : {}) });
     hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`)
       .catch(e => alert(`Export failed: ${e.message}`));
+  };
+
+  const renderCell = (col, row) => {
+    const val = row[col.key];
+    if (col.link === "calllog") {
+      return (
+        <button onClick={() => setDetailId(row.id)}
+          style={{ background: "none", border: "none", color: "#2563eb", fontFamily: "monospace", fontSize: "12px", cursor: "pointer", textDecoration: "underline", padding: 0, fontWeight: 700, whiteSpace: "nowrap" }}>
+          REQ-{val || row.id}
+        </button>
+      );
+    }
+    if (col.link === "asset") {
+      const assetId = col.idKey ? row[col.idKey] : null;
+      const display = val || row.generated_asset_id;
+      if (!display) return <span style={{ color: "#94a3b8" }}>—</span>;
+      return (
+        <button onClick={() => assetId && window.open(`/company/asset/${assetId}`, "_blank")}
+          style={{ background: "none", border: "none", color: assetId ? "#1e40af" : "#64748b", fontFamily: "monospace", fontSize: "12px", cursor: assetId ? "pointer" : "default", textDecoration: assetId ? "underline" : "none", padding: 0, fontWeight: 600, whiteSpace: "nowrap" }}>
+          {display}
+        </button>
+      );
+    }
+    if (col.badge) return <BadgeCell val={val} />;
+    return val || "—";
   };
 
   const IconComp = cfg.icon;
@@ -680,6 +811,12 @@ function RecordsTable({ type, token, globalFilters }) {
           <p style={{ fontWeight: 700, fontSize: "14.5px", color: "#0f172a", margin: 0 }}>{cfg.label}</p>
           <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>{total} records</p>
         </div>
+        {/* Active KPI filter chip */}
+        {kpiFilterLabel && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: c.bg, border: `1px solid ${c.icon}`, borderRadius: "20px", padding: "3px 10px", fontSize: "12px", fontWeight: 700, color: c.icon }}>
+            🔍 {kpiFilterLabel}
+          </span>
+        )}
         {/* Search */}
         <div style={{ position: "relative" }}>
           <input
@@ -716,7 +853,7 @@ function RecordsTable({ type, token, globalFilters }) {
                 >
                   {cfg.columns.map(col => (
                     <td key={col.key} style={{ padding: "10px 14px", color: "#374151", maxWidth: col.wrap ? "200px" : undefined, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: col.wrap ? "normal" : "nowrap" }}>
-                      {col.badge ? <BadgeCell val={row[col.key]} /> : (row[col.key] || "—")}
+                      {renderCell(col, row)}
                     </td>
                   ))}
                 </tr>
@@ -754,6 +891,42 @@ function RecordsTable({ type, token, globalFilters }) {
           </div>
         </div>
       )}
+
+      {/* Call-log detail modal */}
+      {detailId && <CallLogDetailModal id={detailId} token={token} onClose={() => setDetailId(null)} />}
+    </div>
+  );
+}
+
+/* ─── Modal that wraps RecordsTable for KPI drilldown ─────────────────────── */
+function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
+  if (!meta) return null;
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 900, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: "#f8fafc", borderRadius: "20px 20px 0 0", width: "min(1100px,100vw)", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
+        {/* Header bar */}
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <p style={{ margin: 0, fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>{meta.label}</p>
+          <button onClick={onClose}
+            style={{ width: 32, height: 32, borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "18px", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            ×
+          </button>
+        </div>
+        {/* Table */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 24px" }}>
+          <RecordsTable
+            key={`${meta.tab}-${meta.kpiFilter}-${JSON.stringify(globalFilters)}`}
+            type={meta.tab}
+            token={token}
+            globalFilters={globalFilters}
+            kpiFilter={meta.kpiFilter}
+            kpiFilterLabel={null}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -1437,7 +1610,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [snapLoading, setSnapL]     = useState(false);
   const [showCostPopup, setShowCostPopup] = useState(false);  // cost breakdown popup
   const [snapError, setSnapE]       = useState(null);
-  const [activeRecord, setActiveRec]= useState("call-logs");
+
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
   const [activeComplaintKey, setActiveComplaintKey] = useState(null); // complaint tile clicked
@@ -1453,8 +1626,22 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [activeProfileKpi, setActiveProfileKpi]         = useState(null);
   const [activeCalibrationKpi, setActiveCalibrationKpi] = useState(null);
   const [activeTrainingKpi, setActiveTrainingKpi]       = useState(null);
-  const complaintPanelRef = useRef(null);
-  const recordsSectionRef = useRef(null);
+  // Map KPI key → { tab, kpiFilter, label }
+  const KPI_FILTER_MAP = {
+    pmsTotalAssets:              { tab: "pms",         kpiFilter: null,                   label: "All PMS" },
+    pmsOverdueAssets:            { tab: "pms",         kpiFilter: "overdue",              label: "PMS Overdue" },
+    pmsUpcomingAssets:           { tab: "pms",         kpiFilter: "upcoming",             label: "PMS Upcoming (30D)" },
+    pmsCompletedAssets:          { tab: "pms",         kpiFilter: "completed",            label: "PMS Completed" },
+    calibrationDueThisMonth:     { tab: "calibration", kpiFilter: "due_this_month",       label: "Calibration Due This Month" },
+    calibrationOverdue:          { tab: "calibration", kpiFilter: "overdue",              label: "Calibration Overdue" },
+    calibrationUpcoming:         { tab: "calibration", kpiFilter: "upcoming",             label: "Calibration Upcoming (30D)" },
+    calibrationCompletedThisMonth:{ tab: "calibration",kpiFilter: "completed_this_month", label: "Calibration Completed This Month" },
+    tTotal:     { tab: "training", kpiFilter: null,        label: "All Training" },
+    tScheduled: { tab: "training", kpiFilter: "scheduled", label: "Training Scheduled" },
+    tCompleted: { tab: "training", kpiFilter: "completed", label: "Training Completed" },
+    tOverdue:   { tab: "training", kpiFilter: "overdue",   label: "Training Overdue" },
+  };
+  const [activeKpiMeta, setActiveKpiMeta] = useState(null);
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async (force = false) => {
@@ -1969,16 +2156,9 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)",icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets,     tab: "pms" },
             { key: "pmsCompletedAssets", label: "Total Completed",      icon: Icon.Pms, color: "green",  value: pmsStats?.totalCompletedAssets,  tab: "pms" },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading}
-              isActive={activeProfileKpi === k.key}
-              onClick={() => {
-                const next = activeProfileKpi === k.key ? null : k.key;
-                setActiveProfileKpi(next);
-                if (next) { setActiveRec("pms"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
-              }} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading} />
           ))}
         </div>
-        {activeProfileKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ PMS history shown below</p>}
       </section>
 
       {/* ── CALIBRATION PROFILE ── */}
@@ -1991,16 +2171,9 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             { key: "calibrationUpcoming",           label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
             { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading}
-              isActive={activeCalibrationKpi === k.key}
-              onClick={() => {
-                const next = activeCalibrationKpi === k.key ? null : k.key;
-                setActiveCalibrationKpi(next);
-                if (next) { setActiveRec("calibration"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
-              }} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading} />
           ))}
         </div>
-        {activeCalibrationKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ Calibration records shown below</p>}
       </section>
 
       {/* ── TRAINING RECORDS ── */}
@@ -2013,56 +2186,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green", value: ojtStats?.completed },
             { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",   value: ojtStats?.overdue },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading}
-              isActive={activeTrainingKpi === k.key}
-              onClick={() => {
-                const next = activeTrainingKpi === k.key ? null : k.key;
-                setActiveTrainingKpi(next);
-                if (next) { setActiveRec("training"); setTimeout(() => recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
-              }} />
+            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading} />
           ))}
         </div>
-        {activeTrainingKpi && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#64748b" }}>▼ Training records shown below</p>}
       </section>
-
-
-      {/* ── RECORDS TABS ── */}
-      <section ref={recordsSectionRef}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Records</h2>
-        </div>
-
-        {/* Tab bar */}
-        <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e2e8f0", marginBottom: "18px", overflowX: "auto" }}>
-          {Object.entries(RECORD_CONFIGS).map(([key, cfg]) => {
-            const IconComp = cfg.icon;
-            const c = COLORS[cfg.color] || COLORS.blue;
-            const active = activeRecord === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveRec(key)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: "7px",
-                  padding: "10px 18px", background: "none", border: "none",
-                  borderBottom: active ? `2.5px solid ${c.icon}` : "2.5px solid transparent",
-                  marginBottom: "-2px", cursor: "pointer", whiteSpace: "nowrap",
-                  color: active ? c.icon : "#64748b",
-                  fontWeight: active ? 700 : 500, fontSize: "13px",
-                }}
-              >
-                <div style={{ color: active ? c.icon : "#94a3b8" }}><IconComp /></div>
-                {cfg.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Active record table */}
-        <RecordsTable key={`${activeRecord}-${JSON.stringify(appliedFilters)}`} type={activeRecord} token={token} globalFilters={appliedFilters} />
-      </section>
-
-      {/* ── RATINGS & REVIEWS removed — shown inline beside Complaint Profile above ── */}
     </div>
   );
 }
