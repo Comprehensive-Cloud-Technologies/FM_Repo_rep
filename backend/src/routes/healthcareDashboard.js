@@ -512,9 +512,11 @@ router.get("/records/call-logs", validate(recordFilter), async (req, res, next) 
     }
 
     const [rows] = await pool.query(
-      `SELECT cl.*, d.name AS department_name
+      `SELECT cl.*, d.name AS department_name,
+              a.asset_unique_id, a.generated_asset_id
        FROM hc_call_logs cl
        LEFT JOIN departments d ON d.id = cl.department_id
+       LEFT JOIN assets a ON a.id = cl.asset_id
        ${where}
        ORDER BY cl.call_date DESC, cl.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -524,6 +526,26 @@ router.get("/records/call-logs", validate(recordFilter), async (req, res, next) 
       `SELECT COUNT(*) AS total FROM hc_call_logs cl ${where}`, p
     );
     res.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } });
+  } catch (err) { next(err); }
+});
+
+// GET /records/call-logs/:id — full detail for the call-log history modal
+router.get("/records/call-logs/:id", async (req, res, next) => {
+  try {
+    const companyId = req.companyUser.companyId;
+    const id = Number(req.params.id);
+    const [[row]] = await pool.query(
+      `SELECT cl.*, d.name AS department_name,
+              a.asset_unique_id, a.generated_asset_id, a.asset_category,
+              a.manufacturer, a.model_number, a.serial_number
+       FROM hc_call_logs cl
+       LEFT JOIN departments d ON d.id = cl.department_id
+       LEFT JOIN assets a ON a.id = cl.asset_id
+       WHERE cl.id = ? AND cl.company_id = ?`,
+      [id, companyId]
+    );
+    if (!row) return res.status(404).json({ message: "Call log not found" });
+    res.json(row);
   } catch (err) { next(err); }
 });
 
@@ -568,17 +590,23 @@ router.get("/records/pms", validate(recordFilter), async (req, res, next) => {
 
     if (req.query.dateFrom)    { where += " AND p.scheduled_date >= ?"; params.push(req.query.dateFrom); }
     if (req.query.dateTo)      { where += " AND p.scheduled_date <= ?"; params.push(req.query.dateTo); }
-    if (req.query.departmentId){ where += " AND p.department_id = ?";   params.push(Number(req.query.departmentId)); }
-    if (req.query.status)      { where += " AND p.status = ?";          params.push(req.query.status); }
+    if (req.query.departmentId){ where += " AND p.department_id = ?"  ; params.push(Number(req.query.departmentId)); }
+    if (req.query.status)      { where += " AND p.status = ?"          ; params.push(req.query.status); }
     if (req.query.search)      {
       where += " AND (p.asset_name LIKE ? OR p.technician_name LIKE ? OR p.maintenance_type LIKE ?)";
       const s = `%${req.query.search}%`; params.push(s, s, s);
     }
+    const kf = req.query.kpiFilter;
+    if (kf === 'overdue')   { where += " AND p.scheduled_date < CURDATE() AND p.status != 'completed'"; }
+    if (kf === 'upcoming')  { where += " AND p.scheduled_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)"; }
+    if (kf === 'completed') { where += " AND p.status = 'completed'"; }
 
     const [rows] = await pool.query(
-      `SELECT p.*, d.name AS department_name
+      `SELECT p.*, d.name AS department_name,
+              a.asset_unique_id, a.generated_asset_id
        FROM hc_pms_records p
        LEFT JOIN departments d ON d.id = p.department_id
+       LEFT JOIN assets a ON a.id = p.asset_id
        ${where}
        ORDER BY p.scheduled_date DESC
        LIMIT ? OFFSET ?`,
@@ -639,11 +667,18 @@ router.get("/records/calibration", validate(recordFilter), async (req, res, next
       where += " AND (c.asset_name LIKE ? OR c.calibrated_by LIKE ? OR c.certificate_no LIKE ?)";
       const s = `%${req.query.search}%`; params.push(s, s, s);
     }
+    const ckf = req.query.kpiFilter;
+    if (ckf === 'overdue')             { where += " AND c.next_due_date < CURDATE()"; }
+    if (ckf === 'due_this_month')      { where += " AND MONTH(c.next_due_date)=MONTH(CURDATE()) AND YEAR(c.next_due_date)=YEAR(CURDATE())"; }
+    if (ckf === 'upcoming')            { where += " AND c.next_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)"; }
+    if (ckf === 'completed_this_month'){ where += " AND MONTH(c.calibration_date)=MONTH(CURDATE()) AND YEAR(c.calibration_date)=YEAR(CURDATE()) AND c.calibration_result='valid'"; }
 
     const [rows] = await pool.query(
-      `SELECT c.*, d.name AS department_name
+      `SELECT c.*, d.name AS department_name,
+              a.asset_unique_id, a.generated_asset_id
        FROM hc_calibration_records c
        LEFT JOIN departments d ON d.id = c.department_id
+       LEFT JOIN assets a ON a.id = c.asset_id
        ${where}
        ORDER BY c.calibration_date DESC
        LIMIT ? OFFSET ?`,
@@ -701,6 +736,10 @@ router.get("/records/training", validate(recordFilter), async (req, res, next) =
       where += " AND (t.training_title LIKE ? OR t.employee_name LIKE ? OR t.trainer_name LIKE ?)";
       const s = `%${req.query.search}%`; params.push(s, s, s);
     }
+    const tkf = req.query.kpiFilter;
+    if (tkf === 'scheduled') { where += " AND t.result NOT IN ('Pass','Fail','Completed')"; }
+    if (tkf === 'completed') { where += " AND t.result IN ('Pass','Completed')"; }
+    if (tkf === 'overdue')   { where += " AND t.expiry_date < CURDATE() AND t.result NOT IN ('Pass','Completed')"; }
 
     const [rows] = await pool.query(
       `SELECT t.*, d.name AS department_name

@@ -2724,10 +2724,10 @@ function LocTreeNode({ node, depth = 0 }) {
   );
 }
 
-// ?????????????????????????????????????????????????????????????????????????????
+
 // AdminLocationsSection  ?  Location Management (Building ? Floor ? Room)
 // Departments are managed separately via AdminDepartmentsSection
-// ?????????????????????????????????????????????????????????????????????????????
+
 function AdminLocationsSection({ token, companies = [] }) {
   const [companyId, setCompanyId] = useState(() => companies[0]?.id ? String(companies[0].id) : "");
   const [tab, setTab] = useState("buildings"); // buildings | floors | rooms
@@ -2920,7 +2920,7 @@ function AdminLocationsSection({ token, companies = [] }) {
     }
   };
 
-  // ?? Styles ????????????????????????????????????????????????
+  //Styles
   const tabBtn = (key) => ({
     padding: "7px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
     background: tab === key ? "#2563eb" : "#f1f5f9", color: tab === key ? "#fff" : "#475569",
@@ -2973,7 +2973,7 @@ function AdminLocationsSection({ token, companies = [] }) {
       {/* Header */}
       <div style={{ marginBottom: "16px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "2px" }}>Location Management</h1>
-        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building ? Floor ? Room. Departments are managed separately.</p>
+        <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Register locations: Building  Floor  Room. Departments are managed separately.</p>
       </div>
 
       {/* Company picker */}
@@ -2996,9 +2996,9 @@ function AdminLocationsSection({ token, companies = [] }) {
           {/* Tab bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>?? Buildings</button>
-              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>?? Floors</button>
-              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>?? Rooms</button>
+              <button style={tabBtn("buildings")} onClick={() => setTab("buildings")}>Buildings</button>
+              <button style={tabBtn("floors")} onClick={() => setTab("floors")}>Floors</button>
+              <button style={tabBtn("rooms")} onClick={() => setTab("rooms")}>Rooms</button>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={downloadTemplate} style={{ padding: "7px 12px", borderRadius: "7px", border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Download Template</button>
@@ -18181,7 +18181,7 @@ const CompanyPortal = () => {
 
 
 
-                  { label: "Inactive Companies", value: companyStats.inactive, sub: "??? Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+                  { label: "Inactive Companies", value: companyStats.inactive, sub: " Inactive", subColor: "#f59e0b", iconBg: "#fffbeb", iconColor: "#f59e0b", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
 
 
 
@@ -29005,7 +29005,7 @@ const CompanyPortal = () => {
             total_assets:      { label: "TOTAL ASSETS",      value: dashboardStats ? (assetProfile.total ?? totalAssets) : null, col: "#2563eb" },
             critical:          { label: "CRITICAL",           value: dashboardStats ? (assetProfile.critical ?? 0) : null, col: "#dc2626" },
             non_critical:      { label: "NON-CRITICAL",       value: dashboardStats ? (assetProfile.nonCritical ?? 0) : null, col: "#16a34a" },
-            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `?${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `?${(v/100000).toFixed(2)}L` : v >= 1000 ? `?{(v/1000).toFixed(1)}K` : `?${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
+            total_asset_value: { label: "TOTAL ASSET VALUE",  value: dashboardStats ? (() => { const v = Number(assetProfile.totalAssetValue || 0); return v >= 10000000 ? `${(v/10000000).toFixed(2)}Cr` : v >= 100000 ? `?${(v/100000).toFixed(2)}L` : v >= 1000 ? `?{(v/1000).toFixed(1)}K` : `?${v.toFixed(0)}`; })() : null, col: "#0891b2", noFilter: true },
             rber:              { label: "RBER",               value: dashboardStats ? (assetProfile.rber ?? 0) : null, col: "#7c3aed" },
             new_addition:      { label: "Verified",       value: dashboardStats ? (assetProfile.verified ?? 0) : null, col: "#0d9488" },
             total_complaint:{ label: "TOTAL COMPLAINT",    value: dashboardStats ? (complaintProfile.total ?? 0) : null, col: "#ea580c" },
