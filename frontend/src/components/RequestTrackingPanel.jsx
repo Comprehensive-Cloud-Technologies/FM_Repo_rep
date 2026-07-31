@@ -717,8 +717,13 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const [cutoffWO, setCutoffWO]     = useState(null);
   const [page, setPage]             = useState(1);
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());   // bulk selection
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  // Track overdue IDs that have been viewed so banner dismisses after viewing
+  const [viewedOverdueIds, setViewedOverdueIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("viewedOverdueIds") || "[]")); }
+    catch { return new Set(); }
+  });
   const LIMIT = 30;
 
   const load = useCallback(async () => {
@@ -739,6 +744,25 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       setRequests(Array.isArray(data.data) ? data.data : []);
       setSummary(data.summary || null);
       setPagination(data.pagination || { page: 1, total: 0, pages: 1 });
+      // Play alert sound if new overdue requests detected
+      const rows = Array.isArray(data.data) ? data.data : [];
+      const newOverdueOnLoad = rows.filter(r =>
+        r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
+      );
+      setViewedOverdueIds(prev => {
+        const truly = newOverdueOnLoad.filter(r => !prev.has(r.id));
+        if (truly.length > 0) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 880; gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
+          } catch(_) {}
+        }
+        return prev;
+      });
     } catch (e) { setError(e.message); }
     setLoading(false);
   }, [authToken, filters, statusFilter, page, allCompaniesMode]);
@@ -895,21 +919,53 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       )}
 
       {/* Cutoff escalation alert — requests past cutoff time */}
-      {!loading && requests.some(r => r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()) && (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "10px", marginBottom: "12px" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div>
-            <span style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c" }}>
-              {requests.filter(r => r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()).length} request(s) have exceeded their cutoff time
-            </span>
-            <span style={{ fontSize: "12px", color: "#9a3412", marginLeft: "8px" }}>— Immediate attention required</span>
+      {(() => {
+        const overdueReqs = !loading && requests.filter(r =>
+          r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
+        );
+        const newOverdue = overdueReqs && overdueReqs.filter(r => !viewedOverdueIds.has(r.id));
+        if (!newOverdue || newOverdue.length === 0) return null;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "10px", marginBottom: "12px" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c" }}>
+                {newOverdue.length} request(s) have exceeded their cutoff time
+              </span>
+              <span style={{ fontSize: "12px", color: "#9a3412", marginLeft: "8px" }}>— Immediate attention required</span>
+            </div>
+            <button
+              onClick={() => {
+                // Switch to overdue tab
+                setStFil("overdue"); setPage(1);
+                // Play alert sound
+                try {
+                  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                  const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                  osc.connect(gain); gain.connect(ctx.destination);
+                  osc.frequency.value = 880; gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+                  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
+                } catch(_) {}
+                // Mark all current overdue as viewed so banner doesn't reappear
+                const updated = new Set([...viewedOverdueIds, ...newOverdue.map(r => r.id)]);
+                setViewedOverdueIds(updated);
+                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch(_) {}
+              }}
+              style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: "7px", border: "1px solid #fed7aa", background: "#fff", color: "#c2410c", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+              View Overdue
+            </button>
+            <button
+              onClick={() => {
+                const updated = new Set([...viewedOverdueIds, ...newOverdue.map(r => r.id)]);
+                setViewedOverdueIds(updated);
+                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch(_) {}
+              }}
+              style={{ padding: "2px 6px", borderRadius: "5px", border: "none", background: "none", cursor: "pointer", color: "#9a3412", fontSize: "16px", lineHeight: 1 }}
+              title="Dismiss">✕</button>
           </div>
-          <button onClick={() => setFilters(f => ({ ...f, overdue: true }))}
-            style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: "7px", border: "1px solid #fed7aa", background: "#fff", color: "#c2410c", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-            View Overdue
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (

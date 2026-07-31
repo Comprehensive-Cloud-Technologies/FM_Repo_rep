@@ -178,12 +178,21 @@ router.post("/bulk-transfer", async (req, res, next) => {
     if (req.companyUser.role !== "admin")
       return res.status(403).json({ message: "Only admin users can transfer assets" });
 
-    const { assetIds = [], toCompanyId, toDepartmentId, reason = "", remarks = "" } = req.body;
+    const { assetIds = [], toCompanyId, fromCompanyId, toDepartmentId, reason = "", remarks = "" } = req.body;
     if (!assetIds.length) return res.status(400).json({ message: "assetIds required" });
     if (!toCompanyId)    return res.status(400).json({ message: "toCompanyId required" });
 
     const toId    = Number(toCompanyId);
-    const fromId  = cid(req);
+    // Allow caller to specify a source company (e.g. admin viewing another hospital);
+    // must be in the user's accessible list.
+    let fromId = cid(req);
+    if (fromCompanyId && Number(fromCompanyId) !== fromId) {
+      const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
+      const requestedFrom = Number(fromCompanyId);
+      if (!accessibleIds.includes(requestedFrom))
+        return res.status(403).json({ message: "Access denied to source company" });
+      fromId = requestedFrom;
+    }
     const toDeptId = toDepartmentId ? Number(toDepartmentId) : null;
 
     const [[toCo]]   = await pool.query("SELECT company_name FROM companies WHERE id = ?", [toId]);

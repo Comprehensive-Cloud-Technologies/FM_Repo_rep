@@ -4773,13 +4773,16 @@ router.get("/assets/:id/mttr", async (req, res, next) => {
          COALESCE(SUM(
            COALESCE(
              downtime_minutes,
-             GREATEST(0, TIMESTAMPDIFF(MINUTE, created_at, COALESCE(resolution_at, closed_at)))
+             -- Fallback: wip_at → resolution when downtime_minutes not yet stored
+             CASE WHEN wip_at IS NOT NULL
+               THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, wip_at, COALESCE(resolution_at, closed_at)))
+               ELSE NULL END
            )
          ), 0) AS totalDowntimeMinutes
        FROM work_orders
        WHERE company_id = ? AND asset_id = ?
          AND status IN ('completed','closed')
-         AND created_at IS NOT NULL
+         AND wip_at IS NOT NULL
          AND (downtime_minutes IS NOT NULL OR resolution_at IS NOT NULL OR closed_at IS NOT NULL)`,
       [companyId, assetId]
     );
@@ -5139,17 +5142,20 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
     const closedAt = (status === "completed" || status === "closed") ? new Date() : null;
     await pool.execute(
       `UPDATE work_orders SET status = ?, closed_at = ?,
-        wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+        wip_at = CASE
+          WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW()
+          WHEN ? = 'open' THEN NULL
+          ELSE wip_at END,
         resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
         prior_downtime_minutes = CASE WHEN ? = 'open' THEN COALESCE(downtime_minutes, prior_downtime_minutes) ELSE prior_downtime_minutes END,
         last_reopened_at       = CASE WHEN ? = 'open' THEN NOW() ELSE last_reopened_at END,
         downtime_minutes       = CASE
-          WHEN ? IN ('completed', 'closed')
-            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, COALESCE(last_reopened_at, created_at), NOW()))
+          WHEN ? IN ('completed', 'closed') AND wip_at IS NOT NULL
+            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, wip_at, NOW()))
           WHEN ? = 'open' THEN NULL
           ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, status, status, status, status, woId]
+      [status, closedAt, status, status, status, status, status, status, status, woId]
     );
 
     await pool.execute(
@@ -5199,17 +5205,20 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
     const closedAt = (status === "completed" || status === "closed") ? new Date() : null;
     await pool.execute(
       `UPDATE work_orders SET status = ?, closed_at = ?,
-        wip_at = CASE WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW() ELSE wip_at END,
+        wip_at = CASE
+          WHEN ? = 'in_progress' AND wip_at IS NULL THEN NOW()
+          WHEN ? = 'open' THEN NULL
+          ELSE wip_at END,
         resolution_at = CASE WHEN ? IN ('completed', 'closed') THEN NOW() ELSE resolution_at END,
         prior_downtime_minutes = CASE WHEN ? = 'open' THEN COALESCE(downtime_minutes, prior_downtime_minutes) ELSE prior_downtime_minutes END,
         last_reopened_at       = CASE WHEN ? = 'open' THEN NOW() ELSE last_reopened_at END,
         downtime_minutes       = CASE
-          WHEN ? IN ('completed', 'closed')
-            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, COALESCE(last_reopened_at, created_at), NOW()))
+          WHEN ? IN ('completed', 'closed') AND wip_at IS NOT NULL
+            THEN COALESCE(prior_downtime_minutes, 0) + GREATEST(0, TIMESTAMPDIFF(MINUTE, wip_at, NOW()))
           WHEN ? = 'open' THEN NULL
           ELSE downtime_minutes END
        WHERE id = ?`,
-      [status, closedAt, status, status, status, status, status, status, woId]
+      [status, closedAt, status, status, status, status, status, status, status, woId]
     );
     await pool.execute(
       `INSERT INTO work_order_history (work_order_id, status, updated_by, remarks) VALUES (?, ?, NULL, ?)`,

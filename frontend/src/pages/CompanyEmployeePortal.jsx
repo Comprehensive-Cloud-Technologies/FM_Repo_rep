@@ -4298,6 +4298,7 @@ function AssetTransferSection({ token, companyId }) {
         headers: { ...H, "Content-Type": "application/json" },
         body: JSON.stringify({
           assetIds:      [...atSelected],
+          fromCompanyId: srcCompanyId ? Number(srcCompanyId) : undefined,
           toCompanyId:   Number(atForm.toCompanyId),
           toDepartmentId: atForm.toDepartmentId ? Number(atForm.toDepartmentId) : null,
           reason:  atForm.reason,
