@@ -5027,10 +5027,9 @@ router.put("/work-orders/:id/assign", async (req, res, next) => {
   }
 });
 
-/* PATCH /asset-queries/:id/assign  – assign a QR-scan request to a company user */
+/* PATCH /asset-queries/:id/assign  – duplicate of the earlier assign handler; kept for legacy callers */
 router.patch("/asset-queries/:id/assign", async (req, res, next) => {
   try {
-    const companyId = cid(req);
     const { role } = req.companyUser;
     if (role !== "admin" && role !== "supervisor") {
       return res.status(403).json({ message: "Not authorised" });
@@ -5039,15 +5038,17 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
     const { assignedTo } = req.body;
     if (!assignedTo) return res.status(400).json({ message: "assignedTo is required" });
 
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[aq]] = await pool.query(
-      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
-      [aqId, companyId]
+      `SELECT id, company_id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+      [aqId, ...accessibleIds]
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
     const [[assignee]] = await pool.query(
       "SELECT id, full_name AS fullName FROM company_users WHERE id = ? AND company_id = ?",
-      [assignedTo, companyId]
+      [assignedTo, aq.company_id]
     );
     if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
 
@@ -5062,7 +5063,6 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
 /* PATCH /asset-queries/:id/status  – update QR-scan request status */
 router.patch("/asset-queries/:id/status", async (req, res, next) => {
   try {
-    const companyId = cid(req);
     const { role } = req.companyUser;
     if (role !== "admin" && role !== "supervisor") {
       return res.status(403).json({ message: "Not authorised" });
@@ -5072,13 +5072,14 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
     const VALID_AQ = ["open", "in_progress", "resolved"];
     if (!VALID_AQ.includes(status)) return res.status(400).json({ message: `Invalid status. Must be one of: ${VALID_AQ.join(", ")}` });
 
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[aq]] = await pool.query(
-      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
-      [aqId, companyId]
+      `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+      [aqId, ...accessibleIds]
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    // Track when ticket enters in_progress (wip_at equivalent) and resolution timestamps
     const setExtra = status === "in_progress"
       ? ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN NOW() ELSE in_progress_at END"
       : status === "resolved"
@@ -5092,7 +5093,6 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
 /* PATCH /asset-queries/:id/cutoff  – set cutoff datetime for a QR-scan request */
 router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
   try {
-    const companyId = cid(req);
     const { role } = req.companyUser;
     if (role !== "admin" && role !== "supervisor") {
       return res.status(403).json({ message: "Not authorised" });
@@ -5100,13 +5100,14 @@ router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
     const aqId = Number(req.params.id);
     const { cutoffTime } = req.body;
 
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[aq]] = await pool.query(
-      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
-      [aqId, companyId]
+      `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+      [aqId, ...accessibleIds]
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    // Store the absolute cutoff datetime directly
     let deadline = null;
     if (cutoffTime) {
       const d = new Date(cutoffTime);
@@ -5123,15 +5124,16 @@ router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
 /* PUT /work-orders/:id/status  – update work order status */
 router.put("/work-orders/:id/status", async (req, res, next) => {
   try {
-    const companyId = cid(req);
     const { role, id: userId } = req.companyUser;
     const woId = Number(req.params.id);
+    const accessibleIds = await getAccessibleCompanyIds(userId, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
 
     if (role !== "admin" && role !== "supervisor") {
       // Technicians can only update their own assigned work orders
       const [[assigned]] = await pool.query(
-        "SELECT id FROM work_orders WHERE id = ? AND company_id = ? AND cp_assigned_to = ?",
-        [woId, companyId, userId]
+        `SELECT id FROM work_orders WHERE id = ? AND company_id IN (${ph}) AND cp_assigned_to = ?`,
+        [woId, ...accessibleIds, userId]
       );
       if (!assigned) return res.status(403).json({ message: "Not authorised" });
     }
@@ -5144,8 +5146,8 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
     }
 
     const [[wo]] = await pool.query(
-      "SELECT id, flag_id AS \"flagId\" FROM work_orders WHERE id = ? AND company_id = ?",
-      [woId, companyId]
+      `SELECT id, flag_id AS "flagId" FROM work_orders WHERE id = ? AND company_id IN (${ph})`,
+      [woId, ...accessibleIds]
     );
     if (!wo) return res.status(404).json({ message: "Work order not found" });
 
@@ -5190,14 +5192,15 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
 /* PATCH /work-orders/:id/status – alias for PUT (same handler) */
 router.patch("/work-orders/:id/status", async (req, res, next) => {
   try {
-    const companyId = cid(req);
     const { role, id: userId } = req.companyUser;
     const woId = Number(req.params.id);
+    const accessibleIds = await getAccessibleCompanyIds(userId, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
 
     if (role !== "admin" && role !== "supervisor") {
       const [[assigned]] = await pool.query(
-        "SELECT id FROM work_orders WHERE id = ? AND company_id = ? AND cp_assigned_to = ?",
-        [woId, companyId, userId]
+        `SELECT id FROM work_orders WHERE id = ? AND company_id IN (${ph}) AND cp_assigned_to = ?`,
+        [woId, ...accessibleIds, userId]
       );
       if (!assigned) return res.status(403).json({ message: "Not authorised" });
     }
@@ -5207,8 +5210,8 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
     if (!VALID.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
     const [[wo]] = await pool.query(
-      "SELECT id, flag_id AS `flagId` FROM work_orders WHERE id = ? AND company_id = ?",
-      [woId, companyId]
+      `SELECT id, flag_id AS \`flagId\` FROM work_orders WHERE id = ? AND company_id IN (${ph})`,
+      [woId, ...accessibleIds]
     );
     if (!wo) return res.status(404).json({ message: "Work order not found" });
 
