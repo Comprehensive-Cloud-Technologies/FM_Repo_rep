@@ -3012,8 +3012,10 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
   try {
     const { id } = req.params;
     const { resolutionNote, partsReplaced, beforePhotos, afterPhotos } = req.body;
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[query]] = await pool.query(
-      "SELECT id, raised_by, company_id, title FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+      `SELECT id, raised_by, company_id, title FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!query) return res.status(404).json({ message: "Query not found" });
 
@@ -3061,8 +3063,10 @@ router.patch("/asset-queries/:id/escalate", async (req, res, next) => {
   try {
     if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin/supervisor only" });
     const { id } = req.params;
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[check]] = await pool.query(
-      "SELECT id, escalation_level FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+      `SELECT id, escalation_level FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!check) return res.status(404).json({ message: "Query not found" });
     await pool.query(
@@ -3078,8 +3082,10 @@ router.delete("/asset-queries/:id", async (req, res, next) => {
   try {
     if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin/supervisor only" });
     const { id } = req.params;
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[check]] = await pool.query(
-      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+      `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!check) return res.status(404).json({ message: "Request not found" });
     await pool.query("DELETE FROM asset_queries WHERE id = ?", [id]);
@@ -3101,9 +3107,11 @@ router.patch("/asset-queries/:id/close", closeLimiter, async (req, res, next) =>
   try {
     const { id } = req.params;
     const { closeCode } = req.body;
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[query]] = await pool.query(
-      "SELECT id, raised_by, status, close_code FROM asset_queries WHERE id = ? AND company_id = ?",
-      [id, cid(req)]
+      `SELECT id, raised_by, status, close_code FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+      [id, ...accessibleIds]
     );
     if (!query) return res.status(404).json({ message: "Request not found" });
     if (query.status !== "resolved" && query.status !== "closed")
@@ -3128,15 +3136,18 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
       return res.status(403).json({ message: "Admin/supervisor only" });
     const { id } = req.params;
     const { assignedTo } = req.body;
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
     const [[query]] = await pool.query(
-      "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?", [id, cid(req)]
+      `SELECT id, company_id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!query) return res.status(404).json({ message: "Request not found" });
     await pool.query(
       "UPDATE asset_queries SET assigned_to = ?, updated_at = NOW() WHERE id = ?",
       [assignedTo ? Number(assignedTo) : null, id]
     );
-    emitToCompany(cid(req), 'issue:updated', {
+    const ticketCompanyId = query.company_id || cid(req);
+    emitToCompany(ticketCompanyId, 'issue:updated', {
       id: Number(id),
       status: 'in_progress',
       assignedTo: assignedTo ? Number(assignedTo) : null,
@@ -3144,11 +3155,10 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
     // Notify the assigned engineer
     if (assignedTo) {
       try {
-        const [[eng]] = await pool.query("SELECT full_name FROM company_users WHERE id = ?", [assignedTo]);
         const [[aq]] = await pool.query("SELECT title FROM asset_queries WHERE id = ?", [id]);
         const { createNotification } = await import("../utils/notificationsHelper.js");
         await createNotification({
-          companyId: cid(req),
+          companyId: ticketCompanyId,
           recipientId: Number(assignedTo),
           type: "request_assigned",
           title: "New request assigned to you",
