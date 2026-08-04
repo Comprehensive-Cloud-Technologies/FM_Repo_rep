@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HealthcareDashboard.jsx
  * Professional FM Healthcare Asset Management Dashboard
  * Features: KPI cards, Charts (Pie/Bar/Line), Advanced Filters, Excel export, Records tables
@@ -1626,6 +1626,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [activeProfileKpi, setActiveProfileKpi]         = useState(null);
   const [activeCalibrationKpi, setActiveCalibrationKpi] = useState(null);
   const [activeTrainingKpi, setActiveTrainingKpi]       = useState(null);
+  const complaintPanelRef = useRef(null); // scroll target for complaint drilldown panel
   // Map KPI key → { tab, kpiFilter, label }
   const KPI_FILTER_MAP = {
     pmsTotalAssets:              { tab: "pms",         kpiFilter: null,                   label: "All PMS" },

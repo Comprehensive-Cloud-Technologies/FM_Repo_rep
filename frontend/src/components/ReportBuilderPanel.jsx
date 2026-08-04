@@ -595,6 +595,82 @@ function doCSV(rows,defs){
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   MODULE DROPDOWN COMPONENT
+   ─────────────────────────────────────────────────────────────────────────── */
+function ModuleDropdown({ moduleKey, setModuleKey }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const mod = MODULE_REGISTRY[moduleKey];
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '7px 14px', borderRadius: 10,
+          border: `2px solid ${mod.color}22`,
+          background: `${mod.color}11`,
+          color: mod.color, fontWeight: 700, fontSize: '13.5px',
+          cursor: 'pointer', whiteSpace: 'nowrap',
+          boxShadow: open ? `0 0 0 3px ${mod.color}22` : 'none',
+          transition: 'all 0.15s',
+          minWidth: 190,
+        }}
+      >
+        <span style={{ fontSize: 16 }}>{mod.icon}</span>
+        <span style={{ flex: 1, textAlign: 'left' }}>{mod.label}</span>
+        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.7 }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 9999,
+          background: '#fff', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+          border: '1px solid #e2e8f0', overflow: 'hidden', minWidth: 230,
+        }}>
+          <div style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+            <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 6px' }}>Select Module</p>
+          </div>
+          {Object.entries(MODULE_REGISTRY).map(([k, v]) => (
+            <button key={k}
+              onClick={() => { setModuleKey(k); setOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '10px 14px',
+                border: 'none', background: moduleKey === k ? `${v.color}10` : 'transparent',
+                color: moduleKey === k ? v.color : '#374151',
+                fontWeight: moduleKey === k ? 700 : 500,
+                fontSize: '13px', cursor: 'pointer', textAlign: 'left',
+                borderLeft: `3px solid ${moduleKey === k ? v.color : 'transparent'}`,
+                transition: 'all 0.1s',
+              }}
+              onMouseEnter={e => { if (moduleKey !== k) e.currentTarget.style.background = '#f8fafc'; }}
+              onMouseLeave={e => { if (moduleKey !== k) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{v.icon}</span>
+              <span>{v.label}</span>
+              {moduleKey === k && (
+                <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: v.color, flexShrink: 0 }} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT
    ─────────────────────────────────────────────────────────────────────────── */
 const PAGE_SIZE=100;
@@ -789,63 +865,73 @@ export default function ReportBuilderPanel({token}){
      RENDER
   ──────────────────────────────────────────────────────────────────────── */
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:"#f1f5f9",fontFamily:"system-ui,-apple-system,sans-serif"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:"#f1f5f9",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"}}>
 
-      {/* ══ TOP TOOLBAR ══════════════════════════════════════════════════════ */}
-      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",height:52,padding:"0 20px",gap:0,flexShrink:0}}>
+      {/* ══ TOP TOOLBAR — Row 1: Module Selector + Actions ══════════════════ */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"10px 20px",display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
 
-        {/* Module tabs */}
-        <div style={{display:"flex",alignItems:"stretch",height:"100%",marginRight:12}}>
-          {Object.entries(MODULE_REGISTRY).map(([k,v])=>(
-            <button key={k} onClick={()=>setModuleKey(k)}
-              style={{padding:"0 16px",background:"none",border:"none",borderBottom:moduleKey===k?`2.5px solid ${v.color}`:"2.5px solid transparent",marginBottom:"-1px",fontSize:"13px",fontWeight:moduleKey===k?700:500,color:moduleKey===k?v.color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
-              {v.icon} {v.label}
-            </button>
-          ))}
+        {/* Module dropdown */}
+        <ModuleDropdown moduleKey={moduleKey} setModuleKey={setModuleKey} />
+
+        {/* Active module color accent bar */}
+        <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:8,background:`${mod.color}09`,border:`1px solid ${mod.color}22`,flexShrink:0}}>
+          <div style={{width:7,height:7,borderRadius:"50%",background:mod.color,flexShrink:0}}/>
+          <span style={{fontSize:"11.5px",fontWeight:700,color:mod.color}}>{rawData.length.toLocaleString("en-IN")} records</span>
         </div>
 
-        <div style={{width:1,height:28,background:"#e2e8f0",marginRight:10}}/>
-
-        {/* View toggle */}
-        <div style={{display:"flex",background:"#f1f5f9",borderRadius:8,padding:3,gap:2,marginRight:12}}>
-          {[["table","⊞ Table"],["pivot","↔ Pivot"],["chart","📊 Chart"],["kpi","🎯 KPI"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)}
-              style={{padding:"5px 13px",borderRadius:6,border:"none",background:view===v?"#fff":"transparent",color:view===v?"#2563eb":"#64748b",fontWeight:view===v?700:500,fontSize:"12.5px",cursor:"pointer",boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.1)":undefined}}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div style={{position:"relative",flex:"0 0 220px"}}>
-          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={2.5} style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input id="rb-s" type="text" placeholder="Search… (Ctrl+F)" value={globalSearch} onChange={e=>{setGlobalSearch(e.target.value);setPage(1);}}
-            style={{width:"100%",padding:"7px 28px 7px 28px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:"12.5px",outline:"none",background:"#f8fafc",boxSizing:"border-box"}}/>
-          {globalSearch&&<button onClick={()=>setGlobalSearch("")} style={{position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:14,lineHeight:1}}>✕</button>}
-        </div>
+        <div style={{flex:1}}/>
 
         {/* Right actions */}
-        <div style={{marginLeft:"auto",display:"flex",gap:5,alignItems:"center"}}>
+        <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={loadData} disabled={loading}
-            style={{padding:"6px 11px",border:"1px solid #e2e8f0",borderRadius:7,background:"#f8fafc",color:"#475569",fontSize:"12px",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            style={{padding:"7px 13px",border:"1px solid #e2e8f0",borderRadius:8,background:"#f8fafc",color:"#475569",fontSize:"12.5px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontWeight:500,transition:"all 0.15s"}}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             {loading?"Loading…":"Refresh"}
           </button>
-          <div style={{width:1,height:22,background:"#e2e8f0"}}/>
+          <div style={{width:1,height:24,background:"#e2e8f0",flexShrink:0}}/>
           <button onClick={()=>doXLSX(processedData,visibleFields,mod.label)}
-            style={{padding:"6px 12px",border:"1px solid #bbf7d0",borderRadius:7,background:"#f0fdf4",color:"#16a34a",fontSize:"12px",fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg>
+            style={{padding:"7px 13px",border:"1px solid #bbf7d0",borderRadius:8,background:"#f0fdf4",color:"#16a34a",fontSize:"12.5px",fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg>
             Excel
           </button>
-          <button onClick={()=>doCSV(processedData,visibleFields)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:7,background:"#f8fafc",color:"#475569",fontSize:"12px",cursor:"pointer"}}>CSV</button>
-          <button onClick={()=>window.print()} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:7,background:"#f8fafc",color:"#475569",fontSize:"12px",cursor:"pointer"}}>🖨</button>
-          <div style={{width:1,height:22,background:"#e2e8f0"}}/>
-          <button onClick={()=>setShowSave(true)} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:7,background:"#f8fafc",color:"#374151",fontSize:"12px",fontWeight:600,cursor:"pointer"}}>💾 Save</button>
-          <button onClick={()=>setShowLoad(true)}
-            style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:7,background:"#f8fafc",color:"#374151",fontSize:"12px",fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-            📂 Reports
-            {savedReports.length>0&&<span style={{background:"#2563eb",color:"#fff",borderRadius:10,fontSize:"10px",fontWeight:700,padding:"1px 6px"}}>{savedReports.length}</span>}
+          <button onClick={()=>doCSV(processedData,visibleFields)} style={{padding:"7px 11px",border:"1px solid #e2e8f0",borderRadius:8,background:"#f8fafc",color:"#475569",fontSize:"12.5px",cursor:"pointer",fontWeight:500}}>CSV</button>
+          <button onClick={()=>window.print()} style={{padding:"7px 11px",border:"1px solid #e2e8f0",borderRadius:8,background:"#f8fafc",color:"#475569",fontSize:"12.5px",cursor:"pointer"}}>🖨</button>
+          <div style={{width:1,height:24,background:"#e2e8f0",flexShrink:0}}/>
+          <button onClick={()=>setShowSave(true)} style={{padding:"7px 13px",border:"1px solid #e2e8f0",borderRadius:8,background:"#f8fafc",color:"#374151",fontSize:"12.5px",fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save
           </button>
+          <button onClick={()=>setShowLoad(true)}
+            style={{padding:"7px 13px",border:savedReports.length>0?"1px solid #bfdbfe":"1px solid #e2e8f0",borderRadius:8,background:savedReports.length>0?"#eff6ff":"#f8fafc",color:savedReports.length>0?"#2563eb":"#374151",fontSize:"12.5px",fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            Reports
+            {savedReports.length>0&&<span style={{background:"#2563eb",color:"#fff",borderRadius:10,fontSize:"10px",fontWeight:700,padding:"1px 6px",minWidth:16,textAlign:"center"}}>{savedReports.length}</span>}
+          </button>
+        </div>
+      </div>
+
+      {/* ══ TOP TOOLBAR — Row 2: View Toggle + Search ════════════════════════ */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"8px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0,flexWrap:"wrap"}}>
+
+        {/* View toggle */}
+        <div style={{display:"flex",background:"#f1f5f9",borderRadius:9,padding:3,gap:2}}>
+          {[["table","⊞","Table"],["pivot","↔","Pivot"],["chart","📊","Chart"],["kpi","🎯","KPI"]].map(([v,ico,lbl])=>(
+            <button key={v} onClick={()=>setView(v)}
+              style={{padding:"6px 14px",borderRadius:7,border:"none",background:view===v?"#fff":"transparent",color:view===v?"#2563eb":"#64748b",fontWeight:view===v?700:500,fontSize:"12.5px",cursor:"pointer",boxShadow:view===v?"0 1px 4px rgba(0,0,0,0.10)":"none",display:"flex",alignItems:"center",gap:5,transition:"all 0.15s",whiteSpace:"nowrap"}}>
+              <span>{ico}</span> {lbl}
+            </button>
+          ))}
+        </div>
+
+        <div style={{flex:1}}/>
+
+        {/* Search */}
+        <div style={{position:"relative",width:260}}>
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={2.5} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="rb-s" type="text" placeholder="Quick search… (Ctrl+F)" value={globalSearch} onChange={e=>{setGlobalSearch(e.target.value);setPage(1);}}
+            style={{width:"100%",padding:"8px 30px 8px 30px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:"12.5px",outline:"none",background:"#f8fafc",boxSizing:"border-box",transition:"border-color 0.15s"}}
+            onFocus={e=>e.target.style.borderColor="#2563eb"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+          {globalSearch&&<button onClick={()=>setGlobalSearch("")} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:15,lineHeight:1,display:"flex",alignItems:"center"}}>✕</button>}
         </div>
       </div>
 
