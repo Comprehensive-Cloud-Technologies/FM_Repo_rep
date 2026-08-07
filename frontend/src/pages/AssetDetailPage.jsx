@@ -297,7 +297,6 @@ export default function AssetDetailPage() {
     { key: "calllogs", label: "Call Log History" },
     { key: "pms_history", label: "PMS History" },
     { key: "calibration", label: "Calibration History" },
-    { key: "Trainings", label: "Training Details" },
     { key: "purchase", label: "Purchase History" },
     { key: "transfer_history", label: "Transfer History" },
     { key: "indent", label: "Indent Details" },
@@ -1457,8 +1456,8 @@ export default function AssetDetailPage() {
           </div>
         )}
 
-        {/* Training Details */}
-        {tab === "Trainings" && (
+        {/* Training Details tab removed */}
+        {tab === "__Trainings_disabled__" && (
           <div style={{ maxWidth: "100%", margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
               <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Training Details</h4>
