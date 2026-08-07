@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 
@@ -29,7 +29,7 @@ function NotifIcon({ type, theme }: { type: string; theme: any }) {
   };
   const s = map[type] ?? { name: 'bell', color: theme.primary, bg: theme.primaryBg };
   return (
-    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: s.bg, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <View style={{ width: 40, height: 40, borderRadius: Radius.md, backgroundColor: s.bg, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <MaterialCommunityIcons name={s.name as any} size={20} color={s.color} />
     </View>
   );
@@ -97,10 +97,10 @@ export default function NotificationsScreen() {
                 key={n.id}
                 style={[
                   styles.card,
+                  Shadows.sm,
                   {
                     backgroundColor: n.isRead ? theme.surface : theme.primaryBg,
-                    borderColor: n.isRead ? theme.border : theme.primaryLight + '40',
-                    shadowColor: theme.cardShadow,
+                    borderColor: n.isRead ? theme.borderLight : theme.primaryLight + '55',
                   },
                 ]}
                 onPress={() => handlePress(n)}
@@ -181,7 +181,6 @@ const styles = StyleSheet.create({
   card:    {
     flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md,
     borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   dot:     { width: 7, height: 7, borderRadius: 4, marginTop: 2, flexShrink: 0 },
   title:   { ...Typography.body },

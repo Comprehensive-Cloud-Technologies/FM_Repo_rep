@@ -10,7 +10,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { loginEmployee, clearStoredCompany } from '../utils/api';
 import { registerForPushNotifications } from '../utils/notifications';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MAX = Math.min(SCREEN_W - Spacing.xl * 2, 440);
@@ -109,6 +109,13 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          {/* ─── Brand mark ──────────────────────────────────────── */}
+          <View style={[styles.brandWrap, { width: CARD_MAX }]}>
+            <View style={[styles.logoMark, Shadows.brand, { backgroundColor: theme.primary }]}>
+              <MaterialCommunityIcons name="hospital-building" size={30} color="#fff" />
+            </View>
+          </View>
+
           {/* ─── Heading ─────────────────────────────────────────── */}
           <View style={[styles.headingWrap, { width: CARD_MAX }]}>
             <Text style={[styles.title, { color: theme.textPrimary }]}>Welcome back</Text>
@@ -116,7 +123,7 @@ export default function LoginScreen() {
           </View>
 
           {/* ─── Form card ───────────────────────────────────────── */}
-          <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, width: CARD_MAX }]}>
+          <View style={[styles.card, Shadows.lg, { backgroundColor: theme.surface, width: CARD_MAX }]}>
 
             {/* Employee ID */}
             <Text style={[styles.label, { color: theme.textSecondary }]}>Employee ID</Text>
@@ -175,7 +182,7 @@ export default function LoginScreen() {
 
             {/* Sign In button */}
             <TouchableOpacity
-              style={[styles.btn, { backgroundColor: loading ? theme.textMuted : theme.primary }]}
+              style={[styles.btn, !loading && Shadows.brand, { backgroundColor: loading ? theme.textMuted : theme.primary }]}
               onPress={handleLogin}
               disabled={loading}
               activeOpacity={0.85}
@@ -237,15 +244,18 @@ const styles = StyleSheet.create({
   companyPill:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: Radius.full },
   companyPillText: { fontSize: 13, fontWeight: '700', maxWidth: 130 },
 
+  brandWrap:     { alignItems: 'flex-start' },
+  logoMark:      { width: 60, height: 60, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
+
   headingWrap:   {},
-  title:         { fontSize: 28, fontWeight: '800', color: '#1a237e', marginBottom: 4 },
+  title:         { ...Typography.h1, marginBottom: 4 },
   sub:           { fontSize: 14, color: '#475569' },
 
-  card:          { borderRadius: Radius.xl, padding: Spacing.xl, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 10 },
-  label:         { ...Typography.label, marginBottom: Spacing.xs },
-  labelRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  card:          { borderRadius: Radius.xxl, padding: Spacing.xl },
+  label:         { ...Typography.label, marginBottom: Spacing.sm },
+  labelRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
   forgotText:    { fontSize: 13, fontWeight: '700' },
-  inputWrap:     { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: Radius.md, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg, height: 52 },
+  inputWrap:     { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg, height: 54 },
   inputIcon:     { marginRight: Spacing.sm },
   input:         { flex: 1, fontSize: 15 },
 
@@ -253,15 +263,15 @@ const styles = StyleSheet.create({
   checkbox:      { width: 18, height: 18, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   checkText:     { fontSize: 14 },
 
-  btn:           { height: 52, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
+  btn:           { height: 54, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
   btnInner:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btnText:       { fontSize: 16, fontWeight: '700', color: '#fff' },
+  btnText:       { fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
 
   divider:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.md },
   divLine:       { flex: 1, height: 1 },
   divText:       { fontSize: 12 },
 
-  biometricBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 52, borderRadius: Radius.md, borderWidth: 1.5 },
+  biometricBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 54, borderRadius: Radius.lg, borderWidth: 1.5 },
   biometricText: { fontSize: 15, fontWeight: '600' },
 
   footerWrap:    { alignItems: 'center', gap: 4, paddingTop: Spacing.sm },

@@ -9,7 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchMySoftRequests, fetchAllSoftRequests } from '../../utils/api';
 import { isSoftManager, canResolveSoft } from '../../utils/permissions';
-import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import type { SoftRequest } from '../../utils/api';
@@ -18,7 +18,7 @@ function RequestCard({ req, canResolve }: { req: SoftRequest; canResolve: boolea
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+      style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: req.status === 'open' ? theme.warning : theme.success }]}
       onPress={() => {
         if (canResolve && req.status === 'open') {
           router.push({ pathname: '/soft-resolve', params: { requestId: String(req.id) } });
@@ -134,15 +134,15 @@ export default function SoftRequestsTab() {
 const styles = StyleSheet.create({
   safe:           { flex: 1 },
   header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1 },
-  headerTitle:    { ...Typography.h3 },
-  raiseBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.md },
-  raiseBtnText:   { ...Typography.label, color: '#fff' },
+  headerTitle:    { ...Typography.h2 },
+  raiseBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.md, ...Shadows.brand },
+  raiseBtnText:   { ...Typography.label, color: '#fff', fontWeight: '700' },
   filters:        { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1 },
-  pill:           { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full },
-  pillText:       { ...Typography.label },
+  pill:           { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full },
+  pillText:       { ...Typography.label, fontWeight: '700' },
   list:           { padding: Spacing.lg, gap: Spacing.md },
   emptyWrap:      { flex: 1 },
-  card:           { borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  card:           { borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderLeftWidth: 4 },
   cardTop:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.sm },
   assetName:      { ...Typography.h4 },
   assetId:        { ...Typography.micro, marginTop: 2 },

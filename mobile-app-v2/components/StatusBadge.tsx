@@ -42,7 +42,7 @@ export function statusVariant(status: string): Variant {
 }
 
 const styles = StyleSheet.create({
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full },
   dot:   { width: 6, height: 6, borderRadius: 3 },
-  text:  { ...Typography.label },
+  text:  { ...Typography.micro, fontWeight: '700', textTransform: 'capitalize' },
 });

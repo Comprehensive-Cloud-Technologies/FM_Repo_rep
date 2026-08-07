@@ -18,7 +18,7 @@ import {
   fetchMyPmsAssignments, fetchMyPmsChecklist,
   startPmsAssignment, submitPmsCompletion, verifyAssetQr,
 } from '../utils/api';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 // ─── Capture submission metadata (GPS + device) ───────────────────────────────
 async function captureSubmissionMetadata(): Promise<Record<string, any>> {
@@ -317,7 +317,7 @@ export default function PmsAssignmentsScreen() {
 
           {/* Questions */}
           {items.map((item: any, i: number) => (
-            <View key={item.id} style={[ss.questionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View key={item.id} style={[ss.questionCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
                 <Text style={[ss.questionNum, { backgroundColor: theme.primaryBg, color: theme.primary }]}>{i + 1}</Text>
                 <View style={{ flex: 1 }}>
@@ -430,7 +430,7 @@ export default function PmsAssignmentsScreen() {
               const st = getStatus(item.status);
               return (
                 <TouchableOpacity key={item.id}
-                  style={[ss.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  style={[ss.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                   onPress={() => openItem(item)} activeOpacity={0.75}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                     <View style={{ flex: 1 }}>

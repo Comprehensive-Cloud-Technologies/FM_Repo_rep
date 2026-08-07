@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchTeamStats, fetchTeamAssignments, fetchMyChecklists } from '../../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 
@@ -19,7 +19,7 @@ function MemberCard({ member }: { member: any }) {
     : 0;
 
   return (
-    <View style={[styles.memberCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+    <View style={[styles.memberCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
       <View style={[styles.avatar, { backgroundColor: theme.primaryBg }]}>
         <Text style={[styles.avatarText, { color: theme.primary }]}>
           {(member.fullName ?? 'U').charAt(0).toUpperCase()}
@@ -90,7 +90,7 @@ export default function AssignmentsTab() {
                 { label: 'Completed', value: stats.completedToday ?? 0, color: theme.success },
                 { label: 'Pending', value: stats.pendingToday ?? 0, color: theme.warning },
               ].map((s) => (
-                <View key={s.label} style={[styles.statCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+                <View key={s.label} style={[styles.statCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                   <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
                   <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{s.label}</Text>
                 </View>
@@ -121,7 +121,7 @@ export default function AssignmentsTab() {
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.taskCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, borderLeftColor: isLogsheet ? '#7C3AED' : theme.primary, borderLeftWidth: 4 }]}
+                style={[styles.taskCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: isLogsheet ? '#7C3AED' : theme.primary, borderLeftWidth: 4 }]}
                 onPress={() => router.push({ pathname: '/checklist-entry', params: { assignmentId: item.id, assetId: item.assetId, templateId: item.templateId, templateType: item.templateType ?? 'checklist', templateName: item.templateName, assetName: item.assetName } })}
                 activeOpacity={0.8}
               >
@@ -154,25 +154,25 @@ export default function AssignmentsTab() {
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1 },
-  headerTitle: { ...Typography.h3 },
+  headerTitle: { ...Typography.h2 },
   scroll:      { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xxl },
   statsRow:    { flexDirection: 'row', gap: Spacing.md },
-  statCard:    { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  statCard:    { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', borderWidth: 1 },
   statValue:   { ...Typography.h2 },
-  statLabel:   { ...Typography.micro, marginTop: 2 },
+  statLabel:   { ...Typography.micro, marginTop: 2, fontWeight: '600' },
   actionsRow:  { flexDirection: 'row', gap: Spacing.md },
-  actionBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, borderRadius: Radius.md },
-  actionBtnText:{ ...Typography.label, color: '#fff' },
-  sectionLabel:{ ...Typography.label, letterSpacing: 1 },
-  memberCard:  { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.md, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
-  avatar:      { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  actionBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.md + 2, borderRadius: Radius.lg, ...Shadows.sm },
+  actionBtnText:{ ...Typography.label, color: '#fff', fontWeight: '700' },
+  sectionLabel:{ ...Typography.overline },
+  memberCard:  { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.md, borderWidth: 1 },
+  avatar:      { width: 46, height: 46, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   avatarText:  { ...Typography.h3 },
   memberBody:  { flex: 1, gap: 4 },
   memberName:  { ...Typography.h4 },
-  progressBg:  { height: 4, borderRadius: 2, overflow: 'hidden' },
-  progressFill:{ height: 4, borderRadius: 2 },
+  progressBg:  { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill:{ height: 6, borderRadius: 3 },
   memberStats: { ...Typography.micro },
-  taskCard:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  taskCard:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
   taskName:    { ...Typography.h4 },
   taskAsset:   { ...Typography.bodyS, marginTop: 2 },
   emptyTasks:  { borderRadius: Radius.lg, padding: Spacing.lg, alignItems: 'center' },

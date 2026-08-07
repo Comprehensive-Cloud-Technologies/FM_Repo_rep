@@ -4,7 +4,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchMyWarnings } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 
@@ -40,7 +40,7 @@ export default function WarningsScreen() {
           ) : warnings.map((w) => (
             <View
               key={w.id}
-              style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, borderLeftColor: theme.warning, borderLeftWidth: 4 }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: theme.warning, borderLeftWidth: 4 }]}
             >
               <View style={styles.cardTop}>
                 <MaterialCommunityIcons name="alert" size={20} color={theme.warning} />
@@ -66,7 +66,7 @@ export default function WarningsScreen() {
 const styles = StyleSheet.create({
   safe:      { flex: 1 },
   list:      { padding: Spacing.lg, gap: Spacing.md },
-  card:      { borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3, gap: Spacing.sm },
+  card:      { borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: Spacing.sm },
   cardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   cardTitle: { ...Typography.h4, flex: 1 },
   cardMeta:  { ...Typography.bodyS },

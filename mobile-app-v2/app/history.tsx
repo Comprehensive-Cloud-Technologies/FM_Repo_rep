@@ -4,7 +4,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchMySubmissionHistory } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
@@ -41,7 +41,7 @@ export default function HistoryScreen() {
           ) : items.map((item) => (
             <TouchableOpacity
               key={`${item.type}-${item.id}`}
-              style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: item.type === 'logsheet' ? '#7C3AED' : theme.primary }]}
               onPress={() => router.push({ pathname: '/submission-detail', params: { type: item.type, id: item.id } })}
               activeOpacity={0.8}
             >
@@ -72,7 +72,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   safe:  { flex: 1 },
   list:  { padding: Spacing.lg, gap: Spacing.md },
-  card:  { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  card:  { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderLeftWidth: 4 },
   icon:  { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
   body:  { flex: 1, gap: 2 },
   title: { ...Typography.h4 },

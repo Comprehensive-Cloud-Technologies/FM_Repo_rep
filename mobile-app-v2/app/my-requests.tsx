@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchMyRaisedQueries, closeAssetQuery } from '../utils/api';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 
@@ -81,7 +81,7 @@ export default function MyRequestsScreen() {
           ) : queries.map((q) => (
             <View
               key={q.id}
-              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             >
               <View style={styles.cardTop}>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -162,16 +162,12 @@ const styles = StyleSheet.create({
 
   card: {
     borderRadius: Radius.lg,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     borderWidth: 1,
     gap: Spacing.sm,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
   },
   cardTop:  { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  title:    { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  title:    { fontSize: 15, fontWeight: '700', lineHeight: 21 },
   assetName:{ fontSize: 12 },
   row:      { flexDirection: 'row', alignItems: 'center', gap: 5 },
   meta:     { fontSize: 12 },

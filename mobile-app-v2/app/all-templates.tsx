@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAllTemplates } from '../utils/api';
-import { useTheme, Spacing, Radius, Typography } from '../utils/theme';
+import { useTheme, Spacing, Radius, Typography, Shadows } from '../utils/theme';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 
@@ -37,7 +37,7 @@ function TemplateRow({ item }: { item: Template }) {
   const cfg = TYPE_CONFIG[item.templateType] ?? TYPE_CONFIG.checklist;
 
   return (
-    <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View style={[styles.row, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
       <View style={[styles.rowIcon, { backgroundColor: cfg.color + '15' }]}>
         <MaterialCommunityIcons name={cfg.icon as any} size={22} color={cfg.color} />
       </View>

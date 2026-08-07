@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { authenticatedFetch, API_BASE, closeAssetQuery } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   open: '#DC2626', assigned: '#2563EB', in_progress: '#D97706',
@@ -172,7 +172,7 @@ export default function HCCaseLogDetail() {
 
         <ScrollView ref={scrollRef} contentContainerStyle={ss.scroll} showsVerticalScrollIndicator={false}>
           {/* Details */}
-          <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>DETAILS</Text>
             {[
               { label: 'Request #',   value: wo.work_order_number || '—' },
@@ -195,7 +195,7 @@ export default function HCCaseLogDetail() {
 
           {/* Photos */}
           {Array.isArray(wo.images) && wo.images.length > 0 && (
-            <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>PHOTOS ({wo.images.length})</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {wo.images.map((url: string, idx: number) => (
@@ -267,7 +267,7 @@ export default function HCCaseLogDetail() {
               )}
 
               {/* Remarks input */}
-              <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ADD WORK NOTES</Text>
                 <TextInput
                   style={[ss.textarea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.textPrimary }]}
@@ -304,7 +304,7 @@ export default function HCCaseLogDetail() {
               )}
 
               {showAssign && (
-                <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                   <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>SELECT ENGINEER</Text>
                   {engineers.length === 0
                     ? <Text style={{ color: theme.textMuted, fontSize: 13 }}>No engineers found</Text>
@@ -328,7 +328,7 @@ export default function HCCaseLogDetail() {
               )}
 
               {/* Status override */}
-              <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>CHANGE STATUS</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {STATUS_FLOW.filter(s => s.key !== wo.status).map(s => {
@@ -348,7 +348,7 @@ export default function HCCaseLogDetail() {
               </View>
 
               {/* Admin remarks */}
-              <View style={[ss.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ADD NOTES</Text>
                 <TextInput
                   style={[ss.textarea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.textPrimary }]}

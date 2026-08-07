@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount, fetchMyPmsStats, fetchDeptHeadPending, fetchDeptHeadStats } from '../../utils/api';
-import { useTheme, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../../utils/theme';
 import { hasTechAccess, canManageTeam, canViewNotifications, canRegisterAssets } from '../../utils/permissions';
 
 // ΓöÇΓöÇΓöÇ Mini components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -28,9 +28,10 @@ function StatCard({ label, value, color, onPress }: {
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[ss.statCard, { backgroundColor: theme.surface, borderColor: color + '40' }]}
+      style={[ss.statCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
       onPress={onPress} activeOpacity={onPress ? 0.7 : 1}
     >
+      <View style={[ss.statAccent, { backgroundColor: color }]} />
       <Text style={[ss.statValue, { color }]}>{value}</Text>
       <Text style={[ss.statLabel, { color: theme.textSecondary }]}>{label}</Text>
     </TouchableOpacity>
@@ -47,9 +48,10 @@ function CaseRow({ item, onPress }: { item: any; onPress: () => void }) {
   const color = STATUS_COLOR[item.status] || '#64748B';
   return (
     <TouchableOpacity
-      style={[ss.caseRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      style={[ss.caseRow, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
       onPress={onPress} activeOpacity={0.7}
     >
+      <View style={[ss.caseStripe, { backgroundColor: color }]} />
       <View style={{ flex: 1 }}>
         <Text style={[ss.caseTitle, { color: theme.textPrimary }]} numberOfLines={1}>
           {item.work_order_number} {item.asset_name || 'Asset'}
@@ -498,8 +500,8 @@ function DeptHeadHome({ user }: { user: any }) {
 }
 
 const dhs = StyleSheet.create({
-  pmsCard:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: Radius.lg, borderWidth: 1.5 },
-  pmsIconBox:   { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsCard:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
+  pmsIconBox:   { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   pmsCardTitle: { fontSize: 15, fontWeight: '700' },
 });
 
@@ -519,38 +521,40 @@ const ss = StyleSheet.create({
   safe:        { flex: 1 },
   scroll:      { padding: Spacing.lg, paddingBottom: 48, gap: Spacing.md },
   topBar:      { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-  greeting:    { fontSize: 13, marginBottom: 2 },
-  name:        { fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  greeting:    { fontSize: 13, marginBottom: 2, fontWeight: '500' },
+  name:        { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
   company:     { fontSize: 12, marginTop: 2 },
-  roleTag:     { marginTop: 4, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 20, fontSize: 11, fontWeight: '700', textTransform: 'capitalize', overflow: 'hidden' },
-  qrBtn:       { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  roleTag:     { marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, fontSize: 11, fontWeight: '700', textTransform: 'capitalize', overflow: 'hidden' },
+  qrBtn:       { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', ...Shadows.brand },
   raiseCta:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: Spacing.md, borderRadius: Radius.lg },
   raiseCtaText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
-  sectionTitle:{ fontSize: 11, fontWeight: '700', letterSpacing: 1, marginTop: 4 },
+  sectionTitle:{ fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginTop: 4 },
   rowBetween:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  statCard:    { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, alignItems: 'center' },
-  statValue:   { fontSize: 26, fontWeight: '800', lineHeight: 32 },
-  statLabel:   { fontSize: 11, marginTop: 2, fontWeight: '600' },
-  caseRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1 },
-  caseTitle:   { fontWeight: '600', fontSize: 13 },
+  statCard:    { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, alignItems: 'center', overflow: 'hidden' },
+  statAccent:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
+  statValue:   { fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.5 },
+  statLabel:   { fontSize: 12, marginTop: 2, fontWeight: '600' },
+  caseRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, paddingLeft: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, overflow: 'hidden' },
+  caseStripe:  { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  caseTitle:   { fontWeight: '700', fontSize: 13 },
   caseDesc:    { fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   statusText:  { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  engRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1 },
-  engAvatar:   { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  engName:     { fontWeight: '600', fontSize: 13 },
+  engRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, ...Shadows.xs },
+  engAvatar:   { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  engName:     { fontWeight: '700', fontSize: 13 },
   engSub:      { fontSize: 11, marginTop: 2 },
   actionsRow:  { flexDirection: 'row', gap: Spacing.sm },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionBtn:   { flex: 1, alignItems: 'center', gap: 6, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1 },
-  actionIcon:  { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  actionBtn:   { flex: 1, alignItems: 'center', gap: 8, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
+  actionIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   legacyCard:  { width: '47.5%', padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, gap: 8 },
-  pmsCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5 },
-  pmsIconBox:  { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  pmsCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
+  pmsIconBox:  { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   pmsCardTitle:{ fontSize: 15, fontWeight: '700' },
-  pmsBadge:    { backgroundColor: '#2563eb', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },
+  pmsBadge:    { backgroundColor: '#2347C5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, minWidth: 28, alignItems: 'center' },
 });
 
 // ΓöÇΓöÇΓöÇ Quick-action card ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -750,27 +754,27 @@ const styles = StyleSheet.create({
   name:         { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   company:      { fontSize: 12, marginTop: 2 },
   topActions:   { flexDirection: 'row', gap: Spacing.sm, paddingTop: 4 },
-  iconBtn:      { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  badge:        { position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  iconBtn:      { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, ...Shadows.xs },
+  badge:        { position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#fff' },
   badgeText:    { fontSize: 9, color: '#fff', fontWeight: '700' },
 
-  statsRow:     { flexDirection: 'row', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden' },
-  statItem:     { flex: 1, alignItems: 'center', paddingVertical: Spacing.md },
-  statValue:    { fontSize: 22, fontWeight: '700', lineHeight: 28 },
-  statLabel:    { fontSize: 11, marginTop: 2 },
+  statsRow:     { flexDirection: 'row', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden', ...Shadows.sm },
+  statItem:     { flex: 1, alignItems: 'center', paddingVertical: Spacing.lg },
+  statValue:    { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
+  statLabel:    { fontSize: 11, marginTop: 2, fontWeight: '600' },
 
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   actionsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionCard:   { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, gap: 4 },
-  actionIconWrap:{ width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  actionLabel:  { fontSize: 13, fontWeight: '600' },
+  actionCard:   { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: 4, ...Shadows.xs },
+  actionIconWrap:{ width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  actionLabel:  { fontSize: 13, fontWeight: '700' },
   actionSub:    { fontSize: 11 },
 
   roleChip:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1 },
   roleText:     { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 
-  pmsApprovalCard:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5 },
-  pmsApprovalIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsApprovalCard:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
+  pmsApprovalIcon:  { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   pmsApprovalTitle: { fontSize: 15, fontWeight: '700' },
   pmsApprovalSub:   { fontSize: 12, marginTop: 2 },
   pmsApprovalBadge: { backgroundColor: '#7c3aed', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },

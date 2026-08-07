@@ -18,7 +18,7 @@ import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { fetchDeptHeadPending, fetchDeptHeadDetail, submitDeptHeadReview } from '../utils/api';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 // ─── Metadata capture ─────────────────────────────────────────────────────────
 async function captureReviewMetadata(): Promise<Record<string, any>> {
@@ -276,7 +276,7 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
         <ScrollView contentContainerStyle={s.detailScroll} showsVerticalScrollIndicator={false}>
 
           {/* Summary card */}
-          <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={[s.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <SectionLabel text="Submission Summary" />
             <InfoRow label="Asset" value={detail.assetName} />
             <InfoRow label="Asset Code" value={detail.generatedAssetId} />
@@ -301,7 +301,7 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
           </View>
 
           {/* Checklist responses */}
-          <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={[s.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <SectionLabel text={`Checklist Responses (${detail.responses.length})`} />
             {detail.responses.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -340,7 +340,7 @@ function DetailView({ item, onBack, onReviewed }: { item: PendingItem; onBack: (
 
           {/* Audit log */}
           {detail.auditLog.length > 0 && (
-            <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={[s.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               <SectionLabel text="Audit Timeline" />
               {detail.auditLog.map((log, idx) => (
                 <View key={log.id} style={s.auditRow}>
@@ -446,7 +446,7 @@ export default function DeptHeadPmsScreen() {
           ) : items.map(item => (
             <TouchableOpacity
               key={item.id}
-              style={[s.itemCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              style={[s.itemCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
               onPress={() => setSelected(item)}
               activeOpacity={0.75}
             >

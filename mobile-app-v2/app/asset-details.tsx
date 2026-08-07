@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { API_BASE, fetchAssetByQR, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus } from '../utils/api';
 import type { SoftRequest } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 function InfoRow({ label, value }: { label: string; value?: string | number }) {
@@ -34,7 +34,7 @@ function TemplateCard({
   const isLogsheet = type === 'logsheet';
   return (
     <TouchableOpacity
-      style={[styles.tplCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+      style={[styles.tplCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
       onPress={() =>
         router.push({
           pathname: '/checklist-entry',
@@ -191,7 +191,7 @@ export default function AssetDetailsScreen() {
           {openRequests.map((req) => (
             <TouchableOpacity
               key={req.id}
-              style={[styles.reqCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+              style={[styles.reqCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
               onPress={() =>
                 router.push({
                   pathname: '/soft-resolve',
@@ -308,7 +308,7 @@ export default function AssetDetailsScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>ASSET DETAILS</Text>
           </View>
-          <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+          <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <InfoRow label="QR / Barcode"   value={asset.assetUniqueId ?? asset.uniqueId} />
             <InfoRow label="Status"         value={asset.status} />
             <InfoRow label="Calibration Status" value={calibrationStatus} />
@@ -461,7 +461,7 @@ export default function AssetDetailsScreen() {
           </View>
 
           {/* Asset info with metadata */}
-          <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+          <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <InfoRow label="Name"         value={assetName} />
             <InfoRow label="QR / Barcode" value={asset.assetUniqueId ?? asset.uniqueId} />
             <InfoRow label="Calibration Status" value={calibrationStatus} />
@@ -482,7 +482,7 @@ export default function AssetDetailsScreen() {
           </View>
 
           {/* Chat / Query — available after QR scan */}
-          {scannedViaQR && <ChatButton />}}
+          {scannedViaQR && <ChatButton />}
           {scannedViaQR ? (
             hasTemplates ? (
               <>
@@ -539,7 +539,7 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* Info — full details including healthcare metadata */}
-        <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <InfoRow label="QR / Barcode"  value={asset.assetUniqueId ?? asset.uniqueId} />
           <InfoRow label="Equipment Name" value={assetName} />
           <InfoRow label="Calibration Status" value={calibrationStatus} />
@@ -591,7 +591,7 @@ export default function AssetDetailsScreen() {
             <>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: Spacing.lg }]}>WORKING STATUS</Text>
               <TouchableOpacity
-                style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md }]}
+                style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md }]}
                 onPress={() => setShowStatusPicker(true)}
                 activeOpacity={0.85}
                 disabled={updatingStatus}
@@ -635,7 +635,7 @@ export default function AssetDetailsScreen() {
         {calibrationHistory.length > 0 && (
           <>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>CALIBRATION HISTORY</Text>
-            <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+            <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               {calibrationHistory.slice(0, 5).map((row) => (
                 <View key={String(row.id)} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.borderLight }}>
                   <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 13 }}>
@@ -735,12 +735,12 @@ const styles = StyleSheet.create({
   scroll:       { paddingBottom: Spacing.xxl },
   hero:         { padding: Spacing.xxl, alignItems: 'center', gap: Spacing.sm },
   heroId:       { ...Typography.h4, color: 'rgba(255,255,255,0.9)' },
-  card:         { margin: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 4 },
+  card:         { margin: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1 },
   row:          { flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1 },
   rowLabel:     { ...Typography.bodyS },
   rowValue:     { ...Typography.body, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
   sectionTitle: { ...Typography.label, letterSpacing: 1, marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs },
-  tplCard:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  tplCard:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
   tplIcon:      { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   tplName:      { ...Typography.h4, marginBottom: 2 },
   tplType:      { ...Typography.bodyS },
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
   error:        { ...Typography.body, textAlign: 'center', marginTop: Spacing.xxl },
   alertBanner:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, margin: Spacing.lg, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5 },
   alertText:    { ...Typography.bodyS, fontWeight: '700', flex: 1 },
-  reqCard:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  reqCard:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
   reqIconWrap:  { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center' },
   reqTitle:     { ...Typography.h4, marginBottom: 2 },
   reqSub:       { ...Typography.bodyS },

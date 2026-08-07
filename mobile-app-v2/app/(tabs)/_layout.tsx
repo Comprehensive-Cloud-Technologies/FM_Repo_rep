@@ -19,15 +19,22 @@ export default function TabsLayout() {
     borderTopColor: theme.tabBarBorder,
     borderTopWidth: 1 as const,
     paddingBottom: Math.max(Spacing.sm, insets.bottom),
-    paddingTop: Spacing.xs,
-    height: 60 + insets.bottom,
+    paddingTop: Spacing.sm,
+    height: 64 + insets.bottom,
+    // Subtle upward elevation so the bar reads as a floating surface
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 12,
   };
   const screenOpts = {
     headerShown: false,
     tabBarStyle,
     tabBarActiveTintColor:   theme.tabBarActive,
     tabBarInactiveTintColor: theme.tabBarInactive,
-    tabBarLabelStyle:        { fontSize: 11, fontWeight: '600' as const, marginBottom: 2 },
+    tabBarLabelStyle:        { fontSize: 11, fontWeight: '700' as const, marginBottom: 4, letterSpacing: 0.2 },
+    tabBarItemStyle:         { paddingTop: 2 },
   };
 
   const icon = (name: string) =>

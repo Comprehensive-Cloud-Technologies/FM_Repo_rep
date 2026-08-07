@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchWorkOrderById, updateWorkOrderStatus } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import StatusBadge, { statusVariant } from '../components/StatusBadge';
 
@@ -75,13 +75,13 @@ export default function WorkOrderDetailsScreen() {
       />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Status banner */}
-        <View style={[styles.statusBanner, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.statusBanner, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <StatusBadge label={order.status} variant={statusVariant(order.status)} dot />
           {order.priority ? <StatusBadge label={`${order.priority} Priority`} variant={order.priority === 'high' ? 'danger' : order.priority === 'medium' ? 'warning' : 'neutral'} dot={false} /> : null}
         </View>
 
         {/* Details */}
-        <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <InfoRow label="Asset"       value={order.assetName} />
           <InfoRow label="Description" value={order.description} />
           <InfoRow label="Assigned To" value={order.assignedToName ?? order.assignedTo} />
@@ -123,8 +123,8 @@ export default function WorkOrderDetailsScreen() {
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
-  statusBanner: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', padding: Spacing.lg, borderRadius: Radius.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
-  card:         { borderRadius: Radius.xl, overflow: 'hidden', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 4 },
+  statusBanner: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1 },
+  card:         { borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1 },
   row:          { flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1 },
   rowLabel:     { ...Typography.bodyS },
   rowValue:     { ...Typography.body, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },

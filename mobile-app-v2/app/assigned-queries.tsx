@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAssignedQueries, resolveAssetQuery, uploadQueryImage, getToken } from '../utils/api';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -196,7 +196,7 @@ export default function AssignedQueriesScreen() {
           ) : queries.map((q) => (
             <View
               key={q.id}
-              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
             >
               <View style={styles.cardTop}>
                 <View style={{ flex: 1, gap: 3 }}>
@@ -398,11 +398,10 @@ const styles = StyleSheet.create({
   emptySub:  { fontSize: 13, textAlign: 'center' },
 
   card: {
-    borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, gap: Spacing.sm,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: Spacing.sm,
   },
   cardTop:  { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  title:    { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  title:    { fontSize: 15, fontWeight: '700', lineHeight: 21 },
   assetName:{ fontSize: 12 },
   metaRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   meta:     { fontSize: 12 },

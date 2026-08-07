@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchMyTeam, fetchUnassignedTemplates, assignTemplate } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 export default function AssignTemplateScreen() {
@@ -64,7 +64,7 @@ export default function AssignTemplateScreen() {
         {team.map((m) => (
           <TouchableOpacity
             key={m.id}
-            style={[styles.selectRow, { borderColor: selUser?.id === m.id ? theme.primary : theme.border, backgroundColor: selUser?.id === m.id ? theme.primaryBg : theme.surface, shadowColor: theme.cardShadow }]}
+            style={[styles.selectRow, Shadows.xs, { borderColor: selUser?.id === m.id ? theme.primary : theme.borderLight, backgroundColor: selUser?.id === m.id ? theme.primaryBg : theme.surface }]}
             onPress={() => setSelUser(m)}
           >
             <View style={[styles.avatar, { backgroundColor: theme.primaryBg }]}>
@@ -80,7 +80,7 @@ export default function AssignTemplateScreen() {
         {templates.map((t) => (
           <TouchableOpacity
             key={t.id}
-            style={[styles.selectRow, { borderColor: selTpl?.id === t.id ? theme.primary : theme.border, backgroundColor: selTpl?.id === t.id ? theme.primaryBg : theme.surface, shadowColor: theme.cardShadow }]}
+            style={[styles.selectRow, Shadows.xs, { borderColor: selTpl?.id === t.id ? theme.primary : theme.borderLight, backgroundColor: selTpl?.id === t.id ? theme.primaryBg : theme.surface }]}
             onPress={() => setSelTpl(t)}
           >
             <MaterialCommunityIcons
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   sectionTitle: { ...Typography.label, letterSpacing: 1 },
-  selectRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2 },
+  selectRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5 },
   avatar:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarText:   { ...Typography.h4 },
   selName:      { ...Typography.body, fontWeight: '500', flex: 1 },

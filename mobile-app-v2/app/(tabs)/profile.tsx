@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { logout, logoutUser, getStoredCompany } from '../../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import type { RoleCapabilities } from '../../utils/permissions';
 
 function CapBadge({ label, active }: { label: string; active: boolean }) {
@@ -64,23 +64,28 @@ export default function ProfileTab() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Avatar + name */}
-        <View style={styles.hero}>
-          <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarText}>{(user?.fullName ?? 'U').charAt(0).toUpperCase()}</Text>
+        <View style={[styles.hero, Shadows.sm, { backgroundColor: theme.surface }]}>
+          <View style={[styles.avatarRing, { backgroundColor: theme.primaryBg }]}>
+            <View style={[styles.avatar, Shadows.brand, { backgroundColor: theme.primary }]}>
+              <Text style={styles.avatarText}>{(user?.fullName ?? 'U').charAt(0).toUpperCase()}</Text>
+            </View>
           </View>
           <Text style={[styles.name, { color: theme.textPrimary }]}>{user?.fullName}</Text>
           <Text style={[styles.company, { color: theme.textSecondary }]}>{user?.companyName}</Text>
           <View style={[styles.rolePill, { backgroundColor: theme.primaryBg }]}>
+            <MaterialCommunityIcons name="shield-account" size={13} color={theme.primary} />
             <Text style={[styles.roleText, { color: theme.primary }]}>{user?.role ?? 'Employee'}</Text>
           </View>
         </View>
 
         {/* Settings */}
-        <View style={[styles.section, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.section, Shadows.sm, { backgroundColor: theme.surface }]}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Settings</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <MaterialCommunityIcons name="weather-night" size={22} color={theme.textSecondary} />
+              <View style={[styles.menuIcon, { backgroundColor: theme.secondary + '18' }]}>
+                <MaterialCommunityIcons name="weather-night" size={20} color={theme.secondary} />
+              </View>
               <Text style={[styles.settingLabel, { color: theme.textPrimary }]}>Dark Mode</Text>
             </View>
             <Switch
@@ -93,12 +98,12 @@ export default function ProfileTab() {
         </View>
 
         {/* Menu items */}
-        <View style={[styles.section, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.section, styles.sectionPad, Shadows.sm, { backgroundColor: theme.surface }]}>
           {[
-            { icon: 'history',              label: 'Submission History', onPress: () => router.push('/history')      },
-            { icon: 'alert-outline',         label: 'My Warnings',        onPress: () => router.push('/warnings')     },
-            { icon: 'school-outline',        label: 'Training',           onPress: () => router.push('/training')     },
-            { icon: 'bell-outline',          label: 'Notifications',      onPress: () => router.push('/notifications') },
+            { icon: 'history',       label: 'Submission History', color: theme.primary, onPress: () => router.push('/history')      },
+            { icon: 'alert-outline', label: 'My Warnings',        color: theme.warning, onPress: () => router.push('/warnings')     },
+            { icon: 'school-outline',label: 'Training',           color: theme.success, onPress: () => router.push('/training')     },
+            { icon: 'bell-outline',  label: 'Notifications',      color: theme.info,    onPress: () => router.push('/notifications') },
           ].map((item, idx, arr) => (
             <TouchableOpacity
               key={item.label}
@@ -106,7 +111,9 @@ export default function ProfileTab() {
               onPress={item.onPress}
               activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name={item.icon as any} size={22} color={theme.textSecondary} />
+              <View style={[styles.menuIcon, { backgroundColor: item.color + '18' }]}>
+                <MaterialCommunityIcons name={item.icon as any} size={20} color={item.color} />
+              </View>
               <Text style={[styles.menuLabel, { color: theme.textPrimary }]}>{item.label}</Text>
               <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textMuted} />
             </TouchableOpacity>
@@ -128,14 +135,16 @@ export default function ProfileTab() {
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xxl },
-  hero:         { alignItems: 'center', paddingVertical: Spacing.xl },
-  avatar:       { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
-  avatarText:   { fontSize: 32, color: '#fff', fontWeight: '700' },
+  hero:         { alignItems: 'center', paddingVertical: Spacing.xl, borderRadius: Radius.xxl },
+  avatarRing:   { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
+  avatar:       { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
+  avatarText:   { fontSize: 30, color: '#fff', fontWeight: '800' },
   name:         { ...Typography.h2, marginBottom: 4 },
   company:      { ...Typography.body, marginBottom: Spacing.md },
-  rolePill:     { paddingHorizontal: Spacing.md, paddingVertical: 4, borderRadius: Radius.full },
-  roleText:     { ...Typography.label },
-  section:      { borderRadius: Radius.xl, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 4, gap: Spacing.md },
+  rolePill:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full },
+  roleText:     { ...Typography.label, textTransform: 'capitalize' },
+  section:      { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md },
+  sectionPad:   { paddingVertical: Spacing.xs },
   sectionTitle: { ...Typography.h4 },
   sectionSub:   { ...Typography.bodyS, marginTop: -Spacing.sm },
   capsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
@@ -143,9 +152,10 @@ const styles = StyleSheet.create({
   capText:      { ...Typography.micro },
   settingRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   settingLeft:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  settingLabel: { ...Typography.body },
+  settingLabel: { ...Typography.body, fontWeight: '600' },
+  menuIcon:     { width: 38, height: 38, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   menuRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
-  menuLabel:    { ...Typography.body, flex: 1 },
+  menuLabel:    { ...Typography.body, fontWeight: '600', flex: 1 },
   logoutBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1 },
   logoutText:   { ...Typography.h4 },
   version:      { ...Typography.micro, textAlign: 'center' },

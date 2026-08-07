@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { submitQueryReview } from '../utils/api';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 function StarRow({ rating, onRate }: { rating: number; onRate: (r: number) => void }) {
@@ -80,7 +80,7 @@ export default function IssueReviewScreen() {
         ) : null}
 
         {/* Star rating */}
-        <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>YOUR RATING</Text>
           <StarRow rating={rating} onRate={setRating} />
           {rating > 0 && (
@@ -91,7 +91,7 @@ export default function IssueReviewScreen() {
         </View>
 
         {/* Review text */}
-        <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>YOUR REVIEW (OPTIONAL)</Text>
           <TextInput
             style={[styles.textArea, { borderColor: theme.borderLight, color: theme.textPrimary, backgroundColor: theme.background }]}
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   heroSub:   { fontSize: 14, textAlign: 'center' },
   issueTitleBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.md },
   issueTitleText: { flex: 1, fontSize: 13 },
-  card: { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  card: { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm, borderWidth: 1 },
   sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   textArea: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, fontSize: 14, minHeight: 120 },
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: 14, borderRadius: Radius.lg },

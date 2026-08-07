@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchHCRequests } from '../utils/api';
-import { useTheme, Spacing, Radius, Typography } from '../utils/theme';
+import { useTheme, Spacing, Radius, Typography, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,15 +78,16 @@ function SummaryChip({ label, count, color, active, onPress }: {
 
 // ─── Request Row ──────────────────────────────────────────────────────────────
 function RequestRow({ item, onPress }: { item: Request; onPress: () => void }) {
+  const { theme } = useTheme();
   const sc = STATUS_COLORS[item.status] ?? { bg: '#F1F5F9', text: '#64748B' };
   const pc = PRIORITY_COLORS[item.priority] ?? '#6B7280';
   const isQR = item.source_type === 'asset_query';
   return (
-    <TouchableOpacity onPress={onPress} style={styles.row} activeOpacity={0.75}>
+    <TouchableOpacity onPress={onPress} style={[styles.row, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]} activeOpacity={0.75}>
       <View style={styles.rowHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowWO}>{item.work_order_number}</Text>
-          <Text style={styles.rowAsset} numberOfLines={1}>{item.asset_name || '—'}</Text>
+          <Text style={[styles.rowWO, { color: theme.primary }]}>{item.work_order_number}</Text>
+          <Text style={[styles.rowAsset, { color: theme.textPrimary }]} numberOfLines={1}>{item.asset_name || '—'}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
@@ -101,7 +102,7 @@ function RequestRow({ item, onPress }: { item: Request; onPress: () => void }) {
         </View>
       </View>
 
-      <Text style={styles.rowDesc} numberOfLines={2}>{item.issue_description || 'No description'}</Text>
+      <Text style={[styles.rowDesc, { color: theme.textSecondary }]} numberOfLines={2}>{item.issue_description || 'No description'}</Text>
 
       <View style={styles.rowMeta}>
         {item.department_name ? (
@@ -277,11 +278,11 @@ const styles = StyleSheet.create({
   chipLabel:    { fontSize: 10, fontWeight: '700', marginTop: 1 },
   searchWrap:   { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, paddingHorizontal: Spacing.sm, paddingVertical: 8, gap: 8 },
   searchInput:  { flex: 1, fontSize: 14 },
-  row:          { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, backgroundColor: '#fff', borderRadius: Radius.lg, borderWidth: 1, borderColor: '#E2E8F0', padding: 14, gap: 8 },
+  row:          { marginHorizontal: Spacing.lg, marginTop: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, padding: 14, gap: 8 },
   rowHeader:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rowWO:        { fontSize: 12, fontWeight: '700', color: '#2563EB', fontFamily: 'monospace' },
-  rowAsset:     { fontSize: 14, fontWeight: '700', color: '#0F172A', marginTop: 2 },
-  rowDesc:      { fontSize: 13, color: '#64748B', lineHeight: 18 },
+  rowWO:        { fontSize: 12, fontWeight: '700', fontFamily: 'monospace' },
+  rowAsset:     { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  rowDesc:      { fontSize: 13, lineHeight: 18 },
   rowMeta:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   metaChip:     { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F1F5F9', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   metaText:     { fontSize: 11, color: '#64748B' },

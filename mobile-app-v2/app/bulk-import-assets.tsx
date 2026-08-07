@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { useTheme, Spacing, Radius, Typography } from '../utils/theme';
+import { useTheme, Spacing, Radius, Typography, Shadows } from '../utils/theme';
 import {
   bulkImportAssets, assetImportTemplateUrl, getToken,
   type BulkImportResult,
@@ -106,7 +106,7 @@ export default function BulkImportAssetsScreen() {
         {/* Column guide */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: theme.textPrimary }]}>Required Excel Columns</Text>
-          <View style={[s.columnsBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={[s.columnsBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {[
               { col: 'assetName*',     note: 'Required — asset display name' },
               { col: 'assetType',      note: 'e.g. general, healthcare' },
@@ -131,7 +131,7 @@ export default function BulkImportAssetsScreen() {
             <View style={s.section}>
               <Text style={[s.sectionTitle, { color: theme.textPrimary }]}>Select Excel File</Text>
               <TouchableOpacity
-                style={[s.pickBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                style={[s.pickBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
                 onPress={pickFile}
                 activeOpacity={0.7}
               >
@@ -185,7 +185,7 @@ export default function BulkImportAssetsScreen() {
                 {result.assets.map((a) => (
                   <TouchableOpacity
                     key={a.id}
-                    style={[s.assetCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    style={[s.assetCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
                     onPress={() => router.push({ pathname: '/asset-details', params: { assetId: a.id } })}
                     activeOpacity={0.8}
                   >

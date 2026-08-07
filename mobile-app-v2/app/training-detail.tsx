@@ -4,7 +4,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchTrainingById, startTraining, completeTrainingModule } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 export default function TrainingDetailScreen() {
@@ -100,7 +100,7 @@ export default function TrainingDetailScreen() {
         {modules.map((m, idx) => (
           <View
             key={m.id}
-            style={[styles.moduleCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, borderLeftColor: m.completed ? theme.success : theme.border, borderLeftWidth: 4 }]}
+            style={[styles.moduleCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: m.completed ? theme.success : theme.primary, borderLeftWidth: 4 }]}
           >
             <View style={styles.moduleHeader}>
               <View style={[styles.moduleNum, { backgroundColor: m.completed ? theme.successBg : theme.primaryBg }]}>
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   startBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.lg, borderRadius: Radius.lg },
   startBtnText:     { ...Typography.h4, color: '#fff' },
   sectionTitle:     { ...Typography.label, letterSpacing: 1 },
-  moduleCard:       { borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.sm, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  moduleCard:       { borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.sm, borderWidth: 1 },
   moduleHeader:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   moduleNum:        { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   moduleNumText:    { ...Typography.label },

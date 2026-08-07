@@ -9,7 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchSiteScore, logoutUser, getStoredCompany, type SiteScore, ApiError } from '../../utils/api';
 import { hasSoftAccess } from '../../utils/permissions';
-import { useTheme, Spacing, Radius, Typography } from '../../utils/theme';
+import { useTheme, Spacing, Radius, Typography, Shadows } from '../../utils/theme';
 
 // ─── Animated arc progress (works without SVG) ────────────────────────────────
 // Uses two half-circle clips to render 0-360° progress correctly.
@@ -69,7 +69,7 @@ function StatCard({ icon, label, value, color, onPress }: {
   const Wrapper = onPress ? TouchableOpacity : View;
   return (
     <Wrapper
-      style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      style={[styles.statCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
       onPress={onPress}
       activeOpacity={0.8}
     >
@@ -157,7 +157,7 @@ export default function DashboardScreen() {
         ) : (
           <>
             {/* Score card — horizontal: arc left, progress right */}
-            <View style={[styles.scoreCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={[styles.scoreCard, Shadows.md, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               <ScoreArc pct={pct} color={ring} />
               <View style={styles.scoreSide}>
                 <Text style={[styles.scoreTitle, { color: theme.textPrimary }]}>Today's Progress</Text>
@@ -238,9 +238,9 @@ const styles = StyleSheet.create({
   retryText:    { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title:        { fontSize: 20, fontWeight: '700' },
+  title:        { fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
   subtitle:     { fontSize: 12, marginTop: 2 },
-  refreshBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  refreshBtn:   { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, ...Shadows.xs },
 
   scoreCard:    { borderRadius: Radius.xl, padding: Spacing.xl, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, borderWidth: 1 },
   scoreSide:    { flex: 1, gap: Spacing.xs },
@@ -250,14 +250,14 @@ const styles = StyleSheet.create({
   barTrack:     { width: '100%', height: 6, borderRadius: 3, marginTop: 4, overflow: 'hidden' },
   barFill:      { height: '100%', borderRadius: 3 },
 
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   statsRow:     { flexDirection: 'row', gap: Spacing.sm },
   statCard:     { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: 4, borderWidth: 1 },
-  statIcon:     { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  statValue:    { fontSize: 20, fontWeight: '700' },
-  statLabel:    { fontSize: 10, textAlign: 'center' },
+  statIcon:     { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
+  statLabel:    { fontSize: 10, textAlign: 'center', fontWeight: '600' },
 
-  alertBanner:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1 },
+  alertBanner:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
   alertTitle:   { fontSize: 13, fontWeight: '700', color: '#B91C1C' },
   alertSub:     { fontSize: 11, color: '#EF4444', marginTop: 1 },
 });

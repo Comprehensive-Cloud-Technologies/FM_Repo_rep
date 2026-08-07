@@ -16,7 +16,7 @@ import {
   raiseSoftRequest,
   API_BASE,
 } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -563,7 +563,7 @@ export default function ChecklistEntryScreen() {
                         </Text>
                       </View>
                     ) : null}
-                    <View style={[styles.fieldCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, borderColor: theme.inputBorder }]}>
+                    <View style={[styles.fieldCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                       <View style={styles.fieldHeader}>
                         <View style={[styles.fieldIdxBadge, { backgroundColor: theme.primaryBg }]}>
                           <Text style={[styles.fieldIdxText, { color: theme.primary }]}>{idx + 1}</Text>
@@ -658,13 +658,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.md,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 1,
   },
   fieldHeader:       { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm, alignItems: 'flex-start' },
-  fieldIdxBadge:     { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  fieldIdxBadge:     { width: 26, height: 26, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   fieldIdxText:      { fontSize: 11, fontWeight: '700' as const, lineHeight: 14 },
   fieldLabel:        { fontSize: 13, fontWeight: '500' as const, lineHeight: 19, flex: 1 },
   fieldUnit:         { ...Typography.micro, marginTop: 1 },

@@ -32,7 +32,7 @@ import {
   authenticatedFetch,
 } from '../../utils/api';
 import { hasSoftAccess, isSoftManager } from '../../utils/permissions';
-import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import StatusBadge, { statusVariant } from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 
@@ -93,9 +93,10 @@ function TaskCard({ item }: { item: TaskItem }) {
     <TouchableOpacity
       style={[
         styles.card,
+        Shadows.sm,
         {
           backgroundColor: theme.surface,
-          shadowColor:     theme.cardShadow,
+          borderColor:     theme.borderLight,
           borderLeftColor: item.color,
         },
       ]}
@@ -197,7 +198,7 @@ function HCTasksScreen() {
     const c = STATUS_COLOR[item.status] || '#64748B';
     return (
       <TouchableOpacity
-        style={[hcSS.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        style={[hcSS.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: c }]}
         onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })}
         activeOpacity={0.7}
       >
@@ -269,16 +270,16 @@ function HCTasksScreen() {
 const hcSS = StyleSheet.create({
   safe:        { flex: 1 },
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
-  addBtn:      { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  addBtn:      { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', ...Shadows.brand },
   chipBar:     { flexDirection: 'row', gap: 6, padding: Spacing.sm, paddingHorizontal: Spacing.md, borderBottomWidth: 1, flexWrap: 'wrap' },
-  chip:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  chipText:    { fontSize: 11, fontWeight: '600' },
-  card:        { borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.md, gap: 6 },
+  chip:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  chipText:    { fontSize: 11, fontWeight: '700' },
+  card:        { borderRadius: Radius.lg, borderWidth: 1, borderLeftWidth: 4, padding: Spacing.md, gap: 6 },
   cardTop:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  num:         { fontSize: 12, fontWeight: '700' },
-  asset:       { fontSize: 14, fontWeight: '600', marginTop: 2 },
-  badge:       { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  num:         { fontSize: 12, fontWeight: '800' },
+  asset:       { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  badge:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:   { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   desc:        { fontSize: 13 },
   footer:      { flexDirection: 'row', justifyContent: 'space-between' },
@@ -562,7 +563,7 @@ const styles = StyleSheet.create({
   },
   headerTitle:     { ...Typography.h3 },
   headerSub:       { ...Typography.bodyS, marginTop: 2 },
-  historyBtn:      { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  historyBtn:      { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 
   // Summary row
   summaryRow:      {
@@ -612,11 +613,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: Radius.lg,
     padding: Spacing.md,
-    marginVertical: 3,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 2,
+    marginVertical: 4,
+    borderWidth: 1,
     borderLeftWidth: 4,
   },
   cardIcon:        {

@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchChecklistHistory } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import EmptyState from '../components/EmptyState';
 import StatusBadge from '../components/StatusBadge';
@@ -44,7 +44,7 @@ export default function ChecklistHistoryScreen() {
           ) : items.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
               onPress={() => router.push({ pathname: '/submission-detail', params: { type: item.type ?? 'checklist', id: item.id } })}
               activeOpacity={0.8}
             >
@@ -75,7 +75,7 @@ export default function ChecklistHistoryScreen() {
 const styles = StyleSheet.create({
   safe:     { flex: 1 },
   list:     { padding: Spacing.lg, gap: Spacing.md },
-  card:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  card:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
   iconBg:   { width: 42, height: 42, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   cardTitle:{ ...Typography.h4 },
   cardSub:  { ...Typography.bodyS, marginTop: 2 },

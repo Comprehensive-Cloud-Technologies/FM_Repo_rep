@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAssets } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import EmptyState from '../components/EmptyState';
 import Header from '../components/Header';
 import { useAuth } from '../context/AuthContext';
@@ -104,7 +104,7 @@ export default function AssetsScreen() {
           ) : assets.map((a) => (
             <TouchableOpacity
               key={a.id}
-              style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
               onPress={() => router.push({ pathname: '/asset-details', params: { assetId: a.id } })}
               activeOpacity={0.8}
             >
@@ -148,10 +148,10 @@ export default function AssetsScreen() {
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.lg, paddingHorizontal: Spacing.md, height: 44, borderWidth: 1.5, borderRadius: Radius.md, gap: Spacing.sm },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.lg, paddingHorizontal: Spacing.md, height: 48, borderWidth: 1.5, borderRadius: Radius.lg, gap: Spacing.sm },
   searchInput:{ flex: 1, ...Typography.body },
   list:       { padding: Spacing.lg, gap: Spacing.md },
-  card:       { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  card:       { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
   assetIcon:  { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
   assetBody:  { flex: 1, gap: 2 },
   assetName:  { ...Typography.h4 },

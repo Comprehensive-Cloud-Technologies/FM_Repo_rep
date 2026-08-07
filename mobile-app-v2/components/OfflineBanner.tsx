@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { subscribeNetworkStatus, getIsOnline } from '../utils/networkStatus';
 import { useTheme, Typography, Spacing } from '../utils/theme';
 
@@ -19,12 +20,16 @@ export default function OfflineBanner() {
 
   return (
     <Animated.View style={[styles.banner, { backgroundColor: theme.warning, opacity: anim }]}>
-      <Text style={styles.text}>No internet connection — offline mode</Text>
+      <View style={styles.row}>
+        <MaterialCommunityIcons name="wifi-off" size={14} color="#fff" />
+        <Text style={styles.text}>No internet connection — offline mode</Text>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   banner: { paddingVertical: Spacing.sm, alignItems: 'center' },
+  row:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
   text:   { ...Typography.label, color: '#fff' },
 });

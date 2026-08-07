@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchMySubmissionDetail } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 
@@ -88,7 +88,7 @@ export default function SubmissionDetailScreen() {
       <Header title={detail.templateName ?? 'Submission'} subtitle={detail.assetName} showBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Meta */}
-        <View style={[styles.metaCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}>
+        <View style={[styles.metaCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <View style={styles.metaRow}>
             <Text style={[styles.metaLabel, { color: theme.textSecondary }]}>Submitted</Text>
             <Text style={[styles.metaValue, { color: theme.textPrimary }]}>{new Date(detail.submittedAt).toLocaleString()}</Text>
@@ -126,7 +126,7 @@ export default function SubmissionDetailScreen() {
         {/* Answers */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>RESPONSES</Text>
         {answers.map((a, idx) => (
-          <View key={a.questionId ?? a.question ?? idx} style={[styles.answerCard, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, borderLeftColor: a.flagged ? theme.warning : theme.border, borderLeftWidth: a.flagged ? 4 : 1 }]}>
+          <View key={a.questionId ?? a.question ?? idx} style={[styles.answerCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: a.flagged ? theme.warning : theme.primary, borderLeftWidth: a.flagged ? 4 : 3 }]}>
             <Text style={[styles.question, { color: theme.textSecondary }]}>{a.label ?? a.question ?? a.questionText}</Text>
             <AnswerValue answer={a} />
             {a.flagged ? (
@@ -142,12 +142,12 @@ export default function SubmissionDetailScreen() {
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
-  metaCard:     { borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.sm, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3 },
+  metaCard:     { borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.sm, borderWidth: 1 },
   metaRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   metaLabel:    { ...Typography.bodyS },
   metaValue:    { ...Typography.body },
-  sectionTitle: { ...Typography.label, letterSpacing: 1 },
-  answerCard:   { borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2, gap: Spacing.xs },
+  sectionTitle: { ...Typography.overline },
+  answerCard:   { borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: Spacing.xs },
   question:     { ...Typography.bodyS },
   answer:       { ...Typography.h4 },
   flagNote:     { ...Typography.micro },

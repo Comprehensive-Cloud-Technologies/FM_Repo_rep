@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { verifyCompanyCode, getStoredUser, getStoredCompany } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MAX = Math.min(SCREEN_W - Spacing.xl * 2, 440);
@@ -87,7 +87,7 @@ export default function CompanyCodeScreen() {
           </View>
 
           {/* Card */}
-          <View style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow, width: CARD_MAX }]}>
+          <View style={[styles.card, Shadows.lg, { backgroundColor: theme.surface, width: CARD_MAX }]}>
             <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Enter Company Code</Text>
             <Text style={[styles.cardSub, { color: theme.textSecondary }]}>
               Contact your administrator for your company's access code.
@@ -145,13 +145,13 @@ const styles = StyleSheet.create({
   logo:      { width: 160, height: 80, marginBottom: Spacing.lg },
   appName:   { ...Typography.h1, marginBottom: 4, textAlign: 'center' },
   tagline:   { ...Typography.body, textAlign: 'center' },
-  card:      { alignSelf: 'center', borderRadius: Radius.xl, padding: Spacing.xl, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 8, marginBottom: Spacing.xl },
+  card:      { alignSelf: 'center', borderRadius: Radius.xxl, padding: Spacing.xl, marginBottom: Spacing.xl },
   cardTitle: { ...Typography.h3, marginBottom: Spacing.sm },
   cardSub:   { ...Typography.body, marginBottom: Spacing.xl },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: Radius.md, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg, height: 52 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg, height: 54 },
   inputIcon: { marginRight: Spacing.sm },
   input:     { flex: 1, ...Typography.body, letterSpacing: 2 },
-  btn:       { height: 52, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  btn:       { height: 54, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   btnText:   { ...Typography.h4, color: '#fff' },
   footer:    { ...Typography.micro, textAlign: 'center' },
 });

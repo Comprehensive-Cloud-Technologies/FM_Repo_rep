@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchMyTeam, fetchAssets, createWorkOrder } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 const PRIORITIES = ['low', 'medium', 'high'];
@@ -114,7 +114,7 @@ export default function WorkOrderCreateScreen() {
         {assets.slice(0, 15).map((a) => (
           <TouchableOpacity
             key={a.id}
-            style={[styles.selectRow, { backgroundColor: selAsset?.id === a.id ? theme.primaryBg : theme.surface, borderColor: selAsset?.id === a.id ? theme.primary : theme.border, shadowColor: theme.cardShadow }]}
+            style={[styles.selectRow, Shadows.xs, { backgroundColor: selAsset?.id === a.id ? theme.primaryBg : theme.surface, borderColor: selAsset?.id === a.id ? theme.primary : theme.borderLight }]}
             onPress={() => setSelAsset(a)}
           >
             <MaterialCommunityIcons name="package-variant" size={20} color={selAsset?.id === a.id ? theme.primary : theme.textMuted} />
@@ -128,7 +128,7 @@ export default function WorkOrderCreateScreen() {
         {team.map((m) => (
           <TouchableOpacity
             key={m.id}
-            style={[styles.selectRow, { backgroundColor: selUser?.id === m.id ? theme.primaryBg : theme.surface, borderColor: selUser?.id === m.id ? theme.primary : theme.border, shadowColor: theme.cardShadow }]}
+            style={[styles.selectRow, Shadows.xs, { backgroundColor: selUser?.id === m.id ? theme.primaryBg : theme.surface, borderColor: selUser?.id === m.id ? theme.primary : theme.borderLight }]}
             onPress={() => setSelUser(m)}
           >
             <View style={[styles.avatar, { backgroundColor: theme.primaryBg }]}>
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   priorityRow:   { flexDirection: 'row', gap: Spacing.sm },
   priorityBtn:   { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center', borderWidth: 1.5 },
   priorityText:  { ...Typography.label },
-  selectRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2 },
+  selectRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5 },
   selName:       { ...Typography.body, fontWeight: '500' },
   avatar:        { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   avatarText:    { ...Typography.label },

@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchMyChecklists } from '../../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 
@@ -19,7 +19,7 @@ function ChecklistCard({ item }: { item: any }) {
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+      style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: type === 'logsheet' ? '#7C3AED' : theme.primary }]}
       onPress={() => router.push({ pathname: '/checklist-entry', params: { assignmentId: item.id, assetId: item.assetId, templateId: item.templateId, templateType: type, templateName: item.templateName, assetName: item.assetName } })}
       activeOpacity={0.8}
     >
@@ -156,11 +156,11 @@ export default function ChecklistsTab() {
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1 },
-  headerTitle: { ...Typography.h3 },
+  headerTitle: { ...Typography.h2 },
   headerSub:   { fontSize: 11, marginTop: 2 },
   filters:     { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1 },
-  pill:        { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full },
-  pillText:    { ...Typography.label, fontSize: 11 },
+  pill:        { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full },
+  pillText:    { ...Typography.label, fontSize: 11, fontWeight: '700' },
   list:        { padding: Spacing.lg, gap: Spacing.sm },
   emptyWrap:   { flex: 1 },
 
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   sectionBadge:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.full },
   sectionBadgeText:  { fontSize: 11, fontWeight: '700' },
 
-  card:        { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.md, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3, marginBottom: Spacing.xs },
+  card:        { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderLeftWidth: 4, marginBottom: Spacing.xs },
   cardIcon:    { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
   cardBody:    { flex: 1, gap: 2 },
   cardTitle:   { ...Typography.h4 },

@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchAssets, raiseSoftRequest } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 export default function SoftRaiseScreen() {
@@ -51,10 +51,9 @@ export default function SoftRaiseScreen() {
         {assets.slice(0, 20).map((a) => (
           <TouchableOpacity
             key={a.id}
-            style={[styles.assetRow, {
+            style={[styles.assetRow, Shadows.xs, {
               backgroundColor: asset?.id === a.id ? theme.primaryBg : theme.surface,
-              borderColor: asset?.id === a.id ? theme.primary : theme.border,
-              shadowColor: theme.cardShadow,
+              borderColor: asset?.id === a.id ? theme.primary : theme.borderLight,
             }]}
             onPress={() => setAsset(a)}
             activeOpacity={0.8}
@@ -107,7 +106,7 @@ const styles = StyleSheet.create({
   safe:          { flex: 1 },
   scroll:        { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
   label:         { ...Typography.label, letterSpacing: 0.5 },
-  assetRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2 },
+  assetRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5 },
   assetName:     { ...Typography.body, fontWeight: '500' },
   assetId:       { ...Typography.micro },
   textArea:      { borderWidth: 1.5, borderRadius: Radius.lg, padding: Spacing.md },

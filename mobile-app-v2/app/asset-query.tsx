@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetchAssetByBarcode, submitAssetQuery, uploadQueryImage, getToken } from '../utils/api';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 export default function AssetQueryScreen() {
@@ -175,7 +175,7 @@ export default function AssetQueryScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Asset identity card */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.inputBorder }]}>
+          <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md }}>
               <View style={[styles.iconBox, { backgroundColor: theme.primaryBg }]}>
                 <MaterialCommunityIcons name="medical-bag" size={28} color={theme.primary} />
@@ -212,7 +212,7 @@ export default function AssetQueryScreen() {
               <Text style={styles.chatBtnText}>Raise a Query / Report Issue</Text>
             </TouchableOpacity>
           ) : (
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.inputBorder }]}>
+            <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
               <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Report an Issue</Text>
               <Text style={[styles.formSub, { color: theme.textSecondary }]}>
                 Asset: <Text style={{ fontWeight: '700' }}>{asset?.assetName}</Text>

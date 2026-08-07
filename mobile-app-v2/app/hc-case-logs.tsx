@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { authenticatedFetch } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Spacing, Radius } from '../utils/theme';
+import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   open: '#DC2626', assigned: '#2563EB', in_progress: '#D97706',
@@ -71,7 +71,7 @@ export default function HCCaseLogs() {
     const isResolved = item.status === 'resolved';
     return (
       <TouchableOpacity
-        style={[ss.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        style={[ss.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight, borderLeftColor: color }]}
         onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })}
         activeOpacity={0.7}
       >
@@ -164,15 +164,15 @@ export default function HCCaseLogs() {
 const ss = StyleSheet.create({
   safe:        { flex: 1 },
   header:      { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1, gap: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
-  raiseBtn:    { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 19, fontWeight: '800', letterSpacing: -0.3 },
+  raiseBtn:    { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', ...Shadows.brand },
   chipBar:     { flexDirection: 'row', gap: 6, padding: Spacing.sm, paddingHorizontal: Spacing.md, borderBottomWidth: 1, flexWrap: 'wrap' },
-  chip:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  chipText:    { fontSize: 11, fontWeight: '600' },
-  card:        { borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.md, gap: 8 },
+  chip:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  chipText:    { fontSize: 11, fontWeight: '700' },
+  card:        { borderRadius: Radius.lg, borderWidth: 1, borderLeftWidth: 4, padding: Spacing.md, gap: 8 },
   cardTop:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cardNum:     { fontSize: 12, fontWeight: '700' },
-  cardAsset:   { fontSize: 14, fontWeight: '600', marginTop: 2 },
+  cardNum:     { fontSize: 12, fontWeight: '800' },
+  cardAsset:   { fontSize: 15, fontWeight: '700', marginTop: 2 },
   badge:       { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
   badgeText:   { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   cardDesc:    { fontSize: 13 },

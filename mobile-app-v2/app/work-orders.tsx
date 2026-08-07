@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchWorkOrders, createWorkOrder } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, Typography, Spacing, Radius } from '../utils/theme';
+import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 import StatusBadge, { statusVariant } from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
@@ -70,7 +70,7 @@ export default function WorkOrdersScreen() {
           ) : orders.map((o) => (
             <TouchableOpacity
               key={o.id}
-              style={[styles.card, { backgroundColor: theme.surface, shadowColor: theme.cardShadow }]}
+              style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
               onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: o.id } })}
               activeOpacity={0.8}
             >
@@ -106,10 +106,10 @@ export default function WorkOrdersScreen() {
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
   filterScroll:{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, flexGrow: 0 },
-  pill:        { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, marginRight: Spacing.sm },
-  pillText:    { ...Typography.label },
+  pill:        { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, marginRight: Spacing.sm },
+  pillText:    { ...Typography.label, fontWeight: '700' },
   list:        { padding: Spacing.lg, gap: Spacing.md },
-  card:        { borderRadius: Radius.lg, padding: Spacing.lg, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 3, gap: Spacing.sm },
+  card:        { borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: Spacing.sm },
   cardTop:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   cardTitle:   { ...Typography.h4 },
   cardSub:     { ...Typography.bodyS },
