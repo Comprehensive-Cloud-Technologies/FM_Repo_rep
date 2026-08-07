@@ -2,37 +2,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useColorScheme, Platform } from 'react-native';
 
+// ─── Fonts ───────────────────────────────────────────────────────────────────
+// The "instrument-panel" signature comes from a monospace face on ALL-CAPS
+// labels/metadata. We use the platform system monospace to avoid bundling font
+// files; swap these for loaded Google fonts (JetBrains Mono / Inter) later.
+export const Fonts = {
+  mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }) as string,
+};
+
 // ─── Palette ─────────────────────────────────────────────────────────────────
+// Two design languages, one per mode:
+//   LIGHT → "Precision Engineering Interface" — crisp white, signal-blue accents
+//   DARK  → "OLED Engineering Edition"        — true black, matrix-green accents
 export const Colors = {
-  // Brand — refined indigo
-  primary:        '#2347C5',
-  primaryLight:   '#4F6FE8',
-  primaryDark:    '#1A339A',
-  primaryBg:      '#EEF2FE',
-  secondary:      '#7C3AED',
-  secondaryBg:    '#F5F3FF',
+  // Brand — signal blue (light-mode primary / accent)
+  primary:        '#0051D5',
+  primaryLight:   '#316BF3',
+  primaryDark:    '#003EA8',
+  primaryBg:      '#E6EDFD',
+  secondary:      '#131B2E',
+  secondaryBg:    '#E8EAF0',
 
-  // Semantic
-  success:        '#059669',
-  successBg:      '#ECFDF5',
-  warning:        '#D97706',
-  warningBg:      '#FFFBEB',
-  danger:         '#DC2626',
-  dangerBg:       '#FEF2F2',
-  info:           '#0284C7',
-  infoBg:         '#F0F9FF',
+  // Semantic — functional status colours
+  success:        '#0F9E5A',
+  successBg:      '#E7F6EF',
+  warning:        '#C2680C',
+  warningBg:      '#F7ECDD',
+  danger:         '#BA1A1A',
+  dangerBg:       '#FBE9E7',
+  info:           '#0051D5',
+  infoBg:         '#E6EDFD',
 
-  // Neutral — cool slate ramp
-  gray50:         '#F6F7FB',
-  gray100:        '#EEF1F6',
-  gray200:        '#E2E7EF',
-  gray300:        '#CBD3E0',
-  gray400:        '#94A0B4',
-  gray500:        '#64748B',
-  gray600:        '#475569',
-  gray700:        '#334155',
-  gray800:        '#1E293B',
-  gray900:        '#0F172A',
+  // Neutral — Precision Engineering surface ramp
+  gray50:         '#F7F9FB',
+  gray100:        '#F2F4F6',
+  gray200:        '#E2E5E9',
+  gray300:        '#C6C6CD',
+  gray400:        '#76777D',
+  gray500:        '#5D5E64',
+  gray600:        '#45464D',
+  gray700:        '#2D3133',
+  gray800:        '#22262B',
+  gray900:        '#191C1E',
 
   white:          '#FFFFFF',
   black:          '#000000',
@@ -44,7 +55,7 @@ export const LightTheme = {
   surfaceAlt:       Colors.gray100,
   surfaceElevated:  Colors.white,
   border:           Colors.gray200,
-  borderLight:      Colors.gray100,
+  borderLight:      '#ECEEF0',
 
   textPrimary:      Colors.gray900,
   textSecondary:    Colors.gray600,
@@ -68,77 +79,77 @@ export const LightTheme = {
   infoBg:           Colors.infoBg,
 
   tabBarBg:         Colors.white,
-  tabBarBorder:     Colors.gray100,
+  tabBarBorder:     Colors.gray200,
   tabBarActive:     Colors.primary,
   tabBarInactive:   Colors.gray400,
 
-  headerBg:         Colors.white,
-  headerBorder:     Colors.gray100,
+  headerBg:         Colors.gray50,
+  headerBorder:     Colors.gray200,
   headerText:       Colors.gray900,
 
-  inputBg:          Colors.gray50,
-  inputBorder:      Colors.gray200,
+  inputBg:          Colors.white,
+  inputBorder:      Colors.gray300,
   inputText:        Colors.gray900,
   inputPlaceholder: Colors.gray400,
 
-  // Deep brand surface for hero blocks
-  heroBg:           Colors.primary,
+  // Deep navy hero surface (authority)
+  heroBg:           Colors.secondary,
   heroText:         Colors.white,
 
-  cardShadow:       'rgba(15,23,42,0.10)',
-  overlay:          'rgba(15,23,42,0.55)',
+  cardShadow:       'rgba(15,23,42,0.05)',
+  overlay:          'rgba(15,23,42,0.5)',
   scrim:            'rgba(15,23,42,0.04)',
   statusBar:        'dark' as 'dark' | 'light',
 };
 
 export const DarkTheme: typeof LightTheme = {
-  background:       '#0B1120',
-  surface:          '#151C2E',
-  surfaceAlt:       '#0F1626',
-  surfaceElevated:  '#1B2437',
-  border:           '#2A3650',
-  borderLight:      '#1E2740',
+  background:       '#000000',
+  surface:          '#0F0F0F',
+  surfaceAlt:       '#1A1A1A',
+  surfaceElevated:  '#1A1A1A',
+  border:           '#262626',
+  borderLight:      '#1A1A1A',
 
-  textPrimary:      '#F1F5F9',
-  textSecondary:    '#9BA8BE',
-  textMuted:        '#5B6B85',
-  textInverse:      '#0B1120',
+  textPrimary:      '#E2E2E2',
+  textSecondary:    '#9BA39B',
+  textMuted:        '#6B726B',
+  textInverse:      '#04210B',
 
-  primary:          '#5B7BF5',
-  primaryLight:     '#7C97F8',
-  primaryDark:      '#3B5BDB',
-  primaryBg:        '#1B2A52',
-  secondary:        '#A78BFA',
-  secondaryBg:      '#2A2350',
+  primary:          '#00FF41',
+  primaryLight:     '#72FF70',
+  primaryDark:      '#00E639',
+  primaryBg:        '#0E2A16',
+  secondary:        '#C9C6C5',
+  secondaryBg:      '#2A2A2A',
 
-  success:          '#34D399',
-  successBg:        '#0C3B2E',
-  warning:          '#FBBF24',
-  warningBg:        '#3B2A06',
-  danger:           '#F87171',
-  dangerBg:         '#3B1214',
-  info:             '#38BDF8',
-  infoBg:           '#0C2A3B',
+  success:          '#00FF41',
+  successBg:        '#0E2A16',
+  warning:          '#FFB454',
+  warningBg:        '#2E1E06',
+  danger:           '#FF5449',
+  dangerBg:         '#2A0E0C',
+  info:             '#4DA3FF',
+  infoBg:           '#0C1E2E',
 
-  tabBarBg:         '#151C2E',
-  tabBarBorder:     '#2A3650',
-  tabBarActive:     '#7C97F8',
-  tabBarInactive:   '#5B6B85',
+  tabBarBg:         '#0A0A0A',
+  tabBarBorder:     '#1F1F1F',
+  tabBarActive:     '#00FF41',
+  tabBarInactive:   '#6B726B',
 
-  headerBg:         '#151C2E',
-  headerBorder:     '#2A3650',
-  headerText:       '#F1F5F9',
+  headerBg:         '#0A0A0A',
+  headerBorder:     '#1F1F1F',
+  headerText:       '#E2E2E2',
 
-  inputBg:          '#0F1626',
-  inputBorder:      '#2A3650',
-  inputText:        '#F1F5F9',
-  inputPlaceholder: '#5B6B85',
+  inputBg:          '#000000',
+  inputBorder:      '#262626',
+  inputText:        '#E2E2E2',
+  inputPlaceholder: '#6B726B',
 
-  heroBg:           '#1B2A52',
-  heroText:         '#F1F5F9',
+  heroBg:           '#0E2A16',
+  heroText:         '#00FF41',
 
-  cardShadow:       'rgba(0,0,0,0.45)',
-  overlay:          'rgba(0,0,0,0.7)',
+  cardShadow:       'rgba(0,0,0,0.6)',
+  overlay:          'rgba(0,0,0,0.75)',
   scrim:            'rgba(255,255,255,0.03)',
   statusBar:        'light' as 'dark' | 'light',
 };
@@ -147,45 +158,52 @@ export type AppTheme = typeof LightTheme;
 
 // ─── Typography ───────────────────────────────────────────────────────────────
 export const Typography = {
-  display: { fontSize: 34, fontWeight: '800' as const, lineHeight: 40, letterSpacing: -0.6 },
-  h1:    { fontSize: 28, fontWeight: '800' as const, lineHeight: 36, letterSpacing: -0.4 },
-  h2:    { fontSize: 22, fontWeight: '700' as const, lineHeight: 30, letterSpacing: -0.3 },
-  h3:    { fontSize: 18, fontWeight: '700' as const, lineHeight: 26, letterSpacing: -0.2 },
+  display: { fontSize: 32, fontWeight: '700' as const, lineHeight: 40, letterSpacing: -0.6 },
+  h1:    { fontSize: 28, fontWeight: '700' as const, lineHeight: 36, letterSpacing: -0.5 },
+  h2:    { fontSize: 24, fontWeight: '700' as const, lineHeight: 32, letterSpacing: -0.4 },
+  h3:    { fontSize: 20, fontWeight: '600' as const, lineHeight: 28, letterSpacing: -0.2 },
   h4:    { fontSize: 16, fontWeight: '600' as const, lineHeight: 24, letterSpacing: -0.1 },
-  body:  { fontSize: 15, fontWeight: '400' as const, lineHeight: 22 },
-  bodyS: { fontSize: 13, fontWeight: '400' as const, lineHeight: 20 },
+  body:  { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
+  bodyS: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
   label: { fontSize: 12, fontWeight: '600' as const, lineHeight: 18 },
   micro: { fontSize: 11, fontWeight: '500' as const, lineHeight: 16 },
-  overline: { fontSize: 11, fontWeight: '700' as const, lineHeight: 16, letterSpacing: 1.2 },
+  // Instrument-panel labels — mono, uppercase, tracked
+  overline:  { fontFamily: Fonts.mono, fontSize: 11, fontWeight: '600' as const, lineHeight: 16, letterSpacing: 1, textTransform: 'uppercase' as const },
+  labelCaps: { fontFamily: Fonts.mono, fontSize: 12, fontWeight: '600' as const, lineHeight: 16, letterSpacing: 1, textTransform: 'uppercase' as const },
+  // Big metric numbers
+  metricNum: { fontSize: 28, fontWeight: '800' as const, lineHeight: 32, letterSpacing: -0.5 },
 };
 
 // ─── Spacing & Radius ────────────────────────────────────────────────────────
 export const Spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
-export const Radius  = { sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, full: 999 };
+export const Radius  = { sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, full: 999 };
 
 // ─── Elevation ───────────────────────────────────────────────────────────────
-// Cross-platform shadow presets. Spread onto a style: [styles.card, Shadows.sm]
+// This design language is deliberately FLAT — depth comes from 1px borders and
+// tonal layers, not drop shadows (see DESIGN spec). Cards read as crisp bordered
+// surfaces on both the light canvas and the OLED-black dark canvas. These presets
+// are intentionally near-zero so nothing "floats"; reserve `md`/`lg` for genuinely
+// floating chrome (tab bar, modals, popovers).
 export const Shadows = {
   xs: Platform.select({
-    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-    default: { elevation: 1 },
+    ios: {},
+    default: { elevation: 0 },
   }) as object,
   sm: Platform.select({
-    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8 },
-    default: { elevation: 2 },
+    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8 },
+    default: { elevation: 0 },
   }) as object,
   md: Platform.select({
-    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.09, shadowRadius: 16 },
-    default: { elevation: 5 },
+    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12 },
+    default: { elevation: 2 },
   }) as object,
   lg: Platform.select({
-    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.14, shadowRadius: 28 },
-    default: { elevation: 10 },
-  }) as object,
-  // Colored primary glow for CTAs / hero cards
-  brand: Platform.select({
-    ios: { shadowColor: '#2347C5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 18 },
+    ios: { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24 },
     default: { elevation: 6 },
+  }) as object,
+  brand: Platform.select({
+    ios: {},
+    default: { elevation: 0 },
   }) as object,
 };
 

@@ -1052,6 +1052,17 @@ router.get("/dashboard-stats", async (req, res, next) => {
         ...ids,
       ]
     );
+
+    // Distinct number of assets enrolled in PMS (an asset scheduled at multiple
+    // frequencies must be counted once, not once per schedule occurrence).
+    const [[distinctRow]] = await pool.query(
+      `SELECT COUNT(DISTINCT psa.asset_id) AS totalDistinctAssets
+         FROM pms_schedules ps
+         JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
+        WHERE ps.company_id IN (${ph})`,
+      ids
+    );
+
     res.json({
       dueThisMonth:              Number(stats?.dueThisMonth              || 0),
       overdue:                   Number(stats?.overdue                   || 0),
@@ -1061,7 +1072,7 @@ router.get("/dashboard-stats", async (req, res, next) => {
       overdueAssets:             Number(stats?.overdueAssets             || 0),
       upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
       completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
-      totalAssetsInPms:          Number(stats?.totalAssetsInPms          || 0),
+      totalAssetsInPms:          Number(distinctRow?.totalDistinctAssets || 0),
       totalCompletedAssets:      Number(stats?.totalCompletedAssets      || 0),
     });
   } catch (err) { next(err); }

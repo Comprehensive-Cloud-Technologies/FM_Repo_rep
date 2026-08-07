@@ -898,15 +898,151 @@ function RecordsTable({ type, token, globalFilters, kpiFilter, kpiFilterLabel })
   );
 }
 
-/* ─── Modal that wraps RecordsTable for KPI drilldown ─────────────────────── */
+/* ─── KPI drilldown: asset-wise report table (PMS / Calibration / Training) ───
+   Uses the real report endpoints (/pms|/calibration|/training/reports) which hold
+   the actual scheduled data, instead of the separate (often empty) healthcare
+   /records/:type tables. Columns per the operational report format. */
+function KpiReportTable({ type, token, kpiFilter }) {
+  const cfg = RECORD_CONFIGS[type] || RECORD_CONFIGS.pms;
+  const c = COLORS[cfg.color] || COLORS.blue;
+  const IconComp = cfg.icon;
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [search, setSearch]   = useState("");
+  const [reload, setReload]   = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true); setError(null);
+    const qs = search ? `?search=${encodeURIComponent(search)}` : "";
+    const url =
+      type === "calibration" ? `${BASE}/api/company-portal/calibration/reports${qs}` :
+      type === "training"    ? `${BASE}/api/company-portal/training/reports${qs}` :
+                               `${BASE}/api/company-portal/pms/reports${qs}`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => { if (alive) setRows(Array.isArray(d) ? d : (d.rows || [])); })
+      .catch(e => { if (alive) setError(e.message || "Failed to load"); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [type, token, search, reload]);
+
+  // Best-effort client-side filtering to match the clicked KPI tile
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+  const past = (d) => d && new Date(d) < today;
+  const soon = (d) => d && new Date(d) >= today && new Date(d) <= in30;
+  const thisMonth = (d) => { if (!d) return false; const x = new Date(d); return x.getMonth() === today.getMonth() && x.getFullYear() === today.getFullYear(); };
+
+  let data = rows;
+  if (kpiFilter) {
+    if (type === "pms") {
+      if (kpiFilter === "overdue")        data = rows.filter(r => past(r.nextPmsDate));
+      else if (kpiFilter === "upcoming")  data = rows.filter(r => soon(r.nextPmsDate));
+      else if (kpiFilter === "completed") data = rows.filter(r => (Number(r.closedPms) || 0) > 0);
+    } else if (type === "calibration") {
+      if (kpiFilter === "overdue")                   data = rows.filter(r => past(r.nextCalibrationDate));
+      else if (kpiFilter === "upcoming")             data = rows.filter(r => soon(r.nextCalibrationDate));
+      else if (kpiFilter === "due_this_month")       data = rows.filter(r => thisMonth(r.nextCalibrationDate));
+      else if (kpiFilter === "completed_this_month") data = rows.filter(r => thisMonth(r.lastCalibrationDate));
+    } else if (type === "training") {
+      const st = (r) => (r.status || "").toLowerCase();
+      if (kpiFilter === "scheduled")      data = rows.filter(r => st(r) === "scheduled");
+      else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
+      else if (kpiFilter === "overdue")   data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
+    }
+  }
+
+  const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const assetCell = (name, id) => (
+    <div>
+      <div style={{ fontWeight: 700, color: "#0f172a" }}>{name || "—"}</div>
+      {id ? <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: "monospace" }}>{id}</div> : null}
+    </div>
+  );
+  const pendingChip = (n) => (Number(n) || 0) > 0
+    ? <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f3e8ff", color: "#7c3aed" }}>{n} pending</span>
+    : <span style={{ color: "#94a3b8" }}>—</span>;
+
+  const columns =
+    type === "pms" ? [
+      { label: "Asset",      cell: r => assetCell(r.assetName, r.generatedAssetId || r.assetUniqueId) },
+      { label: "Department", cell: r => r.departmentName || "—" },
+      { label: "Last PMS",   cell: r => fmt(r.lastPmsDate) },
+      { label: "Next PMS",   cell: r => <span style={{ color: past(r.nextPmsDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextPmsDate)}</span> },
+      { label: "Total",      cell: r => <b style={{ color: "#0f172a" }}>{r.totalPms ?? 0}</b> },
+      { label: "Closed",     cell: r => <b style={{ color: "#0891b2" }}>{r.closedPms ?? 0}</b> },
+      { label: "Pending",    cell: r => pendingChip(r.pendingApproval) },
+    ] :
+    type === "calibration" ? [
+      { label: "Asset",            cell: r => assetCell(r.assetName, r.assetId2) },
+      { label: "Department",       cell: r => r.departmentName || "—" },
+      { label: "Last Calibration", cell: r => fmt(r.lastCalibrationDate) },
+      { label: "Next Calibration", cell: r => <span style={{ color: past(r.nextCalibrationDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextCalibrationDate)}</span> },
+      { label: "Total",            cell: r => <b style={{ color: "#0f172a" }}>{r.totalSchedules ?? 0}</b> },
+      { label: "Completed",        cell: r => <b style={{ color: "#16a34a" }}>{r.completedSchedules ?? 0}</b> },
+      { label: "Pending",          cell: r => pendingChip(r.pendingSchedules) },
+    ] : [
+      { label: "Date",       cell: r => fmt(r.training_date) },
+      { label: "Title",      cell: r => r.title || "—" },
+      { label: "Trainer",    cell: r => r.trainer_name || "—" },
+      { label: "Status",     cell: r => <BadgeCell val={r.status} /> },
+      { label: "Registered", cell: r => r.total_registered ?? 0 },
+      { label: "Present",    cell: r => r.total_present ?? 0 },
+    ];
+
+  return (
+    <div style={{ background: "#fff", borderRadius: "14px", border: `1px solid ${c.border}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+      <div style={{ padding: "14px 18px", background: c.bg, borderBottom: `1px solid ${c.border}`, display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ color: c.icon }}><IconComp /></div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontWeight: 700, fontSize: "14.5px", color: "#0f172a", margin: 0 }}>{cfg.label}</p>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>{data.length} records</p>
+        </div>
+        <div style={{ position: "relative" }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+            style={{ padding: "7px 10px 7px 30px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", width: "180px" }} />
+          <div style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}><Icon.Search /></div>
+        </div>
+      </div>
+      {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={() => setReload(x => x + 1)} /> : data.length === 0 ? <EmptyState /> : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {columns.map(col => (
+                  <th key={col.label} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{col.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((row, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                  onMouseLeave={e => e.currentTarget.style.background = ""}>
+                  {columns.map(col => (
+                    <td key={col.label} style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{col.cell(row)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Modal that wraps the KPI report table for drilldown ─────────────────── */
 function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
   if (!meta) return null;
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 900, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: 900, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: "#f8fafc", borderRadius: "20px 20px 0 0", width: "min(1100px,100vw)", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
+      <div style={{ background: "#f8fafc", borderRadius: "16px", width: "min(1100px,100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         {/* Header bar */}
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <p style={{ margin: 0, fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>{meta.label}</p>
@@ -917,13 +1053,11 @@ function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
         </div>
         {/* Table */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 24px" }}>
-          <RecordsTable
-            key={`${meta.tab}-${meta.kpiFilter}-${JSON.stringify(globalFilters)}`}
+          <KpiReportTable
+            key={`${meta.tab}-${meta.kpiFilter}`}
             type={meta.tab}
             token={token}
-            globalFilters={globalFilters}
             kpiFilter={meta.kpiFilter}
-            kpiFilterLabel={null}
           />
         </div>
       </div>
@@ -2152,12 +2286,29 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "pmsTotalAssets",     label: "Total PMS Assets",     icon: Icon.Pms, color: "orange", value: pmsStats?.totalAssetsInPms,     tab: "pms" },
-            { key: "pmsOverdueAssets",   label: "Assets Overdue",       icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets,         tab: "pms" },
-            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)",icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets,     tab: "pms" },
-            { key: "pmsCompletedAssets", label: "Total Completed",      icon: Icon.Pms, color: "green",  value: pmsStats?.totalCompletedAssets,  tab: "pms" },
+            { key: "pmsTotalAssets",     label: "Total PMS Assets",      icon: Icon.Pms, color: "orange", value: pmsStats?.totalAssetsInPms,    kpiFilter: null },
+            { key: "pmsOverdueAssets",   label: "Assets Overdue",        icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets,        kpiFilter: "overdue" },
+            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)", icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets,    kpiFilter: "upcoming" },
+            { key: "pmsCompletedAssets", label: "Total Completed",       icon: Icon.Pms, color: "green",  value: pmsStats?.totalCompletedAssets, kpiFilter: "completed" },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={pmsLoading} />
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              loading={pmsLoading}
+              isActive={activeProfileKpi === k.key}
+              onClick={() => {
+                const next = activeProfileKpi === k.key ? null : k.key;
+                setActiveProfileKpi(next);
+                if (next) {
+                  setActiveKpiMeta({ tab: "pms", kpiFilter: k.kpiFilter, label: KPI_FILTER_MAP[k.key]?.label || k.label });
+                } else {
+                  setActiveKpiMeta(null);
+                }
+              }}
+            />
           ))}
         </div>
       </section>
@@ -2167,12 +2318,29 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDueThisMonth",       label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth },
-            { key: "calibrationOverdue",            label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue },
-            { key: "calibrationUpcoming",           label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming },
-            { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth },
+            { key: "calibrationDueThisMonth",       label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth,       kpiFilter: "due_this_month" },
+            { key: "calibrationOverdue",            label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue,            kpiFilter: "overdue" },
+            { key: "calibrationUpcoming",           label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming,           kpiFilter: "upcoming" },
+            { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth, kpiFilter: "completed_this_month" },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={snapLoading} />
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              loading={snapLoading}
+              isActive={activeCalibrationKpi === k.key}
+              onClick={() => {
+                const next = activeCalibrationKpi === k.key ? null : k.key;
+                setActiveCalibrationKpi(next);
+                if (next) {
+                  setActiveKpiMeta({ tab: "calibration", kpiFilter: k.kpiFilter, label: KPI_FILTER_MAP[k.key]?.label || k.label });
+                } else {
+                  setActiveKpiMeta(null);
+                }
+              }}
+            />
           ))}
         </div>
       </section>
@@ -2182,15 +2350,47 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Training Records</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",  value: ojtStats?.total },
-            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",  value: ojtStats?.scheduled },
-            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green", value: ojtStats?.completed },
-            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",   value: ojtStats?.overdue },
+            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",  value: ojtStats?.total,     kpiFilter: null },
+            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",  value: ojtStats?.scheduled, kpiFilter: "scheduled" },
+            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green", value: ojtStats?.completed, kpiFilter: "completed" },
+            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",   value: ojtStats?.overdue,   kpiFilter: "overdue" },
           ].map(k => (
-            <KpiCard key={k.key} label={k.label} value={k.value} icon={k.icon} color={k.color} loading={ojtLoading} />
+            <KpiCard
+              key={k.key}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              loading={ojtLoading}
+              isActive={activeTrainingKpi === k.key}
+              onClick={() => {
+                const next = activeTrainingKpi === k.key ? null : k.key;
+                setActiveTrainingKpi(next);
+                if (next) {
+                  setActiveKpiMeta({ tab: "training", kpiFilter: k.kpiFilter, label: KPI_FILTER_MAP[k.key]?.label || k.label });
+                } else {
+                  setActiveKpiMeta(null);
+                }
+              }}
+            />
           ))}
         </div>
       </section>
+
+      {/* ── KPI Records drilldown modal (PMS / Calibration / Training) ── */}
+      {activeKpiMeta && (
+        <KpiRecordsModal
+          meta={activeKpiMeta}
+          token={token}
+          globalFilters={appliedFilters}
+          onClose={() => {
+            setActiveKpiMeta(null);
+            setActiveProfileKpi(null);
+            setActiveCalibrationKpi(null);
+            setActiveTrainingKpi(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -4212,7 +4212,7 @@ const BASE_AT = () => {
   return import.meta.env?.VITE_API_URL || "";
 };
 
-function AssetTransferSection({ token, companyId }) {
+function AssetTransferSection({ token, companyId, switcher }) {
   const [subTab, setSubTab] = React.useState("transfer");
 
   // ── Source company selector (like other modules) ──
@@ -4330,7 +4330,8 @@ function AssetTransferSection({ token, companyId }) {
   return (
     <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f8fafc" }}>
       {/* Page header */}
-      <div style={{ padding: "20px 28px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+      <div style={{ padding: "12px 28px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+        {switcher}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Asset Transfers</h1>
@@ -5846,6 +5847,122 @@ export default function CompanyEmployeePortal() {
 
   if (!token || !currentUser) return null;
 
+  // Reusable company/hospital switcher — shown top-right on every section, including
+  // the fixed-overlay sections (Asset Transfers, PMS, Calibration, Training) that
+  // otherwise cover the main switcher bar.
+  const companySwitcherBar = accessibleCompanies.length > 1 ? (
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+      <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Company:</span>
+      <div style={{ position: "relative" }}>
+        <button
+          disabled={switchingCompany}
+          onClick={() => { setCompanySwitcherSearch(""); setCompanySwitcherOpen(o => !o); }}
+          style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 700, minWidth: "200px", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {allCompaniesMode
+              ? "🌐 All Hospitals"
+              : (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.companyName || "Select Company") +
+                (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.primary ? " ★" : "")}
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        {companySwitcherOpen && !switchingCompany && (
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 500, minWidth: "240px", overflow: "hidden" }}>
+            <div style={{ padding: "8px" }}>
+              <input
+                autoFocus
+                value={companySwitcherSearch}
+                onChange={e => setCompanySwitcherSearch(e.target.value)}
+                placeholder="Search companies..."
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", boxSizing: "border-box", outline: "none" }}
+              />
+            </div>
+            <div style={{ maxHeight: "260px", overflowY: "auto", padding: "4px 6px 8px" }}>
+              {/* All Companies option — only if user has access to multiple companies */}
+              {accessibleCompanies.length > 1 && (
+                <button
+                  onClick={() => {
+                    // Restore the original login token so backend aggregate-snapshot
+                    // uses the admin's full company scope, not the last switched-to company.
+                    const baseToken = sessionStorage.getItem("cp_token_base");
+                    if (baseToken) sessionStorage.setItem("cp_token", baseToken);
+                    sessionStorage.setItem("cp_all_companies_mode", "true");
+                    setCompanySwitcherOpen(false);
+                    setAllCompaniesMode(true);
+                    setAssets([]);
+                    setDepartments([]);
+                    setHcDashRefreshKey(k => k + 1);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                    padding: "9px 10px", borderRadius: "7px", border: allCompaniesMode ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
+                    background: allCompaniesMode ? "#ede9fe" : "#f8fafc", color: allCompaniesMode ? "#3730a3" : "#374151",
+                    cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: allCompaniesMode ? 700 : 500,
+                    marginBottom: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "14px" }}>🌐</span>
+                  <div style={{ flex: 1 }}>
+                    <div>All Hospitals</div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 400 }}>Aggregate — {accessibleCompanies.length} hospitals</div>
+                  </div>
+                  {allCompaniesMode && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                </button>
+              )}
+              {accessibleCompanies
+                .filter(c => {
+                  const q = (companySwitcherSearch || "").toLowerCase().trim();
+                  if (!q) return true;
+                  return (c.companyName || "").toLowerCase().includes(q);
+                })
+                .map(c => {
+                  const isActive = !allCompaniesMode && c.companyId === currentUser?.companyId;
+                  return (
+                    <button key={c.companyId}
+                      onClick={async () => {
+                        setCompanySwitcherOpen(false);
+                        setAllCompaniesMode(false);
+                        sessionStorage.setItem("cp_all_companies_mode", "false");
+                        if (!allCompaniesMode && c.companyId === currentUser?.companyId) return;
+                        const selected = accessibleCompanies.find(x => x.companyId === c.companyId);
+                        if (selected) setCompanyDisplayName(selected.companyName);
+                        setSwitchingCompany(true);
+                        try {
+                          const r = await fetch(`/api/company-auth/switch-company`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ companyId: c.companyId }),
+                          });
+                          if (!r.ok) throw new Error("Switch failed");
+                          const data = await r.json();
+                          sessionStorage.setItem("cp_token", data.token);
+                          sessionStorage.setItem("cp_user", JSON.stringify(data.user));
+                          window.location.reload();
+                        } catch {
+                          alert("Could not switch company. Please try again.");
+                        } finally {
+                          setSwitchingCompany(false);
+                        }
+                      }}
+                      style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 10px", borderRadius: "7px", border: "none", background: isActive ? "#eff6ff" : "transparent", color: isActive ? "#2563eb" : "#374151", cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: isActive ? 700 : 500 }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isActive ? "#eff6ff" : "transparent"; }}>
+                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: isActive ? "#2563eb" : "#e2e8f0", flexShrink: 0 }} />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.companyName}{c.primary ? " ★" : ""}
+                      </span>
+                      {isActive && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+      </div>
+      {switchingCompany && <span style={{ fontSize: "12px", color: "#7c3aed" }}>Switching...</span>}
+    </div>
+  ) : null;
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f1f5f9" }}>
       {/* Sidebar */}
@@ -5997,118 +6114,7 @@ export default function CompanyEmployeePortal() {
       <main style={{ marginLeft: "240px", flex: 1, padding: "16px 32px 28px", minHeight: "100vh", minWidth: 0, overflowX: "hidden" }}>
 
         {/* Top-right company switcher bar */}
-        {accessibleCompanies.length > 1 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Company:</span>
-            <div style={{ position: "relative" }}>
-              <button
-                disabled={switchingCompany}
-                onClick={() => { setCompanySwitcherSearch(""); setCompanySwitcherOpen(o => !o); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", cursor: switchingCompany ? "wait" : "pointer", fontWeight: 700, minWidth: "200px", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {allCompaniesMode
-                    ? "🌐 All Hospitals"
-                    : (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.companyName || "Select Company") +
-                      (accessibleCompanies.find(c => c.companyId === currentUser?.companyId)?.primary ? " ★" : "")}
-                </span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              {companySwitcherOpen && !switchingCompany && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 500, minWidth: "240px", overflow: "hidden" }}>
-                  <div style={{ padding: "8px" }}>
-                    <input
-                      autoFocus
-                      value={companySwitcherSearch}
-                      onChange={e => setCompanySwitcherSearch(e.target.value)}
-                      placeholder="Search companies..."
-                      style={{ width: "100%", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "7px", fontSize: "12px", boxSizing: "border-box", outline: "none" }}
-                    />
-                  </div>
-                  <div style={{ maxHeight: "260px", overflowY: "auto", padding: "4px 6px 8px" }}>
-                    {/* All Companies option — only if user has access to multiple companies */}
-                    {accessibleCompanies.length > 1 && (
-                      <button
-                        onClick={() => {
-            // Restore the original login token so backend aggregate-snapshot
-            // uses the admin's full company scope, not the last switched-to company.
-            const baseToken = sessionStorage.getItem("cp_token_base");
-            if (baseToken) sessionStorage.setItem("cp_token", baseToken);
-            sessionStorage.setItem("cp_all_companies_mode", "true");
-            setCompanySwitcherOpen(false);
-            setAllCompaniesMode(true);
-            setAssets([]);
-            setDepartments([]);
-            setHcDashRefreshKey(k => k + 1);
-          }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "8px", width: "100%",
-                          padding: "9px 10px", borderRadius: "7px", border: allCompaniesMode ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
-                          background: allCompaniesMode ? "#ede9fe" : "#f8fafc", color: allCompaniesMode ? "#3730a3" : "#374151",
-                          cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: allCompaniesMode ? 700 : 500,
-                          marginBottom: "4px",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px" }}>🌐</span>
-                        <div style={{ flex: 1 }}>
-                          <div>All Hospitals</div>
-                          <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 400 }}>Aggregate — {accessibleCompanies.length} hospitals</div>
-                        </div>
-                        {allCompaniesMode && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
-                      </button>
-                    )}
-                    {accessibleCompanies
-                      .filter(c => {
-                        const q = (companySwitcherSearch || "").toLowerCase().trim();
-                        if (!q) return true;
-                        return (c.companyName || "").toLowerCase().includes(q);
-                      })
-                      .map(c => {
-                        const isActive = !allCompaniesMode && c.companyId === currentUser?.companyId;
-                        return (
-                          <button key={c.companyId}
-                            onClick={async () => {
-                              setCompanySwitcherOpen(false);
-                              setAllCompaniesMode(false);
-                              sessionStorage.setItem("cp_all_companies_mode", "false");
-                              if (!allCompaniesMode && c.companyId === currentUser?.companyId) return;
-                              const selected = accessibleCompanies.find(x => x.companyId === c.companyId);
-                              if (selected) setCompanyDisplayName(selected.companyName);
-                              setSwitchingCompany(true);
-                              try {
-                                const r = await fetch(`/api/company-auth/switch-company`, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                                  body: JSON.stringify({ companyId: c.companyId }),
-                                });
-                                if (!r.ok) throw new Error("Switch failed");
-                                const data = await r.json();
-                                sessionStorage.setItem("cp_token", data.token);
-                                sessionStorage.setItem("cp_user", JSON.stringify(data.user));
-                                window.location.reload();
-                              } catch {
-                                alert("Could not switch company. Please try again.");
-                              } finally {
-                                setSwitchingCompany(false);
-                              }
-                            }}
-                            style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "9px 10px", borderRadius: "7px", border: "none", background: isActive ? "#eff6ff" : "transparent", color: isActive ? "#2563eb" : "#374151", cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: isActive ? 700 : 500 }}
-                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = isActive ? "#eff6ff" : "transparent"; }}>
-                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: isActive ? "#2563eb" : "#e2e8f0", flexShrink: 0 }} />
-                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {c.companyName}{c.primary ? " ★" : ""}
-                            </span>
-                            {isActive && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-            </div>
-            {switchingCompany && <span style={{ fontSize: "12px", color: "#7c3aed" }}>Switching...</span>}
-          </div>
-        )}
+        {companySwitcherBar}
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {
@@ -9644,12 +9650,13 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Asset Transfers ───────────────────────────────────── */}
       {nav === "asset_transfer" && currentUser.role === "admin" && (
-        <AssetTransferSection token={token} companyId={currentUser?.companyId} />
+        <AssetTransferSection token={token} companyId={currentUser?.companyId} switcher={companySwitcherBar} />
       )}
 
       {/* ── PMS (Preventive Maintenance) ────────────────────────── */}
       {nav === "pms" && (
         <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          {companySwitcherBar}
           <PMSChecklistModule token={token} companyId={currentUser?.companyId} currentUser={currentUser} />
         </div>
       )}
@@ -9657,6 +9664,7 @@ export default function CompanyEmployeePortal() {
       {/* ── Calibration ─────────────────────────────────────────── */}
       {nav === "calibration" && (
         <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          {companySwitcherBar}
           <CalibrationModule token={token} />
         </div>
       )}
@@ -9664,6 +9672,7 @@ export default function CompanyEmployeePortal() {
       {/* ── Training ────────────────────────────────────────────── */}
       {nav === "training" && (
         <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+          {companySwitcherBar}
           <TrainingModule token={token} />
         </div>
       )}

@@ -83,8 +83,6 @@ export default function AssetDetailPage() {
   const [asset, setAsset] = useState(null);
   const [callLogs, setCallLogs] = useState(null);
   const [calibration, setCalibration] = useState(null);
-  const [trainingRecords, setTrainingRecords] = useState(null);
-  const [trainingLoading, setTrainingLoading] = useState(false);
   const [pmsHistory, setPmsHistory] = useState(null);
   const [pmsHistoryLoading, setPmsHistoryLoading] = useState(false);
   const [selectedPms, setSelectedPms] = useState(null);
@@ -157,18 +155,6 @@ export default function AssetDetailPage() {
       .catch(() => setCalibration([]));
   }, [id, token, isAdmin]);
 
-  // Fetch training records when Training tab is opened
-  useEffect(() => {
-    if (tab !== "Trainings" || isAdmin || !token || !id) return;
-    if (trainingRecords !== null) return; // already loaded
-    setTrainingLoading(true);
-    const base = getApiBaseUrl();
-    fetch(`${base}/api/company-portal/healthcare/records/training?assetId=${id}&limit=500`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setTrainingRecords(Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : []))
-      .catch(() => setTrainingRecords([]))
-      .finally(() => setTrainingLoading(false));
-  }, [tab, id, token, isAdmin, trainingRecords]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "Inter, sans-serif", color: "#64748b" }}>
@@ -297,7 +283,6 @@ export default function AssetDetailPage() {
     { key: "calllogs", label: "Call Log History" },
     { key: "pms_history", label: "PMS History" },
     { key: "calibration", label: "Calibration History" },
-    { key: "Trainings", label: "Training Details" },
     { key: "purchase", label: "Purchase History" },
     { key: "transfer_history", label: "Transfer History" },
     { key: "indent", label: "Indent Details" },
@@ -1457,87 +1442,7 @@ export default function AssetDetailPage() {
           </div>
         )}
 
-        {/* Training Details */}
-        {tab === "Trainings" && (
-          <div style={{ maxWidth: "100%", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-              <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Training Details</h4>
-              {!isAdmin && trainingRecords && trainingRecords.length > 0 && (
-                <button
-                  onClick={() => {
-                    const headers = ["#", "Hospital", "Training Title", "Type", "Employee Name", "Department", "Asset Name", "Training Date", "Expiry Date", "Trainer", "Score", "Result", "Certificate No.", "Remarks"];
-                    const dataRows = trainingRecords.map((tr, i) => [
-                      i + 1,
-                      hospitalName || "",
-                      tr.training_title || tr.trainingTitle || "",
-                      tr.training_type || tr.trainingType || "",
-                      tr.employee_name || tr.employeeName || "",
-                      tr.department_name || "",
-                      tr.asset_name || m.equipmentName || asset?.assetName || "",
-                      tr.training_date ? new Date(tr.training_date).toLocaleDateString("en-IN") : "",
-                      tr.expiry_date ? new Date(tr.expiry_date).toLocaleDateString("en-IN") : "",
-                      tr.trainer_name || tr.trainerName || "",
-                      tr.score ?? "",
-                      tr.result || "",
-                      tr.certificate_no || tr.certificateNo || "",
-                      tr.remarks || "",
-                    ]);
-                    exportToExcel([headers, ...dataRows], "Training-Details");
-                  }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#16a34a", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" }}
-                >
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="12" x2="12" y2="18" /><polyline points="9 15 12 18 15 15" /></svg>
-                  Export Excel
-                </button>
-              )}
-            </div>
-            {isAdmin ? (
-              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Training details are available in the Employee Portal.</div>
-            ) : trainingLoading ? (
-              <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading training records…</div>
-            ) : !trainingRecords || trainingRecords.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px", color: "#94a3b8" }}>No training records found for this asset</div>
-            ) : (
-              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px", minWidth: 1000 }}>
-                  <thead>
-                    <tr style={{ background: "#f8fafc" }}>
-                      {["#", "Hospital", "Training Title", "Type", "Employee Name", "Department", "Training Date", "Expiry Date", "Trainer", "Score", "Result", "Certificate No.", "Remarks"].map(h => (
-                        <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "10.5px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trainingRecords.map((tr, i) => {
-                      const res = (tr.result || "").toLowerCase();
-                      const resSt = res === "pass" || res === "completed" ? { bg: "#dcfce7", c: "#166534" } : res === "fail" ? { bg: "#fee2e2", c: "#dc2626" } : { bg: "#f1f5f9", c: "#64748b" };
-                      const isExpired = tr.expiry_date && new Date(tr.expiry_date) < new Date();
-                      return (
-                        <tr key={tr.id} style={{ borderBottom: "1px solid #f1f5f9" }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
-                          onMouseLeave={e => e.currentTarget.style.background = ""}>
-                          <td style={{ padding: "9px 12px", color: "#94a3b8" }}>{i + 1}</td>
-                          <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{hospitalName || "—"}</td>
-                          <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a" }}>{tr.training_title || tr.trainingTitle || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#64748b" }}>{tr.training_type || tr.trainingType || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#334155", whiteSpace: "nowrap" }}>{tr.employee_name || tr.employeeName || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#64748b", whiteSpace: "nowrap" }}>{tr.department_name || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#374151", whiteSpace: "nowrap" }}>{tr.training_date ? new Date(tr.training_date).toLocaleDateString("en-IN") : "—"}</td>
-                          <td style={{ padding: "9px 12px", color: isExpired ? "#dc2626" : "#374151", fontWeight: isExpired ? 700 : 400, whiteSpace: "nowrap" }}>{tr.expiry_date ? new Date(tr.expiry_date).toLocaleDateString("en-IN") : "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#475569", whiteSpace: "nowrap" }}>{tr.trainer_name || tr.trainerName || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#374151", textAlign: "center" }}>{tr.score ?? "—"}</td>
-                          <td style={{ padding: "9px 12px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: resSt.bg, color: resSt.c }}>{tr.result || "—"}</span></td>
-                          <td style={{ padding: "9px 12px", fontFamily: "monospace", color: "#7c3aed", fontSize: "11.5px" }}>{tr.certificate_no || tr.certificateNo || "—"}</td>
-                          <td style={{ padding: "9px 12px", color: "#64748b", maxWidth: 160 }}>{tr.remarks || "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Training Details tab & panel removed */}
 
       </div>
     </div >

@@ -151,32 +151,29 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
          WHERE company_id = ?`,
         [companyId]
       ),
+      // Calibration KPIs read from the actual scheduling tables (same source as
+      // /calibration/reports). Counting DISTINCT assets so an asset scheduled at
+      // multiple frequencies is counted once per bucket.
       pool.query(
         `SELECT
-           SUM(CASE WHEN a.calibration_required = 1
-                     AND a.next_calibration_due_date IS NOT NULL
-                     AND YEAR(a.next_calibration_due_date) = YEAR(CURDATE())
-                     AND MONTH(a.next_calibration_due_date) = MONTH(CURDATE())
-                    THEN 1 ELSE 0 END) AS due_this_month,
-           SUM(CASE WHEN a.calibration_required = 1
-                     AND a.next_calibration_due_date IS NOT NULL
-                     AND a.next_calibration_due_date < CURDATE()
-                    THEN 1 ELSE 0 END) AS overdue,
-           SUM(CASE WHEN a.calibration_required = 1
-                     AND a.next_calibration_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                    THEN 1 ELSE 0 END) AS upcoming,
-           (
-             SELECT COUNT(*)
-             FROM calibration_records cr
-             JOIN assets ax ON ax.id = cr.asset_id
-             WHERE ax.company_id = ?
-               AND YEAR(cr.calibration_date) = YEAR(CURDATE())
-               AND MONTH(cr.calibration_date) = MONTH(CURDATE())
-               AND LOWER(COALESCE(cr.status, '')) IN ('active', 'pass', 'completed')
-           ) AS completed_this_month
-         FROM assets a
-         WHERE a.company_id = ?`,
-        [companyId, companyId]
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND YEAR(cs.calibration_date) = YEAR(CURDATE())
+                                AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               THEN csa.asset_id END) AS due_this_month,
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND cs.calibration_date < CURDATE()
+                               THEN csa.asset_id END) AS overdue,
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND cs.calibration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+                               THEN csa.asset_id END) AS upcoming,
+           COUNT(DISTINCT CASE WHEN csa.status = 'completed'
+                                AND YEAR(cs.calibration_date) = YEAR(CURDATE())
+                                AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               THEN csa.asset_id END) AS completed_this_month
+         FROM calibration_schedules cs
+         JOIN calibration_schedule_assets csa ON csa.schedule_id = cs.id
+         WHERE cs.company_id = ?`,
+        [companyId]
       ),
     ]);
 
@@ -287,22 +284,27 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
          FROM asset_queries WHERE company_id IN (${placeholders})`,
         companyIds
       ),
+      // Calibration KPIs from the real scheduling tables (distinct assets)
       pool.query(
         `SELECT
-           SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date IS NOT NULL
-             AND YEAR(a.next_calibration_due_date) = YEAR(CURDATE())
-             AND MONTH(a.next_calibration_due_date) = MONTH(CURDATE()) THEN 1 ELSE 0 END) AS due_this_month,
-           SUM(CASE WHEN a.calibration_required = 1 AND a.next_calibration_due_date IS NOT NULL
-             AND a.next_calibration_due_date < CURDATE() THEN 1 ELSE 0 END) AS overdue,
-           SUM(CASE WHEN a.calibration_required = 1
-             AND a.next_calibration_due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS upcoming,
-           (SELECT COUNT(*) FROM calibration_records cr JOIN assets ax ON ax.id = cr.asset_id
-            WHERE ax.company_id IN (${placeholders})
-              AND YEAR(cr.calibration_date) = YEAR(CURDATE())
-              AND MONTH(cr.calibration_date) = MONTH(CURDATE())
-              AND LOWER(COALESCE(cr.status, '')) IN ('active', 'pass', 'completed')) AS completed_this_month
-         FROM assets a WHERE a.company_id IN (${placeholders})`,
-        [...companyIds, ...companyIds]
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND YEAR(cs.calibration_date) = YEAR(CURDATE())
+                                AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               THEN csa.asset_id END) AS due_this_month,
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND cs.calibration_date < CURDATE()
+                               THEN csa.asset_id END) AS overdue,
+           COUNT(DISTINCT CASE WHEN csa.status = 'pending'
+                                AND cs.calibration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+                               THEN csa.asset_id END) AS upcoming,
+           COUNT(DISTINCT CASE WHEN csa.status = 'completed'
+                                AND YEAR(cs.calibration_date) = YEAR(CURDATE())
+                                AND MONTH(cs.calibration_date) = MONTH(CURDATE())
+                               THEN csa.asset_id END) AS completed_this_month
+         FROM calibration_schedules cs
+         JOIN calibration_schedule_assets csa ON csa.schedule_id = cs.id
+         WHERE cs.company_id IN (${placeholders})`,
+        [...companyIds]
       ),
       pool.query(
         `SELECT c.id AS company_id, COALESCE(c.company_name,'Unknown Hospital') AS hospital,

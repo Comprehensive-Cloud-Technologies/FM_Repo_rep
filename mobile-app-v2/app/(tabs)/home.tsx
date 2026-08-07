@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount, fetchMyPmsStats, fetchDeptHeadPending, fetchDeptHeadStats } from '../../utils/api';
-import { useTheme, Spacing, Radius, Shadows } from '../../utils/theme';
+import { useTheme, Spacing, Radius, Shadows, Typography, Fonts } from '../../utils/theme';
 import { hasTechAccess, canManageTeam, canViewNotifications, canRegisterAssets } from '../../utils/permissions';
 
 // ΓöÇΓöÇΓöÇ Mini components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -28,13 +28,41 @@ function StatCard({ label, value, color, onPress }: {
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[ss.statCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+      style={[ss.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={onPress} activeOpacity={onPress ? 0.7 : 1}
     >
-      <View style={[ss.statAccent, { backgroundColor: color }]} />
-      <Text style={[ss.statValue, { color }]}>{value}</Text>
-      <Text style={[ss.statLabel, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[ss.statLabel, { color: theme.textMuted }]}>{label}</Text>
+      <Text style={[ss.statValue, { color: theme.textPrimary }]}>{value}</Text>
     </TouchableOpacity>
+  );
+}
+
+function TotalCasesChart({ total, ytdMetrics }: { total: number; ytdMetrics?: number[] }) {
+  const { theme } = useTheme();
+  const bars = ytdMetrics || Array(12).fill(0);
+  const maxVal = Math.max(...bars, 1);
+  return (
+    <View style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', padding: Spacing.lg, height: 280, backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={ss.rowBetween}>
+        <View>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: theme.textPrimary }}>Total Cases</Text>
+          <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', letterSpacing: 1, color: theme.textMuted, marginTop: 4 }}>YTD METRICS</Text>
+        </View>
+        <Text style={{ fontSize: 32, fontWeight: '800', color: theme.primary }}>{total}</Text>
+      </View>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: Spacing.lg, borderBottomWidth: 1, borderBottomColor: theme.borderLight }}>
+        {bars.map((val, idx) => {
+          const heightPct = Math.max((val / maxVal) * 100, 5);
+          return (
+            <View key={idx} style={{ width: '6%', height: `${heightPct}%`, backgroundColor: theme.border, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
+          );
+        })}
+      </View>
+      <View style={[ss.rowBetween, { marginTop: Spacing.xs }]}>
+        <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textMuted }}>JAN</Text>
+        <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textMuted }}>DEC</Text>
+      </View>
+    </View>
   );
 }
 
@@ -67,12 +95,51 @@ function CaseRow({ item, onPress }: { item: any; onPress: () => void }) {
   );
 }
 
+// ─── Top app bar (avatar + title + actions) ──────────────────────────────────
+function HomeAppBar({ title, initial, children }: { title: string; initial: string; children?: React.ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <View style={[ss.appBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+      <View style={ss.appBarLeft}>
+        <View style={[ss.appAvatar, { backgroundColor: theme.primary }]}>
+          <Text style={[ss.appAvatarTxt, { color: theme.textInverse }]}>{initial}</Text>
+        </View>
+        <Text style={[ss.appBarTitle, { color: theme.textPrimary }]} numberOfLines={1}>{title}</Text>
+      </View>
+      {children ? <View style={ss.appBarActions}>{children}</View> : null}
+    </View>
+  );
+}
+
+function AppBarIcon({ icon, onPress }: { icon: string; onPress: () => void }) {
+  const { theme } = useTheme();
+  return (
+    <TouchableOpacity onPress={onPress} style={ss.appBarIconBtn} hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }} activeOpacity={0.6}>
+      <MaterialCommunityIcons name={icon as any} size={23} color={theme.textSecondary} />
+    </TouchableOpacity>
+  );
+}
+
+// ─── Greeting row + role badge ───────────────────────────────────────────────
+function GreetingRow({ greeting, roleLabel, icon }: { greeting: string; roleLabel: string; icon?: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={ss.greetRow}>
+      <Text style={[ss.greetBig, { color: theme.textPrimary }]} numberOfLines={2}>{greeting}</Text>
+      <View style={[ss.roleBadge, { backgroundColor: theme.primaryBg, borderColor: theme.primary + '3A' }]}>
+        {icon ? <MaterialCommunityIcons name={icon as any} size={14} color={theme.primary} /> : null}
+        <Text style={[ss.roleBadgeTxt, { color: theme.primary }]}>{roleLabel}</Text>
+      </View>
+    </View>
+  );
+}
+
 // ΓöÇΓöÇΓöÇ HC Staff Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function HCStaffHome({ user }: { user: any }) {
   const { theme } = useTheme();
-  const [dash, setDash]     = useState<any>(null);
-  const [cases, setCases]   = useState<any[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [dash, setDash] = useState<any>(null);
+  const [cases, setCases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -105,32 +172,26 @@ function HCStaffHome({ user }: { user: any }) {
 
   return (
     <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
+        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
+      </HomeAppBar>
       <ScrollView
         contentContainerStyle={ss.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={ss.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
-            <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
-            <Text style={[ss.roleTag, { color: theme.primary, backgroundColor: theme.primaryBg }]}>{roleLabel}</Text>
-          </View>
-          <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
-            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <GreetingRow greeting={greeting} roleLabel={roleLabel || 'Staff'} icon="account-circle-outline" />
 
         {/* Dashboard summary */}
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
           <>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY CASE LOGS</Text>
             <View style={ss.statsGrid}>
-              <StatCard label="Total"    value={dash?.total    ?? 0} color="#2563EB" onPress={() => router.push('/hc-case-logs')} />
-              <StatCard label="Open"     value={dash?.open     ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'open' } })} />
+              <StatCard label="Total" value={dash?.total ?? 0} color="#2563EB" onPress={() => router.push('/hc-case-logs')} />
+              <StatCard label="Open" value={dash?.open ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'open' } })} />
               <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'resolved' } })} />
-              <StatCard label="Closed"   value={dash?.closed   ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'closed' } })} />
+              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'closed' } })} />
             </View>
 
             {cases.length > 0 && (
@@ -156,10 +217,10 @@ function HCStaffHome({ user }: { user: any }) {
 //  HC Engineer Home
 function HCEngineerHome({ user }: { user: any }) {
   const { theme } = useTheme();
-  const [dash, setDash]         = useState<any>(null);
-  const [pmsDash, setPmsDash]   = useState<any>(null);
-  const [cases, setCases]       = useState<any[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [dash, setDash] = useState<any>(null);
+  const [pmsDash, setPmsDash] = useState<any>(null);
+  const [cases, setCases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -193,79 +254,67 @@ function HCEngineerHome({ user }: { user: any }) {
 
   return (
     <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <HomeAppBar title="System Terminal" initial={(firstName[0] || 'U').toUpperCase()}>
+        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
+      </HomeAppBar>
       <ScrollView
         contentContainerStyle={ss.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={ss.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
-            <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
-            <Text style={[ss.roleTag, { color: '#1d4ed8', backgroundColor: '#dbeafe' }]}>Engineer</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={[ss.qrBtn, { backgroundColor: '#16a34a' }]} onPress={() => router.push('/add-asset')}>
-              <MaterialCommunityIcons name="plus-circle-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
-              <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <GreetingRow greeting={greeting} roleLabel="ENGINEER" icon="account-hard-hat" />
 
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
           <>
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY ASSIGNMENTS</Text>
             <View style={ss.statsGrid}>
-              <StatCard label="Assigned"    value={dash?.assigned   ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
+              <StatCard label="Assigned" value={dash?.assigned ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
               <StatCard label="In Progress" value={dash?.inProgress ?? 0} color="#D97706" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'in_progress' } })} />
-              <StatCard label="Resolved"    value={dash?.resolved   ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
-              <StatCard label="Closed"      value={dash?.closed     ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
-              <StatCard label="Total"       value={dash?.total      ?? 0} color="#0F172A" onPress={() => router.push('/(tabs)/tasks')} />
+              <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
+              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
             </View>
 
-            <Text style={[ss.sectionTitle, { color: theme.textMuted, marginTop: 16 }]}>MY PMS</Text>
-            <TouchableOpacity
-              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#bfdbfe' }]}
-              onPress={() => router.push('/pms-assignments')}
-              activeOpacity={0.75}>
-              <View style={[ss.pmsIconBox, { backgroundColor: '#dbeafe' }]}>
-                <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#2563eb" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Preventive Maintenance</Text>
-                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>
-                  {Number(pmsDash?.assigned ?? 0)} assigned  {Number(pmsDash?.inProgress ?? 0)} in progress
-                </Text>
-              </View>
-              {(Number(pmsDash?.assigned ?? 0) + Number(pmsDash?.inProgress ?? 0)) > 0 && (
-                <View style={ss.pmsBadge}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                    {Number(pmsDash?.assigned ?? 0) + Number(pmsDash?.inProgress ?? 0)}
-                  </Text>
-                </View>
-              )}
-              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
-            </TouchableOpacity>
+            <TotalCasesChart total={dash?.total ?? 0} ytdMetrics={dash?.ytdMetrics} />
 
-            <Text style={[ss.sectionTitle, { color: theme.textMuted, marginTop: 16 }]}>TRAINING</Text>
             <TouchableOpacity
-              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#e9d5ff' }]}
-              onPress={() => router.push('/training-sessions' as any)}
-              activeOpacity={0.75}
+              style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', backgroundColor: theme.surface, borderColor: theme.border }]}
+              onPress={() => router.push('/pms-assignments')} activeOpacity={0.7}
             >
-              <View style={[ss.pmsIconBox, { backgroundColor: '#f3e8ff' }]}>
-                <MaterialCommunityIcons name="school-outline" size={26} color="#7c3aed" />
+              <View style={ss.rowBetween}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary }}>Preventive Maintenance</Text>
+                <MaterialCommunityIcons name="cog-outline" size={24} color={theme.textMuted} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Training Sessions</Text>
-                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>Schedule, attend & manage training</Text>
+              <Text style={{ fontSize: 14, color: theme.textSecondary, marginVertical: Spacing.md }}>
+                {Number(pmsDash?.assigned ?? 0) > 0 ? `Next scheduled maintenance in 14 days.` : `No upcoming maintenance scheduled.`}
+              </Text>
+              
+              <View style={{ flexDirection: 'column', gap: 8, width: '100%' }}>
+                <View style={ss.rowBetween}>
+                  <Text style={{ fontSize: 14, color: theme.textPrimary }}>Server Rack A</Text>
+                  <Text style={{ fontSize: 12, fontFamily: Fonts.mono, fontWeight: '700', color: '#D97706' }}>Pending</Text>
+                </View>
+                <View style={{ height: 4, width: '100%', backgroundColor: theme.borderLight, borderRadius: 2, overflow: 'hidden' }}>
+                  <View style={{ width: '70%', height: '100%', backgroundColor: '#D97706' }} />
+                </View>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
             </TouchableOpacity>
 
-            {cases.filter(item => !['resolved','closed'].includes(item.status)).length > 0 && (
+            <TouchableOpacity
+              style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', backgroundColor: theme.surface, borderColor: theme.border }]}
+              onPress={() => router.push('/training-sessions' as any)} activeOpacity={0.7}
+            >
+              <View style={ss.rowBetween}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary }}>Training Sessions</Text>
+                <MaterialCommunityIcons name="school-outline" size={24} color={theme.textMuted} />
+              </View>
+              <Text style={{ fontSize: 14, color: theme.textSecondary, marginVertical: Spacing.md }}>
+                New modules available for certification.
+              </Text>
+              <View style={{ width: '100%', paddingVertical: 10, borderWidth: 1, borderColor: theme.border, borderRadius: 4, alignItems: 'center' }}>
+                 <Text style={{ fontSize: 12, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textPrimary }}>VIEW MODULES</Text>
+              </View>
+            </TouchableOpacity>
+
+            {cases.filter(item => !['resolved', 'closed'].includes(item.status)).length > 0 && (
               <>
                 <View style={ss.rowBetween}>
                   <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ASSIGNED TO ME</Text>
@@ -273,7 +322,7 @@ function HCEngineerHome({ user }: { user: any }) {
                     <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>View all</Text>
                   </TouchableOpacity>
                 </View>
-                {cases.filter(item => !['resolved','closed'].includes(item.status)).map(item => (
+                {cases.filter(item => !['resolved', 'closed'].includes(item.status)).map(item => (
                   <CaseRow key={item.id} item={item} onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })} />
                 ))}
               </>
@@ -288,7 +337,7 @@ function HCEngineerHome({ user }: { user: any }) {
 // ΓöÇΓöÇΓöÇ HC Admin Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function HCAdminHome({ user }: { user: any }) {
   const { theme } = useTheme();
-  const [dash, setDash]       = useState<any>(null);
+  const [dash, setDash] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -317,32 +366,26 @@ function HCAdminHome({ user }: { user: any }) {
 
   return (
     <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
+        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
+      </HomeAppBar>
       <ScrollView
         contentContainerStyle={ss.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={ss.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
-            <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
-            <Text style={[ss.roleTag, { color: '#7c3aed', backgroundColor: '#f3e8ff' }]}>Admin</Text>
-          </View>
-          <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
-            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <GreetingRow greeting={greeting} roleLabel="Admin" icon="shield-account-outline" />
 
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
           <>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>CASE LOG OVERVIEW</Text>
             <View style={ss.statsGrid}>
-              <StatCard label="Total"       value={dash?.total      ?? 0} color="#2563EB" onPress={() => router.push('/(tabs)/tasks')} />
-              <StatCard label="Open"        value={dash?.open       ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'open' } })} />
-              <StatCard label="Assigned"    value={dash?.assigned   ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
+              <StatCard label="Total" value={dash?.total ?? 0} color="#2563EB" onPress={() => router.push('/(tabs)/tasks')} />
+              <StatCard label="Open" value={dash?.open ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'open' } })} />
+              <StatCard label="Assigned" value={dash?.assigned ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
               <StatCard label="In Progress" value={dash?.inProgress ?? 0} color="#D97706" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'in_progress' } })} />
-              <StatCard label="Resolved"    value={dash?.resolved   ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
-              <StatCard label="Closed"      value={dash?.closed     ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
+              <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
+              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
             </View>
 
             {(dash?.engineerStats?.length ?? 0) > 0 && (
@@ -386,9 +429,9 @@ function HCAdminHome({ user }: { user: any }) {
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
             <View style={ss.actionsRow}>
               {([
-                { icon: 'package-variant',       label: 'Assets',     color: theme.primary, route: '/assets' },
-                { icon: 'clipboard-text-outline', label: 'All Cases',  color: '#D97706',     route: '/(tabs)/tasks' },
-                { icon: 'account-group-outline',  label: 'Users',      color: '#7C3AED',     route: '/(tabs)/assignments' },
+                { icon: 'package-variant', label: 'Assets', color: theme.primary, route: '/assets' },
+                { icon: 'clipboard-text-outline', label: 'All Cases', color: '#D97706', route: '/(tabs)/tasks' },
+                { icon: 'account-group-outline', label: 'Users', color: '#7C3AED', route: '/(tabs)/assignments' },
               ] as const).map(a => (
                 <TouchableOpacity key={a.label}
                   style={[ss.actionBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -411,9 +454,9 @@ function HCAdminHome({ user }: { user: any }) {
 // ΓöÇΓöÇΓöÇ Department Head Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function DeptHeadHome({ user }: { user: any }) {
   const { theme } = useTheme();
-  const [stats, setStats]       = useState<any>(null);
-  const [pending, setPending]   = useState(0);
-  const [loading, setLoading]   = useState(true);
+  const [stats, setStats] = useState<any>(null);
+  const [pending, setPending] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -443,32 +486,26 @@ function DeptHeadHome({ user }: { user: any }) {
 
   return (
     <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
+        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
+      </HomeAppBar>
       <ScrollView
         contentContainerStyle={ss.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header ΓÇö matches Doctor UI */}
-        <View style={ss.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[ss.greeting, { color: theme.textSecondary }]}>{greeting} ≡ƒæï</Text>
-            <Text style={[ss.name, { color: theme.textPrimary }]}>{firstName}</Text>
-            <Text style={[ss.roleTag, { color: '#7c3aed', backgroundColor: '#f3e8ff' }]}>Department Head</Text>
-          </View>
-          <TouchableOpacity style={[ss.qrBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/qr-scanner')}>
-            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        {/* Header */}
+        <GreetingRow greeting={greeting} roleLabel="Department Head" icon="shield-account-outline" />
 
-        {/* PMS Overview stats ΓÇö 2├ù2 grid like Doctor's Case Logs */}
+        {/* PMS Overview stats */}
         {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
           <>
             <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY PMS OVERVIEW</Text>
             <View style={ss.statsGrid}>
-              <StatCard label="Total"    value={stats?.total    ?? 0} color="#2563EB" onPress={() => router.push('/dept-head-pms')} />
-              <StatCard label="Pending"  value={stats?.pending  ?? 0} color="#DC2626" onPress={() => router.push('/dept-head-pms')} />
+              <StatCard label="Total" value={stats?.total ?? 0} color="#2563EB" onPress={() => router.push('/dept-head-pms')} />
+              <StatCard label="Pending" value={stats?.pending ?? 0} color="#DC2626" onPress={() => router.push('/dept-head-pms')} />
               <StatCard label="Approved" value={stats?.approved ?? 0} color="#059669" />
-              <StatCard label="Closed"   value={stats?.closed   ?? 0} color="#64748B" />
+              <StatCard label="Closed" value={stats?.closed ?? 0} color="#64748B" />
             </View>
           </>
         )}
@@ -500,8 +537,8 @@ function DeptHeadHome({ user }: { user: any }) {
 }
 
 const dhs = StyleSheet.create({
-  pmsCard:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
-  pmsIconBox:   { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
+  pmsIconBox: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   pmsCardTitle: { fontSize: 15, fontWeight: '700' },
 });
 
@@ -509,52 +546,68 @@ const dhs = StyleSheet.create({
 export default function HomeScreen() {
   const { user, capabilities } = useAuth();
   const isDH = user?.role === 'department_head' || user?.role === 'dept_head';
-  if (capabilities.isHCStaff)    return <HCStaffHome    user={user} />;
+  if (capabilities.isHCStaff) return <HCStaffHome user={user} />;
   if (capabilities.isHCEngineer) return <HCEngineerHome user={user} />;
-  if (capabilities.isHCAdmin)    return <HCAdminHome    user={user} />;
-  if (isDH)                      return <DeptHeadHome   user={user} />;
+  if (capabilities.isHCAdmin) return <HCAdminHome user={user} />;
+  if (isDH) return <DeptHeadHome user={user} />;
   return <LegacyHome user={user} capabilities={capabilities} />;
 }
 
 // ΓöÇΓöÇΓöÇ Styles ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const ss = StyleSheet.create({
-  safe:        { flex: 1 },
-  scroll:      { padding: Spacing.lg, paddingBottom: 48, gap: Spacing.md },
-  topBar:      { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-  greeting:    { fontSize: 13, marginBottom: 2, fontWeight: '500' },
-  name:        { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
-  company:     { fontSize: 12, marginTop: 2 },
-  roleTag:     { marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, fontSize: 11, fontWeight: '700', textTransform: 'capitalize', overflow: 'hidden' },
-  qrBtn:       { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', ...Shadows.brand },
-  raiseCta:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: Spacing.md, borderRadius: Radius.lg },
-  raiseCtaText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
-  sectionTitle:{ fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginTop: 4 },
-  rowBetween:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  statCard:    { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, alignItems: 'center', overflow: 'hidden' },
-  statAccent:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
-  statValue:   { fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.5 },
-  statLabel:   { fontSize: 12, marginTop: 2, fontWeight: '600' },
-  caseRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, paddingLeft: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, overflow: 'hidden' },
-  caseStripe:  { width: 4, alignSelf: 'stretch', borderRadius: 2 },
-  caseTitle:   { fontWeight: '700', fontSize: 13 },
-  caseDesc:    { fontSize: 12, marginTop: 2 },
+  safe: { flex: 1 },
+  scroll: { padding: Spacing.lg, paddingBottom: 48, gap: Spacing.md },
+  topBar: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+
+  // Top app bar
+  appBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, height: 56, borderBottomWidth: 1 },
+  appBarLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  appAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  appAvatarTxt: { fontWeight: '800', fontSize: 14 },
+  appBarTitle: { fontSize: 18, fontWeight: '600', letterSpacing: -0.2, flex: 1 },
+  appBarActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  appBarIconBtn: { padding: 2 },
+  appBarBadge: { position: 'absolute', top: -5, right: -6, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5 },
+  appBarBadgeTxt: { fontSize: 9, color: '#fff', fontWeight: '700' },
+
+  // Greeting + role badge
+  greetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, marginBottom: Spacing.xs },
+  greetBig: { flex: 1, fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.6 },
+  roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.sm, borderWidth: 1 },
+  roleBadgeTxt: { fontFamily: Fonts.mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  greeting: { fontSize: 13, marginBottom: 2, fontWeight: '500' },
+  name: { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
+  company: { fontSize: 12, marginTop: 2 },
+  roleTag: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm, fontFamily: Fonts.mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', overflow: 'hidden' },
+  qrBtn: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  raiseCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: Spacing.md, borderRadius: Radius.lg },
+  raiseCtaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  sectionTitle: { ...Typography.overline, marginTop: 4 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  statCard: { width: '47.5%', borderRadius: Radius.sm, padding: Spacing.lg, borderWidth: 1, alignItems: 'flex-start', gap: 6 },
+  statLabel: { ...Typography.overline, fontSize: 10 },
+  statValue: { ...Typography.metricNum },
+  caseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, paddingLeft: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, overflow: 'hidden' },
+  caseStripe: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  caseTitle: { fontWeight: '700', fontSize: 13 },
+  caseDesc: { fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  statusText:  { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  engRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, ...Shadows.xs },
-  engAvatar:   { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  engName:     { fontWeight: '700', fontSize: 13 },
-  engSub:      { fontSize: 11, marginTop: 2 },
-  actionsRow:  { flexDirection: 'row', gap: Spacing.sm },
+  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
+  engRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, ...Shadows.xs },
+  engAvatar: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  engName: { fontWeight: '700', fontSize: 13 },
+  engSub: { fontSize: 11, marginTop: 2 },
+  actionsRow: { flexDirection: 'row', gap: Spacing.sm },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionBtn:   { flex: 1, alignItems: 'center', gap: 8, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
-  actionIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
+  actionIcon: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  legacyCard:  { width: '47.5%', padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, gap: 8 },
-  pmsCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
-  pmsIconBox:  { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  pmsCardTitle:{ fontSize: 15, fontWeight: '700' },
-  pmsBadge:    { backgroundColor: '#2347C5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, minWidth: 28, alignItems: 'center' },
+  legacyCard: { width: '47.5%', padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, gap: 8 },
+  pmsCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
+  pmsIconBox: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsCardTitle: { fontSize: 15, fontWeight: '700' },
+  pmsBadge: { backgroundColor: '#2347C5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, minWidth: 28, alignItems: 'center' },
 });
 
 // ΓöÇΓöÇΓöÇ Quick-action card ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -580,10 +633,10 @@ function ActionCard({ icon, label, sublabel, color, onPress }: {
 // ΓöÇΓöÇΓöÇ Main ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
   const { theme } = useTheme();
-  const [progress,   setProgress]   = useState<any>(null);
+  const [progress, setProgress] = useState<any>(null);
   const [notifCount, setNotifCount] = useState(0);
   const [pendingPms, setPendingPms] = useState(0);
-  const [loading,    setLoading]    = useState(true);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const isDeptHead = user?.role === 'department_head' || user?.role === 'dept_head';
@@ -614,60 +667,46 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = user?.fullName?.split(' ')[0] ?? 'there';
 
+  const roleLabel = (user?.role || 'Employee').replace(/_/g, ' ');
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
+        {canViewNotifications(capabilities) ? (
+          <TouchableOpacity
+            onPress={() => router.push('/notifications')}
+            style={ss.appBarIconBtn}
+            hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
+            activeOpacity={0.6}
+          >
+            <MaterialCommunityIcons name="bell-outline" size={23} color={theme.textSecondary} />
+            {notifCount > 0 ? (
+              <View style={[ss.appBarBadge, { backgroundColor: theme.danger, borderColor: theme.background }]}>
+                <Text style={ss.appBarBadgeTxt}>{notifCount > 99 ? '99+' : notifCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+        {canRegisterAssets(capabilities) ? <AppBarIcon icon="plus" onPress={() => router.push('/add-asset')} /> : null}
+        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
+      </HomeAppBar>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ΓöÇΓöÇ Header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
-        <View style={styles.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
-            <Text style={[styles.name, { color: theme.textPrimary }]}>{firstName}</Text>
-            <Text style={[styles.company, { color: theme.textMuted }]}>{user?.companyName}</Text>
-          </View>
-          <View style={styles.topActions}>
-            {canViewNotifications(capabilities) ? (
-              <TouchableOpacity
-                style={[styles.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => router.push('/notifications')}
-              >
-                <MaterialCommunityIcons name="bell-outline" size={20} color={theme.textPrimary} />
-                {notifCount > 0 ? (
-                  <View style={[styles.badge, { backgroundColor: theme.danger }]}>
-                    <Text style={styles.badgeText}>{notifCount > 99 ? '99+' : notifCount}</Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            ) : null}
-            {canRegisterAssets(capabilities) ? (
-              <TouchableOpacity
-                style={[styles.iconBtn, { backgroundColor: '#16a34a' }]}
-                onPress={() => router.push('/add-asset')}
-              >
-                <MaterialCommunityIcons name="plus" size={20} color="#fff" />
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: theme.primary }]}
-              onPress={() => router.push('/qr-scanner')}
-            >
-              <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Header */}
+        <GreetingRow greeting={greeting} roleLabel={roleLabel} icon="shield-account-outline" />
 
-        {/* ΓöÇΓöÇ Today stats ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+        {/* Today stats */}
         {loading ? (
           <ActivityIndicator color={theme.primary} style={{ marginVertical: Spacing.xl }} />
         ) : progress ? (
           <View style={[styles.statsRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {[
-              { label: 'Assigned',  value: (progress as any).assigned  ?? 0, color: theme.primary },
-              { label: 'Done',      value: (progress as any).completed ?? 0, color: '#059669' },
-              { label: 'Pending',   value: (progress as any).pending   ?? 0, color: '#D97706' },
+              { label: 'Assigned', value: (progress as any).assigned ?? 0, color: theme.primary },
+              { label: 'Done', value: (progress as any).completed ?? 0, color: '#059669' },
+              { label: 'Pending', value: (progress as any).pending ?? 0, color: '#D97706' },
             ].map(({ label, value, color }, i, arr) => (
               <View key={label} style={[styles.statItem, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: theme.border }]}>
                 <Text style={[styles.statValue, { color }]}>{value}</Text>
@@ -746,37 +785,37 @@ function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
 }
 
 const styles = StyleSheet.create({
-  safe:         { flex: 1 },
-  scroll:       { padding: Spacing.lg, paddingBottom: 40, gap: Spacing.lg },
+  safe: { flex: 1 },
+  scroll: { padding: Spacing.lg, paddingBottom: 40, gap: Spacing.lg },
 
-  topBar:       { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-  greeting:     { fontSize: 13, marginBottom: 2 },
-  name:         { fontSize: 22, fontWeight: '700', lineHeight: 28 },
-  company:      { fontSize: 12, marginTop: 2 },
-  topActions:   { flexDirection: 'row', gap: Spacing.sm, paddingTop: 4 },
-  iconBtn:      { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, ...Shadows.xs },
-  badge:        { position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#fff' },
-  badgeText:    { fontSize: 9, color: '#fff', fontWeight: '700' },
+  topBar: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  greeting: { fontSize: 13, marginBottom: 2 },
+  name: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  company: { fontSize: 12, marginTop: 2 },
+  topActions: { flexDirection: 'row', gap: Spacing.sm, paddingTop: 4 },
+  iconBtn: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, ...Shadows.xs },
+  badge: { position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#fff' },
+  badgeText: { fontSize: 9, color: '#fff', fontWeight: '700' },
 
-  statsRow:     { flexDirection: 'row', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden', ...Shadows.sm },
-  statItem:     { flex: 1, alignItems: 'center', paddingVertical: Spacing.lg },
-  statValue:    { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
-  statLabel:    { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  statsRow: { flexDirection: 'row', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden', ...Shadows.sm },
+  statItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.lg },
+  statValue: { ...Typography.metricNum, fontSize: 24, lineHeight: 30 },
+  statLabel: { ...Typography.overline, fontSize: 10, marginTop: 4 },
 
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
-  actionsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionCard:   { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: 4, ...Shadows.xs },
-  actionIconWrap:{ width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  actionLabel:  { fontSize: 13, fontWeight: '700' },
-  actionSub:    { fontSize: 11 },
+  sectionTitle: { ...Typography.overline },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  actionCard: { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: 4, ...Shadows.xs },
+  actionIconWrap: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  actionLabel: { fontSize: 13, fontWeight: '700' },
+  actionSub: { fontSize: 11 },
 
-  roleChip:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1 },
-  roleText:     { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  roleChip: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1 },
+  roleText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 
-  pmsApprovalCard:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
-  pmsApprovalIcon:  { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  pmsApprovalCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
+  pmsApprovalIcon: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   pmsApprovalTitle: { fontSize: 15, fontWeight: '700' },
-  pmsApprovalSub:   { fontSize: 12, marginTop: 2 },
+  pmsApprovalSub: { fontSize: 12, marginTop: 2 },
   pmsApprovalBadge: { backgroundColor: '#7c3aed', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },
   pmsApprovalBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12 },
 });

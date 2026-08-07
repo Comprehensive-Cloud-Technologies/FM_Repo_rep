@@ -1451,39 +1451,6 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
                     );
                   })()}
 
-                  {/* Assign Engineer */}
-                  <div style={{ marginBottom: "18px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase",
-                      letterSpacing: "0.04em", marginBottom: "8px" }}>Assign Engineer</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "5px", maxHeight: "190px", overflowY: "auto", marginBottom: "8px",
-                      border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px" }}>
-                      <div onClick={() => setSelEngineer({ id: "", name: "" })}
-                        style={{ padding: "8px 10px", borderRadius: "6px", cursor: "pointer",
-                          border: `2px solid ${!selEngineer.id ? "#2563eb" : "transparent"}`,
-                          background: !selEngineer.id ? "#eff6ff" : "#f8fafc" }}>
-                        <div style={{ fontSize: "12px", fontWeight: 600, color: !selEngineer.id ? "#1d4ed8" : "#64748b" }}>— No Engineer —</div>
-                      </div>
-                      {drawerEngineers.map(eng => (
-                        <div key={eng.id} onClick={() => setSelEngineer({ id: eng.id, name: eng.fullName })}
-                          style={{ padding: "8px 10px", borderRadius: "6px", cursor: "pointer",
-                            border: `2px solid ${selEngineer.id === eng.id ? "#2563eb" : "transparent"}`,
-                            background: selEngineer.id === eng.id ? "#eff6ff" : "#fff" }}>
-                          <div style={{ fontWeight: 700, fontSize: "12px", color: "#0f172a" }}>{eng.fullName}</div>
-                          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
-                            {eng.designation || eng.role}{eng.departmentName ? ` · ${eng.departmentName}` : ""} · {eng.currentWorkload} pending
-                          </div>
-                        </div>
-                      ))}
-                      {drawerEngineers.length === 0 && (
-                        <div style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "12px" }}>No engineers found.</div>
-                      )}
-                    </div>
-                    <button style={{ ...S.btn("primary"), width: "100%", padding: "9px", fontSize: "12px", opacity: savingEng ? 0.6 : 1 }}
-                      onClick={assignEngineer} disabled={savingEng}>
-                      {savingEng ? "Saving…" : "✓ Save Engineer Assignment"}
-                    </button>
-                  </div>
-
                   {/* Notes */}
                   {drawerData.notes && (
                     <div style={{ marginBottom: "18px", padding: "12px 14px", background: "#f8fafc",

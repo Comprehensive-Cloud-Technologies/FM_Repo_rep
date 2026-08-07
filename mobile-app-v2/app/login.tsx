@@ -191,8 +191,8 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <View style={styles.btnInner}>
-                  <Text style={styles.btnText}>Sign In</Text>
-                  <MaterialCommunityIcons name="login" size={18} color="#fff" />
+                  <Text style={[styles.btnText, { color: theme.textInverse }]}>Sign In</Text>
+                  <MaterialCommunityIcons name="login" size={18} color={theme.textInverse} />
                 </View>
               )}
             </TouchableOpacity>

@@ -250,12 +250,12 @@ const styles = StyleSheet.create({
   barTrack:     { width: '100%', height: 6, borderRadius: 3, marginTop: 4, overflow: 'hidden' },
   barFill:      { height: '100%', borderRadius: 3 },
 
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  sectionTitle: { ...Typography.overline },
   statsRow:     { flexDirection: 'row', gap: Spacing.sm },
   statCard:     { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: 4, borderWidth: 1 },
   statIcon:     { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
-  statLabel:    { fontSize: 10, textAlign: 'center', fontWeight: '600' },
+  statValue:    { ...Typography.metricNum, fontSize: 22, lineHeight: 26 },
+  statLabel:    { ...Typography.overline, fontSize: 9, textAlign: 'center' },
 
   alertBanner:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
   alertTitle:   { fontSize: 13, fontWeight: '700', color: '#B91C1C' },

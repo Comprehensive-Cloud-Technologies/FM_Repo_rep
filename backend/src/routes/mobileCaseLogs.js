@@ -128,6 +128,26 @@ router.get("/dashboard", async (req, res, next) => {
     const resolved   = Number(woRow.resolved   || 0) + Number(aqRow.resolved  || 0);
     const closed     = Number(woRow.closed     || 0) + Number(aqRow.closed    || 0);
 
+    // ── YTD Metrics ───────────────────────────────────────────────────────────
+    const currentYear = new Date().getFullYear();
+    const ytdMetrics = Array(12).fill(0);
+    
+    const [woMonthly] = await pool.query(
+      `SELECT MONTH(created_at) as month, COUNT(*) as count 
+       FROM work_orders wo ${woWhere} AND YEAR(created_at) = ?
+       GROUP BY MONTH(created_at)`,
+      [...woParams, currentYear]
+    );
+    const [aqMonthly] = await pool.query(
+      `SELECT MONTH(created_at) as month, COUNT(*) as count 
+       FROM asset_queries aq ${aqWhere} AND YEAR(created_at) = ?
+       GROUP BY MONTH(created_at)`,
+      [...aqParams, currentYear]
+    );
+
+    for (const r of woMonthly) { if (r.month >= 1 && r.month <= 12) ytdMetrics[r.month - 1] += Number(r.count); }
+    for (const r of aqMonthly) { if (r.month >= 1 && r.month <= 12) ytdMetrics[r.month - 1] += Number(r.count); }
+
     // Admin: per-engineer breakdown (WO + AQ combined)
     let engineerStats = [];
     if (isHCAdmin(role)) {
@@ -168,7 +188,7 @@ router.get("/dashboard", async (req, res, next) => {
       engineerStats = [...engMap.values()].sort((a, b) => b.total - a.total);
     }
 
-    res.json({ total, open, assigned, inProgress, resolved, closed, engineerStats });
+    res.json({ total, open, assigned, inProgress, resolved, closed, engineerStats, ytdMetrics });
   } catch (err) { next(err); }
 });
 router.get("/engineers", async (req, res, next) => {
