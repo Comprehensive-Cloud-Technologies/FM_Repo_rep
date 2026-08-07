@@ -33,30 +33,30 @@ function buildQS(obj) {
 /* ─── Style constants ─────────────────────────────────────────────────────── */
 const PRIORITY_STYLE = {
   critical: { bg: "#fee2e2", color: "#991b1b", dot: "#dc2626", label: "Critical" },
-  high:     { bg: "#ffedd5", color: "#9a3412", dot: "#f97316", label: "High" },
-  medium:   { bg: "#fef9c3", color: "#854d0e", dot: "#eab308", label: "Medium" },
-  low:      { bg: "#dcfce7", color: "#166534", dot: "#22c55e", label: "Low" },
+  high: { bg: "#ffedd5", color: "#9a3412", dot: "#f97316", label: "High" },
+  medium: { bg: "#fef9c3", color: "#854d0e", dot: "#eab308", label: "Medium" },
+  low: { bg: "#dcfce7", color: "#166534", dot: "#22c55e", label: "Low" },
 };
 
 const STATUS_STYLE = {
-  open:        { bg: "#fee2e2",  color: "#dc2626",  label: "Open",        dot: "#dc2626" },
-  assigned:    { bg: "#ede9fe",  color: "#7c3aed",  label: "Assigned",    dot: "#7c3aed" },
-  in_progress: { bg: "#dbeafe",  color: "#1d4ed8",  label: "In Progress", dot: "#2563eb" },
-  on_hold:     { bg: "#fef9c3",  color: "#854d0e",  label: "On Hold",     dot: "#eab308" },
-  completed:   { bg: "#dcfce7",  color: "#166534",  label: "Completed",   dot: "#22c55e" },
-  closed:      { bg: "#f1f5f9",  color: "#475569",  label: "Closed",      dot: "#94a3b8" },
-  escalated:   { bg: "#fdf4ff",  color: "#7c3aed",  label: "Escalated",   dot: "#a855f7" },
+  open: { bg: "#fee2e2", color: "#dc2626", label: "Open", dot: "#dc2626" },
+  assigned: { bg: "#ede9fe", color: "#7c3aed", label: "Assigned", dot: "#7c3aed" },
+  in_progress: { bg: "#dbeafe", color: "#1d4ed8", label: "In Progress", dot: "#2563eb" },
+  on_hold: { bg: "#fef9c3", color: "#854d0e", label: "On Hold", dot: "#eab308" },
+  completed: { bg: "#dcfce7", color: "#166534", label: "Completed", dot: "#22c55e" },
+  closed: { bg: "#f1f5f9", color: "#475569", label: "Closed", dot: "#94a3b8" },
+  escalated: { bg: "#fdf4ff", color: "#7c3aed", label: "Escalated", dot: "#a855f7" },
 };
 
 const SOURCE_STYLE = {
-  flag:             { bg: "#fdf4ff", color: "#7c3aed",  label: "Flag" },
-  logsheet:         { bg: "#dcfce7", color: "#166534",  label: "Logsheet" },
-  checklist:        { bg: "#dbeafe", color: "#1d4ed8",  label: "Checklist" },
-  manual:           { bg: "#f1f5f9", color: "#475569",  label: "Manual" },
-  "qr scan":        { bg: "#fef9c3", color: "#854d0e",  label: "QR Scan" },
-  "qr_scan":        { bg: "#fef9c3", color: "#854d0e",  label: "QR Scan" },
-  "mobile case log":{ bg: "#e0f2fe", color: "#075985",  label: "Mobile" },
-  "mobile_case_log":{ bg: "#e0f2fe", color: "#075985",  label: "Mobile" },
+  flag: { bg: "#fdf4ff", color: "#7c3aed", label: "Flag" },
+  logsheet: { bg: "#dcfce7", color: "#166534", label: "Logsheet" },
+  checklist: { bg: "#dbeafe", color: "#1d4ed8", label: "Checklist" },
+  manual: { bg: "#f1f5f9", color: "#475569", label: "Manual" },
+  "qr scan": { bg: "#fef9c3", color: "#854d0e", label: "QR Scan" },
+  "qr_scan": { bg: "#fef9c3", color: "#854d0e", label: "QR Scan" },
+  "mobile case log": { bg: "#e0f2fe", color: "#075985", label: "Mobile" },
+  "mobile_case_log": { bg: "#e0f2fe", color: "#075985", label: "Mobile" },
 };
 
 /* ─── UI atoms ────────────────────────────────────────────────────────────── */
@@ -105,10 +105,10 @@ function Modal({ onClose, title, children, width = "520px" }) {
 
 function Btn({ children, onClick, variant = "primary", size = "md", disabled, style: s = {} }) {
   const v = {
-    primary:  { background: "#2563eb", color: "#fff",    border: "none" },
-    danger:   { background: "#dc2626", color: "#fff",    border: "none" },
-    outline:  { background: "#fff",    color: "#2563eb", border: "1.5px solid #2563eb" },
-    ghost:    { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
+    primary: { background: "#2563eb", color: "#fff", border: "none" },
+    danger: { background: "#dc2626", color: "#fff", border: "none" },
+    outline: { background: "#fff", color: "#2563eb", border: "1.5px solid #2563eb" },
+    ghost: { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
   }[variant] || {};
   const sz = size === "sm" ? { padding: "5px 12px", fontSize: "12px" } : { padding: "9px 18px", fontSize: "13.5px" };
   return (
@@ -122,14 +122,14 @@ function Btn({ children, onClick, variant = "primary", size = "md", disabled, st
 /* ─── Summary Cards ───────────────────────────────────────────────────────── */
 function SummaryCards({ summary, activeFilter, onFilterClick }) {
   const CARDS = [
-    { key: "open",        label: "Open",        color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-    { key: "assigned",    summaryKey: "assigned", label: "Assigned", color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
+    { key: "open", label: "Open", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+    { key: "assigned", summaryKey: "assigned", label: "Assigned", color: "#7c3aed", bg: "#ede9fe", border: "#c4b5fd" },
     { key: "in_progress", summaryKey: "inProgress", label: "In Progress", color: "#1d4ed8", bg: "#dbeafe", border: "#bfdbfe" },
-    { key: "on_hold",     summaryKey: "onHold", label: "On Hold",     color: "#854d0e", bg: "#fef9c3", border: "#fde68a" },
-    { key: "completed",   label: "Completed",   color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
-    { key: "closed",      label: "Closed",      color: "#475569", bg: "#f1f5f9", border: "#e2e8f0" },
-    { key: "escalated",   label: "Escalated",   color: "#7c3aed", bg: "#faf5ff", border: "#e9d5ff" },
-    { key: "overdue",     label: "Overdue",     color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+    { key: "on_hold", summaryKey: "onHold", label: "On Hold", color: "#854d0e", bg: "#fef9c3", border: "#fde68a" },
+    { key: "completed", label: "Completed", color: "#16a34a", bg: "#dcfce7", border: "#bbf7d0" },
+    { key: "closed", label: "Closed", color: "#475569", bg: "#f1f5f9", border: "#e2e8f0" },
+    { key: "escalated", label: "Escalated", color: "#7c3aed", bg: "#faf5ff", border: "#e9d5ff" },
+    { key: "overdue", label: "Overdue", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
   ];
 
   return (
@@ -178,14 +178,14 @@ function ClearInput({ value, onChange, onClear, placeholder, type = "text", styl
 
 function FiltersBar({ filters, setFilters, employees, departments, onReset, searchInput, setSearchInput, allCompaniesMode, hospitalInput, setHospitalInput, assetNameInput, setAssetNameInput, raisedByInput, setRaisedByInput }) {
   const [open, setOpen] = useState(false);
-  const activeCount = Object.entries(filters).filter(([k, v]) => !["search","escalated","overdue"].includes(k) && v !== "" && v !== false).length;
+  const activeCount = Object.entries(filters).filter(([k, v]) => !["search", "escalated", "overdue"].includes(k) && v !== "" && v !== false).length;
 
   return (
     <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
       <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
         {/* Search with clear button */}
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
@@ -200,8 +200,8 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
         <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
           style={{ ...inputSt, width: "auto", minWidth: "130px" }}>
           <option value="">All Statuses</option>
-          {["open","assigned","in_progress","on_hold","completed","closed","escalated"].map(s => (
-            <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>
+          {["open", "assigned", "in_progress", "on_hold", "completed", "closed", "escalated"].map(s => (
+            <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>
           ))}
         </select>
         {/* Priority */}
@@ -215,7 +215,7 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
         </select>
 
         <button onClick={() => setOpen(o => !o)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: open ? "#eff6ff" : "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: open ? "#2563eb" : "#475569" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
           More Filters {activeCount > 0 && <span style={{ background: "#2563eb", color: "#fff", borderRadius: "9px", padding: "0 6px", fontSize: "11px" }}>{activeCount}</span>}
         </button>
         {(activeCount > 0 || searchInput) && (
@@ -296,8 +296,8 @@ function ActivityTimeline({ items }) {
 
   const iconFor = (type) => {
     if (type === "status_change") return { icon: "🔄", bg: "#dbeafe" };
-    if (type === "remark")        return { icon: "💬", bg: "#dcfce7" };
-    if (type === "assignment")    return { icon: "👤", bg: "#faf5ff" };
+    if (type === "remark") return { icon: "💬", bg: "#dcfce7" };
+    if (type === "assignment") return { icon: "👤", bg: "#faf5ff" };
     return { icon: "📌", bg: "#f1f5f9" };
   };
 
@@ -317,10 +317,10 @@ function ActivityTimeline({ items }) {
             {/* Content */}
             <div style={{ flex: 1, paddingTop: "6px" }}>
               <p style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
-                {item.type === "status_change" && `Status changed to "${(item.status || "").replace("_"," ")}"`}
-                {item.type === "remark"        && `Remark: ${item.note || ""}`}
-                {item.type === "assignment"    && `Assigned to ${item.assigned_name || "—"}${item.assigned_by_name ? ` by ${item.assigned_by_name}` : ""}`}
-                {!["status_change","remark","assignment"].includes(item.type) && item.remarks}
+                {item.type === "status_change" && `Status changed to "${(item.status || "").replace("_", " ")}"`}
+                {item.type === "remark" && `Remark: ${item.note || ""}`}
+                {item.type === "assignment" && `Assigned to ${item.assigned_name || "—"}${item.assigned_by_name ? ` by ${item.assigned_by_name}` : ""}`}
+                {!["status_change", "remark", "assignment"].includes(item.type) && item.remarks}
               </p>
               {item.remarks && item.type === "status_change" && (
                 <p style={{ margin: "0 0 2px", fontSize: "12px", color: "#64748b" }}>{item.remarks}</p>
@@ -339,17 +339,17 @@ function ActivityTimeline({ items }) {
 
 /* ─── Work Order Detail Modal ─────────────────────────────────────────────── */
 function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUpdated }) {
-  const [tab, setTab]           = useState(wo._openTab || "details");
+  const [tab, setTab] = useState(wo._openTab || "details");
   const [activity, setActivity] = useState([]);
-  const [remarks, setRemarks]   = useState([]);
-  const [assignHistory, setAH]  = useState([]);
-  const [newRemark, setNewRemark]= useState("");
+  const [remarks, setRemarks] = useState([]);
+  const [assignHistory, setAH] = useState([]);
+  const [newRemark, setNewRemark] = useState("");
   const [assignTo, setAssignTo] = useState("");
   const [assignNote, setAssignNote] = useState("");
-  const [statusVal, setStatusVal]   = useState(wo.status || "open");
-  const [saving, setSaving]     = useState(false);
-  const [loadingAct, setLoadAct]= useState(false);
-  const [err, setErr]           = useState(null);
+  const [statusVal, setStatusVal] = useState(wo.status || "open");
+  const [saving, setSaving] = useState(false);
+  const [loadingAct, setLoadAct] = useState(false);
+  const [err, setErr] = useState(null);
 
   const authToken = companyPortalToken || token;
 
@@ -358,7 +358,7 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
       setLoadAct(true);
       apiFetch("GET", `/api/company-portal/healthcare/work-orders/${wo.id}/activity`, undefined, authToken)
         .then(d => setActivity(Array.isArray(d) ? d : []))
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoadAct(false));
     }
   }, [tab, wo.id, authToken]);
@@ -406,17 +406,17 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
   };
 
   const ps = PRIORITY_STYLE[(wo.priority || "").toLowerCase()] || PRIORITY_STYLE.medium;
-  const ss = STATUS_STYLE[(wo.status || "").toLowerCase()]    || STATUS_STYLE.open;
-  const src= SOURCE_STYLE[(wo.source_label || wo.issue_source || wo.issueSource || "manual").toLowerCase()] || SOURCE_STYLE.manual;
+  const ss = STATUS_STYLE[(wo.status || "").toLowerCase()] || STATUS_STYLE.open;
+  const src = SOURCE_STYLE[(wo.source_label || wo.issue_source || wo.issueSource || "manual").toLowerCase()] || SOURCE_STYLE.manual;
 
-  const TABS = ["details","assign","status","remarks","activity"];
+  const TABS = ["details", "assign", "status", "remarks", "activity"];
 
   return (
     <Modal onClose={onClose} title={`Request: ${wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}`} width="640px">
       {/* Header info */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
         <Badge val={wo.priority} styleMap={PRIORITY_STYLE} />
-        <Badge val={wo.status}   styleMap={STATUS_STYLE} />
+        <Badge val={wo.status} styleMap={STATUS_STYLE} />
         <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11.5px", fontWeight: 700, background: src.bg, color: src.color }}>{src.label}</span>
         {(Number(wo.escalation_level) > 0 || wo.escalationLevel > 0) && (
           <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11.5px", fontWeight: 700, background: "#fdf4ff", color: "#7c3aed" }}>⏫ Escalated</span>
@@ -441,15 +441,15 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
       {/* Tab content */}
       {tab === "details" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <Row label="Request #"    val={wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`} mono />
-          <Row label="Asset"         val={wo.assetName || wo.asset_name || "—"} />
-          <Row label="Department"    val={wo.department_name || "—"} />
-          <Row label="Location"      val={wo.location || "—"} />
-          <Row label="Description"   val={wo.issueDescription || wo.issue_description || "—"} multiline />
-          <Row label="Source"        val={src.label} />
-          <Row label="Assigned To"   val={wo.assigned_to_name || wo.assignedToName || "Unassigned"} />
-          <Row label="Cutoff Time"   val={wo.cutoff_time ? new Date(wo.cutoff_time).toLocaleString() : "—"} />
-          <Row label="Created"       val={wo.created_at ? new Date(wo.created_at).toLocaleString() : "—"} />
+          <Row label="Request #" val={wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`} mono />
+          <Row label="Asset" val={wo.assetName || wo.asset_name || "—"} />
+          <Row label="Department" val={wo.department_name || "—"} />
+          <Row label="Location" val={wo.location || "—"} />
+          <Row label="Description" val={wo.issueDescription || wo.issue_description || "—"} multiline />
+          <Row label="Source" val={src.label} />
+          <Row label="Assigned To" val={wo.assigned_to_name || wo.assignedToName || "Unassigned"} />
+          <Row label="Cutoff Time" val={wo.cutoff_time ? new Date(wo.cutoff_time).toLocaleString() : "—"} />
+          <Row label="Created" val={wo.created_at ? new Date(wo.created_at).toLocaleString() : "—"} />
           {wo.escalation_level > 0 && <Row label="Escalation Level" val={`Level ${wo.escalation_level}`} />}
           {/* Images */}
           {Array.isArray(wo.images) && wo.images.length > 0 && (
@@ -459,7 +459,7 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
                 {wo.images.map((url, idx) => (
                   <a key={idx} href={`${BASE}${url}`} target="_blank" rel="noreferrer"
                     style={{ display: "block", width: "90px", height: "90px", borderRadius: "8px", overflow: "hidden", border: "1px solid #e2e8f0", flexShrink: 0 }}>
-                    <img src={`${BASE}${url}`} alt={`attachment-${idx+1}`}
+                    <img src={`${BASE}${url}`} alt={`attachment-${idx + 1}`}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </a>
                 ))}
@@ -498,8 +498,8 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
             <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>New Status</label>
             <select value={statusVal} onChange={e => setStatusVal(e.target.value)}
               style={{ width: "100%", padding: "9px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13.5px", background: "#fff" }}>
-              {["open","assigned","in_progress","on_hold","completed","closed"].map(s => (
-                <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>
+              {["open", "assigned", "in_progress", "on_hold", "completed", "closed"].map(s => (
+                <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>
               ))}
             </select>
           </div>
@@ -546,7 +546,7 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
     assignedTo: "", cutoffHours: "",
   });
   const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState(null);
+  const [err, setErr] = useState(null);
 
   const submit = async () => {
     if (!form.issueDescription) { setErr("Description is required."); return; }
@@ -557,11 +557,11 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
         : undefined;
       await apiFetch("POST", "/api/company-portal/work-orders", {
         issueDescription: form.issueDescription,
-        assetName:        form.assetName     || undefined,
-        location:         form.location      || undefined,
-        priority:         form.priority,
-        assignedTo:       form.assignedTo    ? Number(form.assignedTo) : undefined,
-        cutoffTime:       cutoffAt,
+        assetName: form.assetName || undefined,
+        location: form.location || undefined,
+        priority: form.priority,
+        assignedTo: form.assignedTo ? Number(form.assignedTo) : undefined,
+        cutoffTime: cutoffAt,
         companyId,
       }, companyPortalToken);
       onCreated?.();
@@ -585,8 +585,8 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
       {err && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "9px 12px", borderRadius: "7px", marginBottom: "14px", fontSize: "13px" }}>{err}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {fld("Description", <textarea value={form.issueDescription} onChange={e => setForm(f => ({ ...f, issueDescription: e.target.value }))} rows={3} placeholder="Describe the issue…" style={{ ...inputSt, resize: "vertical" }} />, true)}
-        {fld("Asset Name",  <input value={form.assetName} onChange={e => setForm(f => ({ ...f, assetName: e.target.value }))} placeholder="e.g. Ventilator B" style={inputSt} />)}
-        {fld("Location",    <input value={form.location}  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}  placeholder="e.g. ICU Block A" style={inputSt} />)}
+        {fld("Asset Name", <input value={form.assetName} onChange={e => setForm(f => ({ ...f, assetName: e.target.value }))} placeholder="e.g. Ventilator B" style={inputSt} />)}
+        {fld("Location", <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. ICU Block A" style={inputSt} />)}
         {fld("Priority", (
           <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} style={inputSt}>
             <option value="low">Low</option>
@@ -619,7 +619,7 @@ function SetCutoffModal({ wo, authToken, onClose, onSave }) {
     wo.cutoff_time ? new Date(wo.cutoff_time).toISOString().slice(0, 16) : ''
   );
   const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState(null);
+  const [err, setErr] = useState(null);
 
   const inpSt = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', background: '#fff' };
 
@@ -695,27 +695,27 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
 
   const EMPTY_FILTERS = { search: "", status: "", priority: "", assignedTo: "", departmentId: "", dateFrom: "", dateTo: "", escalated: false, overdue: false, source: "", hospitalName: "", assetName: "", raisedBy: "" };
 
-  const [requests, setRequests]   = useState([]);
-  const [summary, setSummary]     = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
-  const [filters, setFilters]     = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [searchInput, setSearchInput] = useState(""); // debounced input
   const [hospitalInput, setHospitalInput] = useState("");
   const [assetNameInput, setAssetNameInput] = useState("");
   const [raisedByInput, setRaisedByInput] = useState("");
-  const [statusFilter, setStFil]  = useState("all");   // quick tab filter
+  const [statusFilter, setStFil] = useState("all");   // quick tab filter
 
   // Debounce text inputs → fire API 400ms after user stops typing
   useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, search: searchInput })), 400); return () => clearTimeout(t); }, [searchInput]);
   useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, hospitalName: hospitalInput })), 400); return () => clearTimeout(t); }, [hospitalInput]);
   useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, assetName: assetNameInput })), 400); return () => clearTimeout(t); }, [assetNameInput]);
   useEffect(() => { const t = setTimeout(() => setFilters(f => ({ ...f, raisedBy: raisedByInput })), 400); return () => clearTimeout(t); }, [raisedByInput]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedWO, setSelectedWO] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [cutoffWO, setCutoffWO]     = useState(null);
-  const [page, setPage]             = useState(1);
+  const [cutoffWO, setCutoffWO] = useState(null);
+  const [page, setPage] = useState(1);
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -747,7 +747,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       // Play alert sound if new overdue requests detected
       const rows = Array.isArray(data.data) ? data.data : [];
       const newOverdueOnLoad = rows.filter(r =>
-        r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
+        r.cutoff_time && !["completed", "closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
       );
       setViewedOverdueIds(prev => {
         const truly = newOverdueOnLoad.filter(r => !prev.has(r.id));
@@ -759,7 +759,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
             osc.frequency.value = 880; gain.gain.setValueAtTime(0.3, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
             osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
-          } catch(_) {}
+          } catch (_) { }
         }
         return prev;
       });
@@ -780,7 +780,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       (import.meta.env.DEV ? "http://localhost:4000" : window.location.origin);
     const socket = io(socketBase, { transports: ["websocket", "polling"], autoConnect: true });
     socket.on("connect", () => { socket.emit("join-company", companyId); });
-    socket.on("issue:new",     () => { load(); });
+    socket.on("issue:new", () => { load(); });
     socket.on("issue:updated", () => { load(); });
     return () => {
       socket.emit("leave-company", companyId);
@@ -833,14 +833,14 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `HTTP ${res.status}`); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `ticket-master-${new Date().toISOString().slice(0,10)}.xlsx`;
+      const a = document.createElement("a"); a.href = url; a.download = `ticket-master-${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    } catch(e) { alert(`Export failed: ${e.message}`); }
+    } catch (e) { alert(`Export failed: ${e.message}`); }
   };
 
   const isOverdue = (wo) => {
     if (wo.is_overdue === 1) return true;
-    if (wo.cutoff_time && !["completed","closed"].includes(wo.status)) {
+    if (wo.cutoff_time && !["completed", "closed"].includes(wo.status)) {
       return new Date(wo.cutoff_time) < new Date();
     }
     return false;
@@ -853,7 +853,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
             </div>
             <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Ticket Master</h1>
           </div>
@@ -861,11 +861,11 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <Btn variant="ghost" onClick={exportExcel}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             Export Excel
           </Btn>
           <Btn onClick={() => setShowCreate(true)} style={{ background: "#16a34a", boxShadow: "0 2px 8px rgba(22,163,74,0.3)" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             New Request
           </Btn>
         </div>
@@ -899,9 +899,9 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       {/* Status Tab Bar */}
       <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e2e8f0", marginBottom: "16px", overflowX: "auto" }}>
         {[
-          ["all","All"],["open","Open"],["assigned","Assigned"],["in_progress","In Progress"],
-          ["on_hold","On Hold"],["completed","Completed"],["closed","Closed"],
-          ["escalated","Escalated ⏫"],["overdue","Overdue ⚠️"],
+          ["all", "All"], ["open", "Open"], ["assigned", "Assigned"], ["in_progress", "In Progress"],
+          ["on_hold", "On Hold"], ["completed", "Completed"], ["closed", "Closed"],
+          ["escalated", "Escalated ⏫"], ["overdue", "Overdue ⚠️"],
         ].map(([k, l]) => (
           <button key={k} onClick={() => { setStFil(k); setPage(1); }}
             style={{ padding: "9px 16px", background: "none", border: "none", borderBottom: statusFilter === k ? "2.5px solid #2563eb" : "2.5px solid transparent", marginBottom: "-2px", cursor: "pointer", whiteSpace: "nowrap", fontSize: "13px", fontWeight: statusFilter === k ? 700 : 500, color: statusFilter === k ? "#2563eb" : "#64748b" }}>
@@ -921,13 +921,13 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
       {/* Cutoff escalation alert — requests past cutoff time */}
       {(() => {
         const overdueReqs = !loading && requests.filter(r =>
-          r.cutoff_time && !["completed","closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
+          r.cutoff_time && !["completed", "closed"].includes(r.status) && new Date(r.cutoff_time) < new Date()
         );
         const newOverdue = overdueReqs && overdueReqs.filter(r => !viewedOverdueIds.has(r.id));
         if (!newOverdue || newOverdue.length === 0) return null;
         return (
           <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "10px", marginBottom: "12px" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
             <div>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c" }}>
                 {newOverdue.length} request(s) have exceeded their cutoff time
@@ -946,11 +946,11 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                   osc.frequency.value = 880; gain.gain.setValueAtTime(0.3, ctx.currentTime);
                   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
                   osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
-                } catch(_) {}
+                } catch (_) { }
                 // Mark all current overdue as viewed so banner doesn't reappear
                 const updated = new Set([...viewedOverdueIds, ...newOverdue.map(r => r.id)]);
                 setViewedOverdueIds(updated);
-                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch(_) {}
+                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch (_) { }
               }}
               style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: "7px", border: "1px solid #fed7aa", background: "#fff", color: "#c2410c", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
               View Overdue
@@ -959,7 +959,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
               onClick={() => {
                 const updated = new Set([...viewedOverdueIds, ...newOverdue.map(r => r.id)]);
                 setViewedOverdueIds(updated);
-                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch(_) {}
+                try { localStorage.setItem("viewedOverdueIds", JSON.stringify([...updated])); } catch (_) { }
               }}
               style={{ padding: "2px 6px", borderRadius: "5px", border: "none", background: "none", cursor: "pointer", color: "#9a3412", fontSize: "16px", lineHeight: 1 }}
               title="Dismiss">✕</button>
@@ -975,7 +975,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
           {canManage && (
             <button onClick={bulkDelete} disabled={bulkDeleting}
               style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 16px", borderRadius: "7px", border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: bulkDeleting ? "not-allowed" : "pointer", opacity: bulkDeleting ? 0.7 : 1 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
               {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
             </button>
           )}
@@ -995,7 +995,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       onChange={e => setSelectedIds(e.target.checked ? new Set(requests.map(r => r.id)) : new Set())}
                       style={{ cursor: "pointer" }} />
                   </th>
-                  {["#","Request #","Hospital","Department","Asset / Location","Description","Priority","Source","Raised By","Assigned To","WIP Date","Response Time","Resolution Date","TAT","Status","Created","Cutoff","Actions"].map(h => (
+                  {["#", "Request #", "Hospital", "Department", "Asset / Location", "Remarks", "Raised By", "Assigned To", "Created", "WIP Date", "Response Time", "Resolution Date", "TAT", "Status", "Cutoff", "Actions"].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -1020,7 +1020,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         <button onClick={() => setSelectedWO(wo)} style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</button>
                         {escalatedFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#faf5ff", color: "#7c3aed", padding: "1px 5px", borderRadius: "8px" }}>⏫</span>}
-                        {overdueFlag   && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#fff7ed", color: "#ea580c", padding: "1px 5px", borderRadius: "8px" }}>⚠️</span>}
+                        {overdueFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#fff7ed", color: "#ea580c", padding: "1px 5px", borderRadius: "8px" }}>⚠️</span>}
                       </td>
                       {/* Hospital / Site Name */}
                       <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -1037,56 +1037,39 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                         {(wo.generated_asset_id || wo.asset_id) && (
                           <button onClick={() => wo.asset_id && window.open(`/company/asset/${wo.asset_id}`, '_blank')} style={{ margin: "2px 0 0", fontSize: "11px", color: "#2563eb", fontFamily: "monospace", background: "#eff6ff", display: "inline-block", padding: "1px 6px", borderRadius: "4px", border: "none", cursor: wo.asset_id ? "pointer" : "default", textDecoration: wo.asset_id ? "underline" : "none" }}>{wo.generated_asset_id || `Asset #${wo.asset_id}`}</button>
                         )}
-                        <p style={{ margin: "2px 0 0", color: "#64748b", fontSize: "11.5px" }}>{wo.location || wo.department_name || ""}</p>
+                        <p style={{ margin: "2px 0 0", color: "#64748b", fontSize: "11.5px" }}>{wo.location || ""}</p>
                       </td>
                       <td style={{ padding: "11px 14px", maxWidth: "200px" }}>
                         <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#374151" }}>{wo.issueDescription || wo.issue_description || "—"}</div>
                       </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {canManage && wo.source_type !== 'asset_query' ? (
-                          <select
-                            value={(wo.priority || 'medium').toLowerCase()}
-                            onChange={async e => {
-                              const v = e.target.value;
-                              try {
-                                await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/priority`, { priority: v }, authToken);
-                                setRequests(r => r.map(x => x.id === wo.id ? { ...x, priority: v } : x));
-                              } catch(_) {}
-                            }}
-                            style={{ padding: '3px 8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 700, cursor: 'pointer', background: '#fff' }}>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                          </select>
-                        ) : (
-                          <Badge val={wo.priority} styleMap={PRIORITY_STYLE} />
-                        )}
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: src.bg, color: src.color }}>{src.label}</span>
-                      </td>
+
                       {/* Raised By */}
                       <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
                         {wo.created_by_name || wo.requester_name || <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px", fontSize: "13px", color: "#374151", whiteSpace: "nowrap" }}>
                         {wo.assigned_to_name || wo.assignedToName
-                          ? <><span style={{ fontWeight: 600 }}>{wo.assigned_to_name || wo.assignedToName}</span><br/><span style={{ fontSize: "11px", color: "#94a3b8" }}>{wo.assigned_to_designation || ""}</span></>
+                          ? <><span style={{ fontWeight: 600 }}>{wo.assigned_to_name || wo.assignedToName}</span><br /><span style={{ fontSize: "11px", color: "#94a3b8" }}>{wo.assigned_to_designation || ""}</span></>
                           : <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}
+                      </td>
+                      {/* Created Date */}
+                      <td style={{ padding: "11px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>
+                        {wo.created_at ? new Date(wo.created_at).toLocaleDateString() : "—"}
+                        <br />
+                        <span style={{ fontSize: "11px" }}>{wo.created_at ? new Date(wo.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
                       </td>
                       {/* WIP Date */}
                       <td style={{ padding: "11px 14px", fontSize: "12px", color: "#1d4ed8", whiteSpace: "nowrap" }}>
                         {wo.wip_at ? (
                           <><div style={{ fontWeight: 600 }}>{new Date(wo.wip_at).toLocaleDateString()}</div>
-                          <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       {/* Response Time: wip_at - created_at */}
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         {wo.wip_at && wo.created_at ? (() => {
                           const mins = Math.max(0, Math.round((new Date(wo.wip_at) - new Date(wo.created_at)) / 60000));
-                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
                           return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", whiteSpace: "nowrap" }}>{label}</span>;
                         })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
                       </td>
@@ -1094,24 +1077,19 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       <td style={{ padding: "11px 14px", fontSize: "12px", color: "#16a34a", whiteSpace: "nowrap" }}>
                         {wo.resolution_at ? (
                           <><div style={{ fontWeight: 600 }}>{new Date(wo.resolution_at).toLocaleDateString()}</div>
-                          <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.resolution_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.resolution_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                       {/* TAT: closed_at - created_at */}
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         {wo.closed_at && wo.created_at ? (() => {
                           const mins = Math.max(0, Math.round((new Date(wo.closed_at) - new Date(wo.created_at)) / 60000));
-                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${Math.floor(mins/1440)}d ${Math.floor((mins%1440)/60)}h`;
+                          const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
                           return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534", whiteSpace: "nowrap" }}>{label}</span>;
                         })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <Badge val={wo.status} styleMap={STATUS_STYLE} />
-                      </td>
-                      <td style={{ padding: "11px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>
-                        {wo.created_at ? new Date(wo.created_at).toLocaleDateString() : "—"}
-                        <br/>
-                        <span style={{ fontSize: "11px" }}>{wo.created_at ? new Date(wo.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
                       </td>
                       <td style={{ padding: "11px 14px", fontSize: "12px", whiteSpace: "nowrap" }}>
                         <div style={{ color: overdueFlag ? '#ea580c' : '#64748b', fontWeight: overdueFlag ? 700 : 400 }}>
@@ -1122,152 +1100,152 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
                           {/* Row 1: View + Assign/Reassign */}
                           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap' }}>
-                          {/* VIEW */}
-                          <button onClick={() => setSelectedWO(wo)}
-                            style={{ padding: '5px 12px', borderRadius: '6px', border: '1.5px solid #bfdbfe', background: '#eff6ff', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap' }}>
-                            View
-                          </button>
-
-                          {/* ASSIGN / REASSIGN (all types, not completed/closed/resolved) */}
-                          {canManage && !['completed','closed','resolved'].includes(wo.status) && (
-                            <button onClick={() => setSelectedWO({ ...wo, _openTab: 'assign' })}
-                              style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#2563eb', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
-                              {wo.cp_assigned_to || wo.assigned_to_name ? 'Reassign' : 'Assign'}
+                            {/* VIEW */}
+                            <button onClick={() => setSelectedWO(wo)}
+                              style={{ padding: '5px 12px', borderRadius: '6px', border: '1.5px solid #bfdbfe', background: '#eff6ff', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap' }}>
+                              View
                             </button>
-                          )}
 
-                          {/* REOPEN (completed/closed/resolved → open) */}
-                          {canManage && ['completed','closed','resolved'].includes(wo.status) && (
-                            <button onClick={async () => {
-                              try {
-                                if (wo.source_type === 'asset_query') {
-                                  await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/status`, { status: 'open' }, authToken);
-                                } else {
-                                  await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/status`, { status: 'open' }, authToken);
-                                }
-                                load();
-                              } catch(_) {}
-                            }}
-                              style={{ padding: '5px 12px', borderRadius: '6px', border: '1.5px solid #fbbf24', background: '#fffbeb', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>
-                              Reopen
-                            </button>
-                          )}
+                            {/* ASSIGN / REASSIGN (all types, not completed/closed/resolved) */}
+                            {canManage && !['completed', 'closed', 'resolved'].includes(wo.status) && (
+                              <button onClick={() => setSelectedWO({ ...wo, _openTab: 'assign' })}
+                                style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#2563eb', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
+                                {wo.cp_assigned_to || wo.assigned_to_name ? 'Reassign' : 'Assign'}
+                              </button>
+                            )}
+
+                            {/* REOPEN (completed/closed/resolved → open) */}
+                            {canManage && ['completed', 'closed', 'resolved'].includes(wo.status) && (
+                              <button onClick={async () => {
+                                try {
+                                  if (wo.source_type === 'asset_query') {
+                                    await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/status`, { status: 'open' }, authToken);
+                                  } else {
+                                    await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/status`, { status: 'open' }, authToken);
+                                  }
+                                  load();
+                                } catch (_) { }
+                              }}
+                                style={{ padding: '5px 12px', borderRadius: '6px', border: '1.5px solid #fbbf24', background: '#fffbeb', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>
+                                Reopen
+                              </button>
+                            )}
                           </div>
 
                           {/* Row 2: Cutoff + Status/Acknowledge/Resolve */}
                           {canManage && (
-                          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap' }}>
-                          {/* CUTOFF — opens a proper deadline modal */}
-                          {!['completed','closed','resolved'].includes(wo.status) && (
-                            <button
-                              title={wo.cutoff_time ? `Deadline: ${new Date(wo.cutoff_time).toLocaleString()}` : 'Set cutoff deadline'}
-                              onClick={() => setCutoffWO(wo)}
-                              style={{
-                                padding: '4px 9px', borderRadius: '6px',
-                                border: `1.5px solid ${overdueFlag ? '#fca5a5' : '#e5e7eb'}`,
-                                background: overdueFlag ? '#fee2e2' : '#f8fafc',
-                                cursor: 'pointer', fontSize: '11.5px', fontWeight: 700,
-                                color: overdueFlag ? '#dc2626' : '#6b7280',
-                                whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                              }}>
-                              🕐 {wo.cutoff_time
-                                ? new Date(wo.cutoff_time).toLocaleDateString([], { month: 'short', day: 'numeric' })
-                                : 'Cutoff'}
-                            </button>
-                          )}
-
-                          {/* STATUS DROPDOWN */}
-                          {(() => {
-                            const aqTransitions = { open: ['in_progress','resolved'], in_progress: ['open','resolved'], resolved: ['open','in_progress'] };
-                            const woTransitions = { open: ['in_progress','assigned','completed'], assigned: ['in_progress','completed'], in_progress: ['completed','closed'], completed: ['open'], closed: ['open'] };
-                            const transitions = wo.source_type === 'asset_query' ? aqTransitions : woTransitions;
-                            const options = transitions[wo.status] || [];
-                            const labels = { open: '🔴 Open', assigned: '🔵 Assigned', in_progress: '🟠 In Progress', completed: '✅ Completed', closed: '⬛ Closed', resolved: '✅ Resolved' };
-                            if (!options.length) return null;
-                            const isOpen = openStatusMenu === `${wo.source_type}-${wo.id}`;
-                            return (
-                              <div style={{ position: 'relative' }}>
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap' }}>
+                              {/* CUTOFF — opens a proper deadline modal */}
+                              {!['completed', 'closed', 'resolved'].includes(wo.status) && (
                                 <button
-                                  onClick={() => setOpenStatusMenu(isOpen ? null : `${wo.source_type}-${wo.id}`)}
-                                  style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #e5e7eb', background: isOpen ? '#f1f5f9' : '#fff', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                  Status ▾
+                                  title={wo.cutoff_time ? `Deadline: ${new Date(wo.cutoff_time).toLocaleString()}` : 'Set cutoff deadline'}
+                                  onClick={() => setCutoffWO(wo)}
+                                  style={{
+                                    padding: '4px 9px', borderRadius: '6px',
+                                    border: `1.5px solid ${overdueFlag ? '#fca5a5' : '#e5e7eb'}`,
+                                    background: overdueFlag ? '#fee2e2' : '#f8fafc',
+                                    cursor: 'pointer', fontSize: '11.5px', fontWeight: 700,
+                                    color: overdueFlag ? '#dc2626' : '#6b7280',
+                                    whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                  }}>
+                                  🕐 {wo.cutoff_time
+                                    ? new Date(wo.cutoff_time).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                    : 'Cutoff'}
                                 </button>
-                                {isOpen && (
-                                  <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: '4px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, minWidth: '140px', padding: '4px 0' }}>
-                                    {options.map(s => (
-                                      <button key={s} onClick={async () => {
-                                        setOpenStatusMenu(null);
-                                        try {
-                                          const endpoint = wo.source_type === 'asset_query'
-                                            ? `/api/company-portal/asset-queries/${wo.id}/status`
-                                            : `/api/company-portal/work-orders/${wo.id}/status`;
-                                          await apiFetch('PATCH', endpoint, { status: s }, authToken);
-                                          load();
-                                        } catch(_) {}
-                                      }}
-                                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#374151' }}
-                                        onMouseEnter={e => e.target.style.background = '#f8fafc'}
-                                        onMouseLeave={e => e.target.style.background = 'none'}>
-                                        {labels[s] || s}
-                                      </button>
-                                    ))}
+                              )}
+
+                              {/* STATUS DROPDOWN */}
+                              {(() => {
+                                const aqTransitions = { open: ['in_progress', 'resolved'], in_progress: ['open', 'resolved'], resolved: ['open', 'in_progress'] };
+                                const woTransitions = { open: ['in_progress', 'assigned', 'completed'], assigned: ['in_progress', 'completed'], in_progress: ['completed', 'closed'], completed: ['open'], closed: ['open'] };
+                                const transitions = wo.source_type === 'asset_query' ? aqTransitions : woTransitions;
+                                const options = transitions[wo.status] || [];
+                                const labels = { open: '🔴 Open', assigned: '🔵 Assigned', in_progress: '🟠 In Progress', completed: '✅ Completed', closed: '⬛ Closed', resolved: '✅ Resolved' };
+                                if (!options.length) return null;
+                                const isOpen = openStatusMenu === `${wo.source_type}-${wo.id}`;
+                                return (
+                                  <div style={{ position: 'relative' }}>
+                                    <button
+                                      onClick={() => setOpenStatusMenu(isOpen ? null : `${wo.source_type}-${wo.id}`)}
+                                      style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #e5e7eb', background: isOpen ? '#f1f5f9' : '#fff', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      Status ▾
+                                    </button>
+                                    {isOpen && (
+                                      <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: '4px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, minWidth: '140px', padding: '4px 0' }}>
+                                        {options.map(s => (
+                                          <button key={s} onClick={async () => {
+                                            setOpenStatusMenu(null);
+                                            try {
+                                              const endpoint = wo.source_type === 'asset_query'
+                                                ? `/api/company-portal/asset-queries/${wo.id}/status`
+                                                : `/api/company-portal/work-orders/${wo.id}/status`;
+                                              await apiFetch('PATCH', endpoint, { status: s }, authToken);
+                                              load();
+                                            } catch (_) { }
+                                          }}
+                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#374151' }}
+                                            onMouseEnter={e => e.target.style.background = '#f8fafc'}
+                                            onMouseLeave={e => e.target.style.background = 'none'}>
+                                            {labels[s] || s}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })()}
+                                );
+                              })()}
 
-                          {/* ACKNOWLEDGE (open → in_progress) */}
-                          {wo.status === 'open' && (
-                            <button onClick={async () => {
-                              try {
-                                const endpoint = wo.source_type === 'asset_query'
-                                  ? `/api/company-portal/asset-queries/${wo.id}/status`
-                                  : `/api/company-portal/work-orders/${wo.id}/status`;
-                                await apiFetch('PATCH', endpoint, { status: 'in_progress' }, authToken);
-                                load();
-                              } catch(_) {}
-                            }}
-                              style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fed7aa', background: '#fff7ed', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>
-                              Acknowledge
-                            </button>
-                          )}
+                              {/* ACKNOWLEDGE (open → in_progress) */}
+                              {wo.status === 'open' && (
+                                <button onClick={async () => {
+                                  try {
+                                    const endpoint = wo.source_type === 'asset_query'
+                                      ? `/api/company-portal/asset-queries/${wo.id}/status`
+                                      : `/api/company-portal/work-orders/${wo.id}/status`;
+                                    await apiFetch('PATCH', endpoint, { status: 'in_progress' }, authToken);
+                                    load();
+                                  } catch (_) { }
+                                }}
+                                  style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fed7aa', background: '#fff7ed', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>
+                                  Acknowledge
+                                </button>
+                              )}
 
-                          {/* RESOLVE (in_progress → completed/resolved) */}
-                          {wo.status === 'in_progress' && (
-                            <button onClick={async () => {
-                              try {
-                                if (wo.source_type === 'asset_query') {
-                                  await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/status`, { status: 'resolved' }, authToken);
-                                } else {
-                                  await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/status`, { status: 'completed' }, authToken);
-                                }
-                                load();
-                              } catch(_) {}
-                            }}
-                              style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #6ee7b7', background: '#ecfdf5', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>
-                              Resolve
-                            </button>
-                          )}
+                              {/* RESOLVE (in_progress → completed/resolved) */}
+                              {wo.status === 'in_progress' && (
+                                <button onClick={async () => {
+                                  try {
+                                    if (wo.source_type === 'asset_query') {
+                                      await apiFetch('PATCH', `/api/company-portal/asset-queries/${wo.id}/status`, { status: 'resolved' }, authToken);
+                                    } else {
+                                      await apiFetch('PATCH', `/api/company-portal/work-orders/${wo.id}/status`, { status: 'completed' }, authToken);
+                                    }
+                                    load();
+                                  } catch (_) { }
+                                }}
+                                  style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #6ee7b7', background: '#ecfdf5', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>
+                                  Resolve
+                                </button>
+                              )}
 
-                          {/* DELETE (admin only) */}
-                          {canManage && (
-                            <button onClick={async () => {
-                              if (!window.confirm(`Delete this request (#${wo.work_order_number || wo.id}) permanently? This cannot be undone.`)) return;
-                              try {
-                                if (wo.source_type === 'asset_query') {
-                                  await apiFetch('DELETE', `/api/company-portal/asset-queries/${wo.id}`, undefined, authToken);
-                                } else {
-                                  await apiFetch('DELETE', `/api/company-portal/work-orders/${wo.id}`, undefined, authToken);
-                                }
-                                setRequests(r => r.filter(x => x.id !== wo.id));
-                              } catch(e) { alert(e.message || 'Delete failed'); }
-                            }}
-                              style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', whiteSpace: 'nowrap' }}>
-                              🗑
-                            </button>
-                          )}
-                          </div>
+                              {/* DELETE (admin only) */}
+                              {canManage && (
+                                <button onClick={async () => {
+                                  if (!window.confirm(`Delete this request (#${wo.work_order_number || wo.id}) permanently? This cannot be undone.`)) return;
+                                  try {
+                                    if (wo.source_type === 'asset_query') {
+                                      await apiFetch('DELETE', `/api/company-portal/asset-queries/${wo.id}`, undefined, authToken);
+                                    } else {
+                                      await apiFetch('DELETE', `/api/company-portal/work-orders/${wo.id}`, undefined, authToken);
+                                    }
+                                    setRequests(r => r.filter(x => x.id !== wo.id));
+                                  } catch (e) { alert(e.message || 'Delete failed'); }
+                                }}
+                                  style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', whiteSpace: 'nowrap' }}>
+                                  🗑
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>

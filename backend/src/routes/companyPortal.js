@@ -4846,6 +4846,7 @@ router.get("/work-orders", async (req, res, next) => {
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",
               wo.asset_id AS "assetId", wo.asset_name AS "assetName",
               wo.location, wo.issue_source AS "issueSource",
+              wo.source_label AS "sourceLabel",
               wo.issue_description AS "issueDescription",
               wo.priority, wo.status,
               wo.flag_id AS "flagId",
@@ -4854,6 +4855,7 @@ router.get("/work-orders", async (req, res, next) => {
               cu.full_name AS "assignedToName",
               wo.cp_created_by AS "createdBy",
               cb.full_name AS "createdByName",
+              cb.full_name AS "raisedByName",
               wo.created_at AS "createdAt",
               wo.expected_completion_at AS "expectedCompletionAt",
               wo.escalation_level AS "escalationLevel",
@@ -4864,11 +4866,20 @@ router.get("/work-orders", async (req, res, next) => {
               wo.prior_downtime_minutes AS "priorDowntimeMinutes",
               wo.last_reopened_at AS "lastReopenedAt",
               f.severity AS "flagSeverity", f.source AS "flagSource",
-              COALESCE(f.escalated, FALSE) AS "flagEscalated"
+              COALESCE(f.escalated, FALSE) AS "flagEscalated",
+              d.name AS "departmentName",
+              c.company_name AS "companyName",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.manufacturer')), '') AS "make",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model')), '') AS "model",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.serialNo')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.srNo')), '') AS "serialNo"
        FROM work_orders wo
        LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
        LEFT JOIN company_users cb ON cb.id = wo.cp_created_by
        LEFT JOIN flags f ON f.id = wo.flag_id
+       LEFT JOIN assets a         ON a.id  = wo.asset_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       LEFT JOIN departments d    ON d.id  = a.department_id
+       LEFT JOIN companies c      ON c.id  = wo.company_id
        ${where}
        ORDER BY wo.created_at DESC
        LIMIT ? OFFSET ?`,

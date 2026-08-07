@@ -267,15 +267,27 @@ router.get("/work-orders", async (req, res, next) => {
               wo.asset_name         AS "assetName",
               wo.location,
               wo.issue_description  AS "issueDescription",
+              wo.issue_source       AS "issueSource",
+              wo.source_label       AS "sourceLabel",
               wo.priority, wo.status,
               wo.created_at         AS "createdAt",
               wo.wip_at             AS "wipAt",
               wo.resolution_at      AS "resolutionAt",
               wo.closed_at          AS "closedAt",
-              cu.full_name          AS "assignedToName"
+              cu.full_name          AS "assignedToName",
+              cb.full_name          AS "raisedByName",
+              d.name                AS "departmentName",
+              c.company_name        AS "companyName",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.manufacturer')), '') AS "make",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model')), '') AS "model",
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.serialNo')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.srNo')), '') AS "serialNo"
        FROM work_orders wo
        JOIN companies c ON c.id = wo.company_id AND c.user_id = ?
        LEFT JOIN company_users cu ON cu.id = wo.cp_assigned_to
+       LEFT JOIN company_users cb ON cb.id = wo.cp_created_by
+       LEFT JOIN assets a          ON a.id  = wo.asset_id
+       LEFT JOIN asset_details ad  ON ad.asset_id = a.id
+       LEFT JOIN departments d     ON d.id  = a.department_id
        WHERE wo.asset_id = ?
        ORDER BY wo.created_at DESC
        LIMIT ?`,

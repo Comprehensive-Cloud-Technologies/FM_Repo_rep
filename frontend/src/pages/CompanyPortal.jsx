@@ -24637,23 +24637,72 @@ const CompanyPortal = () => {
                       {viewingAssetTab === "calllogs" && (
                         viewingAssetCallLogs === null ? <EmptyMsg msg="Loading call logs?" /> :
                         viewingAssetCallLogs.length === 0 ? <EmptyMsg msg="No call log history" /> :
-                        <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                        <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                             <thead><tr style={{ background: "#f8fafc" }}>
-                              {["#","Title","Priority","Status","Assigned To","Created"].map(h => (
-                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                              {["#","Request ID","Hospital","Make","Model","Serial No.","Department","Description","Raised By","Assigned To","Status","WIP Date","Created","Response Time","Resolution Date","Downtime"].map(h => (
+                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                               ))}
                             </tr></thead>
-                            <tbody>{viewingAssetCallLogs.map((w, i) => (
-                              <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
-                                <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a" }}>{w.title || w.issueDescription || "?"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.priority || "?"}</td>
-                                <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: "#f1f5f9", color: "#475569" }}>{w.status || "?"}</span></td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{w.assignedToName || w.assignedTo || "?"}</td>
-                                <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") : "?"}</td>
-                              </tr>
-                            ))}</tbody>
+                            <tbody>{viewingAssetCallLogs.map((w, i) => {
+                              const src = w.sourceLabel || w.source_label || w.issueSource || w.issue_source || "Manual";
+                              const srcStyle = {
+                                "QR Scan": { bg: "#fef9c3", color: "#854d0e" },
+                                "qr scan": { bg: "#fef9c3", color: "#854d0e" },
+                                "qr_scan": { bg: "#fef9c3", color: "#854d0e" },
+                                "manual": { bg: "#f1f5f9", color: "#475569" },
+                                "Manual": { bg: "#f1f5f9", color: "#475569" },
+                                "flag": { bg: "#fdf4ff", color: "#7c3aed" },
+                                "logsheet": { bg: "#dcfce7", color: "#166534" },
+                                "checklist": { bg: "#dbeafe", color: "#1d4ed8" },
+                                "mobile case log": { bg: "#e0f2fe", color: "#075985" },
+                              }[src.toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                              const statusStyle = {
+                                open: { bg: "#fee2e2", color: "#dc2626" },
+                                assigned: { bg: "#ede9fe", color: "#7c3aed" },
+                                in_progress: { bg: "#dbeafe", color: "#1d4ed8" },
+                                on_hold: { bg: "#fef9c3", color: "#854d0e" },
+                                completed: { bg: "#dcfce7", color: "#166534" },
+                                closed: { bg: "#f1f5f9", color: "#475569" },
+                                resolved: { bg: "#dcfce7", color: "#166534" },
+                              }[(w.status || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                              const priorityStyle = {
+                                critical: { bg: "#fee2e2", color: "#991b1b" },
+                                high: { bg: "#ffedd5", color: "#9a3412" },
+                                medium: { bg: "#fef9c3", color: "#854d0e" },
+                                normal: { bg: "#fef9c3", color: "#854d0e" },
+                                low: { bg: "#dcfce7", color: "#166534" },
+                              }[(w.priority || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                              // Response time: wip_at - created_at
+                              const respMins = w.wipAt && w.createdAt ? Math.max(0, Math.round((new Date(w.wipAt) - new Date(w.createdAt)) / 60000)) : null;
+                              const fmtMins = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
+                              // Downtime: resolution_at - wip_at (for resolved/completed/closed)
+                              const isFinished = ["closed","resolved","completed"].includes((w.status||"").toLowerCase());
+                              const downMs = isFinished && w.resolutionAt && w.wipAt ? Math.max(0, new Date(w.resolutionAt) - new Date(w.wipAt)) : 0;
+                              const downLabel = downMs > 0 ? fmtMins(Math.round(downMs/60000)) : "—";
+                              return (
+                                <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                                  onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                                  onMouseLeave={e => e.currentTarget.style.background=""}>
+                                  <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
+                                  <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>{w.workOrderNumber || `WO-${w.id}`}</td>
+                                  <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{w.companyName || "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.make || "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.model || "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569", fontFamily: "monospace", fontSize: "12px" }}>{w.serialNo || "—"}</td>
+                                  <td style={{ padding: "10px 14px" }}>{w.departmentName ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{w.departmentName}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                                  <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueDescription || "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>{w.raisedByName || "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{w.assignedToName || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}</td>
+                                  <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: statusStyle.bg, color: statusStyle.color, whiteSpace: "nowrap" }}>{w.status || "—"}</span></td>
+                                  <td style={{ padding: "10px 14px", color: "#1d4ed8", fontSize: "12px", whiteSpace: "nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleDateString("en-IN") + " " + new Date(w.wipAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") + " " + new Date(w.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{respMins != null ? <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{fmtMins(respMins)}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                                  <td style={{ padding: "10px 14px", color: "#16a34a", fontSize: "12px", whiteSpace: "nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleDateString("en-IN") : "—"}</td>
+                                  <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
+                                </tr>
+                              );
+                            })}</tbody>
                           </table>
                         </div>
                       )}

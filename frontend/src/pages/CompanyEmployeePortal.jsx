@@ -10021,27 +10021,39 @@ export default function CompanyEmployeePortal() {
                       <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Call Log History / Work Orders for this Asset</h4>
                       {Array.isArray(assetDetailCallLogs) && assetDetailCallLogs.length > 0 && (
                         <button onClick={() => {
-                          const headers = ["WO Number", "Description", "Priority", "Status", "Assigned To", "Created", "Closed", "Down Time (hh:mm:ss)"];
+                          const headers = ["#", "Request ID", "Hospital", "Make", "Model", "Serial No.", "Department", "Description", "Raised By", "Assigned To", "Status", "WIP Date", "Created", "Response Time", "Resolution Date", "Downtime (hh:mm:ss)"];
                           const fmtMsExcel = (ms) => { if (!ms) return "—"; const h = Math.floor(ms/3600000); const min = Math.floor((ms%3600000)/60000); const sec = Math.floor((ms%60000)/1000); return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`; };
-                          const rows = assetDetailCallLogs.map(wo => {
+                          const rows = assetDetailCallLogs.map((wo, idx) => {
+                            const isFinished = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase());
                             const downMs = wo.downtimeMinutes != null
                               ? wo.downtimeMinutes * 60000
-                              : (wo.status==="closed"||wo.status==="resolved") && wo.createdAt && wo.closedAt ? Math.max(0, new Date(wo.closedAt)-new Date(wo.createdAt)) : 0;
+                              : isFinished && wo.resolutionAt && wo.wipAt ? Math.max(0, new Date(wo.resolutionAt)-new Date(wo.wipAt)) : 0;
+                            const respMins = wo.wipAt && wo.createdAt ? Math.max(0, Math.round((new Date(wo.wipAt) - new Date(wo.createdAt)) / 60000)) : null;
+                            const fmtM = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
                             return [
+                              idx + 1,
                               wo.workOrderNumber || `WO-${wo.id}`,
+                              wo.companyName || "",
+                              wo.make || "",
+                              wo.model || "",
+                              wo.serialNo || "",
+                              wo.departmentName || "",
                               wo.issueDescription || "",
-                              wo.priority || "",
-                              wo.status || "",
+
+                              wo.raisedByName || wo.createdByName || "",
                               wo.assignedToName || "Unassigned",
+                              wo.status || "",
+                              wo.wipAt ? new Date(wo.wipAt).toLocaleDateString("en-IN") : "",
                               wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "",
-                              wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "",
+                              respMins != null ? fmtM(respMins) : "",
+                              wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleDateString("en-IN") : "",
                               fmtMsExcel(downMs),
                             ];
                           });
-                          const totalDownMs = assetDetailCallLogs.reduce((s,wo)=>{ const dm = wo.downtimeMinutes != null ? wo.downtimeMinutes * 60000 : (wo.status==="closed"||wo.status==="resolved")&&wo.createdAt&&wo.closedAt?Math.max(0,new Date(wo.closedAt)-new Date(wo.createdAt)):0; return s+dm; }, 0);
+                          const totalDownMs = assetDetailCallLogs.reduce((s,wo)=>{ const isF = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase()); const dm = wo.downtimeMinutes != null ? wo.downtimeMinutes * 60000 : isF && wo.resolutionAt && wo.wipAt ? Math.max(0,new Date(wo.resolutionAt)-new Date(wo.wipAt)) : 0; return s+dm; }, 0);
                           const summary = [["Asset", m.equipmentName||a.assetName, "Asset ID", a.generatedAssetId||a.assetUniqueId, "Total Calls", assetDetailCallLogs.length, "Total Down Time", fmtMsExcel(totalDownMs)]];
                           const ws = XLSX.utils.aoa_to_sheet([...summary, [], headers, ...rows]);
-                          ws["!cols"] = [16,40,12,14,20,14,14,20].map(w=>({wch:w}));
+                          ws["!cols"] = [6,16,20,14,14,16,18,40,20,20,14,14,14,14,14,20].map(w=>({wch:w}));
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, "Call Log History");
                           XLSX.writeFile(wb, `call-log-${a.generatedAssetId||a.id}-${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -10089,30 +10101,70 @@ export default function CompanyEmployeePortal() {
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                               <thead>
                                 <tr style={{ background: "#f8fafc" }}>
-                                  {["WO Number","Description","Priority","Status","Assigned To","Created","Closed","Down Time"].map(h => (
+                                  {["#","Request ID","Hospital","Make","Model","Serial No.","Department","Description","Raised By","Assigned To","Status","WIP Date","Created","Response Time","Resolution Date","Downtime"].map(h => (
                                     <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
                               <tbody>
                                 {assetDetailCallLogs.map(wo => {
-                                  const isOpen = wo.status !== "closed" && wo.status !== "resolved" && wo.status !== "completed";
+                                  const src = wo.sourceLabel || wo.source_label || wo.issueSource || wo.issue_source || "Manual";
+                                  const srcStyleMap = {
+                                    "qr scan": { bg: "#fef9c3", color: "#854d0e" },
+                                    "qr_scan": { bg: "#fef9c3", color: "#854d0e" },
+                                    "manual": { bg: "#f1f5f9", color: "#475569" },
+                                    "flag": { bg: "#fdf4ff", color: "#7c3aed" },
+                                    "logsheet": { bg: "#dcfce7", color: "#166534" },
+                                    "checklist": { bg: "#dbeafe", color: "#1d4ed8" },
+                                    "mobile case log": { bg: "#e0f2fe", color: "#075985" },
+                                    "mobile_case_log": { bg: "#e0f2fe", color: "#075985" },
+                                  };
+                                  const srcStyle = srcStyleMap[src.toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                                  const statusStyleMap = {
+                                    open: { bg: "#fee2e2", color: "#dc2626" },
+                                    assigned: { bg: "#ede9fe", color: "#7c3aed" },
+                                    in_progress: { bg: "#dbeafe", color: "#1d4ed8" },
+                                    on_hold: { bg: "#fef9c3", color: "#854d0e" },
+                                    completed: { bg: "#dcfce7", color: "#166534" },
+                                    closed: { bg: "#f1f5f9", color: "#475569" },
+                                    resolved: { bg: "#dcfce7", color: "#166534" },
+                                  };
+                                  const sSt = statusStyleMap[(wo.status || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                                  const prStyleMap = {
+                                    critical: { bg: "#fee2e2", color: "#991b1b" },
+                                    high: { bg: "#ffedd5", color: "#9a3412" },
+                                    medium: { bg: "#fef9c3", color: "#854d0e" },
+                                    normal: { bg: "#fef9c3", color: "#854d0e" },
+                                    low: { bg: "#dcfce7", color: "#166534" },
+                                  };
+                                  const pSt = prStyleMap[(wo.priority || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
+                                  // Response time: wipAt - createdAt
+                                  const respMins = wo.wipAt && wo.createdAt ? Math.max(0, Math.round((new Date(wo.wipAt) - new Date(wo.createdAt)) / 60000)) : null;
+                                  const fmtM = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
+                                  // Downtime: resolutionAt - wipAt (for finished tickets)
+                                  const isFinished = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase());
                                   const downMs = woDownMs(wo);
                                   const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
                                   return (
-                                    <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
-                                      <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 600, fontSize: "12px" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
-                                      <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "260px" }}>{wo.issueDescription || "—"}</td>
-                                      <td style={{ padding: "10px 14px" }}>
-                                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: wo.priority === "high" ? "#fee2e2" : wo.priority === "medium" ? "#fef9c3" : "#f1f5f9", color: wo.priority === "high" ? "#dc2626" : wo.priority === "medium" ? "#854d0e" : "#64748b" }}>{wo.priority || "—"}</span>
-                                      </td>
-                                      <td style={{ padding: "10px 14px" }}>
-                                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: wo.status === "closed" || wo.status === "resolved" ? "#dcfce7" : wo.status === "in_progress" ? "#dbeafe" : "#fef9c3", color: wo.status === "closed" || wo.status === "resolved" ? "#166534" : wo.status === "in_progress" ? "#1e40af" : "#854d0e" }}>{wo.status || "—"}</span>
-                                      </td>
-                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.assignedToName || "Unassigned"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{wo.closedAt ? new Date(wo.closedAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : isReopened ? "#b45309" : "#94a3b8", fontWeight: downMs > 0 || isReopened ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
+                                    <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                                      onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                                      onMouseLeave={e => e.currentTarget.style.background=""}>
+                                      <td style={{ padding: "10px 14px", color: "#94a3b8", fontSize: "12px" }}>{assetDetailCallLogs.indexOf(wo) + 1}</td>
+                                      <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
+                                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{wo.companyName || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.make || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.model || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#475569", fontFamily: "monospace", fontSize: "12px" }}>{wo.serialNo || "—"}</td>
+                                      <td style={{ padding: "10px 14px" }}>{wo.departmentName ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{wo.departmentName}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                                      <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.issueDescription || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>{wo.raisedByName || wo.createdByName || "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{wo.assignedToName || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}</td>
+                                      <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: sSt.bg, color: sSt.color, whiteSpace: "nowrap" }}>{wo.status || "—"}</span></td>
+                                      <td style={{ padding: "10px 14px", color: "#1d4ed8", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.wipAt ? new Date(wo.wipAt).toLocaleDateString("en-IN") + " " + new Date(wo.wipAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") + " " + new Date(wo.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                                      <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{respMins != null ? <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{fmtM(respMins)}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                                      <td style={{ padding: "10px 14px", color: "#16a34a", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleDateString("en-IN") : "—"}</td>
+                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
                                     </tr>
                                   );
                                 })}

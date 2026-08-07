@@ -15,22 +15,22 @@ router.get("/bulk-import/template", (_req, res) => {
     "assetName*", "assetType", "departmentName",
     "building", "floor", "room", "assetUniqueId", "status",
   ];
-  const example  = ["Machine A",   "general",    "ICU",   "Block A", "1", "101", "", "Active"];
-  const example2 = ["Ventilator B", "healthcare", "OPD",   "Block B", "2", "202", "", "Active"];
+  const example = ["Machine A", "general", "ICU", "Block A", "1", "101", "", "Active"];
+  const example2 = ["Ventilator B", "healthcare", "OPD", "Block B", "2", "202", "", "Active"];
   const ws = XLSX.utils.aoa_to_sheet([headers, example, example2]);
   ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 2, 20) }));
   XLSX.utils.book_append_sheet(wb, ws, "Assets");
 
   const notes = [
-    ["Column",         "Required?", "Notes"],
-    ["assetName",      "Yes",       "Name / Equipment Name / Item Name"],
-    ["assetType",      "No",        "e.g. general, healthcare, fleet — defaults to 'general'"],
-    ["departmentName", "No",        "Exact department name. Leave blank if unknown."],
-    ["building",       "No",        "Building / Location label"],
-    ["floor",          "No",        "Floor number or label"],
-    ["room",           "No",        "Room / Ward number"],
-    ["assetUniqueId",  "No",        "Leave blank to auto-generate a unique QR code ID"],
-    ["status",         "No",        "Active or Inactive — defaults to Active"],
+    ["Column", "Required?", "Notes"],
+    ["assetName", "Yes", "Name / Equipment Name / Item Name"],
+    ["assetType", "No", "e.g. general, healthcare, fleet — defaults to 'general'"],
+    ["departmentName", "No", "Exact department name. Leave blank if unknown."],
+    ["building", "No", "Building / Location label"],
+    ["floor", "No", "Floor number or label"],
+    ["room", "No", "Room / Ward number"],
+    ["assetUniqueId", "No", "Leave blank to auto-generate a unique QR code ID"],
+    ["status", "No", "Active or Inactive — defaults to Active"],
   ];
   const wsNotes = XLSX.utils.aoa_to_sheet(notes);
   wsNotes["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 55 }];
@@ -53,6 +53,7 @@ const excelUpload = multer({
     else cb(new Error("Only Excel (.xlsx, .xls) or CSV files are allowed"));
   },
 });
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -333,17 +334,17 @@ router.get(
     try {
       const cols = await getAssetCols();
       const { companyId, departmentId, type, status, search } = req.query;
-      const page   = Math.max(1, parseInt(req.query.page  || "1", 10));
-      const limit  = Math.min(500, Math.max(1, parseInt(req.query.limit || "200", 10)));
+      const page = Math.max(1, parseInt(req.query.page || "1", 10));
+      const limit = Math.min(500, Math.max(1, parseInt(req.query.limit || "200", 10)));
       const offset = (page - 1) * limit;
 
       const params = [req.user.id];
       let where = "WHERE c.user_id = ?";
 
-      if (companyId)    { where += " AND c.id = ?";            params.push(companyId); }
+      if (companyId) { where += " AND c.id = ?"; params.push(companyId); }
       if (departmentId) { where += " AND a.department_id = ?"; params.push(departmentId); }
-      if (type)         { where += " AND a.asset_type = ?";    params.push(type); }
-      if (status)       { where += " AND a.status = ?";        params.push(status); }
+      if (type) { where += " AND a.asset_type = ?"; params.push(type); }
+      if (status) { where += " AND a.status = ?"; params.push(status); }
       if (search) {
         const like = `%${search}%`;
         const searchParts = ["a.asset_name LIKE ?", "a.asset_unique_id LIKE ?", "a.qr_code LIKE ?", "CAST(a.id AS CHAR) LIKE ?", "a.building LIKE ?", "a.room LIKE ?"];
@@ -354,10 +355,10 @@ router.get(
       }
 
       const generatedCol = cols.has("generated_asset_id") ? "a.generated_asset_id AS generatedAssetId," : "NULL AS generatedAssetId,";
-      const verifiedCol  = cols.has("is_verified") && cols.has("verified") ? "COALESCE(a.is_verified, a.verified, 0) AS verified,"
-                         : cols.has("is_verified") ? "a.is_verified AS verified,"
-                         : cols.has("verified") ? "a.verified AS verified,"
-                         : "0 AS verified,";
+      const verifiedCol = cols.has("is_verified") && cols.has("verified") ? "COALESCE(a.is_verified, a.verified, 0) AS verified,"
+        : cols.has("is_verified") ? "a.is_verified AS verified,"
+          : cols.has("verified") ? "a.verified AS verified,"
+            : "0 AS verified,";
 
       const [rows] = await pool.query(
         `SELECT a.id,
@@ -518,18 +519,18 @@ router.post(
         const ce = pick(row, "cmcend", "cmc_end", "cmcexpiry", "cmcexpiration", "cmcenddate"); if (ce) meta.cmcEnd = ce;
         // Generic "Start Date" / "End Date" → map to whichever maintenance type is set
         const genericStart = pick(row, "startdate", "start_date", "contractstart", "contractstartdate", "fromdate", "from_date");
-        const genericEnd   = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
+        const genericEnd = pick(row, "enddate", "end_date", "expirydate", "expiry_date", "contractend", "contractenddate", "todate", "to_date", "duedate");
         if (genericStart || genericEnd) {
           const mnLower = (meta.maintenanceType || "").toLowerCase();
           if (mnLower === "warranty") {
             if (genericStart && !meta.warrantyStart) meta.warrantyStart = genericStart;
-            if (genericEnd   && !meta.warrantyEnd)   meta.warrantyEnd   = genericEnd;
+            if (genericEnd && !meta.warrantyEnd) meta.warrantyEnd = genericEnd;
           } else if (mnLower === "amc") {
             if (genericStart && !meta.amcStart) meta.amcStart = genericStart;
-            if (genericEnd   && !meta.amcEnd)   meta.amcEnd   = genericEnd;
+            if (genericEnd && !meta.amcEnd) meta.amcEnd = genericEnd;
           } else if (mnLower === "cmc") {
             if (genericStart && !meta.cmcStart) meta.cmcStart = genericStart;
-            if (genericEnd   && !meta.cmcEnd)   meta.cmcEnd   = genericEnd;
+            if (genericEnd && !meta.cmcEnd) meta.cmcEnd = genericEnd;
           }
         }
         return meta;
@@ -550,11 +551,11 @@ router.post(
         "SELECT COUNT(*) as cnt FROM assets WHERE company_id = ?", [companyId]
       );
       const bulkCCode = (compInfo?.company_code || "CO").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      const bulkSCode = (compInfo?.state_code  || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const bulkSCode = (compInfo?.state_code || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
       let assetSeqCounter = initialCount;
 
       for (let i = 0; i < rawRows.length; i++) {
-        const row    = normaliseRow(rawRows[i]);
+        const row = normaliseRow(rawRows[i]);
         const rowNum = i + dataStartOffset;
 
         // Ignore blank spreadsheet rows rather than reporting them as errors.
@@ -606,8 +607,8 @@ router.post(
             const rawStatus = pick(row, "status", "condition", "state");
             const status = rawStatus ? (rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active") : null;
             const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
-            const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
-            const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
+            const floor = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
+            const room = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
             const deptNameRaw = pick(row, "departmentname", "department_name", "department", "dept", "ward", "unit", "section", "division");
             const departmentId = deptNameRaw ? (deptByName.get(deptNameRaw.toLowerCase().trim()) ?? null) : null;
 
@@ -621,11 +622,11 @@ router.post(
             if (assetType && assetType !== existing.asset_type) assetChanges.asset_type = assetType;
             if (status && status !== existing.status) assetChanges.status = status;
             if (loc.building && loc.building !== existing.building) assetChanges.building = loc.building;
-            if (loc.floor    && loc.floor    !== existing.floor)    assetChanges.floor    = loc.floor;
-            if (loc.room     && loc.room     !== existing.room)     assetChanges.room     = loc.room;
+            if (loc.floor && loc.floor !== existing.floor) assetChanges.floor = loc.floor;
+            if (loc.room && loc.room !== existing.room) assetChanges.room = loc.room;
             if (loc.buildingId && loc.buildingId !== existing.building_id) assetChanges.building_id = loc.buildingId;
-            if (loc.floorId  && loc.floorId  !== existing.floor_id) assetChanges.floor_id  = loc.floorId;
-            if (loc.roomId   && loc.roomId   !== existing.room_id)  assetChanges.room_id   = loc.roomId;
+            if (loc.floorId && loc.floorId !== existing.floor_id) assetChanges.floor_id = loc.floorId;
+            if (loc.roomId && loc.roomId !== existing.room_id) assetChanges.room_id = loc.roomId;
             if (loc.locationId && loc.locationId !== existing.location_id) assetChanges.location_id = loc.locationId;
 
             const hasAssetChanges = Object.keys(assetChanges).length > 0;
@@ -702,8 +703,8 @@ router.post(
         }
 
         const building = pick(row, "building", "block", "location", "site", "campus", "area", "buildingname", "facility") || null;
-        const floor    = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
-        const room     = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
+        const floor = pick(row, "floor", "level", "storey", "floorname", "floorno", "floornumber") || null;
+        const room = pick(row, "room", "ward", "unit", "roomno", "roomnumber", "bed", "station", "roomname") || null;
 
         const rawStatus = pick(row, "status", "condition", "state");
         const status = rawStatus && rawStatus.toLowerCase().includes("inact") ? "Inactive" : "Active";
@@ -747,8 +748,8 @@ router.post(
                 status, qr_code, criticality, working_status, is_verified, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [companyId, departmentId, assetName, uniqueIdToUse, bulkGeneratedId, assetType,
-             loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
-             status, uniqueIdToUse, criticality, workingStatus, isVerified, req.user.id]
+              loc.building, loc.floor, loc.room, loc.buildingId, loc.floorId, loc.roomId, loc.locationId,
+              status, uniqueIdToUse, criticality, workingStatus, isVerified, req.user.id]
           );
           const assetId = result.insertId;
 
@@ -769,12 +770,14 @@ router.post(
           await logHistory(conn, assetId, "created",
             { assetName, assetType, departmentId, status, source: "bulk-import" }, req.user.id);
 
-          created.push({ row: rowNum, id: assetId, assetName, assetUniqueId: uniqueIdToUse,
+          created.push({
+            row: rowNum, id: assetId, assetName, assetUniqueId: uniqueIdToUse,
             generatedAssetId: bulkGeneratedId,
             assetType, qrCode: uniqueIdToUse,
             building: loc.building, floor: loc.floor, room: loc.room,
             buildingId: loc.buildingId, floorId: loc.floorId, roomId: loc.roomId,
-            status, departmentName: deptNameRaw || null });
+            status, departmentName: deptNameRaw || null
+          });
         } catch (rowErr) {
           skipped.push({ row: rowNum, assetName, reason: rowErr.message });
         }
@@ -841,7 +844,7 @@ router.post(
         "SELECT COUNT(*) as cnt FROM assets WHERE company_id = ?", [companyId]
       );
       const cCode = (compInfo?.company_code || "CO").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      const sCode = (compInfo?.state_code  || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const sCode = (compInfo?.state_code || "NA").toUpperCase().replace(/[^A-Z0-9]/g, "");
       const generatedAssetId = `${cCode}-${sCode}-${String(assetSeq + 1).padStart(6, "0")}`;
 
       const loc = await upsertLocationHierarchy(conn, {
@@ -859,13 +862,13 @@ router.post(
             status, qr_code, created_by, verified, criticality)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         [companyId, departmentId, assetName, uniqueIdToUse, generatedAssetId, assetTypeRecord.code,
-        loc.building, loc.floor, loc.room,
-        buildingId || loc.buildingId || null,
-        floorId || loc.floorId || null,
-        locDeptId || null,
-        roomId || loc.roomId || null,
-        locationId || loc.locationId || null,
-         status, qrCode || null, req.user.id, criticality || "Non_Critical"]
+          loc.building, loc.floor, loc.room,
+          buildingId || loc.buildingId || null,
+          floorId || loc.floorId || null,
+          locDeptId || null,
+          roomId || loc.roomId || null,
+          locationId || loc.locationId || null,
+          status, qrCode || null, req.user.id, criticality || "Non_Critical"]
       );
 
       const assetId = result.insertId;
