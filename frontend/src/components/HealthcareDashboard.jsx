@@ -928,30 +928,19 @@ function KpiReportTable({ type, token, kpiFilter }) {
     return () => { alive = false; };
   }, [type, token, search, reload]);
 
-  // Best-effort client-side filtering to match the clicked KPI tile
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
   const past = (d) => d && new Date(d) < today;
-  const soon = (d) => d && new Date(d) >= today && new Date(d) <= in30;
-  const thisMonth = (d) => { if (!d) return false; const x = new Date(d); return x.getMonth() === today.getMonth() && x.getFullYear() === today.getFullYear(); };
 
+  // Training has a real status field, so we can filter it precisely. PMS/Calibration
+  // reports expose only a FUTURE next-due date, so date-bucket filtering here would
+  // wrongly hide overdue/due-this-month rows and show an empty table — instead show
+  // the full hospital-scoped list (the KPI tile already carries the exact count).
   let data = rows;
-  if (kpiFilter) {
-    if (type === "pms") {
-      if (kpiFilter === "overdue")        data = rows.filter(r => past(r.nextPmsDate));
-      else if (kpiFilter === "upcoming")  data = rows.filter(r => soon(r.nextPmsDate));
-      else if (kpiFilter === "completed") data = rows.filter(r => (Number(r.closedPms) || 0) > 0);
-    } else if (type === "calibration") {
-      if (kpiFilter === "overdue")                   data = rows.filter(r => past(r.nextCalibrationDate));
-      else if (kpiFilter === "upcoming")             data = rows.filter(r => soon(r.nextCalibrationDate));
-      else if (kpiFilter === "due_this_month")       data = rows.filter(r => thisMonth(r.nextCalibrationDate));
-      else if (kpiFilter === "completed_this_month") data = rows.filter(r => thisMonth(r.lastCalibrationDate));
-    } else if (type === "training") {
-      const st = (r) => (r.status || "").toLowerCase();
-      if (kpiFilter === "scheduled")      data = rows.filter(r => st(r) === "scheduled");
-      else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
-      else if (kpiFilter === "overdue")   data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
-    }
+  if (kpiFilter && type === "training") {
+    const st = (r) => (r.status || "").toLowerCase();
+    if (kpiFilter === "scheduled")      data = rows.filter(r => st(r) === "scheduled");
+    else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
+    else if (kpiFilter === "overdue")   data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
   }
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -1830,10 +1819,13 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   useEffect(() => {
     if (!token) return;
     setPmsLoading(true);
+    // Only aggregate across all hospitals in All-Hospitals mode; otherwise scope
+    // to the currently-selected hospital so counts don't leak between hospitals.
+    const scope = allCompaniesMode ? "?allCompanies=true" : "";
     Promise.all([
-      fetch(`${BASE}/api/company-portal/pms/dashboard-stats`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${BASE}/api/company-portal/pms/dashboard-stats${scope}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${BASE}/api/company-portal/pms/overdue-details`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${BASE}/api/company-portal/pms/overdue-details${scope}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([stats, overdue]) => {
       if (stats) setPmsStats(stats);

@@ -1016,7 +1016,11 @@ router.get("/verify-asset-qr", async (req, res, next) => {
 /* GET /dashboard-stats — aggregate PMS KPI counts for the company dashboard */
 router.get("/dashboard-stats", async (req, res, next) => {
   try {
-    const ids        = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    // Scope to the currently-selected hospital by default; only aggregate across
+    // all accessible hospitals when the dashboard is in "All Hospitals" mode.
+    const ids        = req.query.allCompanies === "true"
+      ? await getAccessibleCompanyIds(req.companyUser.id, cid(req))
+      : [cid(req)];
     const ph         = ids.map(() => "?").join(",");
     const today      = new Date().toISOString().slice(0, 10);
     const monthStart = today.slice(0, 7) + "-01";
@@ -1082,7 +1086,9 @@ router.get("/dashboard-stats", async (req, res, next) => {
 router.get("/overdue-details", async (req, res, next) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const ids   = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ids   = req.query.allCompanies === "true"
+      ? await getAccessibleCompanyIds(req.companyUser.id, cid(req))
+      : [cid(req)];
     const [rows] = await pool.query(
       `SELECT
          ps.id              AS scheduleId,

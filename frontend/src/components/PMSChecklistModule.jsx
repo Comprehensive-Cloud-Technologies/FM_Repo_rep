@@ -2383,7 +2383,7 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
   const selectedCompanyId   = selectedCompany ? String(selectedCompany.companyId || selectedCompany.id || "") : "";
   const selectedCompanyName = selectedCompany
     ? (selectedCompany.companyName || selectedCompany.company_name || "Selected Hospital")
-    : "All Hospitals";
+    : (currentUser?.companyName || "This Hospital");
 
   const handleCompanyChange = (e) => {
     const val = e.target.value;
@@ -2410,30 +2410,8 @@ export default function PMSChecklistModule({ token, companyId, extraTabs = [], e
           <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>Create reusable PMS checklists, assign them to assets, and schedule maintenance jobs.</p>
         </div>
 
-        {/* Hospital selector — shown when user has access to multiple hospitals */}
-        {companies.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <div style={{ position: "relative" }}>
-              <select
-                value={selectedCompanyId}
-                onChange={handleCompanyChange}
-                style={{ appearance: "none", WebkitAppearance: "none", padding: "7px 32px 7px 10px", border: `1.5px solid ${selectedCompanyId ? "#2563eb" : "#e2e8f0"}`, borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: selectedCompanyId ? "#2563eb" : "#64748b", background: selectedCompanyId ? "#eff6ff" : "#fff", cursor: "pointer", outline: "none", minWidth: "190px" }}>
-                <option value="">🏥 All Hospitals</option>
-                {companies.map(c => {
-                  const id   = c.companyId || c.id;   // API returns companyId
-                  const name = c.companyName || c.company_name || `Hospital ${id}`;
-                  return <option key={id} value={String(id)}>{name}</option>;
-                })}
-              </select>
-              <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={selectedCompanyId ? "#2563eb" : "#64748b"} strokeWidth={2.5} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            {selectedCompanyId && (
-              <button onClick={() => setSelectedCompany(null)}
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "2px" }}>×</button>
-            )}
-          </div>
-        )}
+        {/* Hospital selector removed — company scope is controlled by the global
+            company switcher at the top of the dashboard. */}
       </div>
 
       {/* Tabs */}

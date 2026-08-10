@@ -4332,24 +4332,11 @@ function AssetTransferSection({ token, companyId, switcher }) {
       {/* Page header */}
       <div style={{ padding: "12px 28px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
         {switcher}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Asset Transfers</h1>
-            <p style={{ margin: "4px 0 16px", fontSize: "13px", color: "#64748b" }}>Transfer single or multiple assets to another company or department. All history and QR codes are preserved.</p>
-          </div>
-          {/* Company selector — top right */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, marginTop: "2px" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <select
-              value={srcCompanyId}
-              onChange={e => setSrcCompanyId(e.target.value)}
-              style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", fontWeight: 600, color: "#0f172a", background: "#fff", outline: "none", minWidth: "180px" }}>
-              <option value="">All Companies</option>
-              {atCompanies.map(c => (
-                <option key={c.id} value={String(c.id)}>{c.companyName}</option>
-              ))}
-            </select>
-          </div>
+        <div style={{ marginBottom: "4px" }}>
+          {/* Source-company selector removed — scope is controlled by the global
+              company switcher above; transfers use the current hospital as source. */}
+          <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Asset Transfers</h1>
+          <p style={{ margin: "4px 0 16px", fontSize: "13px", color: "#64748b" }}>Transfer single or multiple assets to another company or department. All history and QR codes are preserved.</p>
         </div>
         <div style={{ display: "flex", gap: 0 }}>
           <button style={subTabStyle("transfer")} onClick={() => setSubTab("transfer")}>Transfer Assets</button>
