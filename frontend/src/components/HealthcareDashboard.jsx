@@ -156,6 +156,70 @@ function PieChart({ data, size = 200, compact = false }) {
   );
 }
 
+/* ─── Equipment Health Status — rich donut with right-side % legend ─────────── */
+function EquipmentHealthChart({ statuses }) {
+  const total   = statuses.reduce((s, x) => s + (Number(x.value) || 0), 0);
+  const visible = statuses.filter(s => Number(s.value) > 0);
+
+  const size = 140, stroke = 18, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+
+  // Fit the centre number regardless of magnitude
+  const totalStr = total.toLocaleString("en-IN");
+  const numFont  = totalStr.length >= 9 ? 15 : totalStr.length >= 7 ? 18 : totalStr.length >= 5 ? 21 : 24;
+
+  let offset = 0;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "18px", width: "100%", flexWrap: "wrap", justifyContent: "center" }}>
+      {/* Donut */}
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} style={{ filter: "drop-shadow(0 3px 8px rgba(15,23,42,0.10))" }}>
+          {/* Track */}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef2f6" strokeWidth={stroke} />
+          <g transform={`rotate(-90 ${cx} ${cy})`}>
+            {total > 0 && visible.map((s, i) => {
+              const frac = (Number(s.value) || 0) / total;
+              const len  = frac * circ;
+              const el = (
+                <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={stroke}
+                  strokeDasharray={`${len} ${circ - len}`} strokeDashoffset={-offset}>
+                  <title>{s.name}: {Number(s.value).toLocaleString("en-IN")} ({(frac * 100).toFixed(1)}%)</title>
+                </circle>
+              );
+              offset += len;
+              return el;
+            })}
+          </g>
+          {/* Inner ring highlight for a bit of depth */}
+          <circle cx={cx} cy={cy} r={r - stroke / 2} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+        </svg>
+        {/* Centre label */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ fontSize: `${numFont}px`, fontWeight: 800, color: "#0f172a", lineHeight: 1, letterSpacing: "-0.02em" }}>{totalStr}</div>
+          <div style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px" }}>Total</div>
+        </div>
+      </div>
+
+      {/* Right-side legend — percentages */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "9px", flex: 1, minWidth: "150px" }}>
+        {visible.length === 0 ? (
+          <span style={{ fontSize: "12px", color: "#94a3b8" }}>No equipment data</span>
+        ) : visible.map((s, i) => {
+          const pct = total ? (Number(s.value) / total) * 100 : 0;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: s.color, flexShrink: 0, boxShadow: `0 0 0 3px ${s.color}22` }} />
+              <span style={{ fontSize: "12.5px", color: "#334155", fontWeight: 600, whiteSpace: "nowrap" }}>{s.name}</span>
+              <span style={{ marginLeft: "auto", fontSize: "14px", fontWeight: 800, color: s.color, fontVariantNumeric: "tabular-nums" }}>{pct.toFixed(1)}%</span>
+              <span style={{ fontSize: "11px", color: "#94a3b8", minWidth: "38px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Number(s.value).toLocaleString("en-IN")}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BarChart({ data, height = 200, onBarClick, groupByHospital = false }) {
   if (!data || data.length === 0) return <EmptyState small />;
   const maxVal = Math.max(...data.map(d => (d.critical || 0) + (d.nonCritical || 0)), 1);
@@ -1766,6 +1830,8 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     tOverdue:   { tab: "training", kpiFilter: "overdue",   label: "Training Overdue" },
   };
   const [activeKpiMeta, setActiveKpiMeta] = useState(null);
+  const [perfKpis, setPerfKpis]     = useState(null);
+  const [perfLoading, setPerfLoading] = useState(false);
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async (force = false) => {
@@ -1852,6 +1918,20 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       .catch(() => {})
       .finally(() => setOjtLoading(false));
   }, [token, refreshKey]);
+
+  // Load Performance KPIs
+  useEffect(() => {
+    if (!token) return;
+    setPerfLoading(true);
+    const scope = allCompaniesMode ? "?allCompanies=true" : "";
+    fetch(`${BASE}/api/company-portal/healthcare/performance-kpis${scope}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPerfKpis(d); })
+      .catch(() => {})
+      .finally(() => setPerfLoading(false));
+  }, [token, allCompaniesMode, refreshKey]);
 
   // Load filter options (departments, categories, locations) for the filter panel
   useEffect(() => {
@@ -2017,14 +2097,14 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 />
               ))}
             </div>
-          {/* RIGHT: working-status pie chart — same card style as compact R&R */}
-          <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>Working Status</p>
-            <PieChart compact size={110} data={[
-              { name: "HNF",         value: snapshot?.hnf        || 0, color: "#0d9488" },
+          {/* RIGHT: Equipment Health Status — rich donut + % legend */}
+          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px", textAlign: "center" }}>Equipment Health Status</p>
+            <EquipmentHealthChart statuses={[
               { name: "Working",     value: snapshot?.working    || 0, color: "#16a34a" },
               { name: "WIP",         value: snapshot?.wip        || 0, color: "#ca8a04" },
               { name: "Not Working", value: snapshot?.notWorking || 0, color: "#dc2626" },
+              { name: "HNF",         value: snapshot?.hnf        || 0, color: "#0d9488" },
               { name: "RBER",        value: snapshot?.rber       || 0, color: "#ea580c" },
               { name: "Condemned",   value: snapshot?.condemned  || 0, color: "#7c3aed" },
             ]} />
@@ -2192,6 +2272,30 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         )}
 
         {/* ── KPI Asset Panel — removed; replaced by always-visible table below filters ── */}
+
+        {/* ── KPI & PERFORMANCE ── */}
+        <div style={{ marginTop: "20px" }}>
+          <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>KPI &amp; Performance Meter</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+            {[
+              { label: "Equipment Up Time",     value: perfKpis?.equipmentUpTime != null ? `${perfKpis.equipmentUpTime}%`  : null, color: "green",  icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+              { label: "PM Compliance",         value: perfKpis?.pmCompliance    != null ? `${perfKpis.pmCompliance}%`    : null, color: "blue",   icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
+              { label: "Equipment Availability",value: perfKpis?.equipmentAvail  != null ? `${perfKpis.equipmentAvail}%`  : null, color: "teal",   icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> },
+              { label: "SLA Compliance",        value: perfKpis?.slaCompliance   != null ? `${perfKpis.slaCompliance}%`   : null, color: "purple", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+              { label: "MTTR",                  value: perfKpis?.mttrHours       != null ? `${perfKpis.mttrHours} Hrs`   : null, color: "orange", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+              { label: "MTBF",                  value: perfKpis?.mtbfDays        != null ? `${perfKpis.mtbfDays} days`   : null, color: "yellow", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+            ].map(k => (
+              <KpiCard
+                key={k.label}
+                label={k.label}
+                value={k.value ?? "—"}
+                icon={k.icon}
+                color={k.color}
+                loading={perfLoading}
+              />
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* ── PMS OVERDUE ALERT BANNER ── */}

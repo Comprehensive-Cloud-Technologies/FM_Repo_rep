@@ -1439,5 +1439,115 @@ router.get("/requests", validate([
   } catch (err) { next(err); }
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERFORMANCE KPIs — Equipment Up Time, PM Compliance, Availability, SLA,
+   MTTR, MTBF
+   GET /api/company-portal/healthcare/performance-kpis
+   Supports ?allCompanies=true for multi-hospital scope
+   ═══════════════════════════════════════════════════════════════════════════ */
+router.get("/performance-kpis", async (req, res, next) => {
+  try {
+    const userId    = req.companyUser.id;
+    const primaryId = req.companyUser.companyId;
+
+    const ids = req.query.allCompanies === "true"
+      ? await getAccessibleCompanyIds(userId, primaryId)
+      : [primaryId];
+    const ph = ids.map(() => "?").join(",");
+
+    const [
+      [[assetStats]],
+      [[reqStats]],
+      [[mttrRow]],
+      [[pmsStats]],
+    ] = await Promise.all([
+      // 1. Equipment status counts
+      pool.query(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN working_status = 'Working'     THEN 1 ELSE 0 END) AS working,
+           SUM(CASE WHEN working_status IN ('Working','WIP') THEN 1 ELSE 0 END) AS available
+         FROM assets
+         WHERE company_id IN (${ph})`,
+        ids
+      ),
+
+      // 2. Complaint SLA — resolved or closed over total
+      pool.query(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END) AS resolved
+         FROM asset_queries
+         WHERE company_id IN (${ph})`,
+        ids
+      ),
+
+      // 3. MTTR — average hours from complaint creation to resolution/closure
+      //    Cap outliers at 720 h (30 days) so one ancient ticket doesn't skew the avg.
+      pool.query(
+        `SELECT ROUND(
+           AVG(CASE
+             WHEN status IN ('resolved','closed')
+              AND updated_at > created_at
+              AND TIMESTAMPDIFF(HOUR, created_at, updated_at) BETWEEN 1 AND 720
+             THEN TIMESTAMPDIFF(HOUR, created_at, updated_at)
+           END
+         ), 1) AS avg_hours
+         FROM asset_queries
+         WHERE company_id IN (${ph})`,
+        ids
+      ),
+
+      // 4. PMS completion counts for PM Compliance
+      //    totalCompletedAssets / totalAssetsScheduled
+      pool.query(
+        `SELECT
+           COUNT(DISTINCT psa.asset_id)                                                 AS total_scheduled,
+           COUNT(DISTINCT CASE WHEN ps.status = 'completed' THEN psa.asset_id END)     AS total_completed
+         FROM pms_schedules ps
+         JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
+         WHERE ps.company_id IN (${ph})`,
+        ids
+      ),
+    ]);
+
+    const total     = Number(assetStats?.total    || 0);
+    const working   = Number(assetStats?.working  || 0);
+    const available = Number(assetStats?.available || 0);
+
+    const totalCmpl  = Number(reqStats?.total    || 0);
+    const resolvedCmpl = Number(reqStats?.resolved || 0);
+
+    const totalPms     = Number(pmsStats?.total_scheduled  || 0);
+    const completedPms = Number(pmsStats?.total_completed  || 0);
+
+    // MTBF: average days between failures per asset over the past year.
+    // Formula: 365 × uniqueAssets / totalComplaints (last 12 months)
+    const [[mtbfRow]] = await pool.query(
+      `SELECT
+         COUNT(*)                    AS complaint_count,
+         COUNT(DISTINCT asset_id)   AS asset_count
+       FROM asset_queries
+       WHERE company_id IN (${ph})
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)`,
+      ids
+    );
+    const mtbfAssets     = Number(mtbfRow?.asset_count    || 0);
+    const mtbfComplaints = Number(mtbfRow?.complaint_count || 0);
+    const mtbf = mtbfComplaints > 0
+      ? Math.round((365 * mtbfAssets) / mtbfComplaints)
+      : null;
+
+    res.json({
+      equipmentUpTime:    total > 0 ? +((working   / total) * 100).toFixed(2) : null,
+      equipmentAvail:     total > 0 ? +((available / total) * 100).toFixed(2) : null,
+      pmCompliance:       totalPms > 0 ? +((completedPms / totalPms) * 100).toFixed(2) : null,
+      slaCompliance:      totalCmpl > 0 ? +((resolvedCmpl / totalCmpl) * 100).toFixed(2) : null,
+      mttrHours:          mttrRow?.avg_hours != null ? Number(mttrRow.avg_hours) : null,
+      mtbfDays:           mtbf,
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;
 
