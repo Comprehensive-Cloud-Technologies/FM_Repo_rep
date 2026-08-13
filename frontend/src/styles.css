@@ -1423,3 +1423,52 @@ input[type="datetime-local"]:focus {
     overflow-y: auto;
   }
 }
+
+/* ─── Company Employee Portal — responsive sidebar & main content ─────────── */
+/* On tablets and below collapse the fixed sidebar to a narrow icon rail       */
+@media (max-width: 900px) {
+  .cp-sidebar {
+    width: 64px !important;
+    overflow: hidden !important;
+  }
+  .cp-sidebar .cp-nav-label,
+  .cp-sidebar .cp-brand-text {
+    display: none !important;
+  }
+  .cp-main-content {
+    left: 64px !important;
+  }
+}
+
+/* On phones hide the sidebar entirely — main content goes full-width          */
+@media (max-width: 600px) {
+  .cp-sidebar {
+    width: 0 !important;
+    border-right: none !important;
+  }
+  .cp-main-content {
+    left: 0 !important;
+    padding: 12px 12px 20px !important;
+  }
+}
+
+/* ─── Healthcare Dashboard Equipment Health card — responsive donut ──────── */
+/* Allow donut + legend to stack vertically on cards narrower than 200px.     */
+/* The flexWrap:wrap on the wrapper div handles this automatically in JSX.    */
+/* Cap the donut container width so it never forces horizontal overflow.      */
+.equipment-health-card {
+  overflow: hidden;
+}
+
+/* ─── General grid responsiveness (company portal pages) ────────────────── */
+@media (max-width: 768px) {
+  /* Stack all two-column grids to single column */
+  .cp-main-content > div > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Full-width KPI cards */
+  .cp-main-content [style*="minWidth: 160"] {
+    min-width: 0 !important;
+    flex: 1 1 140px !important;
+  }
+}

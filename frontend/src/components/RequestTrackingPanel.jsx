@@ -337,6 +337,220 @@ function ActivityTimeline({ items }) {
   );
 }
 
+/* ─── SLA helpers ─────────────────────────────────────────────────────────── */
+function fmtMins(m) {
+  if (m == null) return "—";
+  const absM = Math.abs(m);
+  if (absM < 60) return `${m}m`;
+  if (absM < 1440) return `${Math.floor(m / 60)}h ${Math.abs(m % 60)}m`;
+  return `${Math.floor(m / 1440)}d ${Math.floor((absM % 1440) / 60)}h`;
+}
+
+function SlaCountdown({ dueAt, status }) {
+  const [minsLeft, setMinsLeft] = useState(null);
+  useEffect(() => {
+    if (status !== "running" || !dueAt) { setMinsLeft(null); return; }
+    const calc = () => setMinsLeft(Math.round((new Date(dueAt) - Date.now()) / 60000));
+    calc();
+    const t = setInterval(calc, 30000);
+    return () => clearInterval(t);
+  }, [dueAt, status]);
+  if (status !== "running" || minsLeft === null) return null;
+  const color = minsLeft < 0 ? "#dc2626" : minsLeft < 30 ? "#ea580c" : "#16a34a";
+  return (
+    <span style={{ fontWeight: 800, color, fontSize: "13px" }}>
+      {minsLeft < 0 ? `Overdue by ${fmtMins(-minsLeft)}` : `${fmtMins(minsLeft)} left`}
+    </span>
+  );
+}
+
+function SlaClockCard({ clock }) {
+  const STATUS_CFG = {
+    running:  { bg: "#eff6ff", border: "#93c5fd", dot: "#2563eb", label: "Running",  textColor: "#1d4ed8" },
+    paused:   { bg: "#fefce8", border: "#fde68a", dot: "#ca8a04", label: "Paused",   textColor: "#854d0e" },
+    met:      { bg: "#f0fdf4", border: "#86efac", dot: "#16a34a", label: "Met ✓",    textColor: "#15803d" },
+    breached: { bg: "#fef2f2", border: "#fca5a5", dot: "#dc2626", label: "Breached", textColor: "#dc2626" },
+  };
+  const cfg = STATUS_CFG[clock.status] || STATUS_CFG.running;
+  const LABELS = { response: "Response", attendance: "Attendance", resolution: "Resolution" };
+
+  return (
+    <div style={{ background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: "12px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{LABELS[clock.clockType]}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: cfg.textColor, background: "#fff", padding: "2px 9px", borderRadius: "20px", border: `1px solid ${cfg.border}` }}>
+          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
+          {cfg.label}
+        </span>
+      </div>
+      <div style={{ fontSize: "13px", color: "#374151" }}>
+        <span style={{ color: "#64748b" }}>Target: </span><strong>{fmtMins(clock.targetMins)}</strong>
+      </div>
+      {clock.status === "running" && clock.dueAt && (
+        <div style={{ fontSize: "12px", color: "#64748b" }}>Due: {new Date(clock.dueAt).toLocaleString()}</div>
+      )}
+      <SlaCountdown dueAt={clock.dueAt} status={clock.status} />
+      {clock.status === "met" && (
+        <div style={{ fontSize: "12px", color: "#15803d" }}>Completed in <strong>{fmtMins(clock.actualMins)}</strong>
+          {clock.targetMins > 0 && <span style={{ color: "#94a3b8", marginLeft: "4px" }}>vs {fmtMins(clock.targetMins)} target</span>}
+        </div>
+      )}
+      {clock.status === "breached" && (
+        <div style={{ fontSize: "12px", color: "#dc2626" }}>
+          Exceeded by <strong>{fmtMins(clock.breachMins)}</strong>
+        </div>
+      )}
+      {clock.status === "paused" && clock.pausedAt && (
+        <div style={{ fontSize: "12px", color: "#854d0e" }}>Paused since {new Date(clock.pausedAt).toLocaleString()}</div>
+      )}
+    </div>
+  );
+}
+
+function PauseSlaModal({ queryId, authToken, onClose, onDone }) {
+  const [reasons, setReasons] = useState([]);
+  const [reasonId, setReasonId] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    apiFetch("GET", "/api/company-portal/sla/breach-reasons", undefined, authToken)
+      .then(d => setReasons(Array.isArray(d) ? d.filter(r => r.is_pause_reason) : []))
+      .catch(() => {});
+  }, [authToken]);
+  const submit = async () => {
+    setBusy(true); setErr(null);
+    try {
+      await apiFetch("POST", `/api/company-portal/sla/pause/${queryId}`, { reasonId: reasonId || null, note }, authToken);
+      onDone();
+    } catch (e) { setErr(e.message); setBusy(false); }
+  };
+  const inp = { width: "100%", boxSizing: "border-box", padding: "9px 11px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "13.5px", background: "#fff" };
+  return (
+    <Modal onClose={onClose} title="Pause SLA Clock" width="420px">
+      {err && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "9px 12px", borderRadius: "7px", marginBottom: "14px", fontSize: "13px" }}>{err}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "5px" }}>Reason</label>
+          <select value={reasonId} onChange={e => setReasonId(e.target.value)} style={inp}>
+            <option value="">— Select reason (optional) —</option>
+            {reasons.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "5px" }}>Notes (optional)</label>
+          <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Describe the pause reason…" style={{ ...inp, resize: "vertical" }} />
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
+        <Btn variant="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
+        <Btn onClick={submit} disabled={busy} style={{ background: "#ca8a04" }}>{busy ? "Pausing…" : "Pause SLA"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function SlaTab({ wo, authToken }) {
+  const queryId = wo.source_type === "asset_query" ? wo.id : null;
+  const [sla, setSla] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [busy, setBusy] = useState(null); // "respond" | "attend" | "resume"
+
+  const fetch = async () => {
+    if (!queryId) return;
+    setLoading(true); setErr(null);
+    try { setSla(await apiFetch("GET", `/api/company-portal/sla/status/${queryId}`, undefined, authToken)); }
+    catch (e) { setErr(e.message); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetch(); }, [queryId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!queryId) {
+    return <div style={{ color: "#94a3b8", textAlign: "center", padding: "32px", fontSize: "13px" }}>SLA tracking is only available for asset queries.</div>;
+  }
+  if (loading && !sla) return <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading SLA status…</div>;
+  if (err) return <div style={{ color: "#dc2626", padding: "20px", fontSize: "13px" }}>⚠️ {err}</div>;
+  if (!sla) return <div style={{ color: "#94a3b8", textAlign: "center", padding: "32px", fontSize: "13px" }}>No SLA record found for this ticket.</div>;
+
+  const clocks = sla.clocks || [];
+  const responseClock   = clocks.find(c => c.clockType === "response");
+  const attendanceClock = clocks.find(c => c.clockType === "attendance");
+
+  const canRespond  = responseClock?.status   === "running";
+  const canAttend   = attendanceClock?.status  === "running";
+  const canPause    = clocks.some(c => c.status === "running");
+  const canResume   = clocks.some(c => c.status === "paused");
+
+  const act = async (type) => {
+    setBusy(type);
+    try {
+      await apiFetch("POST", `/api/company-portal/sla/${type}/${queryId}`, {}, authToken);
+      await fetch();
+    } catch (e) { alert(e.message); }
+    setBusy(null);
+  };
+
+  const PRIORITY_COLOR = { P1: "#dc2626", P2: "#f97316", P3: "#ca8a04", P4: "#16a34a" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        {sla.priority && (
+          <span style={{ padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 800, background: "#fef2f2", color: PRIORITY_COLOR[sla.priority] || "#dc2626", border: "1px solid #fecaca" }}>{sla.priority}</span>
+        )}
+        {sla.policyName && (
+          <span style={{ padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>📋 {sla.policyName}</span>
+        )}
+        {sla.isEligible === false && (
+          <span style={{ padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#f1f5f9", color: "#64748b" }}>SLA Exempt — {sla.ineligibleReason || "Not eligible"}</span>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: "11.5px", color: "#94a3b8" }}>Started: {sla.slaStartTime ? new Date(sla.slaStartTime).toLocaleString() : "—"}</span>
+      </div>
+
+      {/* Three clock cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+        {clocks.map(c => <SlaClockCard key={c.clockType} clock={c} />)}
+        {clocks.length === 0 && <div style={{ gridColumn: "1/-1", textAlign: "center", color: "#94a3b8", padding: "24px" }}>No SLA clocks configured.</div>}
+      </div>
+
+      {/* Action row */}
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", paddingTop: "4px" }}>
+        {canRespond && (
+          <Btn variant="primary" disabled={busy === "respond"} onClick={() => act("respond")} size="sm">
+            {busy === "respond" ? "Saving…" : "✓ Mark Responded"}
+          </Btn>
+        )}
+        {canAttend && (
+          <Btn style={{ background: "#0d9488" }} disabled={busy === "attend"} onClick={() => act("attend")} size="sm">
+            {busy === "attend" ? "Saving…" : "📍 Mark Attended"}
+          </Btn>
+        )}
+        {canPause && (
+          <Btn variant="ghost" style={{ borderColor: "#fbbf24", color: "#b45309" }} disabled={!!busy} onClick={() => setPauseOpen(true)} size="sm">
+            ⏸ Pause SLA
+          </Btn>
+        )}
+        {canResume && (
+          <Btn variant="ghost" style={{ borderColor: "#6ee7b7", color: "#059669" }} disabled={busy === "resume"} onClick={() => act("resume")} size="sm">
+            {busy === "resume" ? "Resuming…" : "▶ Resume SLA"}
+          </Btn>
+        )}
+        <Btn variant="ghost" disabled={loading} onClick={fetch} size="sm" style={{ marginLeft: "auto" }}>
+          {loading ? "Refreshing…" : "↺ Refresh"}
+        </Btn>
+      </div>
+
+      {pauseOpen && (
+        <PauseSlaModal queryId={queryId} authToken={authToken} onClose={() => setPauseOpen(false)} onDone={() => { setPauseOpen(false); fetch(); }} />
+      )}
+    </div>
+  );
+}
+
 /* ─── Work Order Detail Modal ─────────────────────────────────────────────── */
 function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUpdated }) {
   const [tab, setTab] = useState(wo._openTab || "details");
@@ -409,7 +623,7 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
   const ss = STATUS_STYLE[(wo.status || "").toLowerCase()] || STATUS_STYLE.open;
   const src = SOURCE_STYLE[(wo.source_label || wo.issue_source || wo.issueSource || "manual").toLowerCase()] || SOURCE_STYLE.manual;
 
-  const TABS = ["details", "assign", "status", "remarks", "activity"];
+  const TABS = ["details", "sla", "assign", "status", "remarks", "activity"];
 
   return (
     <Modal onClose={onClose} title={`Request: ${wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}`} width="640px">
@@ -431,7 +645,7 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: "8px 16px", background: "none", border: "none", borderBottom: tab === t ? "2.5px solid #2563eb" : "2.5px solid transparent", marginBottom: "-2px", cursor: "pointer", fontSize: "13px", fontWeight: tab === t ? 700 : 500, color: tab === t ? "#2563eb" : "#64748b", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-            {t === "assign" ? "Assign / Reassign" : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === "assign" ? "Assign / Reassign" : t === "sla" ? "⏱ SLA" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -467,6 +681,10 @@ function WODetailModal({ wo, employees, token, companyPortalToken, onClose, onUp
             </div>
           )}
         </div>
+      )}
+
+      {tab === "sla" && (
+        <SlaTab wo={wo} authToken={authToken} />
       )}
 
       {tab === "assign" && (

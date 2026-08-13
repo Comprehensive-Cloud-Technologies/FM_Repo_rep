@@ -4090,11 +4090,12 @@ const NAV_ALL = [
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-  { key: "reports",        label: "Reports",          roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
+  { key: "reports",        label: "Analytics & Insights",          roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><polyline points="7 15 10 12 13 15 17 11"/></svg> },
   { key: "asset_transfer", label: "Asset Transfers",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/><path d="M19 12H5M12 19l-7-7 7-7" opacity=".4"/></svg> },
   { key: "pms",           label: "PMS",              roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><polyline points="12 14 14 16 18 12"/></svg> },
   { key: "calibration",   label: "Calibration",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
   { key: "training",      label: "Training",         roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+  { key: "asset-intelligence", label: "Asset Pro Intelligence", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h2a2 2 0 0 1 2 2v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1v-1a2 2 0 0 1 2-2h2V9.5C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/><circle cx="12" cy="6" r="1.5" fill="currentColor"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -4328,7 +4329,7 @@ function AssetTransferSection({ token, companyId, switcher }) {
   });
 
   return (
-    <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f8fafc" }}>
+    <div className="cp-main-content" style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 5, display: "flex", flexDirection: "column", background: "#f8fafc" }}>
       {/* Page header */}
       <div style={{ padding: "12px 28px 0", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
         {switcher}
@@ -4670,7 +4671,7 @@ export default function CompanyEmployeePortal() {
     const enabledSet = Array.isArray(enabledModules)
       ? new Set(enabledModules.map(normalizeModuleKey).filter(Boolean))
       : null;
-    const ALWAYS_VISIBLE = new Set(["dashboard"]);
+    const ALWAYS_VISIBLE = new Set(["dashboard", "asset-intelligence"]);
 
     const byCompany = !enabledSet
       ? base
@@ -5953,7 +5954,7 @@ export default function CompanyEmployeePortal() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f1f5f9" }}>
       {/* Sidebar */}
-      <aside style={{ width: "240px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10, overflow: "hidden" }}>
+      <aside className="cp-sidebar" style={{ width: "240px", background: "#fff", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 10, overflow: "hidden" }}>
         {/* Brand */}
         <div style={{ padding: "18px 12px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: sidebarHovered ? "center" : "center", overflow: "hidden" }}>
           <img src={logo} alt="Logo" style={{ maxWidth: "150px", height: "40px", objectFit: "contain", transition: "max-width 0.22s" }} />
@@ -9642,7 +9643,7 @@ export default function CompanyEmployeePortal() {
 
       {/* ── PMS (Preventive Maintenance) ────────────────────────── */}
       {nav === "pms" && (
-        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <PMSChecklistModule token={token} companyId={currentUser?.companyId} currentUser={currentUser} />
         </div>
@@ -9650,7 +9651,7 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Calibration ─────────────────────────────────────────── */}
       {nav === "calibration" && (
-        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <CalibrationModule token={token} />
         </div>
@@ -9658,9 +9659,121 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Training ────────────────────────────────────────────── */}
       {nav === "training" && (
-        <div style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <TrainingModule token={token} />
+        </div>
+      )}
+
+      {/* ── Asset Pro Intelligence ───────────────────────────── */}
+      {nav === "asset-intelligence" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
+        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", background: "#f8fafc", padding: "28px 32px" }}>
+          {companySwitcherBar}
+          <div style={{ marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>🧠 Asset Pro Intelligence</h2>
+            <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>AI-powered insights, predictive maintenance signals, and asset lifecycle analytics</p>
+          </div>
+
+          {/* KPI Banner */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "24px" }}>
+            {[
+              { label: "Assets Monitored",    val: snapshot?.total        || "—", icon: "📦", color: "#2563eb", bg: "#eff6ff" },
+              { label: "Health Score",         val: snapshot?.working && snapshot?.total ? `${((snapshot.working / snapshot.total) * 100).toFixed(1)}%` : "—", icon: "💚", color: "#16a34a", bg: "#f0fdf4" },
+              { label: "At-Risk Assets",       val: snapshot?.notWorking  || "—", icon: "⚠️", color: "#ea580c", bg: "#fff7ed" },
+              { label: "Avg MTTR (days)",      val: "—",                            icon: "⏱", color: "#7c3aed", bg: "#f5f3ff" },
+            ].map(({ label, val, icon, color, bg }) => (
+              <div key={label} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>{icon}</div>
+                <div>
+                  <div style={{ fontSize: "22px", fontWeight: 800, color, lineHeight: 1 }}>{val}</div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", fontWeight: 500 }}>{label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Main content area */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            {/* Predictive Maintenance */}
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                🔮 Predictive Maintenance Signals
+                <span style={{ fontSize: "10px", fontWeight: 700, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: "20px" }}>COMING SOON</span>
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {[
+                  { name: "Ventilator (ICU-3)", dept: "ICU", signal: "High vibration anomaly", risk: "high", days: 12 },
+                  { name: "X-Ray Unit (Radiology)", dept: "Radiology", signal: "Usage hours exceeding threshold", risk: "medium", days: 28 },
+                  { name: "ECG Monitor (Ward-5)", dept: "General Ward", signal: "Calibration overdue", risk: "low", days: 45 },
+                ].map((a, i) => {
+                  const riskColor = { high: "#dc2626", medium: "#ea580c", low: "#16a34a" }[a.risk];
+                  const riskBg    = { high: "#fee2e2", medium: "#fff7ed", low: "#f0fdf4"  }[a.risk];
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px", border: "1px solid #f1f5f9", background: "#fafafa" }}>
+                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: riskColor, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>{a.signal} · {a.dept}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: riskBg, color: riskColor }}>{a.risk.toUpperCase()}</div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px" }}>~{a.days} days</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Lifecycle Analysis */}
+            <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                📈 Asset Lifecycle Status
+                <span style={{ fontSize: "10px", fontWeight: 700, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: "20px" }}>COMING SOON</span>
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {[
+                  { phase: "New (0–2 yrs)",       pct: 22, color: "#2563eb" },
+                  { phase: "Mature (2–5 yrs)",     pct: 45, color: "#16a34a" },
+                  { phase: "Aging (5–8 yrs)",      pct: 24, color: "#ea580c" },
+                  { phase: "End of Life (>8 yrs)", pct: 9,  color: "#dc2626" },
+                ].map(({ phase, pct, color }) => (
+                  <div key={phase}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "12px", color: "#334155", fontWeight: 500 }}>{phase}</span>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: "6px", borderRadius: "4px", background: "#f1f5f9", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "4px", transition: "width 0.6s ease" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom row — SLA + Insights */}
+          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 14px", display: "flex", alignItems: "center", gap: "8px" }}>
+              💡 Intelligence Roadmap
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px" }}>
+              {[
+                { icon: "🔧", title: "Predictive Maintenance",   desc: "ML models trained on historical failure data to predict next breakdown" },
+                { icon: "📊", title: "Usage Pattern Analytics",  desc: "Identify overused, underused and idle assets across departments" },
+                { icon: "💰", title: "Cost per Asset Analysis",  desc: "Total cost of ownership including maintenance, calibration, and downtime" },
+                { icon: "📍", title: "Asset Geo-Tracking",       desc: "Real-time location of mobile assets and transfer history" },
+                { icon: "⚡", title: "Energy Consumption",       desc: "Monitor power usage and flag energy-intensive equipment" },
+                { icon: "🏆", title: "Compliance Scoring",       desc: "Auto-score assets on calibration, PMS and regulatory compliance" },
+              ].map(({ icon, title, desc }) => (
+                <div key={title} style={{ padding: "14px", borderRadius: "10px", border: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                  <div style={{ fontSize: "20px", marginBottom: "8px" }}>{icon}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginBottom: "4px" }}>{title}</div>
+                  <div style={{ fontSize: "11px", color: "#64748b", lineHeight: 1.5 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

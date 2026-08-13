@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+﻿import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -882,6 +882,7 @@ const emptyCompany = {
 
 
   status: "Active",
+  slaPolicyId: "",
 
 
 
@@ -1026,7 +1027,7 @@ const emptyHospital = {
 
 
   status: "Active",
-
+  slaPolicyId: "",
 
 
 
@@ -3643,9 +3644,9 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
   }).filter(w => !search || (w.workOrderNumber||"").toLowerCase().includes(search.toLowerCase()) || (w.issueDescription||"").toLowerCase().includes(search.toLowerCase()) || (w.assetName||"").toLowerCase().includes(search.toLowerCase()) || (w.companyName||"").toLowerCase().includes(search.toLowerCase()));
 
   const formatDowntime = (wipAt, resolutionAt) => {
-    if (!wipAt || !resolutionAt) return "�";
+    if (!wipAt || !resolutionAt) return "ï¿½";
     const mins = Math.round((new Date(resolutionAt) - new Date(wipAt)) / 60000);
-    if (mins < 0) return "�";
+    if (mins < 0) return "ï¿½";
     if (mins < 60) return `${mins}m`;
     const hours = Math.floor(mins / 60);
     const m = mins % 60;
@@ -3795,14 +3796,14 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
                     <td style={{ padding:"11px 14px", color:"#0f172a", maxWidth:"180px" }}><div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{w.issueDescription||"-"}</div></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:pc.bg, color:pc.color, textTransform:"capitalize" }}>{w.priority}</span></td>
                     <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:sc.bg, color:sc.color, textTransform:"capitalize" }}>{(w.status||"").replace(/_/g," ")}</span></td>
-                    <td style={{ padding:"11px 14px", fontSize:"12.5px", color:"#0f172a", fontWeight:600 }}>{w.createdByName||<span style={{ color:"#94a3b8" }}>�</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12.5px", color:"#0f172a", fontWeight:600 }}>{w.createdByName||<span style={{ color:"#94a3b8" }}>ï¿½</span>}</td>
                     <td style={{ padding:"11px 14px", fontSize:"13px", color:"#475569" }}>{w.assignedToName||<span style={{ color:"#94a3b8" }}>Unassigned</span>}</td>
-                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>�</span>}</td>
-                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>�</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>ï¿½</span>}</td>
+                    <td style={{ padding:"11px 14px", fontSize:"12px", color:"#64748b", whiteSpace:"nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleString() : <span style={{ color:"#94a3b8" }}>ï¿½</span>}</td>
                     <td style={{ padding:"11px 14px", whiteSpace:"nowrap" }}>
                       {w.wipAt && w.resolutionAt ? (
                         <span style={{ padding:"3px 9px", borderRadius:"20px", fontSize:"11.5px", fontWeight:700, background:"#fef9c3", color:"#854d0e" }}>{formatDowntime(w.wipAt, w.resolutionAt)}</span>
-                      ) : <span style={{ color:"#94a3b8", fontSize:"12px" }}>�</span>}
+                      ) : <span style={{ color:"#94a3b8", fontSize:"12px" }}>ï¿½</span>}
                     </td>
                     <td style={{ padding:"11px 14px" }}>
                       <div style={{ display:"flex", gap:"6px", alignItems:"center" }}>
@@ -3829,7 +3830,7 @@ function AdminWorkOrdersSection({ token, companies = [] }) {
           <div style={{ background:"#fff", borderRadius:"16px", width:"640px", maxWidth:"96vw", maxHeight:"90vh", overflow:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.2)" }}>
             <div style={{ padding:"20px 24px", borderBottom:"1px solid #f1f5f9", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:"#fff", zIndex:1 }}>
               <h3 style={{ margin:0, fontSize:"16px", fontWeight:800, color:"#0f172a" }}>Request: {selectedWODetail.workOrderNumber || `WO-${selectedWODetail.id}`}</h3>
-              <button onClick={() => setSelectedWODetail(null)} style={{ width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:"16px", color:"#475569" }}>�</button>
+              <button onClick={() => setSelectedWODetail(null)} style={{ width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:"16px", color:"#475569" }}>ï¿½</button>
             </div>
             <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:"12px", fontSize:"13.5px" }}>
               {[
@@ -4873,7 +4874,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   <td style={{ padding:"10px 14px" }}>
                     {e.username
                       ? <span style={{ fontFamily:"monospace", fontSize:"13px", color:"#0f172a", background:"#f1f5f9", padding:"2px 8px", borderRadius:"6px" }}>{e.username}</span>
-                      : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>�</span>}
+                      : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>ï¿½</span>}
                   </td>
                   <td style={{ padding:"10px 14px", color:"#475569" }}>{e.designation||"-"}</td>
                   <td style={{ padding:"10px 14px" }}><span style={{ background: roleColors[e.role]||"#f1f5f9", color: roleTextColors[e.role]||"#475569", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:700, textTransform:"capitalize" }}>{e.role}</span></td>
@@ -4917,20 +4918,20 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div>
               <p style={{ fontWeight:800, fontSize:"16px", color:"#0f172a", margin:0 }}>{viewEmp.fullName}</p>
-              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{viewEmp.role} � {viewEmp.status}</p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{viewEmp.role} ï¿½ {viewEmp.status}</p>
             </div>
-            <button onClick={() => setViewEmp(null)} style={{ marginLeft:"auto", width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b", fontSize:"16px" }}>�</button>
+            <button onClick={() => setViewEmp(null)} style={{ marginLeft:"auto", width:"30px", height:"30px", borderRadius:"50%", border:"none", background:"#f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b", fontSize:"16px" }}>ï¿½</button>
           </div>
 
           {/* Details grid */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"20px" }}>
             {[
               ["Email", viewEmp.email],
-              ["Phone", viewEmp.phone || "�"],
-              ["Designation", viewEmp.designation || "�"],
+              ["Phone", viewEmp.phone || "ï¿½"],
+              ["Designation", viewEmp.designation || "ï¿½"],
               ["Role", viewEmp.role],
               ["Status", viewEmp.status],
-              ["Company", viewEmp.companyName || "�"],
+              ["Company", viewEmp.companyName || "ï¿½"],
             ].map(([lbl, val]) => (
               <div key={lbl} style={{ background:"#f8fafc", borderRadius:"8px", padding:"10px 12px", border:"1px solid #e2e8f0" }}>
                 <p style={{ fontSize:"10px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 3px" }}>{lbl}</p>
@@ -4954,9 +4955,9 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                   <p style={{ fontFamily:"monospace", fontSize:"15px", fontWeight:700, color:"#0f172a", margin:0, background:"#fff", padding:"6px 10px", borderRadius:"6px", border:"1px solid #bfdbfe", flex:1, letterSpacing: viewShowPwd ? "normal" : "0.2em" }}>
                     {viewEmp.plainPassword
-                      ? (viewShowPwd ? viewEmp.plainPassword : "��������")
+                      ? (viewShowPwd ? viewEmp.plainPassword : "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
                       : viewEmp.hasPassword
-                        ? <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"12px", letterSpacing:"normal" }}>Set before this update � use Change Password below to set a new visible one</span>
+                        ? <span style={{ color:"#94a3b8", fontStyle:"italic", fontFamily:"inherit", fontSize:"12px", letterSpacing:"normal" }}>Set before this update ï¿½ use Change Password below to set a new visible one</span>
                         : <span style={{ color:"#ef4444", fontStyle:"italic", fontFamily:"inherit", fontSize:"13px", letterSpacing:"normal" }}>Not set</span>}
                   </p>
                   {viewEmp.plainPassword && (
@@ -5011,7 +5012,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                 } catch(err) { setViewPwdErr(err.message); }
                 finally { setViewPwdSaving(false); }
               }} style={{ padding:"9px 16px", borderRadius:"8px", border:"none", background: viewPwdSaving || !viewNewPwd.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: viewPwdSaving || !viewNewPwd.trim() ? "default":"pointer", whiteSpace:"nowrap" }}>
-                {viewPwdSaving ? "Saving�" : "Set Password"}
+                {viewPwdSaving ? "Savingï¿½" : "Set Password"}
               </button>
             </div>
           </div>
@@ -5029,7 +5030,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
             </div>
             <div>
               <p style={{ fontWeight:800, fontSize:"15px", color:"#0f172a", margin:0 }}>Set Password</p>
-              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{setPwdEmp.fullName} � <span style={{ fontFamily:"monospace" }}>{setPwdEmp.username || "no username"}</span></p>
+              <p style={{ fontSize:"12.5px", color:"#64748b", margin:"2px 0 0" }}>{setPwdEmp.fullName} ï¿½ <span style={{ fontFamily:"monospace" }}>{setPwdEmp.username || "no username"}</span></p>
             </div>
           </div>
 
@@ -5083,7 +5084,7 @@ function AdminEmployeesSection({ token, companies = [], initialCompanyId = null,
                   } catch(err) { setSetPwdErr(err.message); }
                   finally { setSetPwdSaving(false); }
                 }} style={{ flex:2, padding:"10px", borderRadius:"8px", border:"none", background: setPwdSaving || !setPwdVal.trim() ? "#93c5fd":"#2563eb", color:"#fff", fontWeight:700, fontSize:"13px", cursor: setPwdSaving || !setPwdVal.trim() ? "default":"pointer" }}>
-                  {setPwdSaving ? "Saving�" : "Set Password"}
+                  {setPwdSaving ? "Savingï¿½" : "Set Password"}
                 </button>
               </div>
             </>
@@ -5174,9 +5175,15 @@ const CompanyPortal = () => {
 
 
   const [companyLoading, setCompanyLoading] = useState(false);
-
-
-
+  // ── SLA ──────────────────────────────────────────────────────────────────
+  const [slaPolicies, setSlaPolicies]       = useState([]);
+  const [slaScores,   setSlaScores]         = useState([]);
+  const [slaLoaded,   setSlaLoaded]         = useState(false);
+  const [slaPolicyForm, setSlaPolicyForm]   = useState({ name: "", description: "", p1Resp: 15, p1Attend: 30, p1Res: 120, p2Resp: 30, p2Attend: 60, p2Res: 240, p3Resp: 60, p3Attend: 120, p3Res: 480, p4Resp: 120, p4Attend: 240, p4Res: 960 });
+  const [slaPolicyEditId, setSlaPolicyEditId] = useState(null);
+  const [slaPolicyModalOpen, setSlaPolicyModalOpen] = useState(false);
+  const [slaPolicySaving, setSlaPolicySaving] = useState(false);
+  const [slaPolicyErr, setSlaPolicyErr]     = useState(null);
 
 
   // URL-driven navigation: /client?tab=dashboard - enables browser back/forward
@@ -7180,6 +7187,17 @@ const CompanyPortal = () => {
 
       loadCompanies(token).catch(() => {});
 
+      // Load SLA policies + company scores in parallel
+      const slaH = { Authorization: `Bearer ${token}` };
+      Promise.all([
+        fetch('/api/admin/sla/policies', { headers: slaH }).then(r => r.ok ? r.json() : []).catch(() => []),
+        fetch('/api/admin/sla/company-scores', { headers: slaH }).then(r => r.ok ? r.json() : []).catch(() => []),
+      ]).then(([pols, scores]) => {
+        setSlaPolicies(Array.isArray(pols) ? pols : []);
+        setSlaScores(Array.isArray(scores) ? scores : []);
+        setSlaLoaded(true);
+      }).catch(() => setSlaLoaded(true));
+
 
 
 
@@ -8856,6 +8874,19 @@ const CompanyPortal = () => {
 
       const merged = { ...emptyCompany, ...created };
 
+      // Assign SLA policy if selected
+      if (hospitalForm.slaPolicyId) {
+        try {
+          await fetch(`/api/admin/sla/company-policy/${created.id}`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ policyId: hospitalForm.slaPolicyId }),
+          });
+          const updScores = await fetch("/api/admin/sla/company-scores", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
+          setSlaScores(Array.isArray(updScores) ? updScores : []);
+        } catch (_) { /* non-fatal */ }
+      }
+
 
 
 
@@ -9316,6 +9347,19 @@ const CompanyPortal = () => {
 
 
       const merged = { ...emptyCompany, ...companyForm, ...created };
+
+      // Assign SLA policy if selected
+      if (companyForm.slaPolicyId) {
+        try {
+          await fetch(`/api/admin/sla/company-policy/${created.id}`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ policyId: companyForm.slaPolicyId }),
+          });
+          const updScores = await fetch("/api/admin/sla/company-scores", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
+          setSlaScores(Array.isArray(updScores) ? updScores : []);
+        } catch (_) { /* non-fatal SLA assignment error */ }
+      }
 
 
 
@@ -12515,7 +12559,7 @@ const CompanyPortal = () => {
 
 
 
-    setEditCompanyForm({ ...emptyCompany, ...c });
+    setEditCompanyForm({ ...emptyCompany, ...c, slaPolicyId: (slaScores.find(s => String(s.companyId) === String(c.id))?.policyId) || "" });
 
 
 
@@ -12635,6 +12679,17 @@ const CompanyPortal = () => {
 
 
       );
+
+      // Sync SLA policy assignment
+      try {
+        await fetch(`/api/admin/sla/company-policy/${editCompanyId}`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ policyId: editCompanyForm.slaPolicyId || null }),
+        });
+        const updScores = await fetch("/api/admin/sla/company-scores", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
+        setSlaScores(Array.isArray(updScores) ? updScores : []);
+      } catch (_) { /* non-fatal SLA update */ }
 
 
 
@@ -15484,6 +15539,13 @@ const CompanyPortal = () => {
           <button className={nav === "reports" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("reports"); setShowAddForm(false); }} title="Reports">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="6 14 12 4 18 10"/></svg>
             <span className="nav-label">Reports</span>
+          </button>
+
+          {/* SLA */}
+          <div className="nav-group-label">SLA</div>
+          <button className={nav === "sla-policies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("sla-policies"); setShowAddForm(false); }} title="SLA Policies">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span className="nav-label">SLA Policies</span>
           </button>
         </nav>
 
@@ -18446,6 +18508,7 @@ const CompanyPortal = () => {
 
 
                         <TH field="status">Status</TH>
+                        <TH field="sla" sortable={false}>SLA Compliance</TH>
 
 
 
@@ -18878,6 +18941,31 @@ const CompanyPortal = () => {
 
 
                               </td>
+
+                              {/* SLA Compliance cell */}
+                              {(() => {
+                                const sc = slaScores.find(s => String(s.companyId) === String(c.id));
+                                const pct = sc && sc.overallSla ? sc.overallSla.pct : null;
+                                const clr = pct == null ? "#94a3b8" : pct >= 90 ? "#16a34a" : pct >= 75 ? "#ea580c" : "#dc2626";
+                                const bg  = pct == null ? "#f1f5f9"  : pct >= 90 ? "#f0fdf4"  : pct >= 75 ? "#fff7ed"  : "#fef2f2";
+                                return (
+                                  <td style={{ padding: "14px 16px" }}>
+                                    {!slaLoaded ? (
+                                      <span style={{ color: "#94a3b8", fontSize: "12px" }}>…</span>
+                                    ) : sc ? (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                                        <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "13px", fontWeight: 800, background: bg, color: clr, width: "fit-content" }}>
+                                          {pct != null ? `${pct}%` : "—"}
+                                        </span>
+                                        {sc.policyName && <span style={{ fontSize: "11px", color: "#64748b" }}>📋 {sc.policyName}</span>}
+                                        {sc.totalTickets > 0 && <span style={{ fontSize: "11px", color: "#94a3b8" }}>{sc.totalTickets} tickets</span>}
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: "12px", color: "#94a3b8" }}>—</span>
+                                    )}
+                                  </td>
+                                );
+                              })()}
 
 
 
@@ -19561,6 +19649,17 @@ const CompanyPortal = () => {
 
 
 
+                        </div>
+
+                        {/* SLA Policy for edit form */}
+                        <div className="form-group">
+                          <label>SLA Policy</label>
+                          <select name="slaPolicyId" value={editCompanyForm.slaPolicyId || ""} onChange={handleEditCompanyChange} className="form-select">
+                            <option value="">— None (system default) —</option>
+                            {slaPolicies.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
                         </div>
 
 
@@ -23919,7 +24018,7 @@ const CompanyPortal = () => {
                         <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
                           <p style={{ margin: "0 0 6px", fontSize: "12.5px", fontWeight: 700, color: "#7c3aed" }}>Asset IDs not found ({bulkImportResult.notFoundRows.length}):</p>
                           {bulkImportResult.notFoundRows.map((e, i) => (
-                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; � not found in this company</p>
+                            <p key={i} style={{ margin: "2px 0", fontSize: "12px", color: "#5b21b6" }}>Row {e.row}: Asset ID &quot;{e.assetId}&quot; ï¿½ not found in this company</p>
                           ))}
                         </div>
                       )}
@@ -24608,12 +24707,12 @@ const CompanyPortal = () => {
                                     if (!w.wipAt || !w.resolutionAt) return s;
                                     return s + Math.max(0, Math.round((new Date(w.resolutionAt) - new Date(w.wipAt)) / 60000));
                                   }, 0) / completedWos.length))
-                                : "�";
+                                : "ï¿½";
                               return [
-                                ["Cost of Asset", m.purchaseCost ? `? ${m.purchaseCost}` : "�"],
-                                ["Total Down Time", viewingAssetCallLogs === null ? "Loading�" : (totalMins > 0 ? fmtDt(totalMins) : "�")],
-                                ["Total Tickets", viewingAssetCallLogs === null ? "�" : String(wos.length)],
-                                ["Avg Resolution Time (MTTR)", viewingAssetCallLogs === null ? "Loading�" : mttr],
+                                ["Cost of Asset", m.purchaseCost ? `? ${m.purchaseCost}` : "ï¿½"],
+                                ["Total Down Time", viewingAssetCallLogs === null ? "Loadingï¿½" : (totalMins > 0 ? fmtDt(totalMins) : "ï¿½")],
+                                ["Total Tickets", viewingAssetCallLogs === null ? "ï¿½" : String(wos.length)],
+                                ["Avg Resolution Time (MTTR)", viewingAssetCallLogs === null ? "Loadingï¿½" : mttr],
                               ].map(([lbl, val]) => (
                                 <div key={lbl} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "12px 16px" }}>
                                   <p style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{lbl}</p>
@@ -24675,30 +24774,30 @@ const CompanyPortal = () => {
                               }[(w.priority || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
                               // Response time: wip_at - created_at
                               const respMins = w.wipAt && w.createdAt ? Math.max(0, Math.round((new Date(w.wipAt) - new Date(w.createdAt)) / 60000)) : null;
-                              const fmtMins = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
+                              const fmtMins = (m) => m == null ? "â€”" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
                               // Downtime: resolution_at - wip_at (for resolved/completed/closed)
                               const isFinished = ["closed","resolved","completed"].includes((w.status||"").toLowerCase());
                               const downMs = isFinished && w.resolutionAt && w.wipAt ? Math.max(0, new Date(w.resolutionAt) - new Date(w.wipAt)) : 0;
-                              const downLabel = downMs > 0 ? fmtMins(Math.round(downMs/60000)) : "—";
+                              const downLabel = downMs > 0 ? fmtMins(Math.round(downMs/60000)) : "â€”";
                               return (
                                 <tr key={w.id} style={{ borderBottom: "1px solid #f1f5f9" }}
                                   onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
                                   onMouseLeave={e => e.currentTarget.style.background=""}>
                                   <td style={{ padding: "10px 14px", color: "#94a3b8" }}>{i + 1}</td>
                                   <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>{w.workOrderNumber || `WO-${w.id}`}</td>
-                                  <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{w.companyName || "—"}</td>
-                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.make || "—"}</td>
-                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.model || "—"}</td>
-                                  <td style={{ padding: "10px 14px", color: "#475569", fontFamily: "monospace", fontSize: "12px" }}>{w.serialNo || "—"}</td>
-                                  <td style={{ padding: "10px 14px" }}>{w.departmentName ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{w.departmentName}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
-                                  <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueDescription || "—"}</td>
-                                  <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>{w.raisedByName || "—"}</td>
+                                  <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{w.companyName || "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.make || "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{w.model || "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569", fontFamily: "monospace", fontSize: "12px" }}>{w.serialNo || "â€”"}</td>
+                                  <td style={{ padding: "10px 14px" }}>{w.departmentName ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{w.departmentName}</span> : <span style={{ color: "#94a3b8" }}>â€”</span>}</td>
+                                  <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueDescription || "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>{w.raisedByName || "â€”"}</td>
                                   <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{w.assignedToName || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}</td>
-                                  <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: statusStyle.bg, color: statusStyle.color, whiteSpace: "nowrap" }}>{w.status || "—"}</span></td>
-                                  <td style={{ padding: "10px 14px", color: "#1d4ed8", fontSize: "12px", whiteSpace: "nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleDateString("en-IN") + " " + new Date(w.wipAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                                  <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") + " " + new Date(w.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{respMins != null ? <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{fmtMins(respMins)}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
-                                  <td style={{ padding: "10px 14px", color: "#16a34a", fontSize: "12px", whiteSpace: "nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleDateString("en-IN") : "—"}</td>
+                                  <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: statusStyle.bg, color: statusStyle.color, whiteSpace: "nowrap" }}>{w.status || "â€”"}</span></td>
+                                  <td style={{ padding: "10px 14px", color: "#1d4ed8", fontSize: "12px", whiteSpace: "nowrap" }}>{w.wipAt ? new Date(w.wipAt).toLocaleDateString("en-IN") + " " + new Date(w.wipAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-IN") + " " + new Date(w.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "â€”"}</td>
+                                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{respMins != null ? <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{fmtMins(respMins)}</span> : <span style={{ color: "#94a3b8" }}>â€”</span>}</td>
+                                  <td style={{ padding: "10px 14px", color: "#16a34a", fontSize: "12px", whiteSpace: "nowrap" }}>{w.resolutionAt ? new Date(w.resolutionAt).toLocaleDateString("en-IN") : "â€”"}</td>
                                   <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
                                 </tr>
                               );
@@ -26239,6 +26338,223 @@ const CompanyPortal = () => {
           </div>
         )}
 
+        {/* ══════════════════════════════════════════════════════════════
+            SLA POLICIES MANAGEMENT PAGE
+            ══════════════════════════════════════════════════════════════ */}
+        {nav === "sla-policies" && (() => {
+          const pctColor = (p) => p == null ? "#94a3b8" : p >= 90 ? "#16a34a" : p >= 75 ? "#ea580c" : "#dc2626";
+          const pctBg    = (p) => p == null ? "#f1f5f9"  : p >= 90 ? "#f0fdf4"  : p >= 75 ? "#fff7ed"  : "#fef2f2";
+          const pri = [
+            { key: "p1", label: "P1 – Critical" },
+            { key: "p2", label: "P2 – High" },
+            { key: "p3", label: "P3 – Medium" },
+            { key: "p4", label: "P4 – Low" },
+          ];
+
+          const openCreate = () => {
+            setSlaPolicyForm({ name: "", description: "", p1Resp: 15, p1Attend: 30, p1Res: 120, p2Resp: 30, p2Attend: 60, p2Res: 240, p3Resp: 60, p3Attend: 120, p3Res: 480, p4Resp: 120, p4Attend: 240, p4Res: 960 });
+            setSlaPolicyEditId(null);
+            setSlaPolicyErr(null);
+            setSlaPolicyModalOpen(true);
+          };
+
+          const openEdit = (p) => {
+            const rules = p.rules || [];
+            const get = (priority, field, def) => {
+              const r = rules.find(r => r.priority === priority);
+              return r != null && r[field] != null ? r[field] : def;
+            };
+            setSlaPolicyForm({
+              name: p.name, description: p.description || "",
+              p1Resp: get("P1","response_mins",60), p1Attend: get("P1","attendance_mins",120), p1Res: get("P1","resolution_mins",480),
+              p2Resp: get("P2","response_mins",60), p2Attend: get("P2","attendance_mins",120), p2Res: get("P2","resolution_mins",480),
+              p3Resp: get("P3","response_mins",60), p3Attend: get("P3","attendance_mins",120), p3Res: get("P3","resolution_mins",480),
+              p4Resp: get("P4","response_mins",120), p4Attend: get("P4","attendance_mins",240), p4Res: get("P4","resolution_mins",960),
+            });
+            setSlaPolicyEditId(p.id);
+            setSlaPolicyErr(null);
+            setSlaPolicyModalOpen(true);
+          };
+
+          const savePolicy = async () => {
+            if (!slaPolicyForm.name.trim()) { setSlaPolicyErr("Policy name is required"); return; }
+            setSlaPolicySaving(true); setSlaPolicyErr(null);
+            try {
+              const body = {
+                name: slaPolicyForm.name.trim(),
+                description: slaPolicyForm.description || "",
+                rules: [
+                  { priority: "P1", responseMins: Number(slaPolicyForm.p1Resp), attendanceMins: Number(slaPolicyForm.p1Attend), resolutionMins: Number(slaPolicyForm.p1Res) },
+                  { priority: "P2", responseMins: Number(slaPolicyForm.p2Resp), attendanceMins: Number(slaPolicyForm.p2Attend), resolutionMins: Number(slaPolicyForm.p2Res) },
+                  { priority: "P3", responseMins: Number(slaPolicyForm.p3Resp), attendanceMins: Number(slaPolicyForm.p3Attend), resolutionMins: Number(slaPolicyForm.p3Res) },
+                  { priority: "P4", responseMins: Number(slaPolicyForm.p4Resp), attendanceMins: Number(slaPolicyForm.p4Attend), resolutionMins: Number(slaPolicyForm.p4Res) },
+                ],
+
+
+
+
+
+
+
+
+              };
+              const url = slaPolicyEditId ? `/api/admin/sla/policies/${slaPolicyEditId}` : "/api/admin/sla/policies";
+              const method = slaPolicyEditId ? "PUT" : "POST";
+              const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.message || "Save failed");
+              // Refresh policies list
+              const pols = await fetch("/api/admin/sla/policies", { headers: { Authorization: `Bearer ${token}` } }).then(r2 => r2.ok ? r2.json() : []).catch(() => []);
+              setSlaPolicies(Array.isArray(pols) ? pols : []);
+              setSlaPolicyModalOpen(false);
+            } catch (e) { setSlaPolicyErr(e.message); }
+            finally { setSlaPolicySaving(false); }
+          };
+
+          return (
+            <div style={{ flex: 1, overflow: "auto", padding: "28px 32px", background: "#f8fafc" }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>⏱ SLA Policies</h2>
+                  <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>Define response, attendance and resolution time targets per priority level</p>
+                </div>
+                <button onClick={openCreate} style={{ padding: "10px 20px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "16px" }}>+</span> New Policy
+                </button>
+              </div>
+
+              {/* Company Score cards */}
+              {slaScores.length > 0 && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#475569", margin: "0 0 12px" }}>Company SLA Compliance</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "12px" }}>
+                    {slaScores.map(sc => {
+                      const pct = sc.overallSla?.pct;
+                      return (
+                        <div key={sc.companyId} style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px 16px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: 700, color: "#0f172a", marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.companyName}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "20px", fontWeight: 900, color: pctColor(pct) }}>{pct != null ? `${pct}%` : "—"}</span>
+                            {sc.policyName && <span style={{ fontSize: "11px", color: "#64748b", background: "#f1f5f9", borderRadius: "6px", padding: "2px 7px" }}>📋 {sc.policyName}</span>}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>{sc.totalTickets || 0} tickets evaluated</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Policies table */}
+              <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      {["Policy Name", "Description", "P1 Resp/Att/Res", "P2 Resp/Att/Res", "Active", "Actions"].map(h => (
+                        <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slaPolicies.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>No SLA policies yet — create one to get started</td></tr>
+                    ) : slaPolicies.map((p, idx) => {
+                      const rules = p.rules || [];
+                      const get = (pr, t) => { const r = rules.find(x => x.priority === pr && x.clock_type === t); return r ? r.threshold_mins : "—"; };
+                      return (
+                        <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ padding: "14px 16px", fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{p.name}</td>
+                          <td style={{ padding: "14px 16px", fontSize: "13px", color: "#475569", maxWidth: "200px" }}>{p.description || <span style={{ color: "#cbd5e1" }}>—</span>}</td>
+                          <td style={{ padding: "14px 16px", fontSize: "12px", color: "#475569", fontFamily: "monospace" }}>{get("P1","response_mins")}m / {get("P1","attendance_mins")}m / {get("P1","resolution_mins")}m</td>
+                          <td style={{ padding: "14px 16px", fontSize: "12px", color: "#475569", fontFamily: "monospace" }}>{get("P2","response_mins")}m / {get("P2","attendance_mins")}m / {get("P2","resolution_mins")}m</td>
+                          <td style={{ padding: "14px 16px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 700, padding: "3px 10px", borderRadius: "20px", background: p.is_active ? "#f0fdf4" : "#fef2f2", color: p.is_active ? "#16a34a" : "#dc2626" }}>
+                              {p.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "14px 16px" }}>
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button onClick={() => openEdit(p)} style={{ padding: "5px 12px", background: "#eff6ff", color: "#2563eb", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Edit</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Create / Edit Policy Modal */}
+              {slaPolicyModalOpen && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ background: "#fff", borderRadius: "14px", width: "620px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+                    {/* Modal Header */}
+                    <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>{slaPolicyEditId ? "Edit SLA Policy" : "New SLA Policy"}</span>
+                      <button onClick={() => setSlaPolicyModalOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>✕</button>
+                    </div>
+                    {/* Modal Body */}
+                    <div style={{ padding: "24px" }}>
+                      {slaPolicyErr && <div style={{ background: "#fee2e2", color: "#dc2626", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px" }}>{slaPolicyErr}</div>}
+                      {/* Name + Description */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+                        <div>
+                          <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>Policy Name *</label>
+                          <input value={slaPolicyForm.name} onChange={e => setSlaPolicyForm(p => ({ ...p, name: e.target.value }))} className="form-input" placeholder="e.g. Standard Healthcare SLA" style={{ width: "100%", boxSizing: "border-box" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>Description</label>
+                          <input value={slaPolicyForm.description} onChange={e => setSlaPolicyForm(p => ({ ...p, description: e.target.value }))} className="form-input" placeholder="Optional description" style={{ width: "100%", boxSizing: "border-box" }} />
+                        </div>
+                      </div>
+                      {/* SLA Thresholds grid */}
+                      <div style={{ background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <thead>
+                            <tr style={{ background: "#f1f5f9" }}>
+                              <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#475569", width: "130px" }}>Priority</th>
+                              <th style={{ padding: "10px 14px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#2563eb" }}>Response (mins)</th>
+                              <th style={{ padding: "10px 14px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#7c3aed" }}>Attendance (mins)</th>
+                              <th style={{ padding: "10px 14px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#0891b2" }}>Resolution (mins)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { key: "p1", label: "P1 – Critical", bg: "#fee2e2" },
+                              { key: "p2", label: "P2 – High",     bg: "#fff7ed" },
+                              { key: "p3", label: "P3 – Medium",   bg: "#fefce8" },
+                              { key: "p4", label: "P4 – Low",      bg: "#f0fdf4" },
+                            ].map(({ key, label, bg }) => (
+                              <tr key={key} style={{ borderTop: "1px solid #e2e8f0" }}>
+                                <td style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 700, color: "#0f172a", background: bg }}>{label}</td>
+                                {["Resp","Attend","Res"].map(suffix => (
+                                  <td key={suffix} style={{ padding: "8px 14px", textAlign: "center" }}>
+                                    <input type="number" min="1" value={slaPolicyForm[`${key}${suffix}`]} onChange={e => setSlaPolicyForm(p => ({ ...p, [`${key}${suffix}`]: e.target.value }))}
+                                      style={{ width: "80px", textAlign: "center", padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px", fontWeight: 600 }} />
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ marginTop: "10px", fontSize: "11px", color: "#94a3b8" }}>All values in minutes. P1 = most urgent (Critical), P4 = least urgent (Low).</div>
+                    </div>
+                    {/* Modal Footer */}
+                    <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                      <button onClick={() => setSlaPolicyModalOpen(false)} style={{ padding: "9px 20px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontWeight: 600, fontSize: "14px", cursor: "pointer" }}>Cancel</button>
+                      <button onClick={savePolicy} disabled={slaPolicySaving} style={{ padding: "9px 20px", background: slaPolicySaving ? "#94a3b8" : "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "14px", cursor: slaPolicySaving ? "not-allowed" : "pointer" }}>
+                        {slaPolicySaving ? "Saving…" : slaPolicyEditId ? "Update Policy" : "Create Policy"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
 
 
 
@@ -27009,6 +27325,18 @@ const CompanyPortal = () => {
 
 
 
+                  </div>
+
+                  {/* SLA Policy — hospital add form */}
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>SLA Policy</label>
+                    <select name="slaPolicyId" value={hospitalForm.slaPolicyId || ""} onChange={handleHospitalChange} className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">— None (use system default) —</option>
+                      {slaPolicies.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>SLA policy assigned to this hospital</div>
                   </div>
 
 
@@ -28332,6 +28660,18 @@ const CompanyPortal = () => {
 
                   </div>
 
+                  {/* SLA Policy */}
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>SLA Policy</label>
+                    <select name="slaPolicyId" value={companyForm.slaPolicyId || ""} onChange={handleCompanyChange} className="form-select" style={{ width: "100%", boxSizing: "border-box" }}>
+                      <option value="">— None (use system default) —</option>
+                      {slaPolicies.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>Assigned SLA policy for this hospital / company</div>
+                  </div>
+
 
 
 
@@ -28918,7 +29258,7 @@ const CompanyPortal = () => {
             );
           };
 
-          // Export helpers � generates a real .xlsx workbook so all Excel formulas work natively
+          // Export helpers ï¿½ generates a real .xlsx workbook so all Excel formulas work natively
           const exportToXLSX = (rows, headers, filename, colWidths = []) => {
             const wsData = [
               headers,
@@ -29242,7 +29582,7 @@ const CompanyPortal = () => {
                   {/* Multi-user filter ? show each user once; selecting picks ALL their company composite keys */}
                   <div style={{ position: "relative" }}>
                     {(() => {
-                      // Deduplicate: one entry per (userName, companyId) � handles re-created users
+                      // Deduplicate: one entry per (userName, companyId) ï¿½ handles re-created users
                       const userMap = new Map();
                       for (const u of byUser) {
                         const key = `${(u.userName||"").toLowerCase().trim()}||${u.companyId}`;

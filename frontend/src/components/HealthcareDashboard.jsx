@@ -161,20 +161,20 @@ function EquipmentHealthChart({ statuses }) {
   const total   = statuses.reduce((s, x) => s + (Number(x.value) || 0), 0);
   const visible = statuses.filter(s => Number(s.value) > 0);
 
-  const size = 140, stroke = 18, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
+  const size = 100, stroke = 14, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * r;
 
   // Fit the centre number regardless of magnitude
   const totalStr = total.toLocaleString("en-IN");
-  const numFont  = totalStr.length >= 9 ? 15 : totalStr.length >= 7 ? 18 : totalStr.length >= 5 ? 21 : 24;
+  const numFont  = totalStr.length >= 9 ? 13 : totalStr.length >= 7 ? 16 : totalStr.length >= 5 ? 19 : 22;
 
   let offset = 0;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "18px", width: "100%", flexWrap: "wrap", justifyContent: "center" }}>
-      {/* Donut */}
+    /* flexWrap NEVER wraps — legend is always to the right of the donut */
+    <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", flexWrap: "nowrap", overflow: "hidden" }}>
+      {/* Donut — fixed size, never shrinks */}
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ filter: "drop-shadow(0 3px 8px rgba(15,23,42,0.10))" }}>
-          {/* Track */}
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef2f6" strokeWidth={stroke} />
           <g transform={`rotate(-90 ${cx} ${cy})`}>
             {total > 0 && visible.map((s, i) => {
@@ -190,28 +190,25 @@ function EquipmentHealthChart({ statuses }) {
               return el;
             })}
           </g>
-          {/* Inner ring highlight for a bit of depth */}
           <circle cx={cx} cy={cy} r={r - stroke / 2} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
         </svg>
-        {/* Centre label */}
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
           <div style={{ fontSize: `${numFont}px`, fontWeight: 800, color: "#0f172a", lineHeight: 1, letterSpacing: "-0.02em" }}>{totalStr}</div>
-          <div style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px" }}>Total</div>
+          <div style={{ fontSize: "8px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "3px" }}>Total</div>
         </div>
       </div>
 
-      {/* Right-side legend — percentages */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "9px", flex: 1, minWidth: "150px" }}>
+      {/* Legend — shrinks into remaining space, text truncates before wrapping */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px", flex: 1, minWidth: 0, overflow: "hidden" }}>
         {visible.length === 0 ? (
-          <span style={{ fontSize: "12px", color: "#94a3b8" }}>No equipment data</span>
+          <span style={{ fontSize: "11px", color: "#94a3b8" }}>No data</span>
         ) : visible.map((s, i) => {
           const pct = total ? (Number(s.value) / total) * 100 : 0;
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: s.color, flexShrink: 0, boxShadow: `0 0 0 3px ${s.color}22` }} />
-              <span style={{ fontSize: "12.5px", color: "#334155", fontWeight: 600, whiteSpace: "nowrap" }}>{s.name}</span>
-              <span style={{ marginLeft: "auto", fontSize: "14px", fontWeight: 800, color: s.color, fontVariantNumeric: "tabular-nums" }}>{pct.toFixed(1)}%</span>
-              <span style={{ fontSize: "11px", color: "#94a3b8", minWidth: "38px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Number(s.value).toLocaleString("en-IN")}</span>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", minWidth: 0 }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: s.color, flexShrink: 0 }} />
+              <span style={{ fontSize: "10px", color: "#334155", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{s.name}</span>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: s.color, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{pct.toFixed(1)}%</span>
             </div>
           );
         })}
@@ -421,13 +418,13 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
         background: isActive ? c.bg : "#fff",
         borderRadius: "10px",
         border: isActive ? `2px solid ${c.icon}` : `1px solid ${c.border}`,
-        padding: "6px 8px 5px",
+        padding: "4px 6px 3px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "3px",
-        minHeight: "54px",
+        gap: "2px",
+        minHeight: "44px",
         boxShadow: isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s ease",
@@ -438,16 +435,16 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
       onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } : undefined}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-        <div style={{ width: "16px", height: "16px", background: c.bg, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
+        <div style={{ width: "14px", height: "14px", background: c.bg, borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
           <IconComp />
         </div>
-        <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
+        <p style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
       </div>
       <div>
         {loading ? (
           <div style={{ width: "40px", height: "22px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite", margin: "0 auto" }} />
         ) : (
-          <p style={{ fontSize: "20px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
+          <p style={{ fontSize: "17px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
         )}
       </div>
       {isActive && (
@@ -1830,8 +1827,15 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     tOverdue:   { tab: "training", kpiFilter: "overdue",   label: "Training Overdue" },
   };
   const [activeKpiMeta, setActiveKpiMeta] = useState(null);
-  const [perfKpis, setPerfKpis]     = useState(null);
+  const [perfKpis, setPerfKpis]       = useState(null);
   const [perfLoading, setPerfLoading] = useState(false);
+  const [slaDash, setSlaDash]         = useState(null);
+  const [slaTrend, setSlaTrend]       = useState([]);
+  const [slaAtRisk, setSlaAtRisk]     = useState([]);
+  const [slaByEng, setSlaByEng]       = useState([]);
+  const [slaByDept, setSlaByDept]     = useState([]);
+  const [slaByAsset, setSlaByAsset]   = useState([]);
+  const [slaLoading, setSlaLoading]   = useState(false);
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async (force = false) => {
@@ -1931,6 +1935,29 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
       .then(d => { if (d) setPerfKpis(d); })
       .catch(() => {})
       .finally(() => setPerfLoading(false));
+  }, [token, allCompaniesMode, refreshKey]);
+
+  // Load SLA dashboard, trend, at-risk, by-engineer, by-dept, by-equipment
+  useEffect(() => {
+    if (!token) return;
+    setSlaLoading(true);
+    const h = { Authorization: `Bearer ${token}` };
+    const b = `${BASE}/api/company-portal/sla`;
+    Promise.all([
+      fetch(`${b}/dashboard`, { headers: h }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${b}/trend?months=6`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${b}/at-risk?windowMins=120`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${b}/by-engineer`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${b}/by-department`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${b}/by-equipment?limit=10`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([dash, trend, atRisk, byEng, byDept, byAsset]) => {
+      if (dash) setSlaDash(dash);
+      setSlaTrend(Array.isArray(trend) ? trend : []);
+      setSlaAtRisk(Array.isArray(atRisk) ? atRisk : []);
+      setSlaByEng(Array.isArray(byEng) ? byEng : []);
+      setSlaByDept(Array.isArray(byDept) ? byDept : []);
+      setSlaByAsset(Array.isArray(byAsset) ? byAsset : []);
+    }).finally(() => setSlaLoading(false));
   }, [token, allCompaniesMode, refreshKey]);
 
   // Load filter options (departments, categories, locations) for the filter panel
@@ -2044,61 +2071,67 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           Asset Profile
           <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Live count from database</span>
         </h2>
-        {/* 2-col: tiles (left, 2fr) + working-status pie chart (right, 1fr — wider panel) */}
+        {/* Same 2fr 1fr structure as Complaint Profile → Equipment Health = same width as Ratings & Reviews */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "8px", alignItems: "stretch" }}>
-          {/* LEFT: tile grid — direct child of outer grid so tiles stretch to match panel height */}
+
+          {/* LEFT: 6 KPI tiles in 3×2 nested grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-              {KPI_LIST.slice(0, 3).map(k => (
-                <KpiCard
-                  key={k.key}
-                  label={k.label}
-                  value={snapshot?.[k.key]}
-                  icon={k.icon}
-                  color={k.color}
-                  loading={snapLoading}
-                  isActive={activeKpiKey === k.key}
-                  onClick={() => handleTileClick(k)}
-                />
-              ))}
-              {/* Total Asset Value tile — 4th position, clickable, opens cost breakdown popup */}
-              <div
-                onClick={() => setShowCostPopup(true)}
-                style={{
-                  background: "#fff", borderRadius: "10px", border: "1px solid #ddd6fe",
-                  padding: "6px 8px 5px", display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: "3px",
-                  minHeight: "54px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", textAlign: "center",
-                  cursor: "pointer", transition: "all 0.15s ease", position: "relative",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px #ddd6fe"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-                  <div style={{ width: "16px", height: "16px", background: "#ede9fe", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  </div>
-                  <p style={{ fontSize: "8px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
+            {KPI_LIST.slice(0, 3).map(k => (
+              <KpiCard
+                key={k.key}
+                label={k.label}
+                value={snapshot?.[k.key]}
+                icon={k.icon}
+                color={k.color}
+                loading={snapLoading}
+                isActive={activeKpiKey === k.key}
+                onClick={() => handleTileClick(k)}
+              />
+            ))}
+            {/* Total Asset Value tile — 4th position, opens cost breakdown popup */}
+            <div
+              onClick={() => setShowCostPopup(true)}
+              style={{
+                background: "#fff", borderRadius: "10px", border: "1px solid #ddd6fe",
+                padding: "4px 6px 3px", display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: "2px",
+                minHeight: "44px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", textAlign: "center",
+                cursor: "pointer", transition: "all 0.15s ease", position: "relative",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px #ddd6fe"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+                <div style={{ width: "14px", height: "14px", background: "#ede9fe", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 </div>
-                <p style={{ fontSize: "16px", fontWeight: 900, color: "#7c3aed", margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>
-                  {snapLoading ? "—" : fmtCurrency(snapshot?.totalAssetValue)}
-                </p>
-                <span style={{ fontSize: "8px", color: "#a78bfa", marginTop: "1px" }}>tap for breakdown ▼</span>
+                <p style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
               </div>
-              {KPI_LIST.slice(3).map(k => (
-                <KpiCard
-                  key={k.key}
-                  label={k.label}
-                  value={snapshot?.[k.key]}
-                  icon={k.icon}
-                  color={k.color}
-                  loading={snapLoading}
-                  isActive={activeKpiKey === k.key}
-                  onClick={() => handleTileClick(k)}
-                />
-              ))}
+              <p style={{ fontSize: "14px", fontWeight: 900, color: "#7c3aed", margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>
+                {snapLoading ? "—" : fmtCurrency(snapshot?.totalAssetValue)}
+              </p>
+              <span style={{ fontSize: "8px", color: "#a78bfa", marginTop: "1px" }}>tap for breakdown ▼</span>
             </div>
-          {/* RIGHT: Equipment Health Status — rich donut + % legend */}
-          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {KPI_LIST.slice(3).map(k => (
+              <KpiCard
+                key={k.key}
+                label={k.label}
+                value={snapshot?.[k.key]}
+                icon={k.icon}
+                color={k.color}
+                loading={snapLoading}
+                isActive={activeKpiKey === k.key}
+                onClick={() => handleTileClick(k)}
+              />
+            ))}
+          </div>
+
+          {/* RIGHT: Equipment Health card — same column width as Ratings & Reviews */}
+          <div style={{
+            background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0",
+            padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+            display: "flex", flexDirection: "column", justifyContent: "center",
+          }}>
             <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px", textAlign: "center" }}>Equipment Health Status</p>
             <EquipmentHealthChart statuses={[
               { name: "Working",     value: snapshot?.working    || 0, color: "#16a34a" },
@@ -2470,6 +2503,217 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
               }}
             />
           ))}
+        </div>
+      </section>
+
+      {/* ── SLA PERFORMANCE DASHBOARD ── */}
+      <section style={{ marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>SLA Performance</h2>
+
+        {/* 4 SLA KPI tiles — RAG coloured */}
+        {(() => {
+          const rag = (pct) => pct == null ? "blue" : pct >= 90 ? "green" : pct >= 75 ? "orange" : "red";
+          const tiles = [
+            { label: "Response SLA",    pct: slaDash?.responseSla?.pct,    met: slaDash?.responseSla?.met,    total: slaDash?.responseSla?.evaluated },
+            { label: "Attendance SLA",  pct: slaDash?.attendanceSla?.pct,  met: slaDash?.attendanceSla?.met,  total: slaDash?.attendanceSla?.evaluated },
+            { label: "Resolution SLA",  pct: slaDash?.resolutionSla?.pct,  met: slaDash?.resolutionSla?.met,  total: slaDash?.resolutionSla?.evaluated },
+            { label: "Overall SLA",     pct: slaDash?.overallSla?.pct,     met: slaDash?.overallSla?.met,     total: slaDash?.resolutionSla?.evaluated },
+          ];
+          const SlaIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "16px" }}>
+              {tiles.map(t => {
+                const color = rag(t.pct);
+                const c = COLORS[color];
+                const numColor = { red: "#dc2626", orange: "#ea580c", green: "#16a34a", blue: "#2563eb" }[color];
+                return (
+                  <div key={t.label} style={{ background: c.bg, border: `1.5px solid ${c.border}`, borderRadius: "14px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.label}</span>
+                      <span style={{ color: c.icon }}><SlaIcon /></span>
+                    </div>
+                    <div style={{ fontSize: "28px", fontWeight: 900, color: numColor, lineHeight: 1, letterSpacing: "-1px" }}>
+                      {slaLoading ? "…" : t.pct != null ? `${t.pct}%` : "—"}
+                    </div>
+                    <div style={{ fontSize: "11.5px", color: "#64748b" }}>
+                      {t.total > 0 ? `${t.met ?? 0}/${t.total} tickets` : "No data"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* At-Risk panel */}
+        {slaAtRisk.length > 0 && (
+          <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c", marginBottom: "10px" }}>
+              ⚠️ {slaAtRisk.length} Ticket{slaAtRisk.length > 1 ? "s" : ""} At Risk (SLA expiring &lt;2h)
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                <thead>
+                  <tr style={{ background: "#fef3c7" }}>
+                    {["Ticket #", "Asset", "Department", "Priority", "Clock", "Due At", "Time Left"].map(h => (
+                      <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaAtRisk.slice(0, 10).map((r, i) => {
+                    const riskColor = r.risk === "breached" ? "#dc2626" : r.risk === "critical" ? "#ea580c" : "#ca8a04";
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid #fde68a", background: i % 2 === 0 ? "#fff" : "#fffbeb" }}>
+                        <td style={{ padding: "7px 12px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700 }}>#{r.queryId}</td>
+                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.assetName || "—"}</td>
+                        <td style={{ padding: "7px 12px", color: "#475569" }}>{r.deptName || "—"}</td>
+                        <td style={{ padding: "7px 12px" }}>
+                          <span style={{ padding: "1px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fef2f2", color: "#dc2626" }}>{r.priority}</span>
+                        </td>
+                        <td style={{ padding: "7px 12px", textTransform: "capitalize", color: "#475569" }}>{r.clockType}</td>
+                        <td style={{ padding: "7px 12px", color: "#475569", whiteSpace: "nowrap" }}>{r.dueAt ? new Date(r.dueAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                        <td style={{ padding: "7px 12px", fontWeight: 800, color: riskColor, whiteSpace: "nowrap" }}>
+                          {r.minsRemaining <= 0 ? `Overdue ${Math.abs(r.minsRemaining)}m` : `${r.minsRemaining}m left`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SLA Trend chart (inline SVG bar/line) */}
+        {slaTrend.length > 0 && (
+          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px 18px", marginBottom: "14px" }}>
+            <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#475569", marginBottom: "12px" }}>SLA Compliance Trend (Last 6 Months)</div>
+            <div style={{ display: "flex", gap: "0", alignItems: "flex-end", height: "80px", overflowX: "auto" }}>
+              {slaTrend.map((row, i) => {
+                const resp = row.responsePct ?? 0;
+                const res  = row.resolutionPct ?? 0;
+                return (
+                  <div key={i} style={{ flex: "1", minWidth: "60px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                    <div style={{ width: "100%", display: "flex", gap: "3px", alignItems: "flex-end", height: "60px" }}>
+                      <div title={`Response: ${resp}%`}  style={{ flex: 1, background: "#3b82f6", height: `${resp * 0.6}px`, borderRadius: "3px 3px 0 0", minHeight: "2px", transition: "height 0.3s" }} />
+                      <div title={`Resolution: ${res}%`} style={{ flex: 1, background: "#16a34a", height: `${res  * 0.6}px`, borderRadius: "3px 3px 0 0", minHeight: "2px", transition: "height 0.3s" }} />
+                    </div>
+                    <span style={{ fontSize: "10px", color: "#64748b", whiteSpace: "nowrap" }}>{row.month?.slice(5)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: "14px", marginTop: "8px" }}>
+              {[["#3b82f6", "Response"], ["#16a34a", "Resolution"]].map(([c, l]) => (
+                <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#475569" }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "2px", background: c }} />{l}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* By Engineer, By Dept, By Equipment — 3 side-by-side tables */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+          {/* By Engineer */}
+          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Engineer</div>
+            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px", whiteSpace: "nowrap" }}>Engineer</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>SLA%</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaLoading ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
+                  ) : slaByEng.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
+                  ) : slaByEng.slice(0, 8).map((r, i) => {
+                    const pctColor = r.overallPct == null ? "#64748b" : r.overallPct >= 90 ? "#16a34a" : r.overallPct >= 75 ? "#ea580c" : "#dc2626";
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
+                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.engineerName || "—"}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: pctColor }}>{r.overallPct != null ? `${r.overallPct}%` : "—"}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* By Department */}
+          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Department</div>
+            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Department</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>SLA%</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaLoading ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
+                  ) : slaByDept.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
+                  ) : slaByDept.slice(0, 8).map((r, i) => {
+                    const pctColor = r.overallPct == null ? "#64748b" : r.overallPct >= 90 ? "#16a34a" : r.overallPct >= 75 ? "#ea580c" : "#dc2626";
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
+                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.deptName || "—"}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: pctColor }}>{r.overallPct != null ? `${r.overallPct}%` : "—"}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* By Equipment */}
+          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Equipment (Top Breaches)</div>
+            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Asset</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Breaches</th>
+                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaLoading ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
+                  ) : slaByAsset.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
+                  ) : slaByAsset.slice(0, 8).map((r, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
+                      <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.assetName || "—"}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: r.totalBreaches > 0 ? "#dc2626" : "#16a34a" }}>{r.totalBreaches}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 

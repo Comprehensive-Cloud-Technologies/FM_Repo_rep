@@ -13,6 +13,7 @@ import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHe
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
 import { uploadToS3, S3_FOLDERS, presignMetadataImages } from "../utils/s3.js";
+import { initTicketSla, completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -2963,7 +2964,15 @@ router.post("/asset-queries", async (req, res, next) => {
     if (!assetId || !title?.trim()) return res.status(400).json({ message: "assetId and title required" });
     // Find the asset and its current assigned_to (no company filter so engineers can raise issues for any hospital)
     const [[asset]] = await pool.query(
-      "SELECT id, company_id, assigned_to FROM assets WHERE id = ?",
+      `SELECT a.id, a.company_id, a.assigned_to,
+              a.department_id, a.category_id, a.contract_id, a.criticality,
+              a.asset_name,
+              d.name AS dept_name,
+              c.company_name
+       FROM assets a
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN companies c ON c.id = a.company_id
+       WHERE a.id = ?`,
       [assetId]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
@@ -2996,6 +3005,22 @@ router.post("/asset-queries", async (req, res, next) => {
       [result.insertId]
     );
     res.status(201).json({ ...query, images: query.images ? (typeof query.images === "string" ? JSON.parse(query.images) : query.images) : [] });
+
+    // Initialise SLA clocks for this new complaint (fire-and-forget — never block the HTTP response)
+    initTicketSla({
+      queryId:      result.insertId,
+      assetId,
+      deptId:       asset.department_id || null,
+      companyId:    asset.company_id,
+      assetCategory:asset.category_id  || null,
+      contractId:   asset.contract_id  || null,
+      criticality:  asset.criticality  || null,   // 'Critical' | 'Non_Critical' | null
+      ticketType:   "complaint",
+      assetName:    asset.asset_name   || "",
+      deptName:     asset.dept_name    || "",
+      companyName:  asset.company_name || "",
+    }).catch(e => console.warn("[SLA] initTicketSla failed for query", result.insertId, e?.message));
+
     // Notify all admin/portal clients watching this company's issue list
     emitToCompany(asset.company_id, 'issue:new', {
       id: result.insertId,
@@ -3054,6 +3079,11 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
     }
 
     res.json({ success: true, closeCode });
+
+    // Complete SLA resolution clock (fire-and-forget)
+    slaCompleteClock(Number(id), "resolution", req.companyUser.id)
+      .catch(e => console.warn("[SLA] completeClock(resolution) failed for query", id, e?.message));
+
     // Broadcast status change so dashboards update in real-time
     emitToCompany(query.company_id || cid(req), 'issue:updated', { id: Number(id), status: 'resolved' });
   } catch (err) { next(err); }
@@ -5092,12 +5122,18 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
     const setExtra = status === "in_progress"
-      ? ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN NOW() ELSE in_progress_at END"
+      ? ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN NOW() ELSE in_progress_at END, engineer_attended_at = CASE WHEN engineer_attended_at IS NULL THEN NOW() ELSE engineer_attended_at END"
       : status === "resolved"
         ? ", resolved_at = CASE WHEN resolved_at IS NULL THEN NOW() ELSE resolved_at END"
         : "";
     await pool.execute(`UPDATE asset_queries SET status = ?, updated_at = NOW()${setExtra} WHERE id = ?`, [status, aqId]);
     res.json({ message: "Status updated", status });
+
+    // SLA attendance clock: auto-complete when engineer marks in_progress (fire-and-forget)
+    if (status === "in_progress") {
+      slaCompleteClock(aqId, "attendance", req.companyUser.id)
+        .catch(e => console.warn("[SLA] attendance completeClock failed for query", aqId, e?.message));
+    }
   } catch (err) { next(err); }
 });
 

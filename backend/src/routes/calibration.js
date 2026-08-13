@@ -12,27 +12,10 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { isMigrationSafeError } from "../db.js";
 import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const S3_READY = Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
-const CERT_LOCAL_DIR = path.join(__dirname, "../../uploads/calibration");
-
-// Upload a certificate buffer — S3 when credentials exist, local disk otherwise
-async function saveCertFile({ buffer, mimetype, filename }) {
-  if (S3_READY) {
-    return uploadToS3({ buffer, mimetype, folder: "calibration", filename });
-  }
-  fs.mkdirSync(CERT_LOCAL_DIR, { recursive: true });
-  const safeName = path.basename(filename);
-  fs.writeFileSync(path.join(CERT_LOCAL_DIR, safeName), buffer);
-  return `/uploads/calibration/${safeName}`;
-}
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -564,8 +547,8 @@ router.post("/schedule-assets/:id/certificate", upload.single("certificate"), as
 
     // Upload to S3
     const ext = path.extname(req.file.originalname) || ".pdf";
-    const filename = `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}`;
-    const fileUrl = await saveCertFile({ buffer: req.file.buffer, mimetype: req.file.mimetype, filename });
+    const filename = `calibration/${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}`;
+    const fileUrl = await uploadToS3({ buffer: req.file.buffer, mimetype: req.file.mimetype, folder: "calibration", filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}${ext}` });
 
     const [certResult] = await pool.query(
       `INSERT INTO calibration_certificates (company_id, asset_id, schedule_asset_id, vendor_id, vendor_name, file_url, file_name, file_size, version, calibration_date, uploaded_by, uploaded_by_name)
@@ -619,7 +602,7 @@ router.post("/certificates/bulk-upload", upload.array("certificates", 500), asyn
         );
         const newVersion = curVersion + 1;
         await pool.query("UPDATE calibration_certificates SET is_current = 0 WHERE asset_id = ? AND company_id = ?", [sa.asset_id, cid(req)]);
-        const fileUrl = await saveCertFile({ buffer: file.buffer, mimetype: file.mimetype, filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}.pdf` });
+        const fileUrl = await uploadToS3({ buffer: file.buffer, mimetype: file.mimetype, folder: "calibration", filename: `${cid(req)}/${sa.asset_id}-v${newVersion}-${Date.now()}.pdf` });
         const [certResult] = await pool.query(
           `INSERT INTO calibration_certificates (company_id, asset_id, schedule_asset_id, vendor_id, vendor_name, file_url, file_name, file_size, version, calibration_date, uploaded_by, uploaded_by_name)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
