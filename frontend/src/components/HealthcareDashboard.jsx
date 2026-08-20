@@ -2040,7 +2040,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     setComplaintRequests([]);
     try {
       let url = `${BASE}/api/company-portal/asset-queries?limit=500`;
-      if (key === "wipComplaints" || key === "wipLt7" || key === "wipGt7") url += "&status=open,wip,in_progress";
+      if (key === "wipComplaints" || key === "wipLt7" || key === "wipGt7") url += "&status=wip,in_progress";
       else if (key === "resolvedComplaints") url += "&status=resolved";
       else if (key === "closedComplaints") url += "&status=closed";
       if (allCompaniesMode) url += "&allCompanies=true";
