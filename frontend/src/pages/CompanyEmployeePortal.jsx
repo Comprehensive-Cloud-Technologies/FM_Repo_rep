@@ -4099,6 +4099,7 @@ const NAV_ALL = [
   { key: "calibration",   label: "Calibration",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
   { key: "training",      label: "Training",         roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
   { key: "asset-intelligence", label: "Asset Pro Intelligence", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h2a2 2 0 0 1 2 2v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1v-1a2 2 0 0 1 2-2h2V9.5C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/><circle cx="12" cy="6" r="1.5" fill="currentColor"/></svg> },
+  { key: "mis", label: "MIS", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="4" rx="1"/><rect x="14" y="14" width="7" height="4" rx="1"/><line x1="3" y1="21" x2="20" y2="21"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -6121,7 +6122,7 @@ export default function CompanyEmployeePortal() {
 
           /* ── Always show Healthcare Dashboard ─────────────────── */
           const openAssetFromDash = (dashAsset) => {
-            window.open(`/company/asset/${dashAsset.id}`, '_blank');
+            navigate(`/company/asset/${dashAsset.id}`);
           };
           return <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
             if (!key) { setAssetStatusFilter(""); return; }
@@ -6471,7 +6472,7 @@ export default function CompanyEmployeePortal() {
                   ))}
                 </div>
                 {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
-                  window.open(`/company/asset/${dashAsset.id}`, '_blank');
+                  navigate(`/company/asset/${dashAsset.id}`);
                 }} onTileNavigate={(key, filterData) => {
                   if (!key) { setAssetStatusFilter(""); return; }
                   setNav("assets");
@@ -7358,8 +7359,8 @@ export default function CompanyEmployeePortal() {
                             <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px" }}>{i + 1}</td>
                             {allCompaniesMode && <td style={{ padding: "10px 14px", color: "#7c3aed", fontSize: "12px", whiteSpace: "nowrap", fontWeight: 600 }}>{a.companyName || "—"}</td>}
                             <td style={{ padding: "10px 14px", color: (a.isVerified || Number(a.verified) === 1) ? "#16a34a" : "#dc2626", fontFamily: "monospace", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline" }}
-                              title="Click to open asset details in new window"
-                              onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
+                              title="Click to view asset details"
+                              onClick={() => navigate(`/company/asset/${a.id}`)}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap" }}
                               title="Click to view asset details"
                               onClick={() => navigate(`/company/asset/${a.id}`)}>
@@ -9785,6 +9786,23 @@ export default function CompanyEmployeePortal() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MIS ──────────────────────────────────────────────── */}
+      {nav === "mis" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
+        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", background: "#f8fafc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px" }}>
+          {companySwitcherBar}
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "64px", marginBottom: "20px", lineHeight: 1 }}>📊</div>
+            <h1 style={{ fontSize: "28px", fontWeight: 900, color: "#0f172a", margin: "0 0 10px" }}>MIS Reports</h1>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "100px", padding: "6px 18px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Coming Soon</span>
+            </div>
+            <p style={{ fontSize: "15px", color: "#64748b", maxWidth: "480px", lineHeight: 1.6, margin: 0 }}>
+              Management Information System reports — consolidated KPIs, asset utilization, maintenance trends, and compliance summaries — will be available here.
+            </p>
           </div>
         </div>
       )}

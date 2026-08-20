@@ -2299,7 +2299,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                           <td style={{ padding: "8px 12px", color: "#0f172a", fontWeight: 600 }}>{r.assetName || r.asset_name || "—"}</td>
                           <td style={{ padding: "8px 12px" }}>
                             {(r.assetUniqueId || r.asset_unique_id) ? (
-                              <button onClick={() => r.assetId && window.open(`/company/asset/${r.assetId}`, '_blank')}
+                              <button onClick={() => r.assetId && onOpenAsset && onOpenAsset({ id: r.assetId })}
                                 style={{ fontFamily: "monospace", fontSize: "11.5px", color: "#2563eb", background: "#eff6ff", border: "none", padding: "1px 7px", borderRadius: "4px", cursor: r.assetId ? "pointer" : "default", textDecoration: r.assetId ? "underline" : "none", fontWeight: 700 }}>
                                 {r.assetUniqueId || r.asset_unique_id}
                               </button>
