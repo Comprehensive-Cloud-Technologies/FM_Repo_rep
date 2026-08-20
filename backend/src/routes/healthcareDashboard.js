@@ -142,9 +142,9 @@ router.get("/snapshot", validate(filterParams), async (req, res, next) => {
       pool.query(
         `SELECT
            COUNT(*)                                                                                   AS total_requests,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') THEN 1 ELSE 0 END)                   AS wip_requests,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
+           SUM(CASE WHEN status IN ('wip','in_progress') THEN 1 ELSE 0 END)                   AS wip_requests,
+           SUM(CASE WHEN status IN ('wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
+           SUM(CASE WHEN status IN ('wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
            SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END)                                      AS resolved_requests,
            SUM(CASE WHEN status = 'closed'   THEN 1 ELSE 0 END)                                      AS closed_requests
          FROM asset_queries
@@ -276,9 +276,9 @@ router.get("/aggregate-snapshot", async (req, res, next) => {
       pool.query(
         `SELECT
            COUNT(*) AS total_requests,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') THEN 1 ELSE 0 END) AS wip_requests,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
-           SUM(CASE WHEN status IN ('open','wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
+           SUM(CASE WHEN status IN ('wip','in_progress') THEN 1 ELSE 0 END) AS wip_requests,
+           SUM(CASE WHEN status IN ('wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) < 7  THEN 1 ELSE 0 END) AS wip_lt7,
+           SUM(CASE WHEN status IN ('wip','in_progress') AND DATEDIFF(CURDATE(), DATE(created_at)) >= 7 THEN 1 ELSE 0 END) AS wip_gt7,
            SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved_requests,
            SUM(CASE WHEN status = 'closed'   THEN 1 ELSE 0 END) AS closed_requests
          FROM asset_queries WHERE company_id IN (${placeholders})`,
