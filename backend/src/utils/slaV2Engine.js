@@ -71,9 +71,10 @@ export function computeSlaMinutes(startDate, endDate, calendar) {
   // For large gaps jump whole business days
   while (cur < end) {
     const dayOfWeek = cur.getDay(); // 0=Sun, 6=Sat
-    const isWorkday = (dayOfWeek > 0 && dayOfWeek < 6)
+    const isWorkday = ((dayOfWeek > 0 && dayOfWeek < 6)
       || (dayOfWeek === 6 && calendar.include_sat)
-      || (dayOfWeek === 0 && calendar.include_sun);
+      || (dayOfWeek === 0 && calendar.include_sun))
+      && !(calendar.holidaySet && calendar.holidaySet.has(ymdKey(cur)));
 
     if (!isWorkday) {
       // Skip entire day
@@ -121,9 +122,10 @@ export function addSlaMinutes(startDate, minutes, calendar) {
 
   while (remaining > 0) {
     const dayOfWeek = cur.getDay();
-    const isWorkday = (dayOfWeek > 0 && dayOfWeek < 6)
+    const isWorkday = ((dayOfWeek > 0 && dayOfWeek < 6)
       || (dayOfWeek === 6 && calendar.include_sat)
-      || (dayOfWeek === 0 && calendar.include_sun);
+      || (dayOfWeek === 0 && calendar.include_sun))
+      && !(calendar.holidaySet && calendar.holidaySet.has(ymdKey(cur)));
 
     if (!isWorkday) {
       cur.setDate(cur.getDate() + 1);
@@ -275,7 +277,22 @@ async function getCalendar(calendarId) {
     `SELECT * FROM sla_calendars WHERE id = ?`,
     [calendarId]
   ).catch(() => [[]]);
-  return cal || null;
+  if (!cal) return null;
+  // Load holiday dates so business-hours math can skip them
+  const [hols] = await pool.query(
+    `SELECT DATE_FORMAT(holiday_date, '%Y-%m-%d') AS d FROM sla_calendar_holidays WHERE calendar_id = ?`,
+    [calendarId]
+  ).catch(() => [[]]);
+  cal.holidaySet = new Set((hols || []).map(h => h.d));
+  return cal;
+}
+
+/* ─── Local date key (YYYY-MM-DD) for holiday lookup ─────────────────────── */
+function ymdKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -293,7 +310,7 @@ async function getCalendar(calendarId) {
 export async function initTicketSla(opts) {
   const {
     queryId, assetId, companyId, deptId, assetCategory,
-    criticality, ticketType = "breakdown",
+    criticality, uiPriority, ticketType = "breakdown",
     assetName = "", deptName = "", companyName = "",
   } = opts;
 
@@ -301,8 +318,11 @@ export async function initTicketSla(opts) {
     // Eligibility check
     const { eligible, reason } = await checkEligibility(companyId, ticketType);
 
-    // Priority from criticality
-    const priority = criticalityToPriority(criticality);
+    // Priority: the priority chosen by whoever raised the issue (mobile/UI) wins.
+    // Only when no explicit priority is supplied do we fall back to asset criticality.
+    const priority = uiPriority
+      ? uiPriorityToSlaPriority(uiPriority)
+      : criticalityToPriority(criticality);
 
     // Resolve policy
     const { policyId, level } = await resolvePolicy(assetId, deptId, companyId, assetCategory);
@@ -317,6 +337,15 @@ export async function initTicketSla(opts) {
     const responseDue   = addSlaMinutes(now, rules.response_mins,   calendar);
     const attendanceDue = addSlaMinutes(now, rules.attendance_mins, calendar);
     const resolutionDue = addSlaMinutes(now, rules.resolution_mins, calendar);
+
+    console.log(
+      `[SLA-INIT] ticket=${queryId} company=${companyId}` +
+      ` | policy=${policyId||'system-default'} level=${level} priority=${priority}` +
+      ` | calendar=${calendarId||'24x7'} eligible=${eligible}` +
+      ` | response=${rules.response_mins}m(due ${responseDue.toISOString()})` +
+      ` attendance=${rules.attendance_mins}m(due ${attendanceDue.toISOString()})` +
+      ` resolution=${rules.resolution_mins}m(due ${resolutionDue.toISOString()})`
+    );
 
     // Snapshot version in sla_policy_versions if it doesn't exist yet
     if (policyId) {
@@ -391,8 +420,9 @@ export async function initTicketSla(opts) {
  * @param {number} queryId
  * @param {'response'|'attendance'|'resolution'} clockType
  * @param {number} actorId  — company_user id who triggered the event
+ * @param {Date|string|null} resolvedAt  — actual completion timestamp (uses NOW() if omitted)
  */
-export async function completeClock(queryId, clockType, actorId) {
+export async function completeClock(queryId, clockType, actorId, resolvedAt = null) {
   try {
     const [[ts]] = await pool.query(
       `SELECT ts.id AS ticketSlaId, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible
@@ -403,12 +433,13 @@ export async function completeClock(queryId, clockType, actorId) {
 
     const [[clock]] = await pool.query(
       `SELECT * FROM ticket_sla_clocks
-       WHERE ticket_sla_id = ? AND clock_type = ? AND status IN ('running','paused')`,
+       WHERE ticket_sla_id = ? AND clock_type = ? AND status IN ('running','paused','breached')`,
       [ts.ticketSlaId, clockType]
     );
-    if (!clock) return null; // already completed
+    // 'met' clocks are already final — nothing to do; null means no clock exists
+    if (!clock) return null;
 
-    const now          = new Date();
+    const now          = resolvedAt ? new Date(resolvedAt) : new Date();
     const totalPaused  = Number(clock.total_paused_mins || 0);
 
     // Get calendar
@@ -422,6 +453,15 @@ export async function completeClock(queryId, clockType, actorId) {
     const actualMins   = Math.max(0, wallMins - totalPaused);
     const met          = actualMins <= clock.target_mins;
     const breachMins   = met ? 0 : actualMins - clock.target_mins;
+
+    console.log(
+      `[SLA-CLOCK] ticket=${queryId} clock=${clockType}` +
+      ` | policy=${ts.policy_id||'system'} calendar=${calendar?.calendar_type||'24x7'}` +
+      ` | start=${new Date(ts.sla_start_time).toISOString()} event=${now.toISOString()}` +
+      ` | wall=${wallMins}m paused=${totalPaused}m actual=${actualMins}m target=${clock.target_mins}m` +
+      ` | due=${new Date(clock.adjusted_due_at || clock.due_at).toISOString()}` +
+      ` | result=${met ? 'MET' : 'BREACHED'} breach=${breachMins}m`
+    );
 
     await pool.query(
       `UPDATE ticket_sla_clocks
@@ -647,46 +687,173 @@ export async function getTicketSlaStatus(queryId) {
 }
 
 /**
+ * Map a UI priority string (low/medium/high/critical/normal) to SLA priority (P1-P4).
+ * P1 = Critical, P2 = High, P3 = Medium/Normal, P4 = Low
+ */
+export function uiPriorityToSlaPriority(uiPriority) {
+  const v = (uiPriority || "").toString().trim();
+  // Already a P-level (mobile app may send "P1".."P4" directly)
+  if (/^P[1-4]$/i.test(v)) return v.toUpperCase();
+  const map = {
+    critical: "P1",
+    high:     "P2",
+    medium:   "P3",
+    normal:   "P3",
+    low:      "P4",
+  };
+  return map[v.toLowerCase()] || "P3";
+}
+
+/**
+ * Recalculate SLA clocks after an issue priority change.
+ * Preserves the original sla_start_time; only the target due times change.
+ *
+ * @param {number} queryId
+ * @param {string} newUiPriority  — 'low'|'medium'|'high'|'critical'|'normal'
+ */
+export async function recalculateTicketSla(queryId, newUiPriority) {
+  try {
+    const [[ts]] = await pool.query(
+      `SELECT ts.id, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible
+       FROM ticket_sla ts WHERE ts.query_id = ?`,
+      [queryId]
+    );
+    if (!ts || !ts.is_sla_eligible) return null;
+
+    const newPriority = uiPriorityToSlaPriority(newUiPriority);
+    const { rules, calendarId } = await getPolicyRules(ts.policy_id, newPriority);
+    const calendar = await getCalendar(calendarId);
+
+    const slaStart    = new Date(ts.sla_start_time);
+    const responseDue   = addSlaMinutes(slaStart, rules.response_mins,   calendar);
+    const attendanceDue = addSlaMinutes(slaStart, rules.attendance_mins, calendar);
+    const resolutionDue = addSlaMinutes(slaStart, rules.resolution_mins, calendar);
+
+    await pool.query(
+      `UPDATE ticket_sla
+       SET priority = ?, sla_response_mins = ?, sla_attendance_mins = ?, sla_resolution_mins = ?,
+           response_due_at = ?, attendance_due_at = ?, resolution_due_at = ?
+       WHERE id = ?`,
+      [newPriority, rules.response_mins, rules.attendance_mins, rules.resolution_mins,
+       responseDue, attendanceDue, resolutionDue, ts.id]
+    );
+
+    // Update only clocks that are still running or paused
+    const [clocks] = await pool.query(
+      `SELECT id, clock_type FROM ticket_sla_clocks
+       WHERE ticket_sla_id = ? AND status IN ('running','paused')`,
+      [ts.id]
+    );
+    for (const c of clocks) {
+      const newDue = c.clock_type === "response"   ? responseDue
+                   : c.clock_type === "attendance" ? attendanceDue
+                   : resolutionDue;
+      await pool.query(
+        `UPDATE ticket_sla_clocks
+         SET due_at = ?, adjusted_due_at = NULL, target_mins = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [newDue,
+         c.clock_type === "response"   ? rules.response_mins
+         : c.clock_type === "attendance" ? rules.attendance_mins
+         : rules.resolution_mins,
+         c.id]
+      );
+    }
+
+    await pool.query(
+      `INSERT INTO ticket_sla_events (ticket_sla_id, event_type, occurred_at, notes)
+       VALUES (?, 'created', NOW(), ?)`,
+      [ts.id, `Priority changed to ${newPriority} (from UI: ${newUiPriority})`]
+    ).catch(() => {});
+
+    return { priority: newPriority, responseDue, attendanceDue, resolutionDue };
+  } catch (err) {
+    console.error("[SlaV2Engine] recalculateTicketSla error:", err.message);
+    return null;
+  }
+}
+
+/**
  * Scan all open tickets and auto-mark breached clocks.
  * Called by a scheduled job every 5 minutes.
  */
 export async function scanBreaches() {
   try {
+    // Join asset_queries to get resolved_at so we don't falsely breach
+    // clocks on tickets that were already resolved within their SLA window.
     const [overdueClocks] = await pool.query(
       `SELECT c.id AS clockId, c.ticket_sla_id, c.clock_type,
               c.target_mins, c.total_paused_mins,
-              ts.sla_start_time, ts.policy_id, ts.query_id
+              COALESCE(c.adjusted_due_at, c.due_at) AS effective_due_at,
+              ts.sla_start_time, ts.policy_id, ts.query_id,
+              aq.resolved_at, aq.in_progress_at, aq.assigned_at,
+              aq.status AS ticket_status
        FROM ticket_sla_clocks c
        JOIN ticket_sla ts ON ts.id = c.ticket_sla_id
-       WHERE c.status = 'running'
-         AND NOW() > COALESCE(c.adjusted_due_at, c.due_at)`
+       LEFT JOIN asset_queries aq ON aq.id = ts.query_id
+       WHERE c.status = 'running'`
     );
 
+    let breachedCount = 0;
     for (const c of overdueClocks) {
+      const effectiveDue = c.effective_due_at ? new Date(c.effective_due_at) : null;
+      if (!effectiveDue) continue;
+
+      // Determine the relevant event time for this clock type:
+      // Response → when engineer was assigned (assigned_at)
+      // Attendance → when engineer marked in_progress (in_progress_at); fall back to resolved_at
+      // Resolution → when ticket was resolved (resolved_at)
+      let eventTime = null;
+      const resolvedAt   = c.resolved_at    ? new Date(c.resolved_at)    : null;
+      const inProgressAt = c.in_progress_at ? new Date(c.in_progress_at) : null;
+      const assignedAt   = c.assigned_at    ? new Date(c.assigned_at)    : null;
+
+      if (c.clock_type === 'response') {
+        eventTime = assignedAt || inProgressAt || resolvedAt;
+      } else if (c.clock_type === 'attendance') {
+        eventTime = inProgressAt || resolvedAt;
+      } else if (c.clock_type === 'resolution') {
+        eventTime = resolvedAt;
+      }
+
+      const now = new Date();
+      // Use the event time if available, otherwise use NOW() for open tickets
+      const compareTime = eventTime || now;
+
+      // Clock is not actually overdue yet
+      if (compareTime <= effectiveDue) continue;
+
+      // For resolved tickets: measure elapsed time to resolved_at, not NOW()
+      // This prevents marking tickets as breached when they were resolved on time
+      // but the scanner ran later.
       const [[policy]] = await pool.query(
         `SELECT calendar_id FROM sla_policies WHERE id = ?`, [c.policy_id]
       ).catch(() => [[]]);
       const calendar = policy?.calendar_id ? await getCalendar(policy.calendar_id) : null;
 
-      const wallMins   = computeSlaMinutes(c.sla_start_time, new Date(), calendar);
+      const wallMins   = computeSlaMinutes(c.sla_start_time, compareTime, calendar);
       const actualMins = Math.max(0, wallMins - Number(c.total_paused_mins || 0));
-      const breachMins = actualMins - c.target_mins;
+      const breachMins = Math.max(0, actualMins - c.target_mins);
+      const isMet      = actualMins <= c.target_mins;
 
       await pool.query(
         `UPDATE ticket_sla_clocks
-         SET status = 'breached', actual_mins = ?, breach_mins = ?, updated_at = NOW()
+         SET status = ?, actual_mins = ?, breach_mins = ?, completed_at = ?, updated_at = NOW()
          WHERE id = ?`,
-        [actualMins, Math.max(0, breachMins), c.clockId]
+        [isMet ? 'met' : 'breached', actualMins, breachMins, compareTime, c.clockId]
       );
 
-      await pool.query(
-        `INSERT IGNORE INTO sla_breach_logs (clock_id, breach_mins, logged_at)
-         VALUES (?, ?, NOW())`,
-        [c.clockId, Math.max(0, breachMins)]
-      ).catch(() => {});
+      if (!isMet) {
+        await pool.query(
+          `INSERT IGNORE INTO sla_breach_logs (clock_id, breach_mins, logged_at)
+           VALUES (?, ?, NOW())`,
+          [c.clockId, breachMins]
+        ).catch(() => {});
+      }
+      breachedCount++;
     }
 
-    return overdueClocks.length;
+    return breachedCount;
   } catch (err) {
     console.error("[SlaV2Engine] scanBreaches error:", err.message);
     return 0;

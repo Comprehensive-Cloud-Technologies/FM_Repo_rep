@@ -1239,6 +1239,7 @@ router.get("/requests", validate([
   ...paginationParams,
   query("status").optional().isString(),
   query("priority").optional().isString(),
+  query("slaStatus").optional().isString(),
   query("assignedTo").optional().isInt({ min: 1 }),
   query("departmentId").optional().isInt({ min: 1 }),
   query("dateFrom").optional().isDate(),
@@ -1249,7 +1250,6 @@ router.get("/requests", validate([
   query("hospitalName").optional().isString().trim(),
   query("assetName").optional().isString().trim(),
   query("raisedBy").optional().isString().trim(),
-  query("departmentId").optional().isInt({ min: 1 }),
   query("source").optional().isString(),
 ]), async (req, res, next) => {
   try {
@@ -1306,8 +1306,9 @@ router.get("/requests", validate([
       aqWhere += " AND (a.asset_name LIKE ? OR aq.query_type LIKE ? OR aq.message LIKE ? OR aq.requester_name LIKE ? OR COALESCE(a.asset_unique_id,'') LIKE ? OR COALESCE(a.generated_asset_id,'') LIKE ? OR CONCAT('AQ-', aq.id) LIKE ? OR COALESCE(c.company_name,'') LIKE ?)";
       const s = `%${req.query.search}%`; aqP.push(s, s, s, s, s, s, s, s);
     }
-    // Skip asset_queries for escalated/overdue/priority/assignedTo filters, or when status has no AQ equivalent
-    const skipAQ = forceSkipAQStatus || req.query.escalated === "true" || req.query.overdue === "true" || req.query.priority || req.query.assignedTo;
+    if (req.query.priority) { aqWhere += " AND aq.priority = ?"; aqP.push(req.query.priority.toLowerCase()); }
+    // Skip asset_queries only for escalated/overdue/assignedTo filters, or when status has no AQ equivalent
+    const skipAQ = forceSkipAQStatus || req.query.escalated === "true" || req.query.overdue === "true" || req.query.assignedTo;
 
     const [woRows] = await pool.query(
       `SELECT
@@ -1358,7 +1359,7 @@ router.get("/requests", validate([
            aq.asset_id,
            COALESCE(a.generated_asset_id, a.asset_unique_id) AS generated_asset_id,
            COALESCE(aq.description, aq.title, aq.message, aq.query_type, '') AS issue_description,
-           'normal' AS priority,
+           COALESCE(aq.priority, 'normal') AS priority,
            CASE aq.status WHEN 'resolved' THEN 'completed' ELSE aq.status END AS status,
            aq.assigned_to AS cp_assigned_to,
            0 AS escalation_level,
@@ -1367,6 +1368,7 @@ router.get("/requests", validate([
            'QR Scan' AS source_label,
            aq.created_at,
            aq.updated_at,
+           aq.assigned_at AS assigned_at,
            aq.in_progress_at AS wip_at,
            COALESCE(aq.resolved_at, CASE WHEN aq.status IN ('resolved','closed') THEN aq.updated_at ELSE NULL END) AS resolution_at,
            CASE WHEN aq.status = 'closed' THEN COALESCE(aq.resolved_at, aq.updated_at) ELSE NULL END AS closed_at,
@@ -1393,10 +1395,216 @@ router.get("/requests", validate([
     // Merge and sort by created_at desc
     const allRows = [...woRows, ...aqRows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const total = allRows.length;
-    const rows  = allRows.slice(offset, offset + limit).map(r => ({
+    const pagedRows = allRows.slice(offset, offset + limit).map(r => ({
       ...r,
       images: r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : [],
     }));
+
+    // ── Attach SLA data to asset_query rows on this page ─────────────────────
+    // score = tickets resolved within SLA target / total evaluated tickets (per-ticket view)
+    // Uses ticket_sla_clocks.status ('met'|'breached'|'running'|'paused')
+    // and ticket_sla_clocks.breach_mins (> 0 means breached)
+    const aqPageIds = pagedRows.filter(r => r.source_type === 'asset_query').map(r => r.id);
+    let slaMap = {};
+    if (aqPageIds.length > 0) {
+      const ph2 = aqPageIds.map(() => '?').join(',');
+      const [slaRows] = await pool.query(
+        `SELECT
+           ts.query_id,
+           ts.is_sla_eligible,
+           ts.priority,
+           ts.sla_response_mins,
+           ts.sla_attendance_mins,
+           ts.sla_resolution_mins,
+           sp.name AS policy_name,
+           /* Resolution clock */
+           MAX(CASE WHEN tsc.clock_type = 'resolution' THEN tsc.status                              END) AS res_status,
+           MAX(CASE WHEN tsc.clock_type = 'resolution' THEN COALESCE(tsc.adjusted_due_at, tsc.due_at) END) AS res_due_at,
+           MAX(CASE WHEN tsc.clock_type = 'resolution' THEN tsc.actual_mins                         END) AS res_actual_mins,
+           MAX(CASE WHEN tsc.clock_type = 'resolution' THEN tsc.target_mins                         END) AS res_target_mins,
+           MAX(CASE WHEN tsc.clock_type = 'resolution' THEN tsc.breach_mins                         END) AS res_breach_mins,
+           /* Response clock */
+           MAX(CASE WHEN tsc.clock_type = 'response' THEN tsc.status                                END) AS resp_status,
+           MAX(CASE WHEN tsc.clock_type = 'response' THEN tsc.breach_mins                           END) AS resp_breach_mins,
+           MAX(CASE WHEN tsc.clock_type = 'response' THEN tsc.target_mins                           END) AS resp_target_mins,
+           MAX(CASE WHEN tsc.clock_type = 'response' THEN COALESCE(tsc.adjusted_due_at, tsc.due_at) END) AS resp_due_at,
+           /* Attendance clock */
+           MAX(CASE WHEN tsc.clock_type = 'attendance' THEN tsc.status                              END) AS att_status,
+           MAX(CASE WHEN tsc.clock_type = 'attendance' THEN tsc.breach_mins                         END) AS att_breach_mins,
+           MAX(CASE WHEN tsc.clock_type = 'attendance' THEN tsc.target_mins                         END) AS att_target_mins,
+           MAX(CASE WHEN tsc.clock_type = 'attendance' THEN COALESCE(tsc.adjusted_due_at, tsc.due_at) END) AS att_due_at,
+           /* Response clock actual time */
+           MAX(CASE WHEN tsc.clock_type = 'response'   THEN tsc.actual_mins                         END) AS resp_actual_mins,
+           /* Ticket event timestamps */
+           MAX(aq.assigned_at)    AS assigned_at,
+           MAX(aq.in_progress_at) AS in_progress_at,
+           MAX(COALESCE(aq.resolved_at, CASE WHEN aq.status IN ('resolved','closed') THEN aq.updated_at ELSE NULL END)) AS resolved_at
+         FROM ticket_sla ts
+         LEFT JOIN ticket_sla_clocks tsc ON tsc.ticket_sla_id = ts.id
+         LEFT JOIN sla_policies sp ON sp.id = ts.policy_id
+         LEFT JOIN asset_queries aq ON aq.id = ts.query_id
+         WHERE ts.query_id IN (${ph2})
+         GROUP BY ts.query_id, ts.is_sla_eligible, ts.priority,
+                  ts.sla_response_mins, ts.sla_attendance_mins, ts.sla_resolution_mins,
+                  sp.name`,
+        aqPageIds
+      ).catch(() => [[]]);
+
+      for (const s of slaRows) {
+        if (!s) continue;
+
+        // Not eligible → exempt
+        if (!s.is_sla_eligible) {
+          slaMap[s.query_id] = { sla_status: 'exempt', sla_score: null, sla_due_at: null, sla_priority: s.priority, sla_policy: s.policy_name };
+          continue;
+        }
+
+        // ── Overall status for this ticket ────────────────────────────────────
+        const assignedAt   = s.assigned_at    ? new Date(s.assigned_at)    : null;
+        const inProgressAt = s.in_progress_at ? new Date(s.in_progress_at) : null;
+        const resolvedAt   = s.resolved_at    ? new Date(s.resolved_at)    : null;
+        const respDueAt    = s.resp_due_at    ? new Date(s.resp_due_at)    : null;
+        const attDueAt     = s.att_due_at     ? new Date(s.att_due_at)     : null;
+        const resDueAt     = s.res_due_at     ? new Date(s.res_due_at)     : null;
+        const now          = new Date();
+
+        // ── SLA effective-met logic ──────────────────────────────────────────────
+        // For each clock, compare the ACTUAL event timestamp against the SLA deadline.
+        // This overrides stale DB clock data and handles tickets where completeClock
+        // was not called at the right moment.
+        //
+        // Response: compare assigned_at → in_progress_at → resolved_at (earliest proof)
+        // Attendance: compare in_progress_at → resolved_at ONLY when resolved_at <= att_due
+        //   (if resolved_at > att_due and there is no in_progress_at, we cannot determine
+        //    the actual attendance time — don't penalise for missing data)
+        // Resolution: compare resolved_at → due_at directly
+
+        // ── Response ─────────────────────────────────────────────────────────────
+        const respEventTime = assignedAt || inProgressAt || resolvedAt;
+        let respEffective;
+        if (s.resp_status === 'met') {
+          respEffective = 'met';
+        } else if (respEventTime && respDueAt) {
+          respEffective = respEventTime <= respDueAt ? 'met' : 'breached';
+        } else if (!respEventTime && respDueAt) {
+          respEffective = now > respDueAt ? 'breached' : null;
+        } else if (s.resp_status === 'breached' || Number(s.resp_breach_mins) > 0) {
+          respEffective = 'breached';
+        } else {
+          respEffective = null;
+        }
+
+        // ── Attendance ───────────────────────────────────────────────────────────
+        // Primary source: in_progress_at.
+        // Fallback: resolved_at — but ONLY when it proves attendance was on time
+        // (resolved_at <= att_due_at means the engineer was clearly there within the window).
+        // When resolved_at > att_due_at and in_progress_at is missing, leave as null
+        // so we don't penalise for an event we never measured.
+        const attProxyOk = !inProgressAt && resolvedAt && attDueAt && resolvedAt <= attDueAt;
+        const attEventTime = inProgressAt || (attProxyOk ? resolvedAt : null);
+        let attEffective;
+        if (s.att_status === 'met') {
+          attEffective = 'met';
+        } else if (attEventTime && attDueAt) {
+          attEffective = attEventTime <= attDueAt ? 'met' : 'breached';
+        } else if (!attEventTime && attDueAt && s.att_status === 'breached') {
+          // DB explicitly says breached (scanner confirmed it with in_progress_at data)
+          attEffective = 'breached';
+        } else if (!attEventTime && attDueAt && now > attDueAt && !resolvedAt) {
+          // Open ticket, attendance window expired, no engineer activity recorded
+          attEffective = 'breached';
+        } else {
+          // Cannot determine attendance time — treat as not evaluated
+          attEffective = null;
+        }
+
+        // ── Resolution ───────────────────────────────────────────────────────────
+        let resEffectiveStatus;
+        if (s.res_status === 'met') {
+          resEffectiveStatus = 'met';
+        } else if (resolvedAt && resDueAt) {
+          resEffectiveStatus = resolvedAt <= resDueAt ? 'met' : 'breached';
+        } else if (resDueAt) {
+          resEffectiveStatus = now > resDueAt ? 'breached' : 'on_track';
+        } else if (s.res_status === 'breached') {
+          resEffectiveStatus = 'breached';
+        } else {
+          resEffectiveStatus = 'on_track';
+        }
+
+        // ── Overall SLA status ───────────────────────────────────────────────────
+        // A ticket is SLA Met only when every EVALUATED clock is met.
+        // Null (un-evaluable) clocks are excluded — they don't cause a breach.
+        const respBreached = respEffective === 'breached';
+        const attBreached  = attEffective  === 'breached';
+        const resBreached  = resEffectiveStatus === 'breached';
+
+        let slaStatus = 'no_sla';
+        if (respBreached || attBreached || resBreached) {
+          slaStatus = 'breached';
+        } else if (resEffectiveStatus === 'met') {
+          slaStatus = 'met';
+        } else {
+          slaStatus = 'on_track';
+        }
+
+        // Debug trace — remove or downgrade to trace-level once the system is stable
+        console.log(
+          `[SLA] ticket=${s.query_id} policy="${s.policy_name||'system'}" priority=${s.priority}` +
+          ` | resp: target=${s.resp_target_mins}m due=${s.resp_due_at} event=${s.assigned_at||'—'} → ${respEffective}` +
+          ` | att:  target=${s.att_target_mins}m due=${s.att_due_at}  event=${s.in_progress_at||'—'} proxy=${attProxyOk} → ${attEffective}` +
+          ` | res:  target=${s.res_target_mins}m due=${s.res_due_at}  event=${s.resolved_at||'—'} → ${resEffectiveStatus}` +
+          ` | overall=${slaStatus}`
+        );
+
+        slaMap[s.query_id] = {
+          sla_status:    slaStatus,
+          sla_due_at:    s.res_due_at || null,
+          sla_priority:  s.priority   || null,
+          sla_policy:    s.policy_name || null,
+          // Detail breakdown — use effective statuses so UI dots/tooltips reflect true outcome
+          sla_assigned_at:    s.assigned_at    || null,
+          sla_in_progress_at: s.in_progress_at || null,
+          sla_clocks: {
+            response: {
+              status:     respEffective || s.resp_status || 'not_started',
+              targetMins: s.resp_target_mins,
+              breachMins: respEffective === 'breached' ? (s.resp_breach_mins || 0) : 0,
+              actualMins: s.resp_actual_mins,
+              dueAt:      s.resp_due_at,
+            },
+            attendance: {
+              status:     attEffective || s.att_status || 'not_started',
+              targetMins: s.att_target_mins,
+              breachMins: attEffective === 'breached' ? (s.att_breach_mins || 0) : 0,
+              dueAt:      s.att_due_at,
+            },
+            resolution: {
+              status:     resEffectiveStatus === 'on_track' ? (s.res_status || 'running') : (resEffectiveStatus || s.res_status || 'not_started'),
+              targetMins: s.res_target_mins,
+              breachMins: resEffectiveStatus === 'breached' ? (s.res_breach_mins || 0) : 0,
+              dueAt:      s.res_due_at,
+              actualMins: s.res_actual_mins,
+            },
+          },
+        };
+      }
+    }
+
+    let rows = pagedRows.map(r => ({
+      ...r,
+      ...(r.source_type === 'asset_query' && slaMap[r.id] ? slaMap[r.id] : {}),
+    }));
+
+    // Apply slaStatus filter (post-join, AQ only)
+    if (req.query.slaStatus) {
+      const wantedSlaStatus = req.query.slaStatus.toLowerCase();
+      rows = rows.filter(r => {
+        if (r.source_type !== 'asset_query') return true; // WO not filtered by SLA status
+        const s = (r.sla_status || 'no_sla').toLowerCase();
+        return s === wantedSlaStatus;
+      });
+    }
 
     // Summary counts (work orders + asset queries combined)
     const [woCounts] = await pool.query(
@@ -1472,13 +1680,19 @@ router.get("/performance-kpis", async (req, res, next) => {
         ids
       ),
 
-      // 2. Complaint SLA — resolved or closed over total
+      // 2. SLA Compliance — compliant tickets (met or within SLA) / total eligible
+      //    Uses ticket_sla_clocks for accurate real-time measurement.
+      //    Falls back to simple resolved ratio when no ticket_sla data exists.
       pool.query(
         `SELECT
-           COUNT(*) AS total,
-           SUM(CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END) AS resolved
-         FROM asset_queries
-         WHERE company_id IN (${ph})`,
+           COUNT(DISTINCT ts.id) AS total,
+           COUNT(DISTINCT CASE
+             WHEN esc.status = 'met'
+               OR (esc.status IN ('running','paused') AND COALESCE(esc.adjusted_due_at, esc.due_at) >= NOW())
+             THEN ts.id END) AS resolved
+         FROM ticket_sla ts
+         LEFT JOIN ticket_sla_clocks esc ON esc.ticket_sla_id = ts.id AND esc.clock_type = 'resolution'
+         WHERE ts.snapshot_company_id IN (${ph}) AND ts.is_sla_eligible = 1`,
         ids
       ),
 

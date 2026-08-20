@@ -11,7 +11,7 @@ const BASE = getApiBaseUrl();
 
 // Module-level cache: survives tab-switch remounts
 let _hcLastFetch = 0;
-let _hcReqId    = 0; // incremented on every fetch; stale responses are discarded
+let _hcReqId = 0; // incremented on every fetch; stale responses are discarded
 const HC_STALE_MS = 60_000;
 
 /* ─── API helpers ─────────────────────────────────────────────────────────── */
@@ -45,34 +45,34 @@ function buildQS(filters) {
 
 /* ─── Icon set ────────────────────────────────────────────────────────────── */
 const Icon = {
-  Total:       () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>,
-  Verified:    () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
-  Critical:    () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  NonCritical: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-  Working:     () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Unverified:  () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-  Wip:         () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  NotWorking:  () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
-  Download:    () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-  Filter:      () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
-  Search:      () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  Refresh:     () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>,
-  CallLog:     () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 15.42z"/></svg>,
-  Pms:         () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
-  Calibration: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>,
-  Training:    () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-  Rber:        () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
+  Total: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>,
+  Verified: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
+  Critical: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+  NonCritical: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>,
+  Working: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>,
+  Unverified: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>,
+  Wip: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+  NotWorking: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>,
+  Download: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>,
+  Filter: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>,
+  Search: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
+  Refresh: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>,
+  CallLog: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 15.42z" /></svg>,
+  Pms: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>,
+  Calibration: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M4.93 19.07a10 10 0 0 1 0-14.14" /></svg>,
+  Training: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>,
+  Rber: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>,
 };
 
 /* ─── Colour palette ─────────────────────────────────────────────────────── */
 const COLORS = {
-  blue:   { bg: "#eff6ff", icon: "#2563eb", border: "#bfdbfe" },
-  green:  { bg: "#f0fdf4", icon: "#16a34a", border: "#bbf7d0" },
-  red:    { bg: "#fef2f2", icon: "#dc2626", border: "#fecaca" },
+  blue: { bg: "#eff6ff", icon: "#2563eb", border: "#bfdbfe" },
+  green: { bg: "#f0fdf4", icon: "#16a34a", border: "#bbf7d0" },
+  red: { bg: "#fef2f2", icon: "#dc2626", border: "#fecaca" },
   orange: { bg: "#fff7ed", icon: "#ea580c", border: "#fed7aa" },
   purple: { bg: "#faf5ff", icon: "#7c3aed", border: "#e9d5ff" },
   yellow: { bg: "#fefce8", icon: "#ca8a04", border: "#fde68a" },
-  teal:   { bg: "#f0fdfa", icon: "#0d9488", border: "#99f6e4" },
+  teal: { bg: "#f0fdfa", icon: "#0d9488", border: "#99f6e4" },
 };
 
 /* ─── Simple chart components (no external library needed) ───────────────── */
@@ -97,7 +97,7 @@ function PieChart({ data, size = 200, compact = false }) {
       cumulative += pct;
       const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
       const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
-      const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
+      const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
       const large = pct > 0.5 ? 1 : 0;
       return { path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`, color: d.color || PIE_COLORS[i % PIE_COLORS.length], label: d.name, value: d.value, pct };
     });
@@ -158,7 +158,7 @@ function PieChart({ data, size = 200, compact = false }) {
 
 /* ─── Equipment Health Status — rich donut with right-side % legend ─────────── */
 function EquipmentHealthChart({ statuses }) {
-  const total   = statuses.reduce((s, x) => s + (Number(x.value) || 0), 0);
+  const total = statuses.reduce((s, x) => s + (Number(x.value) || 0), 0);
   const visible = statuses.filter(s => Number(s.value) > 0);
 
   const size = 100, stroke = 14, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
@@ -166,7 +166,7 @@ function EquipmentHealthChart({ statuses }) {
 
   // Fit the centre number regardless of magnitude
   const totalStr = total.toLocaleString("en-IN");
-  const numFont  = totalStr.length >= 9 ? 13 : totalStr.length >= 7 ? 16 : totalStr.length >= 5 ? 19 : 22;
+  const numFont = totalStr.length >= 9 ? 13 : totalStr.length >= 7 ? 16 : totalStr.length >= 5 ? 19 : 22;
 
   let offset = 0;
   return (
@@ -179,7 +179,7 @@ function EquipmentHealthChart({ statuses }) {
           <g transform={`rotate(-90 ${cx} ${cy})`}>
             {total > 0 && visible.map((s, i) => {
               const frac = (Number(s.value) || 0) / total;
-              const len  = frac * circ;
+              const len = frac * circ;
               const el = (
                 <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={stroke}
                   strokeDasharray={`${len} ${circ - len}`} strokeDashoffset={-offset}>
@@ -224,17 +224,17 @@ function BarChart({ data, height = 200, onBarClick, groupByHospital = false }) {
   // Group data by hospital when requested
   const groups = groupByHospital
     ? data.reduce((acc, d) => {
-        const key = d.hospital || 'Unknown Hospital';
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(d);
-        return acc;
-      }, {})
+      const key = d.hospital || 'Unknown Hospital';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(d);
+      return acc;
+    }, {})
     : null;
 
   const renderBar = (d, i) => {
     const total = (d.critical || 0) + (d.nonCritical || 0);
     const totalH = (total / maxVal) * (height - 50);
-    const critH  = ((d.critical || 0) / maxVal) * (height - 50);
+    const critH = ((d.critical || 0) / maxVal) * (height - 50);
     return (
       <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1, minWidth: "56px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: `${height - 50}px` }}>
@@ -289,7 +289,7 @@ function BarChart({ data, height = 200, onBarClick, groupByHospital = false }) {
         </div>
       )}
       <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "8px" }}>
-        {[["linear-gradient(180deg,#60a5fa,#2563eb)","Total Assets"],["linear-gradient(180deg,#f87171,#ef4444)","Critical (click to drill down)"]].map(([grad, lbl]) => (
+        {[["linear-gradient(180deg,#60a5fa,#2563eb)", "Total Assets"], ["linear-gradient(180deg,#f87171,#ef4444)", "Critical (click to drill down)"]].map(([grad, lbl]) => (
           <div key={lbl} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#374151" }}>
             <div style={{ width: "12px", height: "12px", background: grad, borderRadius: "2px" }} />
             {lbl}
@@ -302,9 +302,9 @@ function BarChart({ data, height = 200, onBarClick, groupByHospital = false }) {
 
 function LineChart({ data, height = 200 }) {
   if (!data || data.length === 0) return <EmptyState small />;
-  const maxPms   = Math.max(...data.map(d => d.pms   || 0), 1);
+  const maxPms = Math.max(...data.map(d => d.pms || 0), 1);
   const maxCalls = Math.max(...data.map(d => d.calls || 0), 1);
-  const maxVal   = Math.max(maxPms, maxCalls, 1);
+  const maxVal = Math.max(maxPms, maxCalls, 1);
   const w = 480, h = height - 40;
 
   const toPoint = (i, val) => {
@@ -313,7 +313,7 @@ function LineChart({ data, height = 200 }) {
     return { x, y };
   };
 
-  const pmsPoints   = data.map((d, i) => toPoint(i, d.pms   || 0));
+  const pmsPoints = data.map((d, i) => toPoint(i, d.pms || 0));
   const callsPoints = data.map((d, i) => toPoint(i, d.calls || 0));
 
   const toPath = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
@@ -364,7 +364,7 @@ function LineChart({ data, height = 200 }) {
         })}
       </svg>
       <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginTop: "8px" }}>
-        {[["#3b82f6","PMS"],["#10b981","Call Logs"]].map(([col, lbl]) => (
+        {[["#3b82f6", "PMS"], ["#10b981", "Call Logs"]].map(([col, lbl]) => (
           <div key={lbl} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#374151" }}>
             <div style={{ width: "24px", height: "3px", background: col, borderRadius: "2px" }} />
             {lbl}
@@ -418,13 +418,13 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
         background: isActive ? c.bg : "#fff",
         borderRadius: "10px",
         border: isActive ? `2px solid ${c.icon}` : `1px solid ${c.border}`,
-        padding: "4px 6px 3px",
+        padding: "10px 10px 8px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "2px",
-        minHeight: "44px",
+        gap: "4px",
+        minHeight: "68px",
         boxShadow: isActive ? `0 2px 10px ${c.border}` : "0 1px 3px rgba(0,0,0,0.04)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s ease",
@@ -438,13 +438,13 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
         <div style={{ width: "14px", height: "14px", background: c.bg, borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", color: c.icon, flexShrink: 0 }}>
           <IconComp />
         </div>
-        <p style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>{label}</p>
+        <p style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", margin: 0, lineHeight: 1.3, textAlign: "center" }}>{label}</p>
       </div>
       <div>
         {loading ? (
           <div style={{ width: "40px", height: "22px", background: "#f1f5f9", borderRadius: "4px", animation: "pulse 1.4s ease-in-out infinite", margin: "0 auto" }} />
         ) : (
-          <p style={{ fontSize: "17px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.3px" }}>{value ?? "—"}</p>
+          <p style={{ fontSize: "20px", fontWeight: 900, color: isActive ? c.icon : numColor, margin: 0, lineHeight: 1, letterSpacing: "-0.5px" }}>{value ?? "—"}</p>
         )}
       </div>
       {isActive && (
@@ -457,12 +457,12 @@ function KpiCard({ label, value, icon: IconComp, color, loading, onClick, isActi
 
 /* Icons for complaint tiles */
 const ComplaintIcon = {
-  Total:    () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.63 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 15.92z"/></svg>,
-  Wip:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  Lt7:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-  Gt7:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  Resolved: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Closed:   () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+  Total: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.63 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 15.92z" /></svg>,
+  Wip: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+  Lt7: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+  Gt7: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+  Resolved: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>,
+  Closed: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>,
 };
 
 function ChartCard({ title, subtitle, children, action }) {
@@ -491,7 +491,7 @@ function FiltersPanel({ filters, setFilters, filterOptions, onApply, onReset }) 
   };
 
   // Active count excluding dept + search (those are always visible)
-  const innerFilters = ["dateFrom","dateTo","assetCategory","location","status","criticality"];
+  const innerFilters = ["dateFrom", "dateTo", "assetCategory", "location", "status", "criticality"];
   const innerActiveCount = innerFilters.filter(k => filters[k] !== "").length;
 
   return (
@@ -511,7 +511,7 @@ function FiltersPanel({ filters, setFilters, filterOptions, onApply, onReset }) 
             </span>
           )}
           <div style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
           </div>
         </div>
 
@@ -606,66 +606,66 @@ const RECORD_CONFIGS = {
   "call-logs": {
     label: "Call Log History", icon: Icon.CallLog, color: "blue",
     columns: [
-      { key: "id",             label: "Req. ID",    link: "calllog" },
-      { key: "call_date",      label: "Date" },
-      { key: "asset_name",     label: "Asset" },
-      { key: "asset_unique_id",label: "Asset ID",   link: "asset", idKey: "asset_id" },
-      { key: "department_name",label: "Department" },
-      { key: "caller_name",    label: "Caller" },
-      { key: "issue_reported", label: "Issue",      wrap: true },
-      { key: "priority",       label: "Priority",   badge: true },
-      { key: "status",         label: "Status",     badge: true },
+      { key: "id", label: "Req. ID", link: "calllog" },
+      { key: "call_date", label: "Date" },
+      { key: "asset_name", label: "Asset" },
+      { key: "asset_unique_id", label: "Asset ID", link: "asset", idKey: "asset_id" },
+      { key: "department_name", label: "Department" },
+      { key: "caller_name", label: "Caller" },
+      { key: "issue_reported", label: "Issue", wrap: true },
+      { key: "priority", label: "Priority", badge: true },
+      { key: "status", label: "Status", badge: true },
     ],
   },
   pms: {
     label: "PMS History", icon: Icon.Pms, color: "teal",
     columns: [
-      { key: "scheduled_date",    label: "Scheduled" },
-      { key: "asset_name",        label: "Asset" },
-      { key: "asset_unique_id",   label: "Asset ID",  link: "asset", idKey: "asset_id" },
-      { key: "department_name",   label: "Department" },
-      { key: "maintenance_type",  label: "Type" },
-      { key: "technician_name",   label: "Technician" },
-      { key: "status",            label: "Status",    badge: true },
-      { key: "next_due_date",     label: "Next Due" },
+      { key: "scheduled_date", label: "Scheduled" },
+      { key: "asset_name", label: "Asset" },
+      { key: "asset_unique_id", label: "Asset ID", link: "asset", idKey: "asset_id" },
+      { key: "department_name", label: "Department" },
+      { key: "maintenance_type", label: "Type" },
+      { key: "technician_name", label: "Technician" },
+      { key: "status", label: "Status", badge: true },
+      { key: "next_due_date", label: "Next Due" },
     ],
   },
   calibration: {
     label: "Calibration Records", icon: Icon.Calibration, color: "purple",
     columns: [
-      { key: "calibration_date",   label: "Date" },
-      { key: "asset_name",         label: "Asset" },
-      { key: "asset_unique_id",    label: "Asset ID",  link: "asset", idKey: "asset_id" },
-      { key: "department_name",    label: "Department" },
-      { key: "calibrated_by",      label: "Calibrated By" },
-      { key: "certificate_no",     label: "Certificate No." },
-      { key: "calibration_result", label: "Result",    badge: true },
-      { key: "next_due_date",      label: "Next Due" },
+      { key: "calibration_date", label: "Date" },
+      { key: "asset_name", label: "Asset" },
+      { key: "asset_unique_id", label: "Asset ID", link: "asset", idKey: "asset_id" },
+      { key: "department_name", label: "Department" },
+      { key: "calibrated_by", label: "Calibrated By" },
+      { key: "certificate_no", label: "Certificate No." },
+      { key: "calibration_result", label: "Result", badge: true },
+      { key: "next_due_date", label: "Next Due" },
     ],
   },
   training: {
     label: "Training Records", icon: Icon.Training, color: "orange",
     columns: [
-      { key: "training_date",  label: "Date" },
-      { key: "training_title", label: "Title",      wrap: true },
-      { key: "employee_name",  label: "Employee" },
-      { key: "department_name",label: "Department" },
-      { key: "trainer_name",   label: "Trainer" },
-      { key: "result",         label: "Result",     badge: true },
-      { key: "expiry_date",    label: "Expiry" },
+      { key: "training_date", label: "Date" },
+      { key: "training_title", label: "Title", wrap: true },
+      { key: "employee_name", label: "Employee" },
+      { key: "department_name", label: "Department" },
+      { key: "trainer_name", label: "Trainer" },
+      { key: "result", label: "Result", badge: true },
+      { key: "expiry_date", label: "Expiry" },
     ],
   },
   rber: {
     label: "RBER Records", icon: Icon.Rber, color: "red",
     columns: [
-      { key: "review_date",      label: "Date" },
-      { key: "asset_name",       label: "Asset" },
-      { key: "asset_unique_id",  label: "Asset ID",  link: "asset", idKey: "asset_id" },
-      { key: "department_name",  label: "Department" },
-      { key: "reviewer_name",    label: "Reviewer" },
-      { key: "risk_score",       label: "Score" },
-      { key: "risk_level",       label: "Risk Level", badge: true },
-      { key: "status",           label: "Status",     badge: true },
+      { key: "review_date", label: "Date" },
+      { key: "asset_name", label: "Asset" },
+      { key: "asset_unique_id", label: "Asset ID", link: "asset", idKey: "asset_id" },
+      { key: "department_name", label: "Department" },
+      { key: "reviewer_name", label: "Reviewer" },
+      { key: "risk_score", label: "Score" },
+      { key: "risk_level", label: "Risk Level", badge: true },
+      { key: "status", label: "Status", badge: true },
       { key: "next_review_date", label: "Next Review" },
     ],
   },
@@ -673,25 +673,25 @@ const RECORD_CONFIGS = {
 
 const BADGE_STYLES = {
   // status
-  open:        { bg: "#fee2e2", color: "#dc2626" },
-  closed:      { bg: "#f1f5f9", color: "#475569" },
-  resolved:    { bg: "#dcfce7", color: "#16a34a" },
-  scheduled:   { bg: "#dbeafe", color: "#1d4ed8" },
-  completed:   { bg: "#dcfce7", color: "#16a34a" },
-  valid:       { bg: "#dcfce7", color: "#16a34a" },
-  expired:     { bg: "#fee2e2", color: "#dc2626" },
-  pending:     { bg: "#fef9c3", color: "#854d0e" },
-  pass:        { bg: "#dcfce7", color: "#16a34a" },
-  fail:        { bg: "#fee2e2", color: "#dc2626" },
+  open: { bg: "#fee2e2", color: "#dc2626" },
+  closed: { bg: "#f1f5f9", color: "#475569" },
+  resolved: { bg: "#dcfce7", color: "#16a34a" },
+  scheduled: { bg: "#dbeafe", color: "#1d4ed8" },
+  completed: { bg: "#dcfce7", color: "#16a34a" },
+  valid: { bg: "#dcfce7", color: "#16a34a" },
+  expired: { bg: "#fee2e2", color: "#dc2626" },
+  pending: { bg: "#fef9c3", color: "#854d0e" },
+  pass: { bg: "#dcfce7", color: "#16a34a" },
+  fail: { bg: "#fee2e2", color: "#dc2626" },
   // priority
-  critical:    { bg: "#fee2e2", color: "#991b1b" },
-  high:        { bg: "#ffedd5", color: "#9a3412" },
-  medium:      { bg: "#fef9c3", color: "#854d0e" },
-  low:         { bg: "#dcfce7", color: "#166534" },
+  critical: { bg: "#fee2e2", color: "#991b1b" },
+  high: { bg: "#ffedd5", color: "#9a3412" },
+  medium: { bg: "#fef9c3", color: "#854d0e" },
+  low: { bg: "#dcfce7", color: "#166534" },
   // risk
-  High:        { bg: "#fee2e2", color: "#991b1b" },
-  Medium:      { bg: "#fef9c3", color: "#854d0e" },
-  Low:         { bg: "#dcfce7", color: "#166534" },
+  High: { bg: "#fee2e2", color: "#991b1b" },
+  Medium: { bg: "#fef9c3", color: "#854d0e" },
+  Low: { bg: "#dcfce7", color: "#166534" },
 };
 
 function BadgeCell({ val }) {
@@ -706,13 +706,13 @@ function BadgeCell({ val }) {
 
 /* ─── Call-Log detail modal ──────────────────────────────────────────────── */
 function CallLogDetailModal({ id, token, onClose }) {
-  const [rec, setRec]         = useState(null);
+  const [rec, setRec] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     hcFetch(`/records/call-logs/${id}`, token)
       .then(d => setRec(d))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [id, token]);
 
@@ -720,24 +720,24 @@ function CallLogDetailModal({ id, token, onClose }) {
     if (!rec) return;
     const rows = [
       ["Field", "Value"],
-      ["Request ID",     `REQ-${rec.id}`],
-      ["Date",           rec.call_date || ""],
-      ["Asset Name",     rec.asset_name || ""],
-      ["Asset ID",       rec.asset_unique_id || rec.generated_asset_id || ""],
-      ["Department",     rec.department_name || ""],
-      ["Location",       rec.location || ""],
-      ["Caller Name",    rec.caller_name || ""],
+      ["Request ID", `REQ-${rec.id}`],
+      ["Date", rec.call_date || ""],
+      ["Asset Name", rec.asset_name || ""],
+      ["Asset ID", rec.asset_unique_id || rec.generated_asset_id || ""],
+      ["Department", rec.department_name || ""],
+      ["Location", rec.location || ""],
+      ["Caller Name", rec.caller_name || ""],
       ["Caller Contact", rec.caller_contact || ""],
       ["Issue Reported", rec.issue_reported || ""],
-      ["Call Type",      rec.call_type || ""],
-      ["Priority",       rec.priority || ""],
-      ["Status",         rec.status || ""],
-      ["Assigned To",    rec.assigned_to_name || ""],
-      ["Resolution",     rec.resolution_notes || ""],
-      ["Resolution Date",rec.resolution_date || ""],
-      ["Created At",     rec.created_at ? String(rec.created_at).slice(0,19) : ""],
+      ["Call Type", rec.call_type || ""],
+      ["Priority", rec.priority || ""],
+      ["Status", rec.status || ""],
+      ["Assigned To", rec.assigned_to_name || ""],
+      ["Resolution", rec.resolution_notes || ""],
+      ["Resolution Date", rec.resolution_date || ""],
+      ["Created At", rec.created_at ? String(rec.created_at).slice(0, 19) : ""],
     ];
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -777,24 +777,24 @@ function CallLogDetailModal({ id, token, onClose }) {
         </div>
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-          {loading ? <Spinner /> : !rec ? <ErrorState message="Record not found" onRetry={() => {}} /> : (
+          {loading ? <Spinner /> : !rec ? <ErrorState message="Record not found" onRetry={() => { }} /> : (
             <>
-              <Field label="Request ID"      value={`REQ-${rec.id}`} />
-              <Field label="Date"            value={rec.call_date} />
-              <Field label="Asset Name"      value={rec.asset_name} />
-              <Field label="Asset ID"        value={rec.asset_unique_id || rec.generated_asset_id} />
-              <Field label="Department"      value={rec.department_name} />
-              <Field label="Location"        value={rec.location} />
-              <Field label="Caller"          value={rec.caller_name} />
-              <Field label="Contact"         value={rec.caller_contact} />
-              <Field label="Issue Reported"  value={rec.issue_reported} />
-              <Field label="Call Type"       value={rec.call_type} />
-              <Field label="Priority"        value={rec.priority} />
-              <Field label="Status"          value={rec.status} />
-              <Field label="Assigned To"     value={rec.assigned_to_name} />
-              <Field label="Resolution"      value={rec.resolution_notes} />
-              <Field label="Resolved On"     value={rec.resolution_date} />
-              <Field label="Created At"      value={rec.created_at ? String(rec.created_at).slice(0,19) : null} />
+              <Field label="Request ID" value={`REQ-${rec.id}`} />
+              <Field label="Date" value={rec.call_date} />
+              <Field label="Asset Name" value={rec.asset_name} />
+              <Field label="Asset ID" value={rec.asset_unique_id || rec.generated_asset_id} />
+              <Field label="Department" value={rec.department_name} />
+              <Field label="Location" value={rec.location} />
+              <Field label="Caller" value={rec.caller_name} />
+              <Field label="Contact" value={rec.caller_contact} />
+              <Field label="Issue Reported" value={rec.issue_reported} />
+              <Field label="Call Type" value={rec.call_type} />
+              <Field label="Priority" value={rec.priority} />
+              <Field label="Status" value={rec.status} />
+              <Field label="Assigned To" value={rec.assigned_to_name} />
+              <Field label="Resolution" value={rec.resolution_notes} />
+              <Field label="Resolved On" value={rec.resolution_date} />
+              <Field label="Created At" value={rec.created_at ? String(rec.created_at).slice(0, 19) : null} />
               {rec.remarks && <Field label="Remarks" value={rec.remarks} />}
             </>
           )}
@@ -806,12 +806,12 @@ function CallLogDetailModal({ id, token, onClose }) {
 
 function RecordsTable({ type, token, globalFilters, kpiFilter, kpiFilterLabel }) {
   const cfg = RECORD_CONFIGS[type];
-  const [data, setData]       = useState([]);
-  const [total, setTotal]     = useState(0);
-  const [page, setPage]       = useState(1);
-  const [search, setSearch]   = useState("");
+  const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
   const [detailId, setDetailId] = useState(null); // call-log detail modal
   const LIMIT = 20;
   const c = COLORS[cfg.color] || COLORS.blue;
@@ -831,7 +831,7 @@ function RecordsTable({ type, token, globalFilters, kpiFilter, kpiFilterLabel })
 
   const handleExport = () => {
     const qs = buildQS({ ...globalFilters, search, type, ...(kpiFilter ? { kpiFilter } : {}) });
-    hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`)
+    hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0, 10)}.xlsx`)
       .catch(e => alert(`Export failed: ${e.message}`));
   };
 
@@ -967,11 +967,11 @@ function KpiReportTable({ type, token, kpiFilter }) {
   const cfg = RECORD_CONFIGS[type] || RECORD_CONFIGS.pms;
   const c = COLORS[cfg.color] || COLORS.blue;
   const IconComp = cfg.icon;
-  const [rows, setRows]       = useState([]);
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [search, setSearch]   = useState("");
-  const [reload, setReload]   = useState(0);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -979,8 +979,8 @@ function KpiReportTable({ type, token, kpiFilter }) {
     const qs = search ? `?search=${encodeURIComponent(search)}` : "";
     const url =
       type === "calibration" ? `${BASE}/api/company-portal/calibration/reports${qs}` :
-      type === "training"    ? `${BASE}/api/company-portal/training/reports${qs}` :
-                               `${BASE}/api/company-portal/pms/reports${qs}`;
+        type === "training" ? `${BASE}/api/company-portal/training/reports${qs}` :
+          `${BASE}/api/company-portal/pms/reports${qs}`;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => { if (alive) setRows(Array.isArray(d) ? d : (d.rows || [])); })
@@ -999,9 +999,9 @@ function KpiReportTable({ type, token, kpiFilter }) {
   let data = rows;
   if (kpiFilter && type === "training") {
     const st = (r) => (r.status || "").toLowerCase();
-    if (kpiFilter === "scheduled")      data = rows.filter(r => st(r) === "scheduled");
+    if (kpiFilter === "scheduled") data = rows.filter(r => st(r) === "scheduled");
     else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
-    else if (kpiFilter === "overdue")   data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
+    else if (kpiFilter === "overdue") data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
   }
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -1017,30 +1017,30 @@ function KpiReportTable({ type, token, kpiFilter }) {
 
   const columns =
     type === "pms" ? [
-      { label: "Asset",      cell: r => assetCell(r.assetName, r.generatedAssetId || r.assetUniqueId) },
+      { label: "Asset", cell: r => assetCell(r.assetName, r.generatedAssetId || r.assetUniqueId) },
       { label: "Department", cell: r => r.departmentName || "—" },
-      { label: "Last PMS",   cell: r => fmt(r.lastPmsDate) },
-      { label: "Next PMS",   cell: r => <span style={{ color: past(r.nextPmsDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextPmsDate)}</span> },
-      { label: "Total",      cell: r => <b style={{ color: "#0f172a" }}>{r.totalPms ?? 0}</b> },
-      { label: "Closed",     cell: r => <b style={{ color: "#0891b2" }}>{r.closedPms ?? 0}</b> },
-      { label: "Pending",    cell: r => pendingChip(r.pendingApproval) },
+      { label: "Last PMS", cell: r => fmt(r.lastPmsDate) },
+      { label: "Next PMS", cell: r => <span style={{ color: past(r.nextPmsDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextPmsDate)}</span> },
+      { label: "Total", cell: r => <b style={{ color: "#0f172a" }}>{r.totalPms ?? 0}</b> },
+      { label: "Closed", cell: r => <b style={{ color: "#0891b2" }}>{r.closedPms ?? 0}</b> },
+      { label: "Pending", cell: r => pendingChip(r.pendingApproval) },
     ] :
-    type === "calibration" ? [
-      { label: "Asset",            cell: r => assetCell(r.assetName, r.assetId2) },
-      { label: "Department",       cell: r => r.departmentName || "—" },
-      { label: "Last Calibration", cell: r => fmt(r.lastCalibrationDate) },
-      { label: "Next Calibration", cell: r => <span style={{ color: past(r.nextCalibrationDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextCalibrationDate)}</span> },
-      { label: "Total",            cell: r => <b style={{ color: "#0f172a" }}>{r.totalSchedules ?? 0}</b> },
-      { label: "Completed",        cell: r => <b style={{ color: "#16a34a" }}>{r.completedSchedules ?? 0}</b> },
-      { label: "Pending",          cell: r => pendingChip(r.pendingSchedules) },
-    ] : [
-      { label: "Date",       cell: r => fmt(r.training_date) },
-      { label: "Title",      cell: r => r.title || "—" },
-      { label: "Trainer",    cell: r => r.trainer_name || "—" },
-      { label: "Status",     cell: r => <BadgeCell val={r.status} /> },
-      { label: "Registered", cell: r => r.total_registered ?? 0 },
-      { label: "Present",    cell: r => r.total_present ?? 0 },
-    ];
+      type === "calibration" ? [
+        { label: "Asset", cell: r => assetCell(r.assetName, r.assetId2) },
+        { label: "Department", cell: r => r.departmentName || "—" },
+        { label: "Last Calibration", cell: r => fmt(r.lastCalibrationDate) },
+        { label: "Next Calibration", cell: r => <span style={{ color: past(r.nextCalibrationDate) ? "#dc2626" : "#374151" }}>{fmt(r.nextCalibrationDate)}</span> },
+        { label: "Total", cell: r => <b style={{ color: "#0f172a" }}>{r.totalSchedules ?? 0}</b> },
+        { label: "Completed", cell: r => <b style={{ color: "#16a34a" }}>{r.completedSchedules ?? 0}</b> },
+        { label: "Pending", cell: r => pendingChip(r.pendingSchedules) },
+      ] : [
+        { label: "Date", cell: r => fmt(r.training_date) },
+        { label: "Title", cell: r => r.title || "—" },
+        { label: "Trainer", cell: r => r.trainer_name || "—" },
+        { label: "Status", cell: r => <BadgeCell val={r.status} /> },
+        { label: "Registered", cell: r => r.total_registered ?? 0 },
+        { label: "Present", cell: r => r.total_present ?? 0 },
+      ];
 
   return (
     <div style={{ background: "#fff", borderRadius: "14px", border: `1px solid ${c.border}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
@@ -1120,22 +1120,22 @@ function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
    ═══════════════════════════════════════════════════════════════════════════ */
 /* ─── Dashboard Asset Table (table format with View button) ─────────────── */
 function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAsset }) {
-  const [assets, setAssets]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [page, setPage]           = useState(1);
-  const [total, setTotal]         = useState(0);
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [viewAsset, setViewAsset] = useState(null); // asset whose images are shown
   const PER_PAGE = 20;
 
   // Map kpiKey → backend filter params understood by /assets endpoint
   const kpiKeyToFilters = (key) => {
     const map = {
-      totalAssets:      {},
-      criticalAssets:   { criticality: "Critical" },
-      nonCriticalAssets:{ criticality: "Non_Critical" },
-      rberAssets:       { rber: "true" },
-      condemnedAssets:  { workingStatus: "Condemned" },
-      verifiedAssets:   { verified: "true" },
+      totalAssets: {},
+      criticalAssets: { criticality: "Critical" },
+      nonCriticalAssets: { criticality: "Non_Critical" },
+      rberAssets: { rber: "true" },
+      condemnedAssets: { workingStatus: "Condemned" },
+      verifiedAssets: { verified: "true" },
     };
     return map[key] || {};
   };
@@ -1149,7 +1149,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
     const qs = buildQS({ ...restFilters, ...extraParams, limit: PER_PAGE, page });
     hcFetch(`/assets${qs}`, token)
       .then(d => { setAssets(d.data || []); setTotal(d.pagination?.total || 0); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [token, JSON.stringify(filters), page]);
 
@@ -1234,7 +1234,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
                           onClick={() => setViewAsset(a)}
                           title={imgs.length ? `View ${imgs.length} image(s)` : "No images uploaded"}
                           style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: imgs.length ? "#eff6ff" : "#f8fafc", color: imgs.length ? "#2563eb" : "#94a3b8", cursor: "pointer", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                           {imgs.length ? `View (${imgs.length})` : "No Images"}
                         </button>
                       </td>
@@ -1289,7 +1289,7 @@ function DashboardAssetTable({ token, filters, tileLabel, onClearTile, onOpenAss
               <div style={{ padding: "16px 20px" }}>
                 {imgs.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px", color: "#cbd5e1" }}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ display: "block", margin: "0 auto 12px", color: "#cbd5e1" }}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
                     <p style={{ margin: 0, fontSize: "14px" }}>No images uploaded for this asset</p>
                   </div>
                 ) : (
@@ -1488,14 +1488,14 @@ function ReviewCard({ r }) {
 }
 
 function ReviewsSection({ token, compact = false }) {
-  const [data, setData]               = useState(null);
-  const [loading, setLoading]         = useState(true);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage]               = useState(1);
-  const [allReviews, setAllReviews]   = useState([]);
-  const [expanded, setExpanded]       = useState(false); // true once user clicks Load More
+  const [page, setPage] = useState(1);
+  const [allReviews, setAllReviews] = useState([]);
+  const [expanded, setExpanded] = useState(false); // true once user clicks Load More
   const INITIAL_LIMIT = 3;
-  const MORE_LIMIT    = 6;
+  const MORE_LIMIT = 6;
 
   const fetchData = useCallback(async (p = 1, reset = true) => {
     if (reset) setLoading(true);
@@ -1509,7 +1509,7 @@ function ReviewsSection({ token, compact = false }) {
       const json = await res.json();
       setData({
         totalReviews: Number(json.analytics?.total || 0),
-        avgRating:    Number(json.analytics?.avgRating || 0),
+        avgRating: Number(json.analytics?.avgRating || 0),
         distribution: json.analytics?.distribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
       });
       // Only keep reviews that have actual text
@@ -1524,15 +1524,15 @@ function ReviewsSection({ token, compact = false }) {
   useEffect(() => { fetchData(1, true); setPage(1); }, [fetchData]);
 
   const loadMore = () => { setExpanded(true); const next = page + 1; setPage(next); fetchData(next, false); };
-  const collapse  = () => { setExpanded(false); setPage(1); fetchData(1, true); };
+  const collapse = () => { setExpanded(false); setPage(1); fetchData(1, true); };
 
-  const dist         = data?.distribution || {};
+  const dist = data?.distribution || {};
   const totalRatings = data?.totalReviews || 0;   // all ratings (with or without text)
-  const avgRating    = data?.avgRating || 0;
-  const posPct       = totalRatings > 0 ? Math.round(((Number(dist[5] || 0) + Number(dist[4] || 0)) / totalRatings) * 100) : 0;
-  const maxDistVal   = Math.max(...[5, 4, 3, 2, 1].map((s) => Number(dist[s] || 0)), 1);
-  const reviewCount  = allReviews.length;           // only reviews with text
-  const hasMore      = data ? allReviews.length < totalRatings : false; // approximate upper bound
+  const avgRating = data?.avgRating || 0;
+  const posPct = totalRatings > 0 ? Math.round(((Number(dist[5] || 0) + Number(dist[4] || 0)) / totalRatings) * 100) : 0;
+  const maxDistVal = Math.max(...[5, 4, 3, 2, 1].map((s) => Number(dist[s] || 0)), 1);
+  const reviewCount = allReviews.length;           // only reviews with text
+  const hasMore = data ? allReviews.length < totalRatings : false; // approximate upper bound
 
   // ── Compact mode: just rating summary card ──────────────────────────────
   if (compact) {
@@ -1542,12 +1542,12 @@ function ReviewsSection({ token, compact = false }) {
         {loading && <div style={{ color: '#94a3b8', fontSize: '12px' }}>Loading…</div>}
         {!loading && (!data || totalRatings === 0) && (
           <>
-            {[{s:5,w:'75%',filled:true},{s:4,w:'50%',filled:true},{s:3,w:'0%',filled:false},{s:2,w:'0%',filled:false},{s:1,w:'0%',filled:false}].map(({s,w,filled}) => {
+            {[{ s: 5, w: '75%', filled: true }, { s: 4, w: '50%', filled: true }, { s: 3, w: '0%', filled: false }, { s: 2, w: '0%', filled: false }, { s: 1, w: '0%', filled: false }].map(({ s, w, filled }) => {
               const cfg = RR_STAR_COLORS[s];
               return (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', opacity: filled ? 0.55 : 0.25 }}>
                   <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 7, textAlign: 'right' }}>{s}</span>
-                  <svg width={9} height={9} viewBox="0 0 24 24" fill={filled ? cfg.fill : '#cbd5e1'} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <svg width={9} height={9} viewBox="0 0 24 24" fill={filled ? cfg.fill : '#cbd5e1'} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                   <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
                     {filled && <div style={{ height: '100%', width: w, background: cfg.fill, borderRadius: 4 }} />}
                   </div>
@@ -1566,14 +1566,14 @@ function ReviewsSection({ token, compact = false }) {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[5,4,3,2,1].map(star => {
+              {[5, 4, 3, 2, 1].map(star => {
                 const count = Number(dist[star] || 0);
-                const pct   = Math.round((count / maxDistVal) * 100);
-                const cfg   = RR_STAR_COLORS[star];
+                const pct = Math.round((count / maxDistVal) * 100);
+                const cfg = RR_STAR_COLORS[star];
                 return (
                   <div key={star} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', width: 7, textAlign: 'right' }}>{star}</span>
-                    <svg width={9} height={9} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <svg width={9} height={9} viewBox="0 0 24 24" fill={cfg.fill} style={{ flexShrink: 0 }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                     <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${pct}%`, background: cfg.fill, borderRadius: 4 }} />
                     </div>
@@ -1691,8 +1691,8 @@ function ReviewsSection({ token, compact = false }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {[5, 4, 3, 2, 1].map((star) => {
                 const count = Number(dist[star] || 0);
-                const pct   = Math.round((count / maxDistVal) * 100);
-                const cfg   = RR_STAR_COLORS[star];
+                const pct = Math.round((count / maxDistVal) * 100);
+                const cfg = RR_STAR_COLORS[star];
                 return (
                   <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ fontSize: 9, fontWeight: 700, color: '#64748B', width: 7, textAlign: 'right', flexShrink: 0 }}>{star}</span>
@@ -1786,14 +1786,14 @@ function ReviewsSection({ token, compact = false }) {
 export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, externalRefreshKey, allCompaniesMode = false }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
-  const [filters, setFilters]       = useState(EMPTY_FILTERS);
-  const [appliedFilters, setApplied]= useState(EMPTY_FILTERS);
-  const [snapshot, setSnapshot]     = useState(null);
-  const [charts, setCharts]         = useState(null);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setApplied] = useState(EMPTY_FILTERS);
+  const [snapshot, setSnapshot] = useState(null);
+  const [charts, setCharts] = useState(null);
   const [filterOptions, setFilterOptions] = useState({ departments: [], categories: [], locations: [] });
-  const [snapLoading, setSnapL]     = useState(false);
+  const [snapLoading, setSnapL] = useState(false);
   const [showCostPopup, setShowCostPopup] = useState(false);  // cost breakdown popup
-  const [snapError, setSnapE]       = useState(null);
+  const [snapError, setSnapE] = useState(null);
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeKpiKey, setActiveKpiKey] = useState(null);   // which tile is highlighted
@@ -1801,41 +1801,35 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   const [complaintRequests, setComplaintRequests] = useState([]);
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [exportDDOpen, setExportDDOpen] = useState(false);
-  const [pmsStats, setPmsStats]           = useState(null);
-  const [pmsLoading, setPmsLoading]       = useState(false);
-  const [pmsOverdueItems, setPmsOverdue]  = useState([]);
+  const [pmsStats, setPmsStats] = useState(null);
+  const [pmsLoading, setPmsLoading] = useState(false);
+  const [pmsOverdueItems, setPmsOverdue] = useState([]);
   const [overdueExpanded, setOverdueExp] = useState(false);
-  const [ojtStats, setOjtStats]     = useState(null);
+  const [ojtStats, setOjtStats] = useState(null);
   const [ojtLoading, setOjtLoading] = useState(false);
-  const [activeProfileKpi, setActiveProfileKpi]         = useState(null);
+  const [activeProfileKpi, setActiveProfileKpi] = useState(null);
   const [activeCalibrationKpi, setActiveCalibrationKpi] = useState(null);
-  const [activeTrainingKpi, setActiveTrainingKpi]       = useState(null);
+  const [activeTrainingKpi, setActiveTrainingKpi] = useState(null);
   const complaintPanelRef = useRef(null); // scroll target for complaint drilldown panel
   // Map KPI key → { tab, kpiFilter, label }
   const KPI_FILTER_MAP = {
-    pmsTotalAssets:              { tab: "pms",         kpiFilter: null,                   label: "All PMS" },
-    pmsOverdueAssets:            { tab: "pms",         kpiFilter: "overdue",              label: "PMS Overdue" },
-    pmsUpcomingAssets:           { tab: "pms",         kpiFilter: "upcoming",             label: "PMS Upcoming (30D)" },
-    pmsCompletedAssets:          { tab: "pms",         kpiFilter: "completed",            label: "PMS Completed" },
-    calibrationDueThisMonth:     { tab: "calibration", kpiFilter: "due_this_month",       label: "Calibration Due This Month" },
-    calibrationOverdue:          { tab: "calibration", kpiFilter: "overdue",              label: "Calibration Overdue" },
-    calibrationUpcoming:         { tab: "calibration", kpiFilter: "upcoming",             label: "Calibration Upcoming (30D)" },
-    calibrationCompletedThisMonth:{ tab: "calibration",kpiFilter: "completed_this_month", label: "Calibration Completed This Month" },
-    tTotal:     { tab: "training", kpiFilter: null,        label: "All Training" },
+    pmsTotalAssets: { tab: "pms", kpiFilter: null, label: "All PMS" },
+    pmsOverdueAssets: { tab: "pms", kpiFilter: "overdue", label: "PMS Overdue" },
+    pmsUpcomingAssets: { tab: "pms", kpiFilter: "upcoming", label: "PMS Upcoming (30D)" },
+    pmsCompletedAssets: { tab: "pms", kpiFilter: "completed", label: "PMS Completed" },
+    calibrationDueThisMonth: { tab: "calibration", kpiFilter: "due_this_month", label: "Calibration Due This Month" },
+    calibrationOverdue: { tab: "calibration", kpiFilter: "overdue", label: "Calibration Overdue" },
+    calibrationUpcoming: { tab: "calibration", kpiFilter: "upcoming", label: "Calibration Upcoming (30D)" },
+    calibrationCompletedThisMonth: { tab: "calibration", kpiFilter: "completed_this_month", label: "Calibration Completed This Month" },
+    tTotal: { tab: "training", kpiFilter: null, label: "All Training" },
     tScheduled: { tab: "training", kpiFilter: "scheduled", label: "Training Scheduled" },
     tCompleted: { tab: "training", kpiFilter: "completed", label: "Training Completed" },
-    tOverdue:   { tab: "training", kpiFilter: "overdue",   label: "Training Overdue" },
+    tOverdue: { tab: "training", kpiFilter: "overdue", label: "Training Overdue" },
   };
   const [activeKpiMeta, setActiveKpiMeta] = useState(null);
-  const [perfKpis, setPerfKpis]       = useState(null);
+  const [perfKpis, setPerfKpis] = useState(null);
   const [perfLoading, setPerfLoading] = useState(false);
-  const [slaDash, setSlaDash]         = useState(null);
-  const [slaTrend, setSlaTrend]       = useState([]);
-  const [slaAtRisk, setSlaAtRisk]     = useState([]);
-  const [slaByEng, setSlaByEng]       = useState([]);
-  const [slaByDept, setSlaByDept]     = useState([]);
-  const [slaByAsset, setSlaByAsset]   = useState([]);
-  const [slaLoading, setSlaLoading]   = useState(false);
+  // SLA metrics moved to the dedicated SLA Dashboard (SlaDashboard.jsx)
 
   /* Load snapshot KPIs */
   const loadSnapshot = useCallback(async (force = false) => {
@@ -1845,7 +1839,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     const reqId = ++_hcReqId;
     _hcLastFetch = Date.now();
     // Clear stale data immediately so old company's numbers never linger
-    setSnapshot(null); setCharts(null);    setSnapL(true); setSnapE(null);
+    setSnapshot(null); setCharts(null); setSnapL(true); setSnapE(null);
     try {
       if (allCompaniesMode) {
         const snap = await hcFetch('/aggregate-snapshot', token);
@@ -1913,13 +1907,13 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         if (!rows) return;
         const data = Array.isArray(rows.data) ? rows.data : (Array.isArray(rows) ? rows : []);
         const today = new Date().toISOString().slice(0, 10);
-        const total     = data.length;
+        const total = data.length;
         const scheduled = data.filter(t => t.status === "scheduled").length;
         const completed = data.filter(t => t.status === "completed").length;
-        const overdue   = data.filter(t => t.status === "overdue" || (t.status === "scheduled" && (t.training_date || "").slice(0,10) < today)).length;
+        const overdue = data.filter(t => t.status === "overdue" || (t.status === "scheduled" && (t.training_date || "").slice(0, 10) < today)).length;
         setOjtStats({ total, scheduled, completed, overdue });
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setOjtLoading(false));
   }, [token, refreshKey]);
 
@@ -1933,39 +1927,18 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setPerfKpis(d); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setPerfLoading(false));
   }, [token, allCompaniesMode, refreshKey]);
 
-  // Load SLA dashboard, trend, at-risk, by-engineer, by-dept, by-equipment
-  useEffect(() => {
-    if (!token) return;
-    setSlaLoading(true);
-    const h = { Authorization: `Bearer ${token}` };
-    const b = `${BASE}/api/company-portal/sla`;
-    Promise.all([
-      fetch(`${b}/dashboard`, { headers: h }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${b}/trend?months=6`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${b}/at-risk?windowMins=120`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${b}/by-engineer`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${b}/by-department`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${b}/by-equipment?limit=10`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
-    ]).then(([dash, trend, atRisk, byEng, byDept, byAsset]) => {
-      if (dash) setSlaDash(dash);
-      setSlaTrend(Array.isArray(trend) ? trend : []);
-      setSlaAtRisk(Array.isArray(atRisk) ? atRisk : []);
-      setSlaByEng(Array.isArray(byEng) ? byEng : []);
-      setSlaByDept(Array.isArray(byDept) ? byDept : []);
-      setSlaByAsset(Array.isArray(byAsset) ? byAsset : []);
-    }).finally(() => setSlaLoading(false));
-  }, [token, allCompaniesMode, refreshKey]);
+  // SLA dashboard data now lives in the dedicated SLA Dashboard (SlaDashboard.jsx)
 
   // Load filter options (departments, categories, locations) for the filter panel
   useEffect(() => {
     if (!token || allCompaniesMode) return;
     hcFetch('/filter-options', token)
       .then(d => { if (d) setFilterOptions(d); })
-      .catch(() => {});
+      .catch(() => { });
   }, [token, allCompaniesMode]);
   const handleReset = () => { setFilters(EMPTY_FILTERS); setApplied(EMPTY_FILTERS); };
 
@@ -1990,7 +1963,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
 
   const doExport = (extraFilters, type) => {
     const qs = buildQS({ ...appliedFilters, ...extraFilters, type });
-    hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0,10)}.xlsx`)
+    hcDownload(`/export${qs}`, token, `healthcare-export-${type}-${new Date().toISOString().slice(0, 10)}.xlsx`)
       .catch(e => alert(`Export failed: ${e.message}`));
   };
 
@@ -2024,19 +1997,19 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
   };
 
   const KPI_LIST = [
-    { key: "total",       label: "Total Assets",       icon: Icon.Total,       color: "blue",   filterData: {} ,animation: "blink-dot 1s ease-in-out infinite" },
-    { key: "critical",    label: "Critical",           icon: Icon.Critical,    color: "red",    filterData: { criticality: "Critical" } },
-    { key: "nonCritical", label: "Non-Critical",       icon: Icon.NonCritical, color: "teal",   filterData: { criticality: "Non_Critical" } },
-    { key: "verified",    label: "Verified",       icon: Icon.Working,     color: "green",  filterData: { verified: "1" } },
-    { key: "rber",        label: "RBER",               icon: Icon.Rber,        color: "orange", filterData: { rber: "1" } },
+    { key: "total", label: "Total Assets", icon: Icon.Total, color: "blue", filterData: {}, animation: "blink-dot 1s ease-in-out infinite" },
+    { key: "critical", label: "Critical", icon: Icon.Critical, color: "red", filterData: { criticality: "Critical" } },
+    { key: "nonCritical", label: "Non-Critical", icon: Icon.NonCritical, color: "teal", filterData: { criticality: "Non_Critical" } },
+    { key: "verified", label: "Verified", icon: Icon.Working, color: "green", filterData: { verified: "1" } },
+    { key: "rber", label: "RBER", icon: Icon.Rber, color: "orange", filterData: { rber: "1" } },
   ];
 
   // Helper to format currency amounts
   const fmtCurrency = (v) => {
     const n = Number(v || 0);
     if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
-    if (n >= 100000)   return `₹${(n / 100000).toFixed(2)}L`;
-    if (n >= 1000)     return `₹${n.toLocaleString('en-IN')}`;
+    if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+    if (n >= 1000) return `₹${n.toLocaleString('en-IN')}`;
     return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
@@ -2103,7 +2076,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
                 <div style={{ width: "14px", height: "14px", background: "#ede9fe", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", flexShrink: 0 }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
                 </div>
                 <p style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0, lineHeight: 1.2, textAlign: "left" }}>Total Asset Value</p>
               </div>
@@ -2134,12 +2107,12 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           }}>
             <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px", textAlign: "center" }}>Equipment Health Status</p>
             <EquipmentHealthChart statuses={[
-              { name: "Working",     value: snapshot?.working    || 0, color: "#16a34a" },
-              { name: "WIP",         value: snapshot?.wip        || 0, color: "#ca8a04" },
+              { name: "Working", value: snapshot?.working || 0, color: "#16a34a" },
+              { name: "WIP", value: snapshot?.wip || 0, color: "#ca8a04" },
               { name: "Not Working", value: snapshot?.notWorking || 0, color: "#dc2626" },
-              { name: "HNF",         value: snapshot?.hnf        || 0, color: "#0d9488" },
-              { name: "RBER",        value: snapshot?.rber       || 0, color: "#ea580c" },
-              { name: "Condemned",   value: snapshot?.condemned  || 0, color: "#7c3aed" },
+              { name: "HNF", value: snapshot?.hnf || 0, color: "#0d9488" },
+              { name: "RBER", value: snapshot?.rber || 0, color: "#ea580c" },
+              { name: "Condemned", value: snapshot?.condemned || 0, color: "#7c3aed" },
             ]} />
           </div>
         </div>
@@ -2163,12 +2136,12 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
               </div>
               <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "10px" }}>Purchase cost by maintenance type</div>
               {[
-                { label: "High End Equipment", value: snapshot?.highEndCost,  color: "#7c3aed", bg: "#ede9fe" },
-                { label: "Under Catalyst",     value: snapshot?.catalystCost, color: "#0891b2", bg: "#e0f2fe" },
-                { label: "Under Warranty",     value: snapshot?.warrantyCost, color: "#16a34a", bg: "#dcfce7" },
-                { label: "Under AMC",          value: snapshot?.amcCost,      color: "#dc2626", bg: "#fee2e2" },
-                { label: "Under CMC",          value: snapshot?.cmcCost,      color: "#ea580c", bg: "#fff7ed" },
-                { label: "Under Client",       value: snapshot?.clientCost,   color: "#6366f1", bg: "#eef2ff" },
+                { label: "High End Equipment", value: snapshot?.highEndCost, color: "#7c3aed", bg: "#ede9fe" },
+                { label: "Under Catalyst", value: snapshot?.catalystCost, color: "#0891b2", bg: "#e0f2fe" },
+                { label: "Under Warranty", value: snapshot?.warrantyCost, color: "#16a34a", bg: "#dcfce7" },
+                { label: "Under AMC", value: snapshot?.amcCost, color: "#dc2626", bg: "#fee2e2" },
+                { label: "Under CMC", value: snapshot?.cmcCost, color: "#ea580c", bg: "#fff7ed" },
+                { label: "Under Client", value: snapshot?.clientCost, color: "#6366f1", bg: "#eef2ff" },
               ].map(row => (
                 <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
@@ -2188,12 +2161,12 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "8px", alignItems: "stretch" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
               {[
-                { key: "totalComplaints",    label: "Total Complaint",  icon: ComplaintIcon.Total,    color: "blue",   value: snapshot?.totalComplaints },
-                { key: "wipComplaints",      label: "Work in Progress", icon: ComplaintIcon.Wip,      color: "yellow", value: snapshot?.wipComplaints },
-                { key: "wipLt7",             label: "< 7 Days",         icon: ComplaintIcon.Lt7,      color: "green",  value: snapshot?.wipLt7 },
-                { key: "wipGt7",             label: "> 7 Days",         icon: ComplaintIcon.Gt7,      color: "red",    value: snapshot?.wipGt7 },
-                { key: "resolvedComplaints", label: "Resolved",         icon: ComplaintIcon.Resolved, color: "teal",   value: snapshot?.resolvedComplaints },
-                { key: "closedComplaints",   label: "Closed",           icon: ComplaintIcon.Closed,   color: "purple", value: snapshot?.closedComplaints },
+                { key: "totalComplaints", label: "Total Complaint", icon: ComplaintIcon.Total, color: "blue", value: snapshot?.totalComplaints },
+                { key: "wipComplaints", label: "Work in Progress", icon: ComplaintIcon.Wip, color: "yellow", value: snapshot?.wipComplaints },
+                { key: "wipLt7", label: "< 7 Days", icon: ComplaintIcon.Lt7, color: "green", value: snapshot?.wipLt7 },
+                { key: "wipGt7", label: "> 7 Days", icon: ComplaintIcon.Gt7, color: "red", value: snapshot?.wipGt7 },
+                { key: "resolvedComplaints", label: "Resolved", icon: ComplaintIcon.Resolved, color: "teal", value: snapshot?.resolvedComplaints },
+                { key: "closedComplaints", label: "Closed", icon: ComplaintIcon.Closed, color: "purple", value: snapshot?.closedComplaints },
               ].map(k => (
                 <KpiCard
                   key={k.key}
@@ -2242,7 +2215,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           <div ref={complaintPanelRef} style={{ marginTop: "14px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "13.5px", color: "#0f172a" }}>
-                {{totalComplaints:"All Complaints",wipComplaints:"Work In Progress",wipLt7:"WIP < 7 Days",wipGt7:"WIP ≥ 7 Days",resolvedComplaints:"Resolved Complaints",closedComplaints:"Closed Complaints"}[activeComplaintKey]}
+                {{ totalComplaints: "All Complaints", wipComplaints: "Work In Progress", wipLt7: "WIP < 7 Days", wipGt7: "WIP ≥ 7 Days", resolvedComplaints: "Resolved Complaints", closedComplaints: "Closed Complaints" }[activeComplaintKey]}
                 {!complaintLoading && <span style={{ marginLeft: "8px", fontWeight: 400, color: "#64748b", fontSize: "12px" }}>({complaintRequests.length} records)</span>}
               </span>
               <button onClick={() => { setActiveComplaintKey(null); setComplaintRequests([]); }}
@@ -2257,7 +2230,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
                   <thead>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["#","Asset","Asset ID","Request ID","Request Title","Status","Priority","Department","Raised By","Date"].map(h => (
+                      {["#", "Asset", "Asset ID", "Request ID", "Request Title", "Status", "Priority", "Department", "Raised By", "Date"].map(h => (
                         <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -2287,7 +2260,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                           <td style={{ padding: "8px 12px", color: "#334155" }}>{r.title || r.description || "—"}</td>
                           <td style={{ padding: "8px 12px" }}>
                             <span style={{ background: statusColors[st] || "#f1f5f9", color: statusText[st] || "#475569", padding: "2px 8px", borderRadius: "12px", fontSize: "11.5px", fontWeight: 700 }}>
-                              {st.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                              {st.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
                             </span>
                           </td>
                           <td style={{ padding: "8px 12px", color: "#64748b" }}>{r.priority || "—"}</td>
@@ -2309,14 +2282,14 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         {/* ── KPI & PERFORMANCE ── */}
         <div style={{ marginTop: "20px" }}>
           <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>KPI &amp; Performance Meter</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>
             {[
-              { label: "Equipment Up Time",     value: perfKpis?.equipmentUpTime != null ? `${perfKpis.equipmentUpTime}%`  : null, color: "green",  icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
-              { label: "PM Compliance",         value: perfKpis?.pmCompliance    != null ? `${perfKpis.pmCompliance}%`    : null, color: "blue",   icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
-              { label: "Equipment Availability",value: perfKpis?.equipmentAvail  != null ? `${perfKpis.equipmentAvail}%`  : null, color: "teal",   icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> },
-              { label: "SLA Compliance",        value: perfKpis?.slaCompliance   != null ? `${perfKpis.slaCompliance}%`   : null, color: "purple", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
-              { label: "MTTR",                  value: perfKpis?.mttrHours       != null ? `${perfKpis.mttrHours} Hrs`   : null, color: "orange", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
-              { label: "MTBF",                  value: perfKpis?.mtbfDays        != null ? `${perfKpis.mtbfDays} days`   : null, color: "yellow", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+              { label: "Equipment Up Time", value: perfKpis?.equipmentUpTime != null ? `${perfKpis.equipmentUpTime}%` : null, color: "green", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg> },
+              { label: "PM Compliance", value: perfKpis?.pmCompliance != null ? `${perfKpis.pmCompliance}%` : null, color: "blue", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg> },
+              { label: "Equipment Availability", value: perfKpis?.equipmentAvail != null ? `${perfKpis.equipmentAvail}%` : null, color: "teal", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg> },
+              { label: "SLA Compliance", value: perfKpis?.slaCompliance != null ? `${perfKpis.slaCompliance}%` : null, color: "purple", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg> },
+              { label: "MTTR", value: perfKpis?.mttrHours != null ? `${perfKpis.mttrHours} Hrs` : null, color: "orange", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg> },
+              { label: "MTBF", value: perfKpis?.mtbfDays != null ? `${perfKpis.mtbfDays} days` : null, color: "yellow", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg> },
             ].map(k => (
               <KpiCard
                 key={k.label}
@@ -2338,13 +2311,17 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             {/* Banner header */}
             <button
               onClick={() => setOverdueExp(p => !p)}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px",
-                background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: "32px", height: "32px", borderRadius: "50%", background: "#dc2626", flexShrink: 0 }}>
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px",
+                background: "none", border: "none", cursor: "pointer", textAlign: "left"
+              }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: "32px", height: "32px", borderRadius: "50%", background: "#dc2626", flexShrink: 0
+              }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
               </span>
               <div style={{ flex: 1 }}>
@@ -2358,7 +2335,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"
                 style={{ transform: overdueExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>
-                <polyline points="6 9 12 15 18 9"/>
+                <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
 
@@ -2369,8 +2346,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                   <thead>
                     <tr style={{ background: "#fee2e2", position: "sticky", top: 0 }}>
                       {["Asset", "Department", "Hospital", "Schedule", "Due Date", "Days Overdue", "Engineer"].map(h => (
-                        <th key={h} style={{ padding: "9px 14px", textAlign: "left", fontSize: "11px",
-                          fontWeight: 700, color: "#991b1b", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+                        <th key={h} style={{
+                          padding: "9px 14px", textAlign: "left", fontSize: "11px",
+                          fontWeight: 700, color: "#991b1b", textTransform: "uppercase", whiteSpace: "nowrap"
+                        }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -2380,8 +2359,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                         style={{ background: i % 2 === 0 ? "#fff" : "#fff7f7", borderBottom: "1px solid #fee2e2" }}>
                         <td style={{ padding: "9px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
                           {item.assetName}
-                          {item.assetCode && <span style={{ marginLeft: "6px", fontSize: "11px",
-                            background: "#fef2f2", color: "#dc2626", padding: "1px 6px", borderRadius: "4px", fontFamily: "monospace" }}>
+                          {item.assetCode && <span style={{
+                            marginLeft: "6px", fontSize: "11px",
+                            background: "#fef2f2", color: "#dc2626", padding: "1px 6px", borderRadius: "4px", fontFamily: "monospace"
+                          }}>
                             {item.assetCode}
                           </span>}
                         </td>
@@ -2394,8 +2375,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                           {item.maintenanceDate ? String(item.maintenanceDate).slice(0, 10) : "—"}
                         </td>
                         <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                          <span style={{ display: "inline-block", background: "#dc2626", color: "#fff",
-                            padding: "2px 10px", borderRadius: "100px", fontSize: "12px", fontWeight: 700 }}>
+                          <span style={{
+                            display: "inline-block", background: "#dc2626", color: "#fff",
+                            padding: "2px 10px", borderRadius: "100px", fontSize: "12px", fontWeight: 700
+                          }}>
                             {item.daysOverdue}d
                           </span>
                         </td>
@@ -2412,13 +2395,13 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
 
       {/* ── PMS PROFILE ── */}
       <section style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Profile</h2>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>PMS Scheduler</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "pmsTotalAssets",     label: "Total PMS Assets",      icon: Icon.Pms, color: "orange", value: pmsStats?.totalAssetsInPms,    kpiFilter: null },
-            { key: "pmsOverdueAssets",   label: "Assets Overdue",        icon: Icon.Pms, color: "red",    value: pmsStats?.overdueAssets,        kpiFilter: "overdue" },
-            { key: "pmsUpcomingAssets",  label: "Assets Upcoming (30D)", icon: Icon.Pms, color: "blue",   value: pmsStats?.upcoming30dAssets,    kpiFilter: "upcoming" },
-            { key: "pmsCompletedAssets", label: "Total Completed",       icon: Icon.Pms, color: "green",  value: pmsStats?.totalCompletedAssets, kpiFilter: "completed" },
+            { key: "pmsTotalAssets", label: "Total PMS Assets", icon: Icon.Pms, color: "orange", value: pmsStats?.totalAssetsInPms, kpiFilter: null },
+            { key: "pmsOverdueAssets", label: "Assets Overdue", icon: Icon.Pms, color: "red", value: pmsStats?.overdueAssets, kpiFilter: "overdue" },
+            { key: "pmsUpcomingAssets", label: "Assets Upcoming (30D)", icon: Icon.Pms, color: "blue", value: pmsStats?.upcoming30dAssets, kpiFilter: "upcoming" },
+            { key: "pmsCompletedAssets", label: "Total Completed", icon: Icon.Pms, color: "green", value: pmsStats?.totalCompletedAssets, kpiFilter: "completed" },
           ].map(k => (
             <KpiCard
               key={k.key}
@@ -2444,13 +2427,13 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
 
       {/* ── CALIBRATION PROFILE ── */}
       <section style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Profile</h2>
+        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Calibration Planner</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "calibrationDueThisMonth",       label: "Assets Due This Month",       icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth,       kpiFilter: "due_this_month" },
-            { key: "calibrationOverdue",            label: "Assets Overdue",              icon: Icon.Calibration, color: "red",    value: snapshot?.calibrationOverdue,            kpiFilter: "overdue" },
-            { key: "calibrationUpcoming",           label: "Assets Upcoming (30D)",       icon: Icon.Calibration, color: "blue",   value: snapshot?.calibrationUpcoming,           kpiFilter: "upcoming" },
-            { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green",  value: snapshot?.calibrationCompletedThisMonth, kpiFilter: "completed_this_month" },
+            { key: "calibrationDueThisMonth", label: "Assets Due This Month", icon: Icon.Calibration, color: "orange", value: snapshot?.calibrationDueThisMonth, kpiFilter: "due_this_month" },
+            { key: "calibrationOverdue", label: "Assets Overdue", icon: Icon.Calibration, color: "red", value: snapshot?.calibrationOverdue, kpiFilter: "overdue" },
+            { key: "calibrationUpcoming", label: "Assets Upcoming (30D)", icon: Icon.Calibration, color: "blue", value: snapshot?.calibrationUpcoming, kpiFilter: "upcoming" },
+            { key: "calibrationCompletedThisMonth", label: "Assets Completed This Month", icon: Icon.Calibration, color: "green", value: snapshot?.calibrationCompletedThisMonth, kpiFilter: "completed_this_month" },
           ].map(k => (
             <KpiCard
               key={k.key}
@@ -2479,10 +2462,10 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>Training Records</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
           {[
-            { key: "tTotal",     label: "Total Sessions", icon: Icon.Training, color: "blue",  value: ojtStats?.total,     kpiFilter: null },
-            { key: "tScheduled", label: "Scheduled",      icon: Icon.Training, color: "teal",  value: ojtStats?.scheduled, kpiFilter: "scheduled" },
-            { key: "tCompleted", label: "Completed",      icon: Icon.Training, color: "green", value: ojtStats?.completed, kpiFilter: "completed" },
-            { key: "tOverdue",   label: "Overdue",        icon: Icon.Training, color: "red",   value: ojtStats?.overdue,   kpiFilter: "overdue" },
+            { key: "tTotal", label: "Total Sessions", icon: Icon.Training, color: "blue", value: ojtStats?.total, kpiFilter: null },
+            { key: "tScheduled", label: "Scheduled", icon: Icon.Training, color: "teal", value: ojtStats?.scheduled, kpiFilter: "scheduled" },
+            { key: "tCompleted", label: "Completed", icon: Icon.Training, color: "green", value: ojtStats?.completed, kpiFilter: "completed" },
+            { key: "tOverdue", label: "Overdue", icon: Icon.Training, color: "red", value: ojtStats?.overdue, kpiFilter: "overdue" },
           ].map(k => (
             <KpiCard
               key={k.key}
@@ -2506,216 +2489,6 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         </div>
       </section>
 
-      {/* ── SLA PERFORMANCE DASHBOARD ── */}
-      <section style={{ marginBottom: "28px" }}>
-        <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>SLA Performance</h2>
-
-        {/* 4 SLA KPI tiles — RAG coloured */}
-        {(() => {
-          const rag = (pct) => pct == null ? "blue" : pct >= 90 ? "green" : pct >= 75 ? "orange" : "red";
-          const tiles = [
-            { label: "Response SLA",    pct: slaDash?.responseSla?.pct,    met: slaDash?.responseSla?.met,    total: slaDash?.responseSla?.evaluated },
-            { label: "Attendance SLA",  pct: slaDash?.attendanceSla?.pct,  met: slaDash?.attendanceSla?.met,  total: slaDash?.attendanceSla?.evaluated },
-            { label: "Resolution SLA",  pct: slaDash?.resolutionSla?.pct,  met: slaDash?.resolutionSla?.met,  total: slaDash?.resolutionSla?.evaluated },
-            { label: "Overall SLA",     pct: slaDash?.overallSla?.pct,     met: slaDash?.overallSla?.met,     total: slaDash?.resolutionSla?.evaluated },
-          ];
-          const SlaIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-          return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "16px" }}>
-              {tiles.map(t => {
-                const color = rag(t.pct);
-                const c = COLORS[color];
-                const numColor = { red: "#dc2626", orange: "#ea580c", green: "#16a34a", blue: "#2563eb" }[color];
-                return (
-                  <div key={t.label} style={{ background: c.bg, border: `1.5px solid ${c.border}`, borderRadius: "14px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.label}</span>
-                      <span style={{ color: c.icon }}><SlaIcon /></span>
-                    </div>
-                    <div style={{ fontSize: "28px", fontWeight: 900, color: numColor, lineHeight: 1, letterSpacing: "-1px" }}>
-                      {slaLoading ? "…" : t.pct != null ? `${t.pct}%` : "—"}
-                    </div>
-                    <div style={{ fontSize: "11.5px", color: "#64748b" }}>
-                      {t.total > 0 ? `${t.met ?? 0}/${t.total} tickets` : "No data"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-
-        {/* At-Risk panel */}
-        {slaAtRisk.length > 0 && (
-          <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px" }}>
-            <div style={{ fontSize: "13px", fontWeight: 800, color: "#c2410c", marginBottom: "10px" }}>
-              ⚠️ {slaAtRisk.length} Ticket{slaAtRisk.length > 1 ? "s" : ""} At Risk (SLA expiring &lt;2h)
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
-                <thead>
-                  <tr style={{ background: "#fef3c7" }}>
-                    {["Ticket #", "Asset", "Department", "Priority", "Clock", "Due At", "Time Left"].map(h => (
-                      <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {slaAtRisk.slice(0, 10).map((r, i) => {
-                    const riskColor = r.risk === "breached" ? "#dc2626" : r.risk === "critical" ? "#ea580c" : "#ca8a04";
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid #fde68a", background: i % 2 === 0 ? "#fff" : "#fffbeb" }}>
-                        <td style={{ padding: "7px 12px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700 }}>#{r.queryId}</td>
-                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.assetName || "—"}</td>
-                        <td style={{ padding: "7px 12px", color: "#475569" }}>{r.deptName || "—"}</td>
-                        <td style={{ padding: "7px 12px" }}>
-                          <span style={{ padding: "1px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fef2f2", color: "#dc2626" }}>{r.priority}</span>
-                        </td>
-                        <td style={{ padding: "7px 12px", textTransform: "capitalize", color: "#475569" }}>{r.clockType}</td>
-                        <td style={{ padding: "7px 12px", color: "#475569", whiteSpace: "nowrap" }}>{r.dueAt ? new Date(r.dueAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                        <td style={{ padding: "7px 12px", fontWeight: 800, color: riskColor, whiteSpace: "nowrap" }}>
-                          {r.minsRemaining <= 0 ? `Overdue ${Math.abs(r.minsRemaining)}m` : `${r.minsRemaining}m left`}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* SLA Trend chart (inline SVG bar/line) */}
-        {slaTrend.length > 0 && (
-          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px 18px", marginBottom: "14px" }}>
-            <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#475569", marginBottom: "12px" }}>SLA Compliance Trend (Last 6 Months)</div>
-            <div style={{ display: "flex", gap: "0", alignItems: "flex-end", height: "80px", overflowX: "auto" }}>
-              {slaTrend.map((row, i) => {
-                const resp = row.responsePct ?? 0;
-                const res  = row.resolutionPct ?? 0;
-                return (
-                  <div key={i} style={{ flex: "1", minWidth: "60px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <div style={{ width: "100%", display: "flex", gap: "3px", alignItems: "flex-end", height: "60px" }}>
-                      <div title={`Response: ${resp}%`}  style={{ flex: 1, background: "#3b82f6", height: `${resp * 0.6}px`, borderRadius: "3px 3px 0 0", minHeight: "2px", transition: "height 0.3s" }} />
-                      <div title={`Resolution: ${res}%`} style={{ flex: 1, background: "#16a34a", height: `${res  * 0.6}px`, borderRadius: "3px 3px 0 0", minHeight: "2px", transition: "height 0.3s" }} />
-                    </div>
-                    <span style={{ fontSize: "10px", color: "#64748b", whiteSpace: "nowrap" }}>{row.month?.slice(5)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: "14px", marginTop: "8px" }}>
-              {[["#3b82f6", "Response"], ["#16a34a", "Resolution"]].map(([c, l]) => (
-                <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#475569" }}>
-                  <span style={{ width: "10px", height: "10px", borderRadius: "2px", background: c }} />{l}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* By Engineer, By Dept, By Equipment — 3 side-by-side tables */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-          {/* By Engineer */}
-          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Engineer</div>
-            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                <thead>
-                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px", whiteSpace: "nowrap" }}>Engineer</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>SLA%</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slaLoading ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
-                  ) : slaByEng.length === 0 ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
-                  ) : slaByEng.slice(0, 8).map((r, i) => {
-                    const pctColor = r.overallPct == null ? "#64748b" : r.overallPct >= 90 ? "#16a34a" : r.overallPct >= 75 ? "#ea580c" : "#dc2626";
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
-                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.engineerName || "—"}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: pctColor }}>{r.overallPct != null ? `${r.overallPct}%` : "—"}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* By Department */}
-          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Department</div>
-            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                <thead>
-                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Department</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>SLA%</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slaLoading ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
-                  ) : slaByDept.length === 0 ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
-                  ) : slaByDept.slice(0, 8).map((r, i) => {
-                    const pctColor = r.overallPct == null ? "#64748b" : r.overallPct >= 90 ? "#16a34a" : r.overallPct >= 75 ? "#ea580c" : "#dc2626";
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
-                        <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.deptName || "—"}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: pctColor }}>{r.overallPct != null ? `${r.overallPct}%` : "—"}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* By Equipment */}
-          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569" }}>By Equipment (Top Breaches)</div>
-            <div style={{ overflowX: "auto", maxHeight: "220px", overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                <thead>
-                  <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                    <th style={{ padding: "6px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Asset</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Calls</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>Breaches</th>
-                    <th style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700, color: "#64748b", fontSize: "11px" }}>MTTR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slaLoading ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>Loading…</td></tr>
-                  ) : slaByAsset.length === 0 ? (
-                    <tr><td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No data</td></tr>
-                  ) : slaByAsset.slice(0, 8).map((r, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}>
-                      <td style={{ padding: "7px 12px", fontWeight: 600, color: "#0f172a" }}>{r.assetName || "—"}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.totalCalls}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: r.totalBreaches > 0 ? "#dc2626" : "#16a34a" }}>{r.totalBreaches}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "right", color: "#475569" }}>{r.avgMttrHours != null ? `${r.avgMttrHours}h` : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ── KPI Records drilldown modal (PMS / Calibration / Training) ── */}
       {activeKpiMeta && (

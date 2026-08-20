@@ -8,7 +8,7 @@
  */
 import { useEffect, useState, useContext, createContext } from "react";
 import * as XLSX from "xlsx";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 const getApiBaseUrl = () => {
   if (typeof window !== "undefined" && window.VITE_API_URL) return window.VITE_API_URL;
@@ -73,6 +73,7 @@ function ESec({ title }) {
 
 export default function AssetDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const cpToken = sessionStorage.getItem("cp_token");
   const adminToken = localStorage.getItem("company_portal_token");
   const token = cpToken || adminToken;
@@ -862,6 +863,11 @@ export default function AssetDetailPage() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button onClick={() => navigate(-1)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Back
+          </button>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>{asset.departmentName && `Dept: ${asset.departmentName}`}</div>
           {canTransfer && (
             <button onClick={() => {

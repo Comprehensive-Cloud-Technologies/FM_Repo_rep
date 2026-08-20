@@ -17,6 +17,7 @@
 import { Router } from "express";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
 
 // ── Expo Push helper ──────────────────────────────────────────────────────────
 async function sendExpoPush(pushToken, title, body, data = {}) {
@@ -402,6 +403,8 @@ router.patch("/:id/status", async (req, res, next) => {
       );
       if (!aq) return res.status(404).json({ message: "Request not found" });
 
+      const now = new Date();
+
       // Track in_progress_at (WIP) and resolved_at timestamps
       const aqExtras = [];
       if (status === 'in_progress') {
@@ -415,6 +418,17 @@ router.patch("/:id/status", async (req, res, next) => {
         `UPDATE asset_queries SET status = ?, resolution_note = COALESCE(?, resolution_note)${aqExtra} WHERE id = ?`,
         [status, remarks || null, id]
       );
+
+      // Complete the appropriate SLA clock (fire-and-forget)
+      // Only complete if the timestamp wasn't already set (COALESCE preserves existing value)
+      if (status === 'in_progress' && !aq.in_progress_at) {
+        slaCompleteClock(Number(id), 'attendance', userId, now)
+          .catch(e => console.warn('[SLA] completeClock(attendance) failed for query', id, e?.message));
+      } else if ((status === 'resolved' || status === 'closed') && !aq.resolved_at) {
+        slaCompleteClock(Number(id), 'resolution', userId, now)
+          .catch(e => console.warn('[SLA] completeClock(resolution) failed for query', id, e?.message));
+      }
+
       return res.json({ message: "Status updated", status });
     }
 

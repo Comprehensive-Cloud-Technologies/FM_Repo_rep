@@ -1,4 +1,4 @@
-import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
+﻿import { getPublicAppUrl, getApiBaseUrl } from "../utils/runtimeConfig";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,6 +13,7 @@ import WarningsPanel from "../components/WarningsPanel.jsx";
 import WorkOrdersPanel from "../components/WorkOrdersPanel.jsx";
 import ReportBuilderPanel from "../components/ReportBuilderPanel.jsx";
 import HealthcareDashboard from "../components/HealthcareDashboard.jsx";
+import SlaDashboard from "../components/SlaDashboard.jsx";
 import RequestTrackingPanel from "../components/RequestTrackingPanel.jsx";
 import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
@@ -4087,6 +4088,8 @@ const NAV_ALL = [
   { key: "departments", label: "Departments", roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
   { key: "assets",      label: "Assets",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg> },
   { key: "requests",    label: "Ticket Master",    roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { key: "sla-dashboard", label: "SLA Dashboard", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+  { key: "mis",          label: "MIS",           roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="4" rx="1"/><rect x="14" y="14" width="7" height="4" rx="1"/><line x1="3" y1="21" x2="20" y2="21"/></svg> },
   { key: "employees",   label: "Employees",   roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: "qrcodes",     label: "QR Codes",    roles: ["admin","supervisor"],     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="19" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/></svg> },
   { key: "settings",    label: "Settings",    roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
@@ -4651,6 +4654,7 @@ export default function CompanyEmployeePortal() {
       pms: ["pms", "preventive_maintenance", "preventivemaintenance"],
       calibration: ["calibration"],
       training: ["training"],
+      "sla-dashboard": ["sla-dashboard", "sla"],
     };
 
     const candidates = keyMap[navKey] || [navKey];
@@ -4853,22 +4857,6 @@ export default function CompanyEmployeePortal() {
   const [assetQueries, setAssetQueries] = useState([]);
   const [assetQueriesLoading, setAssetQueriesLoading] = useState(false);
   const [requestSearch, setRequestSearch] = useState("");
-  // Asset detail view
-  const [assetDetailModal, setAssetDetailModal] = useState(null); // asset object or null
-  const [assetDetailTab, setAssetDetailTab] = useState("overview");
-  const [assetDetailCallLogs, setAssetDetailCallLogs] = useState(null);
-  const [assetDetailCalibration, setAssetDetailCalibration] = useState(null);
-
-  // Eagerly load call logs when asset detail modal opens (needed for MTBF/MTTR in overview)
-  useEffect(() => {
-    if (!assetDetailModal) { setAssetDetailCallLogs(null); setAssetDetailCalibration(null); return; }
-    const id = assetDetailModal.id;
-    if (!id || !token) return;
-    fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setAssetDetailCallLogs(Array.isArray(d?.data) ? d.data : []))
-      .catch(() => setAssetDetailCallLogs([]));
-  }, [assetDetailModal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Pre-generated QR codes
   const [preQrCodes, setPreQrCodes] = useState([]);
   const [preQrLoading, setPreQrLoading] = useState(false);
@@ -6103,6 +6091,30 @@ export default function CompanyEmployeePortal() {
 
         {/* Top-right company switcher bar */}
         {companySwitcherBar}
+
+        {/* ── MIS ────────────────────────────────────────────────── */}
+        {nav === "mis" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "70vh", padding: "40px", textAlign: "center" }}>
+            <div style={{ fontSize: "64px", marginBottom: "20px", lineHeight: 1 }}>📊</div>
+            <h1 style={{ fontSize: "28px", fontWeight: 900, color: "#0f172a", margin: "0 0 10px" }}>MIS Reports</h1>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "100px", padding: "6px 18px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Coming Soon</span>
+            </div>
+            <p style={{ fontSize: "15px", color: "#64748b", maxWidth: "480px", lineHeight: 1.6, margin: 0 }}>
+              Management Information System reports — consolidated KPIs, asset utilization, maintenance trends, and compliance summaries — will be available here.
+            </p>
+          </div>
+        )}
+
+        {/* ── SLA Dashboard ──────────────────────────────────────── */}
+        {nav === "sla-dashboard" && (
+          <SlaDashboard
+            token={token}
+            allCompaniesMode={allCompaniesMode}
+            externalRefreshKey={hcDashRefreshKey}
+            onNavigateToAsset={(assetId) => navigate(`/company/asset/${assetId}`)}
+          />
+        )}
 
         {/* ── Dashboard ──────────────────────────────────────────── */}
         {nav === "dashboard" && (() => {
@@ -7350,7 +7362,7 @@ export default function CompanyEmployeePortal() {
                               onClick={() => window.open(`/company/asset/${a.id}`, '_blank')}>{a.generatedAssetId || a.assetUniqueId || "—"}</td>
                             <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap" }}
                               title="Click to view asset details"
-                              onClick={() => setAssetDetailModal(a)}>
+                              onClick={() => navigate(`/company/asset/${a.id}`)}>
                               <div style={{ display: "flex", alignItems: "center", gap: "6px", maxWidth: "240px" }}>
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "1 1 auto", minWidth: 0 }}>{m.equipmentName || a.assetName || "—"}</span>
                                 {(a.transferCount > 0 || a.transfer_count > 0) && (
@@ -9879,561 +9891,6 @@ export default function CompanyEmployeePortal() {
           onSaved={handleDeptSaved}
         />
       )}
-      {/* Asset Detail Modal — full screen with tabs */}
-      {assetDetailModal && (() => {
-        const a = assetDetailModal;
-        const m = typeof a.metadata === "string"
-          ? (() => { try { return JSON.parse(a.metadata || "{}"); } catch { return {}; } })()
-          : (a.metadata || {});
-        const normalizeImgUrl = (img) => {
-          const r0 = typeof img === "string"
-            ? img
-            : (img && typeof img === "object" ? (img.url || img.src || img.path || "") : "");
-          const raw = typeof r0 === "string" ? r0 : "";
-          if (!raw) return "";
-          if (raw.startsWith("http")) return raw;
-          // Relative path — prefix with the backend API base URL so the browser
-          // resolves to the correct server, not the frontend origin.
-          const apiBase = getApiBaseUrl().replace(/\/$/, "");
-          return raw.startsWith("/") ? `${apiBase}${raw}` : `${apiBase}/${raw}`;
-        };
-        const hcImages = [
-          ...(Array.isArray(m.hcImages) ? m.hcImages : []),
-          ...(Array.isArray(m.images) ? m.images : []),
-          ...(Array.isArray(m.invoiceImages) ? m.invoiceImages : []),
-          ...(m.invoiceUrl ? [m.invoiceUrl] : []),
-          ...(m.hcInvoiceUrl ? [m.hcInvoiceUrl] : []),
-        ].map(normalizeImgUrl).filter(Boolean);
-
-        // Normalize maintenance types from both web schema (maintenanceTypes) and mobile schema (warranty/amc/cmc objects)
-        const maintenanceTypes = m.maintenanceTypes || {
-          warranty: !!(m.warranty?.enabled),
-          amc: !!(m.amc?.enabled),
-          cmc: !!(m.cmc?.enabled),
-          inHouse: !!(m.inHouse),
-          catalyst: !!(m.catalyst),
-          highEnd: !!(m.highEnd),
-          rented: !!(m.rented),
-        };
-        const warrantyStart = m.warrantyStart || m.warranty?.startDate || "";
-        const warrantyEnd   = m.warrantyEnd   || m.warranty?.endDate   || "";
-        const amcStart      = m.amcStart      || m.amc?.startDate      || "";
-        const amcEnd        = m.amcEnd        || m.amc?.endDate        || "";
-        const cmcStart      = m.cmcStart      || m.cmc?.startDate      || "";
-        const cmcEnd        = m.cmcEnd        || m.cmc?.endDate        || "";
-        const maint = [maintenanceTypes.warranty && "Warranty", maintenanceTypes.amc && "AMC", maintenanceTypes.cmc && "CMC", maintenanceTypes.inHouse && "In House", maintenanceTypes.catalyst && "Catalyst", maintenanceTypes.highEnd && "High End", maintenanceTypes.rented && "Rented"].filter(Boolean).join(", ") || m.maintenanceType || "—";
-        const fields = [
-          ["Asset ID", a.generatedAssetId || a.assetUniqueId],
-          ["Equipment Name", m.equipmentName || a.assetName],
-          ["Make / Manufacturer", m.make || m.manufacturer],
-          ["Model", m.model],
-          ["Serial No.", m.serialNo],
-          ["Accessories", m.accessories],
-          ["Dealer / Distributor", m.dealer],
-          ["Manufacturing Year", m.manufacturingYear || m.mfgYear],
-          ["Installation Date", m.installationDate],
-          ["Invoice No.", m.invoiceNo],
-          ["Purchase Date", m.purchaseDate],
-          ["Purchase Cost / Asset Value", m.purchaseCost ? `₹ ${m.purchaseCost}` : null],
-          ["Maintenance", maint !== "—" ? maint : null],
-          ["RBER", m.rber ? "Yes" : null],
-          ["Remarks", m.remarks],
-          ["Department", a.departmentName],
-          ["Building", a.building],
-          ["Floor", a.floor],
-          ["Room / Area", a.room],
-          ["Working Status", a.working_status || m.workingStatus],
-          ["Status", a.status],
-          ["Registered On", a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-IN") : null],
-        ].filter(([, v]) => v);
-
-        // Helper: format milliseconds as hh:mm:ss
-        const fmtMs = (ms) => {
-          const h = Math.floor(ms / 3600000);
-          const min = Math.floor((ms % 3600000) / 60000);
-          const sec = Math.floor((ms % 60000) / 1000);
-          return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
-        };
-
-        // Compute MTBF / MTTR / Total downtime from call logs (available after loadCallLogs)
-        const closedCalls = (assetDetailCallLogs || []).filter(wo => (wo.status === "closed" || wo.status === "resolved") && wo.createdAt && wo.closedAt);
-        const totalDownMs = closedCalls.reduce((s, wo) => s + Math.max(0, new Date(wo.closedAt) - new Date(wo.createdAt)), 0);
-        const failures = closedCalls.length;
-        const assetAgeMs = a.createdAt ? Math.max(0, Date.now() - new Date(a.createdAt)) : 0;
-        const operatingMs = Math.max(0, assetAgeMs - totalDownMs);
-        const mtbfLabel = failures > 0 ? fmtMs(operatingMs / failures) : "—";
-        const mttrLabel = failures > 0 ? fmtMs(totalDownMs / failures) : "—";
-        const totalDownLabel = totalDownMs > 0 ? fmtMs(totalDownMs) : "—";
-
-        // Fetch call logs for the asset when tab selected
-        const loadCallLogs = async () => {
-          if (assetDetailCallLogs !== null) return;
-          try {
-            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/work-orders?assetId=${a.id}&limit=200`, { headers: { Authorization: `Bearer ${token}` } });
-            const d = await r.json();
-            setAssetDetailCallLogs(Array.isArray(d?.data) ? d.data : []);
-          } catch { setAssetDetailCallLogs([]); }
-        };
-
-        const loadCalibration = async () => {
-          if (assetDetailCalibration !== null) return;
-          try {
-            const r = await fetch(`${getApiBaseUrl()}/api/company-portal/assets/${a.id}/calibration-records`, { headers: { Authorization: `Bearer ${token}` } });
-            const d = await r.json();
-            setAssetDetailCalibration(Array.isArray(d) ? d : []);
-          } catch { setAssetDetailCalibration([]); }
-        };
-
-        const handleTabChange = (tab) => {
-          setAssetDetailTab(tab);
-          if (tab === "calllogs") loadCallLogs();
-          if (tab === "calibration") loadCalibration();
-        };
-
-        // Purchase history fields from asset metadata
-        const purchaseMeta = {
-          invoiceNo: m.invoiceNo || "",
-          invoiceDate: m.invoiceDate || "",
-          purchaseCost: m.purchaseCost || "",
-          hcInvoiceUrl: m.hcInvoiceUrl || "",
-          maintenanceTypes,
-          warrantyStart,
-          warrantyEnd,
-          amcStart,
-          amcEnd,
-          cmcStart,
-          cmcEnd,
-          remarks: m.remarks || "",
-        };
-
-        const TABS = [
-          { key: "overview", label: "Overview" },
-          { key: "calllogs", label: "Call Log History" },
-          { key: "pms", label: "Preventive Maintenance History" },
-          { key: "calibration", label: "Calibration History" },
-          { key: "purchase", label: "Purchase History" },
-          { key: "indent", label: "Indent Details" },
-        ];
-
-        const tabStyle = (key) => ({
-          padding: "12px 18px", background: "none", border: "none",
-          borderBottom: assetDetailTab === key ? "3px solid #2563eb" : "3px solid transparent",
-          color: assetDetailTab === key ? "#2563eb" : "#64748b",
-          fontSize: "13.5px", fontWeight: assetDetailTab === key ? 700 : 500,
-          cursor: "pointer", whiteSpace: "nowrap", transition: "color 0.15s",
-        });
-
-        const EmptyMsg = ({ msg }) => (
-          <div style={{ textAlign: "center", padding: "48px 24px", color: "#94a3b8" }}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: "12px", opacity: 0.5 }}><path d="M9 12h6m-6 4h6M9 8h.01M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3z"/></svg>
-            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>{msg || "No records found"}</p>
-          </div>
-        );
-
-        return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "stretch", justifyContent: "stretch" }}
-            onClick={e => e.target === e.currentTarget && (setAssetDetailModal(null), setAssetDetailTab("overview"), setAssetDetailCallLogs(null), setAssetDetailCalibration(null))}>
-            <div style={{ background: "#fff", width: "100vw", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              {/* Header */}
-              <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", flexShrink: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>{m.equipmentName || a.assetName}</h3>
-                    <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: "6px" }}>{a.generatedAssetId || a.assetUniqueId}</span>
-                  </div>
-                  <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: a.status === "Active" ? "#dcfce7" : "#f1f5f9", color: a.status === "Active" ? "#16a34a" : "#475569" }}>{a.status || "—"}</span>
-                  {(m.workingStatus || a.working_status) && (
-                    <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#eff6ff", color: "#2563eb" }}>{m.workingStatus || a.working_status}</span>
-                  )}
-                  {(Number(a.isVerified) === 1 || a.isVerified === true) && (
-                    <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, background: "#fef9c3", color: "#854d0e" }}>Verified</span>
-                  )}
-                  {Number(a.transferCount || a.transfer_count || 0) > 0 && (
-                    <span title={`Transferred ${a.transferCount || a.transfer_count} time(s) — originally from ${a.lastTransferredFromName || a.last_transferred_from_name || 'another company'}`}
-                      style={{ padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                      Transferred ×{a.transferCount || a.transfer_count}
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                  <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); setEditAsset(a); setShowAssetModal(true); }}
-                    style={{ padding: "8px 16px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Edit Asset</button>
-                  <button onClick={() => { handleShowAssetQR(a); setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); }}
-                    style={{ padding: "8px 16px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Print QR</button>
-                  <button onClick={() => { setAssetDetailModal(null); setAssetDetailTab("overview"); setAssetDetailCallLogs(null); setAssetDetailCalibration(null); }}
-                    style={{ width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "#f1f5f9", cursor: "pointer", fontSize: "20px", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                </div>
-              </div>
-
-              {/* Tab bar */}
-              <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff", padding: "0 24px", overflowX: "auto", flexShrink: 0 }}>
-                {TABS.map(t => (
-                  <button key={t.key} style={tabStyle(t.key)} onClick={() => handleTabChange(t.key)}>{t.label}</button>
-                ))}
-              </div>
-
-              {/* Tab content */}
-              <div style={{ flex: 1, overflowY: "auto", background: "#f8fafc", padding: "24px" }}>
-
-                {/* Overview */}
-                {assetDetailTab === "overview" && (
-                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    {hcImages.length > 0 && (
-                      <div style={{ marginBottom: "24px" }}>
-                        <h4 style={{ fontSize: "12px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Images</h4>
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                          {hcImages.map((img, i) => {
-                            const src = img;
-                            return (
-                              <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: "block", width: "120px", height: "120px", borderRadius: "10px", border: "1.5px solid #e2e8f0", overflow: "hidden", flexShrink: 0 }}>
-                                <img src={src} alt={`img-${i+1}`} style={{ width: "120px", height: "120px", objectFit: "cover", display: "block" }}
-                                  onError={e => {
-                                    e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none'%3E%3Crect width='120' height='120' fill='%23f1f5f9'/%3E%3Cpath d='M48 54a6 6 0 1 0 12 0 6 6 0 0 0-12 0Zm-8 24h40l-12-16-6 8-4-4-10 12h-8Z' fill='%2394a3b8'/%3E%3Crect x='32' y='40' width='56' height='40' rx='4' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E";
-                                    e.currentTarget.style.objectFit = "fill";
-                                    e.currentTarget.parentElement.style.pointerEvents = "none";
-                                  }} />
-                              </a>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                      {[
-                        ["Cost of Asset", m.purchaseCost ? `₹ ${m.purchaseCost}` : "—"],
-                        ["Total Down Time", totalDownLabel],
-                        ["MTBF (hh:mm:ss)", mtbfLabel],
-                        ["MTTR (hh:mm:ss)", mttrLabel],
-                      ].map(([lbl, val]) => (
-                        <div key={lbl} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{lbl}</div>
-                          <div style={{ fontSize: "18px", color: "#0f172a", fontWeight: 800 }}>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
-                      {fields.map(([label, value]) => (
-                        <div key={label} style={{ background: "#fff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
-                          <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600, wordBreak: "break-word" }}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Call Logs */}
-                {assetDetailTab === "calllogs" && (
-                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                      <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: 0 }}>Call Log History / Work Orders for this Asset</h4>
-                      {Array.isArray(assetDetailCallLogs) && assetDetailCallLogs.length > 0 && (
-                        <button onClick={() => {
-                          const headers = ["#", "Request ID", "Hospital", "Make", "Model", "Serial No.", "Department", "Description", "Raised By", "Assigned To", "Status", "WIP Date", "Created", "Response Time", "Resolution Date", "Downtime (hh:mm:ss)"];
-                          const fmtMsExcel = (ms) => { if (!ms) return "—"; const h = Math.floor(ms/3600000); const min = Math.floor((ms%3600000)/60000); const sec = Math.floor((ms%60000)/1000); return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`; };
-                          const rows = assetDetailCallLogs.map((wo, idx) => {
-                            const isFinished = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase());
-                            const downMs = wo.downtimeMinutes != null
-                              ? wo.downtimeMinutes * 60000
-                              : isFinished && wo.resolutionAt && wo.wipAt ? Math.max(0, new Date(wo.resolutionAt)-new Date(wo.wipAt)) : 0;
-                            const respMins = wo.wipAt && wo.createdAt ? Math.max(0, Math.round((new Date(wo.wipAt) - new Date(wo.createdAt)) / 60000)) : null;
-                            const fmtM = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
-                            return [
-                              idx + 1,
-                              wo.workOrderNumber || `WO-${wo.id}`,
-                              wo.companyName || "",
-                              wo.make || "",
-                              wo.model || "",
-                              wo.serialNo || "",
-                              wo.departmentName || "",
-                              wo.issueDescription || "",
-
-                              wo.raisedByName || wo.createdByName || "",
-                              wo.assignedToName || "Unassigned",
-                              wo.status || "",
-                              wo.wipAt ? new Date(wo.wipAt).toLocaleDateString("en-IN") : "",
-                              wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "",
-                              respMins != null ? fmtM(respMins) : "",
-                              wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleDateString("en-IN") : "",
-                              fmtMsExcel(downMs),
-                            ];
-                          });
-                          const totalDownMs = assetDetailCallLogs.reduce((s,wo)=>{ const isF = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase()); const dm = wo.downtimeMinutes != null ? wo.downtimeMinutes * 60000 : isF && wo.resolutionAt && wo.wipAt ? Math.max(0,new Date(wo.resolutionAt)-new Date(wo.wipAt)) : 0; return s+dm; }, 0);
-                          const summary = [["Asset", m.equipmentName||a.assetName, "Asset ID", a.generatedAssetId||a.assetUniqueId, "Total Calls", assetDetailCallLogs.length, "Total Down Time", fmtMsExcel(totalDownMs)]];
-                          const ws = XLSX.utils.aoa_to_sheet([...summary, [], headers, ...rows]);
-                          ws["!cols"] = [6,16,20,14,14,16,18,40,20,20,14,14,14,14,14,20].map(w=>({wch:w}));
-                          const wb = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(wb, ws, "Call Log History");
-                          XLSX.writeFile(wb, `call-log-${a.generatedAssetId||a.id}-${new Date().toISOString().slice(0,10)}.xlsx`);
-                        }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#16a34a", color: "#fff", border: "none", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          Export Excel
-                        </button>
-                      )}
-                    </div>
-                    {assetDetailCallLogs === null ? (
-                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
-                    ) : assetDetailCallLogs.length === 0 ? <EmptyMsg msg="No call logs found for this asset" /> : (() => {
-                      // Downtime = resolutionAt − wipAt, only for resolved/completed/closed tickets
-                      const woDownMs = (wo) => {
-                        const isFinished = wo.status === "closed" || wo.status === "resolved" || wo.status === "completed";
-                        if (!isFinished) return 0;
-                        if (wo.downtimeMinutes != null) return wo.downtimeMinutes * 60000;
-                        const end = wo.resolutionAt || wo.closedAt;
-                        const start = wo.wipAt;
-                        if (!end || !start) return 0;
-                        return Math.max(0, new Date(end) - new Date(start));
-                      };
-                      const totalDowntimeMs = assetDetailCallLogs.reduce((sum, wo) => sum + woDownMs(wo), 0);
-                      const totalDowntimeHours = Math.floor(totalDowntimeMs / 3600000);
-                      const totalDowntimeMins = Math.floor((totalDowntimeMs % 3600000) / 60000);
-                      const downtimeLabel = totalDowntimeMs > 0 ? `${totalDowntimeHours}h ${totalDowntimeMins}m` : "—";
-                      return (
-                        <>
-                          <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
-                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Calls</div>
-                              <div style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a" }}>{assetDetailCallLogs.length}</div>
-                            </div>
-                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Total Down Time</div>
-                              <div style={{ fontSize: "24px", fontWeight: 800, color: totalDowntimeMs > 0 ? "#dc2626" : "#0f172a" }}>{downtimeLabel}</div>
-                            </div>
-                            <div style={{ background: "#fff", borderRadius: "10px", padding: "12px 20px", border: "1px solid #e2e8f0", minWidth: "160px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Open</div>
-                              <div style={{ fontSize: "24px", fontWeight: 800, color: "#854d0e" }}>{assetDetailCallLogs.filter(wo => wo.status !== "closed" && wo.status !== "resolved").length}</div>
-                            </div>
-                          </div>
-                          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                              <thead>
-                                <tr style={{ background: "#f8fafc" }}>
-                                  {["#","Request ID","Hospital","Make","Model","Serial No.","Department","Description","Raised By","Assigned To","Status","WIP Date","Created","Response Time","Resolution Date","Downtime"].map(h => (
-                                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {assetDetailCallLogs.map(wo => {
-                                  const src = wo.sourceLabel || wo.source_label || wo.issueSource || wo.issue_source || "Manual";
-                                  const srcStyleMap = {
-                                    "qr scan": { bg: "#fef9c3", color: "#854d0e" },
-                                    "qr_scan": { bg: "#fef9c3", color: "#854d0e" },
-                                    "manual": { bg: "#f1f5f9", color: "#475569" },
-                                    "flag": { bg: "#fdf4ff", color: "#7c3aed" },
-                                    "logsheet": { bg: "#dcfce7", color: "#166534" },
-                                    "checklist": { bg: "#dbeafe", color: "#1d4ed8" },
-                                    "mobile case log": { bg: "#e0f2fe", color: "#075985" },
-                                    "mobile_case_log": { bg: "#e0f2fe", color: "#075985" },
-                                  };
-                                  const srcStyle = srcStyleMap[src.toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
-                                  const statusStyleMap = {
-                                    open: { bg: "#fee2e2", color: "#dc2626" },
-                                    assigned: { bg: "#ede9fe", color: "#7c3aed" },
-                                    in_progress: { bg: "#dbeafe", color: "#1d4ed8" },
-                                    on_hold: { bg: "#fef9c3", color: "#854d0e" },
-                                    completed: { bg: "#dcfce7", color: "#166534" },
-                                    closed: { bg: "#f1f5f9", color: "#475569" },
-                                    resolved: { bg: "#dcfce7", color: "#166534" },
-                                  };
-                                  const sSt = statusStyleMap[(wo.status || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
-                                  const prStyleMap = {
-                                    critical: { bg: "#fee2e2", color: "#991b1b" },
-                                    high: { bg: "#ffedd5", color: "#9a3412" },
-                                    medium: { bg: "#fef9c3", color: "#854d0e" },
-                                    normal: { bg: "#fef9c3", color: "#854d0e" },
-                                    low: { bg: "#dcfce7", color: "#166534" },
-                                  };
-                                  const pSt = prStyleMap[(wo.priority || "").toLowerCase()] || { bg: "#f1f5f9", color: "#475569" };
-                                  // Response time: wipAt - createdAt
-                                  const respMins = wo.wipAt && wo.createdAt ? Math.max(0, Math.round((new Date(wo.wipAt) - new Date(wo.createdAt)) / 60000)) : null;
-                                  const fmtM = (m) => m == null ? "—" : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m/60)}h ${m%60}m` : `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`;
-                                  // Downtime: resolutionAt - wipAt (for finished tickets)
-                                  const isFinished = ["closed","resolved","completed"].includes((wo.status||"").toLowerCase());
-                                  const downMs = woDownMs(wo);
-                                  const downLabel = downMs > 0 ? fmtMs(downMs) : "—";
-                                  return (
-                                    <tr key={wo.id} style={{ borderBottom: "1px solid #f1f5f9" }}
-                                      onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
-                                      onMouseLeave={e => e.currentTarget.style.background=""}>
-                                      <td style={{ padding: "10px 14px", color: "#94a3b8", fontSize: "12px" }}>{assetDetailCallLogs.indexOf(wo) + 1}</td>
-                                      <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "#2563eb", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>{wo.workOrderNumber || `WO-${wo.id}`}</td>
-                                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{wo.companyName || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.make || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#475569" }}>{wo.model || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#475569", fontFamily: "monospace", fontSize: "12px" }}>{wo.serialNo || "—"}</td>
-                                      <td style={{ padding: "10px 14px" }}>{wo.departmentName ? <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", fontSize: "11.5px", fontWeight: 600 }}>{wo.departmentName}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
-                                      <td style={{ padding: "10px 14px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.issueDescription || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>{wo.raisedByName || wo.createdByName || "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{wo.assignedToName || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>Unassigned</span>}</td>
-                                      <td style={{ padding: "10px 14px" }}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: sSt.bg, color: sSt.color, whiteSpace: "nowrap" }}>{wo.status || "—"}</span></td>
-                                      <td style={{ padding: "10px 14px", color: "#1d4ed8", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.wipAt ? new Date(wo.wipAt).toLocaleDateString("en-IN") + " " + new Date(wo.wipAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: "#64748b", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") + " " + new Date(wo.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                                      <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>{respMins != null ? <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8" }}>{fmtM(respMins)}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
-                                      <td style={{ padding: "10px 14px", color: "#16a34a", fontSize: "12px", whiteSpace: "nowrap" }}>{wo.resolutionAt ? new Date(wo.resolutionAt).toLocaleDateString("en-IN") : "—"}</td>
-                                      <td style={{ padding: "10px 14px", color: downMs > 0 ? "#dc2626" : "#94a3b8", fontWeight: downMs > 0 ? 600 : 400, fontSize: "12px" }}>{downLabel}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {assetDetailTab === "indent" && (
-                  <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Indent Details</h4>
-                    <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
-                        {[
-                          ["Indent No.", m.indentNo],
-                          ["Indent Date", m.indentDate ? new Date(m.indentDate).toLocaleDateString("en-IN") : null],
-                          ["Requested By", m.requestedBy],
-                          ["Approved By", m.approvedBy],
-                          ["Supplier", m.supplier || m.dealer],
-                          ["PO Number", m.poNumber],
-                          ["PO Date", m.poDate ? new Date(m.poDate).toLocaleDateString("en-IN") : null],
-                          ["Quantity", m.quantity],
-                          ["Unit Price", m.unitPrice ? `₹ ${m.unitPrice}` : null],
-                          ["Total Cost", m.totalCost ? `₹ ${m.totalCost}` : (m.purchaseCost ? `₹ ${m.purchaseCost}` : null)],
-                          ["GRN Number", m.grnNumber],
-                          ["GRN Date", m.grnDate ? new Date(m.grnDate).toLocaleDateString("en-IN") : null],
-                          ["Remarks", m.indentRemarks || m.remarks],
-                        ].filter(([, v]) => v).map(([label, value]) => (
-                          <div key={label} style={{ background: "#f8fafc", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
-                            <div style={{ fontSize: "14px", color: "#0f172a", fontWeight: 600 }}>{value}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {!m.indentNo && !m.poNumber && !m.grnNumber && !m.requestedBy && (
-                        <EmptyMsg msg="No indent details recorded for this asset." />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Calibration Records */}
-                {assetDetailTab === "calibration" && (
-                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Calibration Records</h4>
-                    {assetDetailCalibration === null ? (
-                      <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>Loading…</div>
-                    ) : assetDetailCalibration.length === 0 ? <EmptyMsg msg="No calibration records found" /> : (
-                      <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                          <thead>
-                            <tr style={{ background: "#f8fafc" }}>
-                              {["Calibration Date","Next Due","Vendor","Certificate No.","Calibrated By","Status","Remarks"].map(h => (
-                                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#475569", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {assetDetailCalibration.map(cr => (
-                              <tr key={cr.id} style={{ borderBottom: "1px solid #f1f5f9" }} onMouseEnter={e => e.currentTarget.style.background="#f8fafc"} onMouseLeave={e => e.currentTarget.style.background=""}>
-                                <td style={{ padding: "10px 14px", color: "#0f172a", fontWeight: 600 }}>{cr.calibrationDate ? new Date(cr.calibrationDate).toLocaleDateString("en-IN") : "—"}</td>
-                                <td style={{ padding: "10px 14px", color: cr.nextDueDate && new Date(cr.nextDueDate) < new Date() ? "#dc2626" : "#475569", fontWeight: cr.nextDueDate && new Date(cr.nextDueDate) < new Date() ? 700 : 400 }}>{cr.nextDueDate ? new Date(cr.nextDueDate).toLocaleDateString("en-IN") : "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#475569" }}>{cr.vendorName || "—"}</td>
-                                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "12px", color: "#2563eb" }}>{cr.certificateNumber || "—"}</td>
-                                <td style={{ padding: "10px 14px", color: "#475569" }}>{cr.calibratedBy || "—"}</td>
-                                <td style={{ padding: "10px 14px" }}>
-                                  <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534" }}>{cr.status || "Active"}</span>
-                                </td>
-                                <td style={{ padding: "10px 14px", color: "#64748b" }}>{cr.remarks || "—"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* PMS History */}
-                {assetDetailTab === "pms" && (
-                  <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Preventive Maintenance History</h4>
-                    <EmptyMsg msg="Preventive maintenance records will appear here once scheduled maintenance is logged for this asset." />
-                  </div>
-                )}
-
-                {/* Purchase History */}
-                {assetDetailTab === "purchase" && (
-                  <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>Purchase History</h4>
-                    <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "24px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                        {[
-                          ["Invoice No.", purchaseMeta.invoiceNo],
-                          ["Purchase Date", purchaseMeta.invoiceDate ? new Date(purchaseMeta.invoiceDate).toLocaleDateString("en-IN") : null],
-                          ["Purchase Cost", purchaseMeta.purchaseCost ? `\u20B9 ${purchaseMeta.purchaseCost}` : null],
-                        ].map(([label, value]) => value ? (
-                          <div key={label} style={{ background: "#f8fafc", borderRadius: "10px", padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>{label}</div>
-                            <div style={{ fontSize: "15px", color: "#0f172a", fontWeight: 600 }}>{value}</div>
-                          </div>
-                        ) : null)}
-                      </div>
-                      {purchaseMeta.hcInvoiceUrl && (
-                        <div style={{ marginBottom: "20px" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Invoice File</div>
-                          <a href={purchaseMeta.hcInvoiceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", color: "#2563eb", fontWeight: 600, fontSize: "13px", textDecoration: "none" }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            View Invoice
-                          </a>
-                        </div>
-                      )}
-                      {Object.keys(purchaseMeta.maintenanceTypes).length > 0 && (
-                        <div>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>Maintenance Under</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
-                            {purchaseMeta.maintenanceTypes.warranty && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>Warranty</span>}
-                            {purchaseMeta.maintenanceTypes.amc && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#dbeafe", color: "#1e40af" }}>AMC</span>}
-                            {purchaseMeta.maintenanceTypes.cmc && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>CMC</span>}
-                            {purchaseMeta.maintenanceTypes.inHouse && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#f3e8ff", color: "#6b21a8" }}>In House</span>}
-                            {purchaseMeta.maintenanceTypes.catalyst && <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: "#fce7f3", color: "#9d174d" }}>Catalyst</span>}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
-                            {purchaseMeta.maintenanceTypes.warranty && purchaseMeta.warrantyStart && (
-                              <div style={{ background: "#f0fdf4", borderRadius: "10px", padding: "12px 16px", border: "1px solid #bbf7d0" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#166534", textTransform: "uppercase", marginBottom: "4px" }}>Warranty Period</div>
-                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.warrantyStart).toLocaleDateString("en-IN")} — {purchaseMeta.warrantyEnd ? new Date(purchaseMeta.warrantyEnd).toLocaleDateString("en-IN") : "—"}</div>
-                              </div>
-                            )}
-                            {purchaseMeta.maintenanceTypes.amc && purchaseMeta.amcStart && (
-                              <div style={{ background: "#eff6ff", borderRadius: "10px", padding: "12px 16px", border: "1px solid #bfdbfe" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#1e40af", textTransform: "uppercase", marginBottom: "4px" }}>AMC Period</div>
-                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.amcStart).toLocaleDateString("en-IN")} — {purchaseMeta.amcEnd ? new Date(purchaseMeta.amcEnd).toLocaleDateString("en-IN") : "—"}</div>
-                              </div>
-                            )}
-                            {purchaseMeta.maintenanceTypes.cmc && purchaseMeta.cmcStart && (
-                              <div style={{ background: "#fffbeb", borderRadius: "10px", padding: "12px 16px", border: "1px solid #fde68a" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", marginBottom: "4px" }}>CMC Period</div>
-                                <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>{new Date(purchaseMeta.cmcStart).toLocaleDateString("en-IN")} — {purchaseMeta.cmcEnd ? new Date(purchaseMeta.cmcEnd).toLocaleDateString("en-IN") : "—"}</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {!purchaseMeta.invoiceNo && !purchaseMeta.purchaseCost && !purchaseMeta.hcInvoiceUrl && Object.keys(purchaseMeta.maintenanceTypes).length === 0 && (
-                        <EmptyMsg msg="No purchase information recorded for this asset." />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
-          </div>
-        );
-      })()}
       {/* Asset save success toast */}
       {assetSaveToast && (
         <div style={{ position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#16a34a", color: "#fff", padding: "12px 24px", borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 700 }}>
