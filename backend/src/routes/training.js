@@ -165,6 +165,14 @@ const upload = multer({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const cid = (req) => req.companyUser.companyId;
 const uid = (req) => req.companyUser.id;
+async function getAccessibleCompanyIds(userId, primaryId) {
+  const [extra] = await pool.query(
+    `SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?`, [userId]
+  ).catch(() => [[]]);
+  const ids = new Set([Number(primaryId)]);
+  extra.forEach(r => ids.add(Number(r.companyId)));
+  return [...ids];
+}
 const uname = (req) => req.companyUser.name || req.companyUser.fullName || req.companyUser.email || "Unknown";
 const urole = (req) => req.companyUser.role || "unknown";
 
@@ -624,10 +632,20 @@ router.get("/employees/:empId", async (req, res, next) => {
 // GET /reports — session list with attendance stats
 router.get("/reports", async (req, res, next) => {
   try {
-    const { from, to, department, trainer, category, status, search, page = 1, pageSize = 50 } = req.query;
+    const { from, to, department, trainer, category, status, search, page = 1, pageSize = 50, allCompanies } = req.query;
     const offset = (Number(page) - 1) * Number(pageSize);
-    let where = "ts.company_id = ?";
-    const params = [cid(req)];
+
+    let where;
+    let params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      where = `ts.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      where = "ts.company_id = ?";
+      params = [cid(req)];
+    }
+
     if (from) { where += " AND ts.training_date >= ?"; params.push(from); }
     if (to)   { where += " AND ts.training_date <= ?"; params.push(to); }
     if (department) { where += " AND ts.department_id = ?"; params.push(department); }

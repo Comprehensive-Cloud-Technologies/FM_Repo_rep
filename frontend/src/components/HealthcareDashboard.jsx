@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import * as XLSX from "xlsx";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -979,6 +980,7 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
     const qp = new URLSearchParams();
     if (search) qp.set("search", search);
     if (allCompaniesMode) qp.set("allCompanies", "true");
+    qp.set("pageSize", "5000"); // fetch all records for the drilldown modal
     const qs = qp.toString() ? `?${qp.toString()}` : "";
     const url =
       type === "calibration" ? `${BASE}/api/company-portal/calibration/reports${qs}` :
@@ -1018,8 +1020,10 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
     ? <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f3e8ff", color: "#7c3aed" }}>{n} pending</span>
     : <span style={{ color: "#94a3b8" }}>—</span>;
 
+  const hospitalCol = { label: "Hospital", cell: r => <span style={{ fontSize: 12, color: "#475569" }}>{r.hospitalName || "—"}</span> };
   const columns =
     type === "pms" ? [
+      ...(allCompaniesMode ? [hospitalCol] : []),
       { label: "Asset", cell: r => assetCell(r.assetName, r.generatedAssetId || r.assetUniqueId) },
       { label: "Department", cell: r => r.departmentName || "—" },
       { label: "Last PMS", cell: r => fmt(r.lastPmsDate) },
@@ -1029,6 +1033,7 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
       { label: "Pending", cell: r => pendingChip(r.pendingApproval) },
     ] :
       type === "calibration" ? [
+        ...(allCompaniesMode ? [hospitalCol] : []),
         { label: "Asset", cell: r => assetCell(r.assetName, r.assetId2) },
         { label: "Department", cell: r => r.departmentName || "—" },
         { label: "Last Calibration", cell: r => fmt(r.lastCalibrationDate) },
@@ -1037,6 +1042,7 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
         { label: "Completed", cell: r => <b style={{ color: "#16a34a" }}>{r.completedSchedules ?? 0}</b> },
         { label: "Pending", cell: r => pendingChip(r.pendingSchedules) },
       ] : [
+        ...(allCompaniesMode ? [hospitalCol] : []),
         { label: "Date", cell: r => fmt(r.training_date) },
         { label: "Title", cell: r => r.title || "—" },
         { label: "Trainer", cell: r => r.trainer_name || "—" },
@@ -1044,6 +1050,46 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
         { label: "Registered", cell: r => r.total_registered ?? 0 },
         { label: "Present", cell: r => r.total_present ?? 0 },
       ];
+
+  const exportToExcel = () => {
+    const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+    const exportRows = data.map(r => {
+      if (type === "pms") return {
+        Hospital: r.hospitalName || "",
+        Asset: r.assetName || "",
+        "Asset ID": r.generatedAssetId || r.assetUniqueId || "",
+        Department: r.departmentName || "",
+        "Last PMS": fmt(r.lastPmsDate),
+        "Next PMS": fmt(r.nextPmsDate),
+        Total: r.totalPms ?? 0,
+        Closed: r.closedPms ?? 0,
+        "Pending Approval": r.pendingApproval ?? 0,
+      };
+      if (type === "calibration") return {
+        Hospital: r.hospitalName || "",
+        Asset: r.assetName || "",
+        "Asset ID": r.assetId2 || "",
+        Department: r.departmentName || "",
+        "Last Calibration": fmt(r.lastCalibrationDate),
+        "Next Calibration": fmt(r.nextCalibrationDate),
+        Total: r.totalSchedules ?? 0,
+        Completed: r.completedSchedules ?? 0,
+        Pending: r.pendingSchedules ?? 0,
+      };
+      return {
+        Date: fmt(r.training_date),
+        Title: r.title || "",
+        Trainer: r.trainer_name || "",
+        Status: r.status || "",
+        Registered: r.total_registered ?? 0,
+        Present: r.total_present ?? 0,
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, cfg.label.slice(0, 31));
+    XLSX.writeFile(wb, `${cfg.label.replace(/\s+/g, "_")}_Report.xlsx`);
+  };
 
   return (
     <div style={{ background: "#fff", borderRadius: "14px", border: `1px solid ${c.border}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
@@ -1058,6 +1104,13 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
             style={{ padding: "7px 10px 7px 30px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", width: "180px" }} />
           <div style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}><Icon.Search /></div>
         </div>
+        {data.length > 0 && (
+          <button onClick={exportToExcel}
+            style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "7px 13px", borderRadius: "8px", border: "1px solid #16a34a", background: "#f0fdf4", color: "#15803d", fontSize: "12px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+        )}
       </div>
       {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={() => setReload(x => x + 1)} /> : data.length === 0 ? <EmptyState /> : (
         <div style={{ overflowX: "auto" }}>

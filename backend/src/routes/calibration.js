@@ -193,6 +193,14 @@ const upload = multer({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const cid = (req) => req.companyUser.companyId;
 const uid = (req) => req.companyUser.id;
+async function getAccessibleCompanyIds(userId, primaryId) {
+  const [extra] = await pool.query(
+    `SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?`, [userId]
+  ).catch(() => [[]]);
+  const ids = new Set([Number(primaryId)]);
+  extra.forEach(r => ids.add(Number(r.companyId)));
+  return [...ids];
+}
 const uname = (req) => req.companyUser.name || req.companyUser.email || "Unknown";
 const urole = (req) => req.companyUser.role || "unknown";
 
@@ -655,12 +663,21 @@ router.get("/assets/:assetId/certificates", async (req, res, next) => {
 // GET /reports — asset-wise calibration summary
 router.get("/reports", async (req, res, next) => {
   try {
-    const { search, department, vendor, status, frequency, from, to, page = 1, pageSize = 50 } = req.query;
+    const { search, department, vendor, status, frequency, from, to, page = 1, pageSize = 50, allCompanies } = req.query;
     const offset = (Number(page) - 1) * Number(pageSize);
 
-    let where = `a.company_id = ?`;
-    const params = [cid(req)];
+    let companyWhere;
+    let params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhere = `a.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      companyWhere = `a.company_id = ?`;
+      params = [cid(req)];
+    }
 
+    let where = companyWhere;
     // Only assets that have at least one calibration schedule
     where += ` AND EXISTS (SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id)`;
 
@@ -669,6 +686,7 @@ router.get("/reports", async (req, res, next) => {
 
     const sql = `
       SELECT a.id AS assetId, a.asset_name AS assetName, a.generated_asset_id AS assetId2, a.asset_type,
+             co.company_name AS hospitalName,
              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.category')) AS asset_category,
              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.make'))     AS manufacturer,
              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata, '$.model'))    AS model,
@@ -704,6 +722,7 @@ router.get("/reports", async (req, res, next) => {
       FROM assets a
       LEFT JOIN asset_details ad ON ad.asset_id = a.id
       LEFT JOIN departments d ON d.id = a.department_id
+      LEFT JOIN companies co ON co.id = a.company_id
       WHERE ${where}
       ORDER BY a.asset_name
       LIMIT ? OFFSET ?`;

@@ -1520,11 +1520,21 @@ router.patch("/dept-head/:id/review", async (req, res, next) => {
 // GET /reports — asset-wise PMS summary (one row per asset that has at least one PMS)
 router.get("/reports", async (req, res, next) => {
   try {
-    const { department, building, floor, engineer, status: statusFilter, search } = req.query;
+    const { department, building, floor, engineer, status: statusFilter, search, allCompanies } = req.query;
     let having = "";
-    const params = [cid(req)];
-    const conditions = [];
 
+    let companyWhere;
+    let params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhere = `ps.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      companyWhere = "ps.company_id = ?";
+      params = [cid(req)];
+    }
+
+    const conditions = [];
     if (department) { conditions.push("a.department_id = ?"); params.push(department); }
     if (building)   { conditions.push("a.building = ?");    params.push(building); }
     if (floor)      { conditions.push("a.floor = ?");       params.push(floor); }
@@ -1536,13 +1546,14 @@ router.get("/reports", async (req, res, next) => {
       params.push(s, s, s);
     }
 
-    const where = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
+    const extraWhere = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
 
     const [rows] = await pool.query(
       `SELECT a.id AS assetId, a.asset_name AS assetName,
               a.generated_asset_id AS generatedAssetId, a.asset_unique_id AS assetUniqueId,
               a.building, a.floor, a.room,
               d.name AS departmentName,
+              co.company_name AS hospitalName,
               COUNT(psa.id) AS totalPms,
               SUM(psa.approval_status IN ('closed','approved','auto_approved')) AS closedPms,
               SUM(psa.approval_status = 'pending') AS pendingApproval,
@@ -1557,7 +1568,8 @@ router.get("/reports", async (req, res, next) => {
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        JOIN assets a ON a.id = psa.asset_id
        LEFT JOIN departments d ON d.id = a.department_id
-       WHERE ps.company_id = ? ${where}
+       LEFT JOIN companies co ON co.id = ps.company_id
+       WHERE ${companyWhere} ${extraWhere}
        GROUP BY a.id
        ORDER BY lastPmsDate DESC`,
       params
