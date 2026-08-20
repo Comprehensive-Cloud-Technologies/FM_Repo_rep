@@ -1553,7 +1553,7 @@ router.get("/reports", async (req, res, next) => {
               a.generated_asset_id AS generatedAssetId, a.asset_unique_id AS assetUniqueId,
               a.building, a.floor, a.room,
               d.name AS departmentName,
-              co.company_name AS hospitalName,
+              ANY_VALUE(co.company_name) AS hospitalName,
               COUNT(psa.id) AS totalPms,
               SUM(psa.approval_status IN ('closed','approved','auto_approved')) AS closedPms,
               SUM(psa.approval_status = 'pending') AS pendingApproval,

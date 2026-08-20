@@ -2039,10 +2039,11 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
     setComplaintLoading(true);
     setComplaintRequests([]);
     try {
-      let url = `${BASE}/api/company-portal/asset-queries?limit=100`;
+      let url = `${BASE}/api/company-portal/asset-queries?limit=500`;
       if (key === "wipComplaints" || key === "wipLt7" || key === "wipGt7") url += "&status=open,wip,in_progress";
       else if (key === "resolvedComplaints") url += "&status=resolved";
       else if (key === "closedComplaints") url += "&status=closed";
+      if (allCompaniesMode) url += "&allCompanies=true";
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       let rows = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
@@ -2281,7 +2282,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
                   <thead>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["#", "Asset", "Asset ID", "Request ID", "Request Title", "Status", "Priority", "Department", "Raised By", "Date"].map(h => (
+                      {["#", ...(allCompaniesMode ? ["Hospital"] : []), "Asset", "Asset ID", "Request ID", "Request Title", "Status", "Priority", "Department", "Raised By", "Date"].map(h => (
                         <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -2294,6 +2295,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
                       return (
                         <tr key={r.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "8px 12px", color: "#94a3b8" }}>{i + 1}</td>
+                          {allCompaniesMode && <td style={{ padding: "8px 12px", fontSize: "11px", color: "#6366f1", fontWeight: 600 }}>{r.companyName || "—"}</td>}
                           <td style={{ padding: "8px 12px", color: "#0f172a", fontWeight: 600 }}>{r.assetName || r.asset_name || "—"}</td>
                           <td style={{ padding: "8px 12px" }}>
                             {(r.assetUniqueId || r.asset_unique_id) ? (
