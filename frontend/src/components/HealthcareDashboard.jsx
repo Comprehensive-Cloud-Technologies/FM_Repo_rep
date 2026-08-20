@@ -963,7 +963,7 @@ function RecordsTable({ type, token, globalFilters, kpiFilter, kpiFilterLabel })
    Uses the real report endpoints (/pms|/calibration|/training/reports) which hold
    the actual scheduled data, instead of the separate (often empty) healthcare
    /records/:type tables. Columns per the operational report format. */
-function KpiReportTable({ type, token, kpiFilter }) {
+function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
   const cfg = RECORD_CONFIGS[type] || RECORD_CONFIGS.pms;
   const c = COLORS[cfg.color] || COLORS.blue;
   const IconComp = cfg.icon;
@@ -976,7 +976,10 @@ function KpiReportTable({ type, token, kpiFilter }) {
   useEffect(() => {
     let alive = true;
     setLoading(true); setError(null);
-    const qs = search ? `?search=${encodeURIComponent(search)}` : "";
+    const qp = new URLSearchParams();
+    if (search) qp.set("search", search);
+    if (allCompaniesMode) qp.set("allCompanies", "true");
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
     const url =
       type === "calibration" ? `${BASE}/api/company-portal/calibration/reports${qs}` :
         type === "training" ? `${BASE}/api/company-portal/training/reports${qs}` :
@@ -987,7 +990,7 @@ function KpiReportTable({ type, token, kpiFilter }) {
       .catch(e => { if (alive) setError(e.message || "Failed to load"); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [type, token, search, reload]);
+  }, [type, token, search, reload, allCompaniesMode]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const past = (d) => d && new Date(d) < today;
@@ -1085,7 +1088,7 @@ function KpiReportTable({ type, token, kpiFilter }) {
 }
 
 /* ─── Modal that wraps the KPI report table for drilldown ─────────────────── */
-function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
+function KpiRecordsModal({ meta, token, globalFilters, allCompaniesMode = false, onClose }) {
   if (!meta) return null;
   return (
     <div
@@ -1108,6 +1111,7 @@ function KpiRecordsModal({ meta, token, globalFilters, onClose }) {
             type={meta.tab}
             token={token}
             kpiFilter={meta.kpiFilter}
+            allCompaniesMode={allCompaniesMode}
           />
         </div>
       </div>
@@ -2496,6 +2500,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           meta={activeKpiMeta}
           token={token}
           globalFilters={appliedFilters}
+          allCompaniesMode={allCompaniesMode}
           onClose={() => {
             setActiveKpiMeta(null);
             setActiveProfileKpi(null);

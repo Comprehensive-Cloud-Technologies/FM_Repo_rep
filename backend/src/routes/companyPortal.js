@@ -13,7 +13,7 @@ import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHe
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
 import { uploadToS3, S3_FOLDERS, presignMetadataImages } from "../utils/s3.js";
-import { initTicketSla, completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
+import { initTicketSla, completeClock as slaCompleteClock, recalculateTicketSla } from "../utils/slaV2Engine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -285,6 +285,7 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_hours INT DEFAULT 24`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_time DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS in_progress_at DATETIME DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS assigned_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolved_by INT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
@@ -295,6 +296,8 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS parts_replaced TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS before_photos JSON DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS after_photos JSON DEFAULT NULL`,
+  // Ensure priority column is VARCHAR so mobile values ("normal","high",etc.) and SLA codes (P1-P4) both work
+  `ALTER TABLE asset_queries MODIFY COLUMN priority VARCHAR(40) DEFAULT NULL`,
   // Ensure notifications table has the right columns (may have been created by old flag engine)
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2964,8 +2967,8 @@ router.post("/asset-queries", async (req, res, next) => {
     if (!assetId || !title?.trim()) return res.status(400).json({ message: "assetId and title required" });
     // Find the asset and its current assigned_to (no company filter so engineers can raise issues for any hospital)
     const [[asset]] = await pool.query(
-      `SELECT a.id, a.company_id, a.assigned_to,
-              a.department_id, a.category_id, a.contract_id, a.criticality,
+      `SELECT a.id, a.company_id,
+              a.department_id, a.asset_category, a.criticality,
               a.asset_name,
               d.name AS dept_name,
               c.company_name
@@ -2986,7 +2989,7 @@ router.post("/asset-queries", async (req, res, next) => {
       `INSERT INTO asset_queries
          (company_id, asset_id, raised_by, assigned_to, title, description, images, priority, cutoff_hours, requester_name)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [asset.company_id, assetId, req.companyUser.id, asset.assigned_to || null,
+      [asset.company_id, assetId, req.companyUser.id, null,
        title.trim(), description || null,
        images?.length ? JSON.stringify(images) : null,
        priority, cutoffHours, requesterName]
@@ -3010,15 +3013,15 @@ router.post("/asset-queries", async (req, res, next) => {
     initTicketSla({
       queryId:      result.insertId,
       assetId,
-      deptId:       asset.department_id || null,
+      deptId:       asset.department_id  || null,
       companyId:    asset.company_id,
-      assetCategory:asset.category_id  || null,
-      contractId:   asset.contract_id  || null,
-      criticality:  asset.criticality  || null,   // 'Critical' | 'Non_Critical' | null
+      assetCategory:asset.asset_category || null,
+      criticality:  asset.criticality    || null,
+      uiPriority:   priority,   // raiser-selected priority (mobile app) drives the SLA target
       ticketType:   "complaint",
-      assetName:    asset.asset_name   || "",
-      deptName:     asset.dept_name    || "",
-      companyName:  asset.company_name || "",
+      assetName:    asset.asset_name     || "",
+      deptName:     asset.dept_name      || "",
+      companyName:  asset.company_name   || "",
     }).catch(e => console.warn("[SLA] initTicketSla failed for query", result.insertId, e?.message));
 
     // Notify all admin/portal clients watching this company's issue list
@@ -3047,12 +3050,14 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
     // Generate a 6-digit close code (cryptographically random)
     const closeCode = String(crypto.randomInt(100000, 1000000));
 
+    const resolvedAt = new Date();
     await pool.query(
-      `UPDATE asset_queries SET status = 'resolved', resolved_by = ?, resolved_at = NOW(),
+      `UPDATE asset_queries SET status = 'resolved', resolved_by = ?, resolved_at = ?,
        resolution_note = ?, close_code = ?, parts_replaced = ?,
        before_photos = ?, after_photos = ?, updated_at = NOW() WHERE id = ?`,
       [
         req.companyUser.id,
+        resolvedAt,
         resolutionNote || null,
         closeCode,
         partsReplaced || null,
@@ -3080,8 +3085,8 @@ router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
 
     res.json({ success: true, closeCode });
 
-    // Complete SLA resolution clock (fire-and-forget)
-    slaCompleteClock(Number(id), "resolution", req.companyUser.id)
+    // Complete SLA resolution clock (fire-and-forget) — pass exact resolvedAt timestamp
+    slaCompleteClock(Number(id), "resolution", req.companyUser.id, resolvedAt)
       .catch(e => console.warn("[SLA] completeClock(resolution) failed for query", id, e?.message));
 
     // Broadcast status change so dashboards update in real-time
@@ -3172,9 +3177,10 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
       `SELECT id, company_id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!query) return res.status(404).json({ message: "Request not found" });
+    const assignedAt = assignedTo ? new Date() : null;
     await pool.query(
-      "UPDATE asset_queries SET assigned_to = ?, updated_at = NOW() WHERE id = ?",
-      [assignedTo ? Number(assignedTo) : null, id]
+      "UPDATE asset_queries SET assigned_to = ?, assigned_at = CASE WHEN assigned_to IS NULL AND ? IS NOT NULL THEN ? ELSE assigned_at END, updated_at = NOW() WHERE id = ?",
+      [assignedTo ? Number(assignedTo) : null, assignedTo || null, assignedAt, id]
     );
     const ticketCompanyId = query.company_id || cid(req);
     emitToCompany(ticketCompanyId, 'issue:updated', {
@@ -3195,6 +3201,9 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
           message: `You have been assigned to resolve: "${aq?.title || `Request #${id}`}"`,
         });
       } catch { /* non-critical */ }
+      // Auto-complete response SLA clock when engineer is assigned — use exact assignment timestamp
+      slaCompleteClock(Number(id), "response", req.companyUser.id, assignedAt)
+        .catch(e => console.warn("[SLA] response completeClock failed for query", id, e?.message));
     }
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -5093,11 +5102,15 @@ router.patch("/asset-queries/:id/assign", async (req, res, next) => {
     );
     if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
 
+    const aqAssignedAt = new Date();
     await pool.execute(
-      "UPDATE asset_queries SET assigned_to = ?, status = IF(status = 'open', 'in_progress', status) WHERE id = ?",
-      [assignedTo, aqId]
+      "UPDATE asset_queries SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?), status = IF(status = 'open', 'in_progress', status) WHERE id = ?",
+      [assignedTo, aqAssignedAt, aqId]
     );
     res.json({ message: "Assigned", assignedTo: Number(assignedTo), assigneeName: assignee.fullName });
+    // Auto-complete response SLA clock when engineer is assigned — use exact assignment timestamp
+    slaCompleteClock(aqId, "response", req.companyUser.id, aqAssignedAt)
+      .catch(e => console.warn("[SLA] response completeClock failed for query", aqId, e?.message));
   } catch (err) { next(err); }
 });
 
@@ -5121,18 +5134,29 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    const setExtra = status === "in_progress"
-      ? ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN NOW() ELSE in_progress_at END, engineer_attended_at = CASE WHEN engineer_attended_at IS NULL THEN NOW() ELSE engineer_attended_at END"
-      : status === "resolved"
-        ? ", resolved_at = CASE WHEN resolved_at IS NULL THEN NOW() ELSE resolved_at END"
-        : "";
-    await pool.execute(`UPDATE asset_queries SET status = ?, updated_at = NOW()${setExtra} WHERE id = ?`, [status, aqId]);
+    const statusNow = new Date();
+    const statusInProgressAt = status === "in_progress" ? statusNow : null;
+    const statusResolvedAt = status === "resolved" ? statusNow : null;
+    let setExtra = "";
+    let extraParams = [];
+    if (status === "in_progress") {
+      setExtra = ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN ? ELSE in_progress_at END, engineer_attended_at = CASE WHEN engineer_attended_at IS NULL THEN ? ELSE engineer_attended_at END";
+      extraParams = [statusInProgressAt, statusInProgressAt];
+    } else if (status === "resolved") {
+      setExtra = ", resolved_at = CASE WHEN resolved_at IS NULL THEN ? ELSE resolved_at END";
+      extraParams = [statusResolvedAt];
+    }
+    await pool.execute(`UPDATE asset_queries SET status = ?, updated_at = NOW()${setExtra} WHERE id = ?`, [status, ...extraParams, aqId]);
     res.json({ message: "Status updated", status });
 
-    // SLA attendance clock: auto-complete when engineer marks in_progress (fire-and-forget)
+    // SLA clocks: fire-and-forget on status transitions — pass exact timestamps
     if (status === "in_progress") {
-      slaCompleteClock(aqId, "attendance", req.companyUser.id)
+      slaCompleteClock(aqId, "attendance", req.companyUser.id, statusInProgressAt)
         .catch(e => console.warn("[SLA] attendance completeClock failed for query", aqId, e?.message));
+    }
+    if (status === "resolved") {
+      slaCompleteClock(aqId, "resolution", req.companyUser.id, statusResolvedAt)
+        .catch(e => console.warn("[SLA] resolution completeClock failed for query", aqId, e?.message));
     }
   } catch (err) { next(err); }
 });
@@ -5165,6 +5189,74 @@ router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
       [deadline, aqId]
     );
     res.json({ message: "Cutoff updated", cutoffTime: deadline });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /asset-queries/:id/priority  – update AQ priority and recalculate SLA */
+router.patch("/asset-queries/:id/priority", async (req, res, next) => {
+  try {
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor" && role !== "catalyst_admin") {
+      return res.status(403).json({ message: "Not authorised" });
+    }
+    const aqId = Number(req.params.id);
+    const { priority } = req.body;
+    const VALID = ["low", "normal", "medium", "high", "critical"];
+    if (!priority || !VALID.includes(priority.toLowerCase())) {
+      return res.status(400).json({ message: `Invalid priority. Use one of: ${VALID.join(", ")}` });
+    }
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
+    const [[aq]] = await pool.query(
+      `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+      [aqId, ...accessibleIds]
+    );
+    if (!aq) return res.status(404).json({ message: "Asset query not found" });
+
+    await pool.query(
+      "UPDATE asset_queries SET priority = ?, updated_at = NOW() WHERE id = ?",
+      [priority.toLowerCase(), aqId]
+    );
+
+    // Recalculate SLA clocks for the new priority (fire-and-forget on error)
+    const slaResult = await recalculateTicketSla(aqId, priority.toLowerCase()).catch(e => {
+      console.warn("[SLA] recalculateTicketSla failed for AQ", aqId, e?.message);
+      return null;
+    });
+
+    emitToCompany(cid(req), "issue:updated", { id: aqId, priority: priority.toLowerCase() });
+    res.json({ message: "Priority updated", priority: priority.toLowerCase(), sla: slaResult });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /work-orders/:id/priority  – update work order priority */
+router.patch("/work-orders/:id/priority", async (req, res, next) => {
+  try {
+    const { role } = req.companyUser;
+    if (role !== "admin" && role !== "supervisor" && role !== "catalyst_admin") {
+      return res.status(403).json({ message: "Not authorised" });
+    }
+    const woId = Number(req.params.id);
+    const { priority } = req.body;
+    const VALID = ["low", "medium", "high", "critical"];
+    if (!priority || !VALID.includes(priority.toLowerCase())) {
+      return res.status(400).json({ message: `Invalid priority. Use one of: ${VALID.join(", ")}` });
+    }
+    const accessibleIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = accessibleIds.map(() => "?").join(",");
+    const [[wo]] = await pool.query(
+      `SELECT id FROM work_orders WHERE id = ? AND company_id IN (${ph})`,
+      [woId, ...accessibleIds]
+    );
+    if (!wo) return res.status(404).json({ message: "Work order not found" });
+
+    await pool.query(
+      "UPDATE work_orders SET priority = ?, updated_at = NOW() WHERE id = ?",
+      [priority.toLowerCase(), woId]
+    );
+
+    emitToCompany(cid(req), "issue:updated", { id: woId, priority: priority.toLowerCase() });
+    res.json({ message: "Priority updated", priority: priority.toLowerCase() });
   } catch (err) { next(err); }
 });
 
@@ -5291,30 +5383,6 @@ router.patch("/work-orders/:id/status", async (req, res, next) => {
       );
     }
     res.json({ success: true });
-  } catch (err) { next(err); }
-});
-
-/* PATCH /work-orders/:id/priority – admin/supervisor can set priority */
-router.patch("/work-orders/:id/priority", async (req, res, next) => {
-  try {
-    const companyId = cid(req);
-    const { role } = req.companyUser;
-    if (role !== "admin" && role !== "supervisor")
-      return res.status(403).json({ message: "Not authorised" });
-
-    const woId = Number(req.params.id);
-    const { priority } = req.body;
-    if (!["low","medium","high","critical"].includes(priority))
-      return res.status(400).json({ message: "Invalid priority" });
-
-    const [[wo]] = await pool.query(
-      "SELECT id FROM work_orders WHERE id = ? AND company_id = ?",
-      [woId, companyId]
-    );
-    if (!wo) return res.status(404).json({ message: "Work order not found" });
-
-    await pool.execute("UPDATE work_orders SET priority = ? WHERE id = ?", [priority, woId]);
-    res.json({ success: true, priority });
   } catch (err) { next(err); }
 });
 

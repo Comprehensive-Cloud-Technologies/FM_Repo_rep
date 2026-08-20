@@ -231,10 +231,12 @@ const safe = (sql) => pool.query(sql).catch(() => {});
 
   // ── Alter asset_queries to add priority + ticket_type ────────────────────
   await safe(`ALTER TABLE asset_queries
-    ADD COLUMN IF NOT EXISTS priority     ENUM('P1','P2','P3','P4') NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS priority     VARCHAR(40) NULL AFTER status,
     ADD COLUMN IF NOT EXISTS ticket_type  VARCHAR(40) NOT NULL DEFAULT 'breakdown' AFTER priority,
     ADD COLUMN IF NOT EXISTS engineer_responded_at  DATETIME NULL,
     ADD COLUMN IF NOT EXISTS engineer_attended_at   DATETIME NULL`);
+  // Ensure priority column is VARCHAR so it accepts both SLA codes (P1-P4) and mobile values ("normal","high",etc.)
+  await safe(`ALTER TABLE asset_queries MODIFY COLUMN priority VARCHAR(40) NULL`);
 
   console.log("[SLA] All SLA tables ready");
 })();

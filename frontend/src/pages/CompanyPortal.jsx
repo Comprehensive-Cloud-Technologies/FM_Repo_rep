@@ -15541,6 +15541,11 @@ const CompanyPortal = () => {
             <span className="nav-label">Reports</span>
           </button>
 
+          <button className={nav === "mis" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("mis"); setShowAddForm(false); }} title="MIS">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="4" rx="1"/><rect x="14" y="14" width="7" height="4" rx="1"/><line x1="3" y1="21" x2="20" y2="21"/></svg>
+            <span className="nav-label">MIS</span>
+          </button>
+
           {/* SLA */}
           <div className="nav-group-label">SLA</div>
           <button className={nav === "sla-policies" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("sla-policies"); setShowAddForm(false); }} title="SLA Policies">
@@ -26335,6 +26340,19 @@ const CompanyPortal = () => {
         {nav === "reports" && (
           <div style={{ position: "fixed", inset: 0, zIndex: 5, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f1f5f9" }}>
             <ReportBuilderPanel token={token} />
+          </div>
+        )}
+
+        {nav === "mis" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "70vh", padding: "40px", textAlign: "center" }}>
+            <div style={{ fontSize: "64px", marginBottom: "20px", lineHeight: 1 }}>📊</div>
+            <h1 style={{ fontSize: "28px", fontWeight: 900, color: "#0f172a", margin: "0 0 10px" }}>MIS Reports</h1>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "100px", padding: "6px 18px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Coming Soon</span>
+            </div>
+            <p style={{ fontSize: "15px", color: "#64748b", maxWidth: "480px", lineHeight: 1.6, margin: 0 }}>
+              Management Information System reports — consolidated KPIs, asset utilization, maintenance trends, and compliance summaries — will be available here.
+            </p>
           </div>
         )}
 
