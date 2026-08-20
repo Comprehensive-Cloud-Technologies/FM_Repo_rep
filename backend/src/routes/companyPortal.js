@@ -3233,8 +3233,20 @@ router.post("/asset-queries/:id/review", async (req, res, next) => {
 /* ── Asset Queries — reviews analytics ────────────────────────────────── */
 router.get("/asset-queries/reviews", async (req, res, next) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, allCompanies } = req.query;
     const off = (Number(page) - 1) * Number(limit);
+
+    let where, params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      const ph = ids.map(() => "?").join(",");
+      where = `company_id IN (${ph})`;
+      params = [...ids];
+    } else {
+      where = `company_id = ?`;
+      params = [cid(req)];
+    }
+
     // Aggregated analytics
     const [[agg]] = await pool.query(
       `SELECT
@@ -3243,35 +3255,37 @@ router.get("/asset-queries/reviews", async (req, res, next) => {
          SUM(rating = 5) AS r5, SUM(rating = 4) AS r4,
          SUM(rating = 3) AS r3, SUM(rating = 2) AS r2, SUM(rating = 1) AS r1
        FROM asset_queries
-       WHERE company_id = ? AND rating IS NOT NULL`,
-      [cid(req)]
+       WHERE ${where} AND rating IS NOT NULL`,
+      params
     );
     // Monthly trend (last 6 months)
     const [trend] = await pool.query(
       `SELECT DATE_FORMAT(reviewed_at, '%Y-%m') AS month, ROUND(AVG(rating), 2) AS avg
        FROM asset_queries
-       WHERE company_id = ? AND rating IS NOT NULL
+       WHERE ${where} AND rating IS NOT NULL
          AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
        GROUP BY month ORDER BY month ASC`,
-      [cid(req)]
+      params
     );
     // Paginated reviews list
     const [[{ cnt }]] = await pool.query(
-      "SELECT COUNT(*) AS cnt FROM asset_queries WHERE company_id = ? AND rating IS NOT NULL",
-      [cid(req)]
+      `SELECT COUNT(*) AS cnt FROM asset_queries WHERE ${where} AND rating IS NOT NULL`,
+      params
     );
     const [reviews] = await pool.query(
       `SELECT aq.id, aq.title, aq.rating, aq.review_text AS "reviewText",
               aq.reviewed_at AS "reviewedAt",
               cu.full_name AS "reviewerName",
-              a.asset_name AS "assetName"
+              a.asset_name AS "assetName",
+              co.company_name AS "hospitalName"
        FROM asset_queries aq
        LEFT JOIN company_users cu ON cu.id = aq.raised_by
        LEFT JOIN assets a ON a.id = aq.asset_id
-       WHERE aq.company_id = ? AND aq.rating IS NOT NULL
+       LEFT JOIN companies co ON co.id = aq.company_id
+       WHERE aq.${where} AND aq.rating IS NOT NULL
        ORDER BY aq.reviewed_at DESC
        LIMIT ? OFFSET ?`,
-      [cid(req), Number(limit), off]
+      [...params, Number(limit), off]
     );
     res.json({
       analytics: {

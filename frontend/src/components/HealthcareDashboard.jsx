@@ -1492,6 +1492,8 @@ function ReviewCard({ r }) {
               <StarDisplay rating={r.rating} size={12} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, flexWrap: 'wrap' }}>
+              {r.hospitalName && <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 700 }}>{r.hospitalName}</span>}
+              {r.hospitalName && (r.role || r.departmentName) && <span style={{ fontSize: 9, color: '#CBD5E1' }}>·</span>}
               {r.role && <span style={{ fontSize: 10, color: '#64748B', fontWeight: 600 }}>{r.role}</span>}
               {r.role && r.departmentName && <span style={{ fontSize: 9, color: '#CBD5E1' }}>·</span>}
               {r.departmentName && <span style={{ fontSize: 10, color: '#64748B' }}>{r.departmentName}</span>}
@@ -1544,7 +1546,7 @@ function ReviewCard({ r }) {
   );
 }
 
-function ReviewsSection({ token, compact = false }) {
+function ReviewsSection({ token, compact = false, allCompaniesMode = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1558,8 +1560,9 @@ function ReviewsSection({ token, compact = false }) {
     if (reset) setLoading(true);
     else setLoadingMore(true);
     try {
+      const acParam = allCompaniesMode ? "&allCompanies=true" : "";
       const res = await fetch(
-        `${BASE}/api/company-portal/asset-queries/reviews?page=${p}&limit=${p === 1 ? INITIAL_LIMIT : MORE_LIMIT}`,
+        `${BASE}/api/company-portal/asset-queries/reviews?page=${p}&limit=${p === 1 ? INITIAL_LIMIT : MORE_LIMIT}${acParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1576,7 +1579,7 @@ function ReviewsSection({ token, compact = false }) {
       if (reset) setLoading(false);
       else setLoadingMore(false);
     }
-  }, [token]);
+  }, [token, allCompaniesMode]);
 
   useEffect(() => { fetchData(1, true); setPage(1); }, [fetchData]);
 
@@ -1658,6 +1661,7 @@ function ReviewsSection({ token, compact = false }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reviewerName || 'User'}</div>
                       <StarDisplay rating={r.rating} size={9} />
+                      {allCompaniesMode && r.hospitalName && <div style={{ fontSize: '9px', color: '#6366f1', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.hospitalName}</div>}
                     </div>
                     <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
                   </div>
@@ -2239,17 +2243,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
             </div>
             {/* Compact Ratings & Reviews panel */}
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {allCompaniesMode ? (
-                <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
-                  <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px", alignSelf: "flex-start" }}>Ratings &amp; Reviews</p>
-                  <span style={{ fontSize: "22px", marginBottom: "8px" }}>🏥</span>
-                  <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", margin: 0, lineHeight: 1.5 }}>
-                    Ratings are per‑hospital.<br />Select a hospital to view.
-                  </p>
-                </div>
-              ) : (
-                <ReviewsSection token={token} compact />
-              )}
+              <ReviewsSection token={token} compact allCompaniesMode={allCompaniesMode} />
             </div>
           </div>
         </div>
