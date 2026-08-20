@@ -2335,7 +2335,7 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
         {/* ── KPI & PERFORMANCE ── */}
         <div style={{ marginTop: "20px" }}>
           <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>KPI &amp; Performance Meter</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
             {[
               { label: "Equipment Up Time", value: perfKpis?.equipmentUpTime != null ? `${perfKpis.equipmentUpTime}%` : null, color: "green", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg> },
               { label: "PM Compliance", value: perfKpis?.pmCompliance != null ? `${perfKpis.pmCompliance}%` : null, color: "blue", icon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg> },

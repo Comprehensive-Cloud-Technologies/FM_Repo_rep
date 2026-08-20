@@ -1561,14 +1561,14 @@ router.get("/reports", async (req, res, next) => {
               (SELECT MIN(ps2.maintenance_date)
                FROM pms_schedules ps2
                JOIN pms_schedule_assets psa2 ON psa2.schedule_id = ps2.id AND psa2.asset_id = a.id
-               WHERE ps2.company_id = ps.company_id
+               WHERE ps2.company_id = a.company_id
                  AND ps2.maintenance_date > CURDATE()
               ) AS nextPmsDate
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        JOIN assets a ON a.id = psa.asset_id
        LEFT JOIN departments d ON d.id = a.department_id
-       LEFT JOIN companies co ON co.id = ps.company_id
+       LEFT JOIN companies co ON co.id = a.company_id
        WHERE ${companyWhere} ${extraWhere}
        GROUP BY a.id
        ORDER BY lastPmsDate DESC`,
