@@ -30,6 +30,119 @@ function buildQS(obj) {
   return p.toString() ? `?${p}` : "";
 }
 
+/* ─── SLA badge helper ────────────────────────────────────────────────────── */
+
+
+function ClockDot({ status, breachMins }) {
+  // Clock dot: green = met, red = breached, orange = running/paused, grey = not started
+  const isBreached = status === 'breached' || Number(breachMins) > 0;
+  const isMet      = status === 'met' && !isBreached;
+  const isRunning  = status === 'running' || status === 'paused';
+  const color = isBreached ? '#dc2626' : isMet ? '#16a34a' : isRunning ? '#f59e0b' : '#94a3b8';
+  return <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />;
+}
+
+function SlaBadge({ wo }) {
+  // ── Asset queries: use backend-provided sla_status + sla_clocks ──
+  if (wo.source_type === 'asset_query') {
+    const status = wo.sla_status;
+    const clocks = wo.sla_clocks;
+
+    if (!status || status === 'no_sla' || status === 'exempt') {
+      return <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No SLA</span>;
+    }
+
+    const STATUS_CFG = {
+      met:      { bg: '#dcfce7', color: '#15803d', border: '#86efac', label: '✓ Met' },
+      on_track: { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd', label: '⏱ On Track' },
+      breached: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5', label: '⚠ Breached' },
+    };
+    const cfg = STATUS_CFG[status] || { bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0', label: status };
+
+    // Tooltip: show breakdown of 3 clocks
+    const clockRows = clocks ? [
+      { label: 'Response',   key: 'response',   ...clocks.response   },
+      { label: 'Attendance', key: 'attendance',  ...clocks.attendance  },
+      { label: 'Resolution', key: 'resolution',  ...clocks.resolution  },
+    ] : [];
+
+    const tooltipLines = clockRows.map(c => {
+      const isBreached = c.status === 'breached' || Number(c.breachMins) > 0;
+      const isMet      = c.status === 'met' && !isBreached;
+      const icon = isBreached ? '✗' : isMet ? '✓' : c.status === 'running' ? '⏱' : '–';
+      const extra = isBreached && c.breachMins ? ` (+${fmtMins(c.breachMins)} over)` : c.targetMins ? ` (target: ${fmtMins(c.targetMins)})` : '';
+      return `${icon} ${c.label}${extra}`;
+    }).join('\n');
+
+    return (
+      <div title={tooltipLines} style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', cursor: 'help' }}>
+        {/* Main badge */}
+        <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: '11px', fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, whiteSpace: 'nowrap' }}>
+          {cfg.label}
+        </span>
+
+        {/* Three clock dots: response · attendance · resolution */}
+        {clocks && (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {clockRows.map(c => (
+              <ClockDot key={c.key} status={c.status} breachMins={c.breachMins} />
+            ))}
+            <span style={{ fontSize: '10px', color: '#94a3b8', marginLeft: 1 }}>R·A·Res</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Work orders: no ticket_sla records; derive from cutoff_time ──────────
+  if (wo.cutoff_time) {
+    const now = new Date();
+    const due = new Date(wo.cutoff_time);
+    const isResolved = ['completed', 'closed', 'resolved'].includes(wo.status);
+    const wasMet     = isResolved && wo.resolution_at && new Date(wo.resolution_at) <= due;
+    const isBreached = due < now && !isResolved;
+    const label = wasMet ? '✓ Met' : isBreached ? '⚠ Breached' : '⏱ On Track';
+    const cfg = wasMet ? { bg: '#dcfce7', color: '#15803d', border: '#86efac' }
+              : isBreached ? { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' }
+              : { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' };
+    return (
+      <span title={`Cutoff: ${due.toLocaleString()}`} style={{ padding: '2px 7px', borderRadius: 12, fontSize: '11px', fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, whiteSpace: 'nowrap', cursor: 'help' }}>
+        {label}
+      </span>
+    );
+  }
+
+  return <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No SLA</span>;
+}
+
+/* ─── SLA Met / Not Met derivation ─────────────────────────────────────────── */
+// Resolves a ticket to an explicit "SLA Met" / "SLA Not Met" / "In SLA" state.
+// Asset queries use the engine's sla_status; work orders derive from cutoff_time.
+function slaMetStatus(wo) {
+  const MET      = { label: "SLA Met",     bg: "#dcfce7", color: "#15803d", border: "#86efac" };
+  const NOT_MET  = { label: "SLA Not Met", bg: "#fee2e2", color: "#b91c1c", border: "#fca5a5" };
+  const IN_SLA   = { label: "In SLA",      bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" };
+  const NONE     = null;
+
+  if (wo.source_type === "asset_query") {
+    const s = (wo.sla_status || "").toLowerCase();
+    if (s === "met") return MET;
+    if (s === "breached") return NOT_MET;
+    if (s === "on_track") return IN_SLA;
+    return NONE; // no_sla / exempt / unknown
+  }
+  // Work orders: derive from cutoff deadline
+  if (wo.cutoff_time) {
+    const now = new Date();
+    const due = new Date(wo.cutoff_time);
+    const isResolved = ["completed", "closed", "resolved"].includes(wo.status);
+    if (isResolved) return wo.resolution_at && new Date(wo.resolution_at) <= due ? MET : NOT_MET;
+    if (due < now) return NOT_MET;
+    return IN_SLA;
+  }
+  return NONE;
+}
+
 /* ─── Style constants ─────────────────────────────────────────────────────── */
 const PRIORITY_STYLE = {
   critical: { bg: "#fee2e2", color: "#991b1b", dot: "#dc2626", label: "Critical" },
@@ -85,6 +198,65 @@ function Badge({ val, styleMap, fallback }) {
       {s.dot && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: s.dot, flexShrink: 0 }} />}
       {s.label || val}
     </span>
+  );
+}
+
+const PRIORITY_OPTIONS = ["critical", "high", "medium", "low"];
+
+function PriorityDropdown({ wo, authToken, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const current = (wo.priority || "normal").toLowerCase();
+  const isAQ = wo.source_type === "asset_query";
+
+  const handleChange = async (e) => {
+    const newPriority = e.target.value;
+    if (!newPriority || newPriority === current) return;
+    setSaving(true);
+    try {
+      const path = isAQ
+        ? `/api/company-portal/asset-queries/${wo.id}/priority`
+        : `/api/company-portal/work-orders/${wo.id}/priority`;
+      await apiFetch("PATCH", path, { priority: newPriority }, authToken);
+      if (onUpdated) onUpdated(wo.id, newPriority);
+    } catch (err) {
+      alert(`Failed to update priority: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const normalised = PRIORITY_OPTIONS.includes(current) ? current : "medium";
+  const ps = PRIORITY_STYLE[normalised] || PRIORITY_STYLE.medium;
+
+  return (
+    <select
+      value={normalised}
+      onChange={handleChange}
+      disabled={saving}
+      title="Change priority"
+      style={{
+        padding: "3px 6px",
+        borderRadius: "10px",
+        border: `1.5px solid ${ps.dot}`,
+        background: ps.bg,
+        color: ps.color,
+        fontSize: "11px",
+        fontWeight: 700,
+        cursor: saving ? "wait" : "pointer",
+        outline: "none",
+        minWidth: "76px",
+        appearance: "none",
+        WebkitAppearance: "none",
+        paddingRight: "18px",
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24'%3E%3Cpath fill='${encodeURIComponent(ps.dot)}' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 4px center",
+      }}
+    >
+      {PRIORITY_OPTIONS.map(p => (
+        <option key={p} value={p}>{PRIORITY_STYLE[p]?.label || p}</option>
+      ))}
+    </select>
   );
 }
 
@@ -275,6 +447,20 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
                   <option value="logsheet">Logsheet</option>
                 </select>
                 {filters.source && <button onClick={() => setFilters(f => ({ ...f, source: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>SLA Status</label>
+              <div style={{ position: "relative" }}>
+                <select value={filters.slaStatus || ""} onChange={e => setFilters(f => ({ ...f, slaStatus: e.target.value }))} style={{ ...inputSt, paddingRight: filters.slaStatus ? "28px" : "10px" }}>
+                  <option value="">All SLA</option>
+                  <option value="on_track">On Track</option>
+                  <option value="met">Met</option>
+                  <option value="breached">Breached</option>
+                  <option value="no_sla">No SLA</option>
+                  <option value="exempt">Exempt</option>
+                </select>
+                {filters.slaStatus && <button onClick={() => setFilters(f => ({ ...f, slaStatus: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
               </div>
             </div>
             {allCompaniesMode && (
@@ -911,7 +1097,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
   const canManage = isAdmin || isSupervisor;
   const authToken = companyPortalToken || token;
 
-  const EMPTY_FILTERS = { search: "", status: "", priority: "", assignedTo: "", departmentId: "", dateFrom: "", dateTo: "", escalated: false, overdue: false, source: "", hospitalName: "", assetName: "", raisedBy: "" };
+  const EMPTY_FILTERS = { search: "", status: "", priority: "", slaStatus: "", assignedTo: "", departmentId: "", dateFrom: "", dateTo: "", escalated: false, overdue: false, source: "", hospitalName: "", assetName: "", raisedBy: "" };
 
   const [requests, setRequests] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -1213,8 +1399,8 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       onChange={e => setSelectedIds(e.target.checked ? new Set(requests.map(r => r.id)) : new Set())}
                       style={{ cursor: "pointer" }} />
                   </th>
-                  {["#", "Request #", "Hospital", "Department", "Asset / Location", "Remarks", "Raised By", "Assigned To", "Created", "WIP Date", "Response Time", "Resolution Date", "TAT", "Status", "Cutoff", "Actions"].map(h => (
-                    <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                  {["#", "Request #", "Priority", "Hospital", "Department", "Asset / Location", "Remarks", "Raised By", "Assigned To", "Created", "WIP Date", "Response Time", "Resolution Date", "TAT", "SLA", "Status", "SLA Status", "Cutoff", "Actions"].map(h => (
+                    <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: h === "SLA" ? "#2563eb" : h === "Priority" ? "#7c3aed" : h === "SLA Status" ? "#0f766e" : "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", background: h === "SLA" ? "#eff6ff" : h === "Priority" ? "#faf5ff" : h === "SLA Status" ? "#f0fdfa" : undefined }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1239,6 +1425,18 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                         <button onClick={() => setSelectedWO(wo)} style={{ fontWeight: 700, color: "#2563eb", fontSize: "12.5px", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{wo.work_order_number || wo.workOrderNumber || `REQ-${wo.id}`}</button>
                         {escalatedFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#faf5ff", color: "#7c3aed", padding: "1px 5px", borderRadius: "8px" }}>⏫</span>}
                         {overdueFlag && <span style={{ marginLeft: "5px", fontSize: "10px", background: "#fff7ed", color: "#ea580c", padding: "1px 5px", borderRadius: "8px" }}>⚠️</span>}
+                      </td>
+                      {/* Priority (inline dropdown) */}
+                      <td style={{ padding: "8px 14px", background: "#fdf9ff" }}>
+                        {canManage ? (
+                          <PriorityDropdown
+                            wo={wo}
+                            authToken={authToken}
+                            onUpdated={(id, p) => setRequests(prev => prev.map(r => r.id === id ? { ...r, priority: p } : r))}
+                          />
+                        ) : (
+                          <Badge val={wo.priority || "normal"} styleMap={PRIORITY_STYLE} fallback={PRIORITY_STYLE.medium} />
+                        )}
                       </td>
                       {/* Hospital / Site Name */}
                       <td style={{ padding: "11px 14px", fontSize: "12.5px", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -1283,13 +1481,15 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                             <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
-                      {/* Response Time: wip_at - created_at */}
+                      {/* Response Time: assigned_at - created_at (time to assignment) */}
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                        {wo.wip_at && wo.created_at ? (() => {
-                          const mins = Math.max(0, Math.round((new Date(wo.wip_at) - new Date(wo.created_at)) / 60000));
+                        {(() => {
+                          const assignedAt = wo.assigned_at || wo.sla_assigned_at;
+                          if (!assignedAt || !wo.created_at) return <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>;
+                          const mins = Math.max(0, Math.round((new Date(assignedAt) - new Date(wo.created_at)) / 60000));
                           const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
                           return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", whiteSpace: "nowrap" }}>{label}</span>;
-                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
+                        })()}
                       </td>
                       {/* Resolution Date */}
                       <td style={{ padding: "11px 14px", fontSize: "12px", color: "#16a34a", whiteSpace: "nowrap" }}>
@@ -1298,16 +1498,34 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                             <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.resolution_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
-                      {/* TAT: closed_at - created_at */}
+                      {/* TAT: resolution_at - created_at (total turnaround time) */}
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                        {wo.closed_at && wo.created_at ? (() => {
-                          const mins = Math.max(0, Math.round((new Date(wo.closed_at) - new Date(wo.created_at)) / 60000));
+                        {(() => {
+                          const endTime = wo.resolution_at || wo.closed_at;
+                          if (!endTime || !wo.created_at) return <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>;
+                          const mins = Math.max(0, Math.round((new Date(endTime) - new Date(wo.created_at)) / 60000));
                           const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
                           return <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#166534", whiteSpace: "nowrap" }}>{label}</span>;
-                        })() : <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>}
+                        })()}
+                      </td>
+                      {/* SLA Column */}
+                      <td style={{ padding: "11px 14px", background: "#f8fbff" }}>
+                        <SlaBadge wo={wo} />
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <Badge val={wo.status} styleMap={STATUS_STYLE} />
+                      </td>
+                      {/* SLA Status: Met / Not Met (auto-derived) */}
+                      <td style={{ padding: "11px 14px", background: "#f6fefb" }}>
+                        {(() => {
+                          const s = slaMetStatus(wo);
+                          if (!s) return <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>—</span>;
+                          return (
+                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }}>
+                              {s.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: "11px 14px", fontSize: "12px", whiteSpace: "nowrap" }}>
                         <div style={{ color: overdueFlag ? '#ea580c' : '#64748b', fontWeight: overdueFlag ? 700 : 400 }}>

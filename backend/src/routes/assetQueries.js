@@ -8,6 +8,7 @@ import { body, param } from "express-validator";
 import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireAuth } from "../middleware/auth.js";
+import { completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
 
 const router = Router();
 
@@ -211,19 +212,45 @@ router.patch(
       );
       if (!q) return res.status(404).json({ message: "Query not found" });
 
-      const resolvedAt = status === "resolved" ? new Date() : null;
+      const eventNow = new Date();
+      const assignmentTime = assignedTo !== undefined ? eventNow : null;
+      const inProgressTime = status === "in_progress" ? eventNow : null;
+      const completionTime = status === "resolved" ? eventNow : null;
       const updates = [];
       const vals = [];
 
       if (status !== undefined) { updates.push("status = ?"); vals.push(status); }
-      if (assignedTo !== undefined) { updates.push("assigned_to = ?"); vals.push(assignedTo); }
-      if (resolvedAt !== null) { updates.push("resolved_at = ?"); vals.push(resolvedAt); }
+      if (assignedTo !== undefined) {
+        updates.push("assigned_to = ?"); vals.push(assignedTo);
+        updates.push("assigned_at = COALESCE(assigned_at, ?)"); vals.push(assignmentTime);
+      }
+      if (inProgressTime !== null) {
+        updates.push("in_progress_at = COALESCE(in_progress_at, ?)"); vals.push(inProgressTime);
+        updates.push("engineer_attended_at = COALESCE(engineer_attended_at, ?)"); vals.push(inProgressTime);
+      }
+      if (completionTime !== null) { updates.push("resolved_at = COALESCE(resolved_at, ?)"); vals.push(completionTime); }
 
       if (updates.length === 0) return res.status(400).json({ message: "Nothing to update" });
 
       vals.push(id);
       await pool.execute(`UPDATE asset_queries SET ${updates.join(", ")} WHERE id = ?`, vals);
-      return res.json({ id: Number(id), status, assignedTo });
+      res.json({ id: Number(id), status, assignedTo });
+
+      // Auto-complete SLA clocks based on what changed — pass exact event timestamps
+      const qId = Number(id);
+      const actorId = req.user?.id || null;
+      if (assignedTo !== undefined) {
+        slaCompleteClock(qId, "response", actorId, assignmentTime)
+          .catch(e => console.warn("[SLA] response completeClock failed for query", id, e?.message));
+      }
+      if (status === "in_progress") {
+        slaCompleteClock(qId, "attendance", actorId, inProgressTime)
+          .catch(e => console.warn("[SLA] attendance completeClock failed for query", id, e?.message));
+      }
+      if (status === "resolved") {
+        slaCompleteClock(qId, "resolution", actorId, completionTime)
+          .catch(e => console.warn("[SLA] resolution completeClock failed for query", id, e?.message));
+      }
     } catch (err) {
       return next(err);
     }
