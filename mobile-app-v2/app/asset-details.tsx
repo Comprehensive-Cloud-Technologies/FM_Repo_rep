@@ -86,11 +86,12 @@ export default function AssetDetailsScreen() {
 
   useEffect(() => {
     const load = async () => {
-      const [assetData, user, workOrders] = await Promise.all([
+      const [assetDataRaw, user, workOrders] = await Promise.all([
         fetchAssetByQR(Number(assetId)).catch(() => null),
         getStoredUser(),
         fetchWorkOrdersByAsset(Number(assetId)).catch(() => [] as any[]),
       ]);
+      const assetData = assetDataRaw as any;
       setData(assetData);
       setRecentSubmission(assetData?.recentSubmission ?? null);
       if (Array.isArray(workOrders)) setAssetIssueCount(workOrders.length);

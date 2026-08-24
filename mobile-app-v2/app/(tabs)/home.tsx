@@ -11,6 +11,7 @@ import { useCompanyScope } from '../../context/CompanyScopeContext';
 import {
   fetchWorkOrders, fetchWorkOrderStats,
   fetchMyPmsStats, fetchMyTrainings,
+  fetchAssignedQueries,
 } from '../../utils/api';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
 
@@ -115,7 +116,8 @@ export default function HomeTab() {
   const [stats, setStats]                     = useState<any>(null);
   const [pms, setPms]                         = useState<any>(null);
   const [trainings, setTrainings]             = useState<any[]>([]);
-  const [assignedRequests, setAssignedRequests] = useState<any[]>([]);
+  const [assignedRequests, setAssignedRequests] = useState<any[]>([]);   // work orders assigned to me
+  const [assignedQueries, setAssignedQueries]   = useState<any[]>([]);   // asset-query case logs assigned to me
   const [newTrainings, setNewTrainings]       = useState<any[]>([]);
   const [loading, setLoading]                 = useState(true);
   const [refreshing, setRefreshing]           = useState(false);
@@ -123,12 +125,13 @@ export default function HomeTab() {
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [wo, st, pm, tr, aq] = await Promise.allSettled([
+      const [wo, st, pm, tr, aq, cq] = await Promise.allSettled([
         fetchWorkOrders(scopedCompanyId ? { companyId: scopedCompanyId } : undefined),
         fetchWorkOrderStats(scopedCompanyId),
         fetchMyPmsStats(),
         fetchMyTrainings(),
-        fetchWorkOrders({ assignedToMe: true }),
+        fetchWorkOrders({ assignedToMe: true }),   // work orders assigned to me
+        fetchAssignedQueries(),                      // asset-query case logs assigned to me
       ]);
       if (wo.status === 'fulfilled') {
         const raw = wo.value;
@@ -152,11 +155,20 @@ export default function HomeTab() {
         // fetchWorkOrders returns { total, data: [...] } not a raw array
         const raw = aq.value as any;
         const arr: any[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
-        // Show open/in-progress assigned requests as alerts
+        // Show open/in-progress/assigned work orders as alerts
         const openReqs = arr.filter((q: any) =>
           !['closed', 'resolved', 'completed'].includes((q.status ?? '').toLowerCase())
         );
         setAssignedRequests(openReqs);
+      }
+      if (cq.status === 'fulfilled') {
+        // fetchAssignedQueries returns a raw array of asset-query case logs
+        const arr: any[] = Array.isArray(cq.value) ? cq.value as any[] : [];
+        // Show open/in-progress case logs assigned to this engineer
+        const openQ = arr.filter((q: any) =>
+          !['closed', 'resolved'].includes((q.status ?? '').toLowerCase())
+        );
+        setAssignedQueries(openQ);
       }
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
   }, [scopedCompanyId]);
@@ -180,7 +192,7 @@ export default function HomeTab() {
     ['scheduled', 'upcoming'].includes((t.status ?? '').toLowerCase())
   ).length;
 
-  const totalAlerts = assignedRequests.length + newTrainings.length;
+  const totalAlerts = assignedRequests.length + assignedQueries.length + newTrainings.length;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: '#E8F1FF' }]} edges={['top']}>
@@ -321,14 +333,14 @@ export default function HomeTab() {
               <ActionTile icon="bell-outline"           label="Alerts"      color={theme.danger}   onPress={() => router.push('/notifications')} />
             </View>
 
-            {/* Alerts — assigned requests & trainings */}
-            {(assignedRequests.length > 0 || newTrainings.length > 0) && (
+            {/* Alerts — assigned requests, case logs & trainings */}
+            {(assignedRequests.length > 0 || assignedQueries.length > 0 || newTrainings.length > 0) && (
               <>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Alerts</Text>
                 <View style={styles.alertList}>
                   {assignedRequests.map((req, i) => (
                     <TouchableOpacity
-                      key={req.id ?? i}
+                      key={`wo-${req.id ?? i}`}
                       style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
                       onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: String(req.id) } })}
                       activeOpacity={0.8}
@@ -347,9 +359,30 @@ export default function HomeTab() {
                       <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
                     </TouchableOpacity>
                   ))}
+                  {assignedQueries.map((q, i) => (
+                    <TouchableOpacity
+                      key={`aq-${q.id ?? i}`}
+                      style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+                      onPress={() => router.push('/assigned-queries')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
+                        <MaterialCommunityIcons name="clipboard-alert-outline" size={18} color="#EA580C" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
+                          {q.title ?? q.description ?? q.assetName ?? `Case Log #${q.id}`}
+                        </Text>
+                        <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
+                          {q.assetName ? `${q.assetName} · ` : ''}{q.status === 'in_progress' ? 'In Progress · Tap to resolve' : 'Case log assigned to you'}
+                        </Text>
+                      </View>
+                      <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
+                    </TouchableOpacity>
+                  ))}
                   {newTrainings.map((tr, i) => (
                     <TouchableOpacity
-                      key={tr.id ?? i}
+                      key={`tr-${tr.id ?? i}`}
                       style={[styles.alertRow, { backgroundColor: '#F3E8FF', borderColor: '#C4B5FD' }]}
                       onPress={() => router.push('/training')}
                       activeOpacity={0.8}
