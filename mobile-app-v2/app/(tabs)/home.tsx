@@ -7,11 +7,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { useCompanyScope } from '../../context/CompanyScopeContext';
 import {
-  fetchWorkOrders, fetchWorkOrderStats,
+  fetchCaseLogDashboard, fetchCaseLogs,
   fetchMyPmsStats, fetchMyTrainings,
-  fetchAssignedQueries,
 } from '../../utils/api';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
 
@@ -65,11 +63,15 @@ function ModuleCard({ icon, label, value, sub, color, onPress }: {
       onPress={onPress} activeOpacity={0.8}
     >
       <View style={[styles.modIcon, { backgroundColor: color + '18' }]}>
-        <MaterialCommunityIcons name={icon as any} size={22} color={color} />
+        <MaterialCommunityIcons name={icon as any} size={18} color={color} />
       </View>
-      <Text style={[styles.modValue, { color: theme.textPrimary }]}>{value}</Text>
-      <Text style={[styles.modLabel, { color: theme.textPrimary }]}>{label}</Text>
-      {sub ? <Text style={[styles.modSub, { color: theme.textMuted }]}>{sub}</Text> : null}
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Text style={[styles.modValue, { color: theme.textPrimary }]}>{value}</Text>
+          <Text style={[styles.modLabel, { color: theme.textPrimary }]}>{label}</Text>
+        </View>
+        {sub ? <Text style={[styles.modSub, { color: theme.textMuted }]} numberOfLines={1}>{sub}</Text> : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -78,7 +80,7 @@ function ModuleCard({ icon, label, value, sub, color, onPress }: {
 function OrderRow({ item, theme }: { item: any; theme: any }) {
   const status: string = item.status ?? 'open';
   const statusColor =
-    status === 'completed' ? theme.success :
+    (status === 'completed' || status === 'resolved' || status === 'closed') ? theme.success :
     status === 'in_progress' ? theme.warning :
     theme.primary;
   const statusLabel =
@@ -88,16 +90,19 @@ function OrderRow({ item, theme }: { item: any; theme: any }) {
   return (
     <TouchableOpacity
       style={[styles.orderRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
-      onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: String(item.id) } })}
+      onPress={() => router.push({
+        pathname: '/hc-case-log-detail',
+        params: { id: String(item.id), sourceType: item.source_type ?? 'work_order' },
+      })}
       activeOpacity={0.75}
     >
       <View style={[styles.orderStripe, { backgroundColor: statusColor }]} />
       <View style={styles.orderBody}>
         <Text style={[styles.orderTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-          {item.title ?? item.description ?? `WO-${item.id}`}
+          {item.issue_description ?? item.asset_name ?? item.work_order_number ?? `Request #${item.id}`}
         </Text>
         <Text style={[styles.orderSub, { color: theme.textMuted }]} numberOfLines={1}>
-          {item.assetName ?? item.location ?? '—'}
+          {item.asset_name ?? item.location ?? '—'}
         </Text>
       </View>
       <View style={[styles.statusPill, { backgroundColor: statusColor + '18' }]}>
@@ -111,13 +116,10 @@ function OrderRow({ item, theme }: { item: any; theme: any }) {
 export default function HomeTab() {
   const { theme } = useTheme();
   const { user, capabilities } = useAuth();
-  const { scopedCompanyId } = useCompanyScope();
-  const [orders, setOrders]                   = useState<any[]>([]);
+  const [caseLogs, setCaseLogs]               = useState<any[]>([]);   // merged WO + AQ assigned to / raised by me
   const [stats, setStats]                     = useState<any>(null);
   const [pms, setPms]                         = useState<any>(null);
   const [trainings, setTrainings]             = useState<any[]>([]);
-  const [assignedRequests, setAssignedRequests] = useState<any[]>([]);   // work orders assigned to me
-  const [assignedQueries, setAssignedQueries]   = useState<any[]>([]);   // asset-query case logs assigned to me
   const [newTrainings, setNewTrainings]       = useState<any[]>([]);
   const [loading, setLoading]                 = useState(true);
   const [refreshing, setRefreshing]           = useState(false);
@@ -125,20 +127,14 @@ export default function HomeTab() {
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [wo, st, pm, tr, aq, cq] = await Promise.allSettled([
-        fetchWorkOrders(scopedCompanyId ? { companyId: scopedCompanyId } : undefined),
-        fetchWorkOrderStats(scopedCompanyId),
+      const [st, cl, pm, tr] = await Promise.allSettled([
+        fetchCaseLogDashboard(),   // combined open/in-progress/resolved counts (role-filtered)
+        fetchCaseLogs(),           // merged WO + AQ list for this user
         fetchMyPmsStats(),
         fetchMyTrainings(),
-        fetchWorkOrders({ assignedToMe: true }),   // work orders assigned to me
-        fetchAssignedQueries(),                      // asset-query case logs assigned to me
       ]);
-      if (wo.status === 'fulfilled') {
-        const raw = wo.value;
-        const arr = Array.isArray(raw) ? raw : (raw as any)?.data ?? [];
-        setOrders(arr as any[]);
-      }
       if (st.status === 'fulfilled') setStats(st.value);
+      if (cl.status === 'fulfilled') setCaseLogs(Array.isArray(cl.value) ? cl.value : []);
       if (pm.status === 'fulfilled') setPms(pm.value);
       if (tr.status === 'fulfilled') {
         const arr = Array.isArray(tr.value) ? tr.value as any[] : (tr.value as any)?.data ?? [];
@@ -151,48 +147,34 @@ export default function HomeTab() {
         );
         setNewTrainings(pending);
       }
-      if (aq.status === 'fulfilled') {
-        // fetchWorkOrders returns { total, data: [...] } not a raw array
-        const raw = aq.value as any;
-        const arr: any[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
-        // Show open/in-progress/assigned work orders as alerts
-        const openReqs = arr.filter((q: any) =>
-          !['closed', 'resolved', 'completed'].includes((q.status ?? '').toLowerCase())
-        );
-        setAssignedRequests(openReqs);
-      }
-      if (cq.status === 'fulfilled') {
-        // fetchAssignedQueries returns a raw array of asset-query case logs
-        const arr: any[] = Array.isArray(cq.value) ? cq.value as any[] : [];
-        // Show open/in-progress case logs assigned to this engineer
-        const openQ = arr.filter((q: any) =>
-          !['closed', 'resolved'].includes((q.status ?? '').toLowerCase())
-        );
-        setAssignedQueries(openQ);
-      }
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, [scopedCompanyId]);
+  }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const onRefresh = () => { setRefreshing(true); void load(true); };
 
-  const initial = (user?.fullName ?? 'U').charAt(0).toUpperCase();
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';
 
-  const open       = stats?.open        ?? orders.filter(o => o.status === 'open').length;
-  const inProgress = stats?.inProgress  ?? orders.filter(o => o.status === 'in_progress').length;
-  const completed  = stats?.completed   ?? orders.filter(o => o.status === 'completed').length;
-  const total      = stats?.total       ?? orders.length;
-  const overdue    = stats?.overdue     ?? 0;
-  const recent     = orders.slice(0, 5);
+  // Combined counts from the case-log dashboard (WO + AQ)
+  const open       = stats?.open       ?? caseLogs.filter(o => o.status === 'open').length;
+  const inProgress = (stats?.inProgress ?? 0) + (stats?.assigned ?? 0);
+  const completed  = (stats?.resolved  ?? 0) + (stats?.closed ?? 0);
+  const total      = stats?.total      ?? caseLogs.length;
+  const overdue    = 0;
+
+  // Actionable case logs assigned to me → shown as alerts, tap opens the issue detail
+  const actionable = caseLogs.filter((c: any) =>
+    ['open', 'assigned', 'in_progress'].includes((c.status ?? '').toLowerCase())
+  );
+  const recent     = caseLogs.slice(0, 5);
 
   const trainingCount    = trainings.length;
   const trainingUpcoming = trainings.filter(t =>
     ['scheduled', 'upcoming'].includes((t.status ?? '').toLowerCase())
   ).length;
 
-  const totalAlerts = assignedRequests.length + assignedQueries.length + newTrainings.length;
+  const totalAlerts = actionable.length + newTrainings.length;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: '#E8F1FF' }]} edges={['top']}>
@@ -206,18 +188,6 @@ export default function HomeTab() {
           <Text style={[styles.companySub, { color: '#6B84B0' }]} numberOfLines={1}>{user?.companyName}</Text>
         </View>
         <View style={styles.headerRight}>
-          {totalAlerts > 0 && (
-            <TouchableOpacity
-              style={styles.alertBell}
-              onPress={() => router.push('/notifications')}
-              activeOpacity={0.75}
-            >
-              <MaterialCommunityIcons name="bell-ring" size={22} color="#EF4444" />
-              <View style={styles.alertBadge}>
-                <Text style={styles.alertBadgeText}>{totalAlerts > 9 ? '9+' : totalAlerts}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
           <View style={styles.logoWrap}>
             <Image source={LOGO} style={styles.logo} resizeMode="cover" />
           </View>
@@ -334,52 +304,41 @@ export default function HomeTab() {
             </View>
 
             {/* Alerts — assigned requests, case logs & trainings */}
-            {(assignedRequests.length > 0 || assignedQueries.length > 0 || newTrainings.length > 0) && (
+            {(actionable.length > 0 || newTrainings.length > 0) && (
               <>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Alerts</Text>
                 <View style={styles.alertList}>
-                  {assignedRequests.map((req, i) => (
-                    <TouchableOpacity
-                      key={`wo-${req.id ?? i}`}
-                      style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
-                      onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: String(req.id) } })}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
-                        <MaterialCommunityIcons name="clipboard-text-outline" size={18} color="#EA580C" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
-                          {req.issueDescription ?? req.sourceLabel ?? req.assetName ?? `Work Order #${req.id}`}
-                        </Text>
-                        <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
-                          {req.assetName ? `${req.assetName} · ` : ''}{req.status === 'in_progress' ? 'In Progress' : 'Assigned to you'}
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
-                    </TouchableOpacity>
-                  ))}
-                  {assignedQueries.map((q, i) => (
-                    <TouchableOpacity
-                      key={`aq-${q.id ?? i}`}
-                      style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
-                      onPress={() => router.push('/assigned-queries')}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
-                        <MaterialCommunityIcons name="clipboard-alert-outline" size={18} color="#EA580C" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
-                          {q.title ?? q.description ?? q.assetName ?? `Case Log #${q.id}`}
-                        </Text>
-                        <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
-                          {q.assetName ? `${q.assetName} · ` : ''}{q.status === 'in_progress' ? 'In Progress · Tap to resolve' : 'Case log assigned to you'}
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
-                    </TouchableOpacity>
-                  ))}
+                  {actionable.map((c, i) => {
+                    const st = (c.status ?? '').toLowerCase();
+                    const sub =
+                      st === 'in_progress' ? 'In Progress · Tap to resolve' :
+                      st === 'assigned'    ? 'Assigned · Tap to start' :
+                                             'Tap to view & start';
+                    return (
+                      <TouchableOpacity
+                        key={`cl-${c.source_type ?? 'wo'}-${c.id ?? i}`}
+                        style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+                        onPress={() => router.push({
+                          pathname: '/hc-case-log-detail',
+                          params: { id: String(c.id), sourceType: c.source_type ?? 'work_order' },
+                        })}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
+                          <MaterialCommunityIcons name="clipboard-alert-outline" size={18} color="#EA580C" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
+                            {c.issue_description ?? c.asset_name ?? c.work_order_number ?? `Request #${c.id}`}
+                          </Text>
+                          <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
+                            {c.asset_name ? `${c.asset_name} · ` : ''}{sub}
+                          </Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
+                      </TouchableOpacity>
+                    );
+                  })}
                   {newTrainings.map((tr, i) => (
                     <TouchableOpacity
                       key={`tr-${tr.id ?? i}`}
@@ -480,11 +439,11 @@ const styles = StyleSheet.create({
 
   // Module cards
   modGrid: { flexDirection: 'row', marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.lg },
-  modCard: { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, gap: 4, borderWidth: 1, ...Shadows.sm },
-  modIcon: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  modValue: { fontSize: 24, fontWeight: '800' },
-  modLabel: { fontSize: 14, fontWeight: '700' },
-  modSub:   { fontSize: 11, fontWeight: '500' },
+  modCard: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, gap: Spacing.sm, borderWidth: 1, ...Shadows.sm },
+  modIcon: { width: 32, height: 32, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  modValue: { fontSize: 18, fontWeight: '800' },
+  modLabel: { fontSize: 12, fontWeight: '700' },
+  modSub:   { fontSize: 10, fontWeight: '500' },
 
   statsRow: { flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.lg, marginBottom: Spacing.lg },
   statCard: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xs, alignItems: 'center', gap: 2, borderWidth: 1, ...Shadows.sm },

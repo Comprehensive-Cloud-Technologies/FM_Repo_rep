@@ -192,14 +192,14 @@ router.get("/:assetId", async (req, res, next) => {
     if (companyUser) {
       const [[recent]] = await pool.query(
         `SELECT cs.id, cs.status, cs.completion_pct AS "completionPct",
-                COALESCE(cs.submitted_at, cs.created_at) AS "submittedAt",
+                cs.submitted_at AS "submittedAt",
                 ct.template_name AS "templateName",
                 cu.full_name AS "submittedByName"
          FROM checklist_submissions cs
          JOIN checklist_templates ct ON ct.id = cs.template_id
          LEFT JOIN company_users cu ON cu.id = cs.company_user_id
          WHERE cs.asset_id = ?
-         ORDER BY COALESCE(cs.submitted_at, cs.created_at) DESC
+         ORDER BY cs.submitted_at DESC
          LIMIT 1`,
         [assetId]
       );

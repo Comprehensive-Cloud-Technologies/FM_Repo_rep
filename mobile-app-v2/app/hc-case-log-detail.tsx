@@ -19,6 +19,15 @@ const STATUS_COLOR: Record<string, string> = {
   resolved: '#059669', closed: '#64748B',
 };
 
+// Statuses an admin can switch a case log to (used by the admin override panel)
+const STATUS_FLOW: { key: string; label: string }[] = [
+  { key: 'open',        label: 'Open' },
+  { key: 'assigned',    label: 'Assigned' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'resolved',    label: 'Resolved' },
+  { key: 'closed',      label: 'Closed' },
+];
+
 export default function HCCaseLogDetail() {
   const { theme } = useTheme();
   const { capabilities, user } = useAuth();

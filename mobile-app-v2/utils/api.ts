@@ -319,6 +319,24 @@ export async function fetchHCAssets(params?: { search?: string; assignedToMe?: b
   );
 }
 
+// ─── Unified Case Logs (work orders + asset queries, role-filtered) ────────────
+export interface CaseLogStats {
+  total: number; open: number; assigned: number; inProgress: number; resolved: number; closed: number;
+  engineerStats?: any[]; ytdMetrics?: number[];
+}
+
+/** Combined open/in-progress/resolved counts for the signed-in user (engineer sees only theirs). */
+export async function fetchCaseLogDashboard(): Promise<CaseLogStats> {
+  return apiGet<CaseLogStats>('/api/mobile/case-logs/dashboard');
+}
+
+/** Merged list of case logs (work orders + asset queries) assigned to / raised by the user. */
+export async function fetchCaseLogs(status?: string): Promise<any[]> {
+  const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await apiGet<{ data: any[] }>(`/api/mobile/case-logs${qs}`);
+  return Array.isArray(res) ? res : (res?.data ?? []);
+}
+
 export async function fetchAssetById(id: number) {
   return apiGet<unknown>(`/api/company-portal/assets/${id}`);
 }
