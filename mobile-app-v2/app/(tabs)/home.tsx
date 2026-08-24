@@ -149,8 +149,10 @@ export default function HomeTab() {
         setNewTrainings(pending);
       }
       if (aq.status === 'fulfilled') {
-        const arr = Array.isArray(aq.value) ? aq.value as any[] : [];
-        // Show open/unresolved assigned requests
+        // fetchWorkOrders returns { total, data: [...] } not a raw array
+        const raw = aq.value as any;
+        const arr: any[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
+        // Show open/in-progress assigned requests as alerts
         const openReqs = arr.filter((q: any) =>
           !['closed', 'resolved', 'completed'].includes((q.status ?? '').toLowerCase())
         );

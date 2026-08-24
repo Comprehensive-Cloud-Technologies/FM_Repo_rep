@@ -4752,6 +4752,7 @@ router.get("/work-orders/:id", async (req, res, next) => {
   try {
     const companyId = cid(req);
     const woId = Number(req.params.id);
+    if (!woId || isNaN(woId)) return res.status(400).json({ message: 'Invalid work order ID' });
 
     const [[wo]] = await pool.query(
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",
@@ -5284,6 +5285,7 @@ router.put("/work-orders/:id/status", async (req, res, next) => {
   try {
     const { role, id: userId } = req.companyUser;
     const woId = Number(req.params.id);
+    if (!woId || isNaN(woId)) return res.status(400).json({ message: 'Invalid work order ID' });
     const accessibleIds = await getAccessibleCompanyIds(userId, cid(req));
     const ph = accessibleIds.map(() => "?").join(",");
 
