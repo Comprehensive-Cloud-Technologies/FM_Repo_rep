@@ -4876,7 +4876,7 @@ router.get("/work-orders", async (req, res, next) => {
       }
       companyId = requested;
     }
-    const { status, priority, assignedTo, assetId, limit = 200, offset = 0 } = req.query;
+    const { status, priority, assignedTo, assignedToMe, assetId, limit = 200, offset = 0 } = req.query;
 
     let where;
     let params;
@@ -4894,6 +4894,11 @@ router.get("/work-orders", async (req, res, next) => {
     if (status)     { where += " AND wo.status = ?";         params.push(status); }
     if (priority)   { where += " AND wo.priority = ?";       params.push(priority); }
     if (assignedTo) { where += " AND wo.cp_assigned_to = ?"; params.push(Number(assignedTo)); }
+    // assignedToMe=true filters to work orders assigned to the current logged-in user
+    if (assignedToMe === 'true' && req.companyUser?.id) {
+      where += " AND wo.cp_assigned_to = ?";
+      params.push(req.companyUser.id);
+    }
 
     const [rows] = await pool.query(
       `SELECT wo.id, wo.work_order_number AS "workOrderNumber",

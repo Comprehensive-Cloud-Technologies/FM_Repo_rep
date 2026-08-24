@@ -3,14 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { API_BASE, fetchAssetByQR, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus } from '../utils/api';
+import { API_BASE, fetchAssetByQR, fetchWorkOrdersByAsset, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus } from '../utils/api';
 import type { SoftRequest } from '../utils/api';
 import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
 function InfoRow({ label, value }: { label: string; value?: string | number }) {
   const { theme } = useTheme();
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   return (
     <View style={[styles.row, { borderBottomColor: theme.borderLight }]}>
       <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>{label}</Text>
@@ -79,18 +79,21 @@ export default function AssetDetailsScreen() {
   const [openRequests, setOpenRequests] = useState<SoftRequest[]>([]);
   const [userCaps,     setUserCaps]     = useState<{ canRaiseSoftIssue: boolean; canResolveSoftIssue: boolean; isHCEngineer: boolean } | null>(null);
   const [recentSubmission, setRecentSubmission] = useState<any>(null);
+  const [assetIssueCount, setAssetIssueCount]   = useState<number | null>(null);
   // Engineer editing state
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [updatingStatus,   setUpdatingStatus]   = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const [assetData, user] = await Promise.all([
+      const [assetData, user, workOrders] = await Promise.all([
         fetchAssetByQR(Number(assetId)).catch(() => null),
         getStoredUser(),
+        fetchWorkOrdersByAsset(Number(assetId)).catch(() => [] as any[]),
       ]);
       setData(assetData);
       setRecentSubmission(assetData?.recentSubmission ?? null);
+      if (Array.isArray(workOrders)) setAssetIssueCount(workOrders.length);
 
       const caps = user?.roleCapabilities ?? null;
       setUserCaps(caps ? { canRaiseSoftIssue: !!caps.canRaiseSoftIssue, canResolveSoftIssue: !!caps.canResolveSoftIssue, isHCEngineer: !!caps.isHCEngineer } : null);
@@ -464,9 +467,11 @@ export default function AssetDetailsScreen() {
           <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <InfoRow label="Name"         value={assetName} />
             <InfoRow label="QR / Barcode" value={asset.assetUniqueId ?? asset.uniqueId} />
+            <InfoRow label="Next PMS Date" value={data?.nextPmsDate ?? (typeof data?.nextPms === 'string' ? data.nextPms : data?.nextPms?.scheduledDate)} />
             <InfoRow label="Calibration Status" value={calibrationStatus} />
             <InfoRow label="Calibration Due Date" value={calibrationDueDate} />
             <InfoRow label="Calibration Vendor" value={calibrationVendor} />
+            <InfoRow label="Issues Raised" value={assetIssueCount ?? data?.workOrderCount ?? data?.issueCount} />
             <InfoRow label="Type"         value={asset.assetType ?? asset.typeName} />
             <InfoRow label="Building"     value={asset.building} />
             <InfoRow label="Floor"        value={asset.floor} />
@@ -542,10 +547,12 @@ export default function AssetDetailsScreen() {
         <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
           <InfoRow label="QR / Barcode"  value={asset.assetUniqueId ?? asset.uniqueId} />
           <InfoRow label="Equipment Name" value={assetName} />
+          <InfoRow label="Next PMS Date" value={data?.nextPmsDate ?? (typeof data?.nextPms === 'string' ? data.nextPms : data?.nextPms?.scheduledDate)} />
           <InfoRow label="Calibration Status" value={calibrationStatus} />
           <InfoRow label="Calibration Due Date" value={calibrationDueDate} />
           <InfoRow label="Calibration Vendor" value={calibrationVendor} />
           <InfoRow label="Certificate" value={calibrationCertificate} />
+          <InfoRow label="Issues Raised" value={data?.workOrderCount ?? data?.issueCount ?? data?.totalIssues} />
           <InfoRow label="Type"           value={asset.assetType ?? asset.typeName} />
           <InfoRow label="Status"         value={asset.status} />
           <InfoRow label="Department"     value={asset.departmentName ?? asset.department} />
@@ -565,6 +572,14 @@ export default function AssetDetailsScreen() {
           {asset.metadata?.purchaseCost && <InfoRow label="Purchase Cost"       value={`\u20B9 ${asset.metadata.purchaseCost}`} />}
           {asset.metadata?.remarks     && <InfoRow label="Remarks"              value={asset.metadata.remarks} />}
         </View>
+
+        {/* ── Maintenance Stats — PMS, Issues ─────────────────────────────── */}
+        {(data?.nextPmsDate != null || data?.nextPms != null || assetIssueCount != null) && (
+          <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+            <InfoRow label="Next PMS Date" value={data?.nextPmsDate ?? (typeof data?.nextPms === 'string' ? data.nextPms : data?.nextPms?.scheduledDate)} />
+            <InfoRow label="Issues Raised" value={assetIssueCount ?? data?.workOrderCount ?? data?.issueCount} />
+          </View>
+        )}
 
         {/* ── Working Status Editor (HC Engineers only) ─────────────────────── */}
         {userCaps?.isHCEngineer && (() => {

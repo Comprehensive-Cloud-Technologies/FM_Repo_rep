@@ -280,14 +280,20 @@ export async function registerPushToken(token: string, platform: string): Promis
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
-export async function fetchAssets(params?: { search?: string; type?: string; assignedOnly?: boolean; assignedToMe?: boolean }) {
+export async function fetchAssets(params?: { search?: string; type?: string; assignedOnly?: boolean; assignedToMe?: boolean; companyId?: number }) {
   const q = new URLSearchParams();
   if (params?.search)       q.set('search', params.search);
   if (params?.type)         q.set('type', params.type);
   if (params?.assignedOnly) q.set('assignedOnly', 'true');
   if (params?.assignedToMe) q.set('assignedToMe', 'true');
+  if (params?.companyId)    q.set('companyId', String(params.companyId));
   const qs = q.toString() ? `?${q}` : '';
   return apiGet<unknown[]>(`/api/company-portal/assets${qs}`, true);
+}
+
+/** All companies this user may view (admins/engineers). Falls back to own company. */
+export async function fetchAllCompanies(): Promise<Array<{ id: number; companyName: string }>> {
+  return apiGet<Array<{ id: number; companyName: string }>>('/api/company-portal/all-companies');
 }
 
 // ─── Healthcare Requests (QR queries + work orders) ───────────────────────────
@@ -708,13 +714,46 @@ export async function submitLogsheet(
 }
 
 // ─── Work Orders ──────────────────────────────────────────────────────────────
-export async function fetchWorkOrders(params?: { status?: string }) {
-  const q = params?.status ? `?status=${params.status}` : '';
-  return apiGet<unknown[]>(`/api/company-portal/work-orders${q}`);
+export async function fetchWorkOrders(params?: { status?: string; assignedToMe?: boolean; companyId?: number }) {
+  const q = new URLSearchParams();
+  if (params?.status)       q.set('status', params.status);
+  if (params?.assignedToMe) q.set('assignedToMe', 'true');
+  if (params?.companyId)    q.set('companyId', String(params.companyId));
+  const qs = q.toString() ? `?${q.toString()}` : '';
+  return apiGet<unknown[]>(`/api/company-portal/work-orders${qs}`);
+}
+
+export async function fetchWorkOrderStats(companyId?: number): Promise<{
+  total: number; open: number; inProgress: number; completed: number; overdue: number;
+}> {
+  const cq = companyId ? `?companyId=${companyId}` : '';
+  try {
+    return await apiGet(`/api/company-portal/work-orders/stats${cq}`);
+  } catch {
+    // Fallback: compute from list
+    const raw = await apiGet<unknown[]>(`/api/company-portal/work-orders${cq}`);
+    const arr = Array.isArray(raw) ? raw as any[] : [];
+    const now = Date.now();
+    return {
+      total:      arr.length,
+      open:       arr.filter(o => o.status === 'open').length,
+      inProgress: arr.filter(o => o.status === 'in_progress').length,
+      completed:  arr.filter(o => o.status === 'completed').length,
+      overdue:    arr.filter(o => o.status !== 'completed' && o.dueDate && new Date(o.dueDate).getTime() < now).length,
+    };
+  }
 }
 
 export async function fetchWorkOrderById(id: number) {
   return apiGet<unknown>(`/api/company-portal/work-orders/${id}`);
+}
+
+export async function fetchWorkOrdersByAsset(assetId: number): Promise<any[]> {
+  try {
+    return await apiGet<any[]>(`/api/company-portal/work-orders?assetId=${assetId}`);
+  } catch {
+    return [];
+  }
 }
 
 export async function createWorkOrder(payload: unknown) {

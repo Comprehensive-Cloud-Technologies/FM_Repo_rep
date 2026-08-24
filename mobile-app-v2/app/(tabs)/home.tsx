@@ -1,821 +1,478 @@
-/**
- * Home ΓÇö role-aware entry screen.
- *
- * HC Staff    ΓåÆ My Case Logs dashboard + raise button + recent cases
- * HC Engineer ΓåÆ Assigned cases dashboard + recent assigned list
- * HC Admin    ΓåÆ Full case log dashboard + engineer performance
- * Legacy      ΓåÆ Original quick-actions layout
- */
-
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, RefreshControl, ScrollView, StyleSheet,
-  Text, TouchableOpacity, View,
+  ActivityIndicator, Image, RefreshControl, ScrollView, StatusBar,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { authenticatedFetch, fetchMyTodayProgress, fetchNotificationCount, fetchMyPmsStats, fetchDeptHeadPending, fetchDeptHeadStats } from '../../utils/api';
-import { useTheme, Spacing, Radius, Shadows, Typography, Fonts } from '../../utils/theme';
-import { hasTechAccess, canManageTeam, canViewNotifications, canRegisterAssets } from '../../utils/permissions';
+import { useCompanyScope } from '../../context/CompanyScopeContext';
+import {
+  fetchWorkOrders, fetchWorkOrderStats,
+  fetchMyPmsStats, fetchMyTrainings,
+} from '../../utils/api';
+import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
 
-// ΓöÇΓöÇΓöÇ Mini components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+const LOGO = require('../../assets/images/AssetPro.jpg');
 
-function StatCard({ label, value, color, onPress }: {
-  label: string; value: number; color: string; onPress?: () => void;
+// ─── Stat card ───────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon, color, onPress }: {
+  label: string; value: string | number; icon: string; color: string; onPress?: () => void;
 }) {
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[ss.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-      onPress={onPress} activeOpacity={onPress ? 0.7 : 1}
+      style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={onPress} activeOpacity={onPress ? 0.75 : 1}
     >
-      <Text style={[ss.statLabel, { color: theme.textMuted }]}>{label}</Text>
-      <Text style={[ss.statValue, { color: theme.textPrimary }]}>{value}</Text>
+      <View style={[styles.statIconBox, { backgroundColor: color + '18' }]}>
+        <MaterialCommunityIcons name={icon as any} size={16} color={color} />
+      </View>
+      <Text style={[styles.statValue, { color: theme.textPrimary }]}>{value}</Text>
+      <Text style={[styles.statLabel, { color: theme.textMuted }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function TotalCasesChart({ total, ytdMetrics }: { total: number; ytdMetrics?: number[] }) {
-  const { theme } = useTheme();
-  const bars = ytdMetrics || Array(12).fill(0);
-  const maxVal = Math.max(...bars, 1);
-  return (
-    <View style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', padding: Spacing.lg, height: 280, backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={ss.rowBetween}>
-        <View>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: theme.textPrimary }}>Total Cases</Text>
-          <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', letterSpacing: 1, color: theme.textMuted, marginTop: 4 }}>YTD METRICS</Text>
-        </View>
-        <Text style={{ fontSize: 32, fontWeight: '800', color: theme.primary }}>{total}</Text>
-      </View>
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: Spacing.lg, borderBottomWidth: 1, borderBottomColor: theme.borderLight }}>
-        {bars.map((val, idx) => {
-          const heightPct = Math.max((val / maxVal) * 100, 5);
-          return (
-            <View key={idx} style={{ width: '6%', height: `${heightPct}%`, backgroundColor: theme.border, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
-          );
-        })}
-      </View>
-      <View style={[ss.rowBetween, { marginTop: Spacing.xs }]}>
-        <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textMuted }}>JAN</Text>
-        <Text style={{ fontSize: 10, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textMuted }}>DEC</Text>
-      </View>
-    </View>
-  );
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  open: '#DC2626', assigned: '#2563EB', in_progress: '#D97706',
-  resolved: '#059669', closed: '#64748B',
-};
-
-function CaseRow({ item, onPress }: { item: any; onPress: () => void }) {
-  const { theme } = useTheme();
-  const color = STATUS_COLOR[item.status] || '#64748B';
-  return (
-    <TouchableOpacity
-      style={[ss.caseRow, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
-      onPress={onPress} activeOpacity={0.7}
-    >
-      <View style={[ss.caseStripe, { backgroundColor: color }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={[ss.caseTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-          {item.work_order_number} {item.asset_name || 'Asset'}
-        </Text>
-        <Text style={[ss.caseDesc, { color: theme.textSecondary }]} numberOfLines={1}>
-          {item.issue_description}
-        </Text>
-      </View>
-      <View style={[ss.statusBadge, { backgroundColor: color + '18' }]}>
-        <Text style={[ss.statusText, { color }]}>{(item.status || '').replace(/_/g, ' ')}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Top app bar (avatar + title + actions) ──────────────────────────────────
-function HomeAppBar({ title, initial, children }: { title: string; initial: string; children?: React.ReactNode }) {
-  const { theme } = useTheme();
-  return (
-    <View style={[ss.appBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      <View style={ss.appBarLeft}>
-        <View style={[ss.appAvatar, { backgroundColor: theme.primary }]}>
-          <Text style={[ss.appAvatarTxt, { color: theme.textInverse }]}>{initial}</Text>
-        </View>
-        <Text style={[ss.appBarTitle, { color: theme.textPrimary }]} numberOfLines={1}>{title}</Text>
-      </View>
-      {children ? <View style={ss.appBarActions}>{children}</View> : null}
-    </View>
-  );
-}
-
-function AppBarIcon({ icon, onPress }: { icon: string; onPress: () => void }) {
-  const { theme } = useTheme();
-  return (
-    <TouchableOpacity onPress={onPress} style={ss.appBarIconBtn} hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }} activeOpacity={0.6}>
-      <MaterialCommunityIcons name={icon as any} size={23} color={theme.textSecondary} />
-    </TouchableOpacity>
-  );
-}
-
-// ─── Greeting row + role badge ───────────────────────────────────────────────
-function GreetingRow({ greeting, roleLabel, icon }: { greeting: string; roleLabel: string; icon?: string }) {
-  const { theme } = useTheme();
-  return (
-    <View style={ss.greetRow}>
-      <Text style={[ss.greetBig, { color: theme.textPrimary }]} numberOfLines={2}>{greeting}</Text>
-      <View style={[ss.roleBadge, { backgroundColor: theme.primaryBg, borderColor: theme.primary + '3A' }]}>
-        {icon ? <MaterialCommunityIcons name={icon as any} size={14} color={theme.primary} /> : null}
-        <Text style={[ss.roleBadgeTxt, { color: theme.primary }]}>{roleLabel}</Text>
-      </View>
-    </View>
-  );
-}
-
-// ΓöÇΓöÇΓöÇ HC Staff Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-function HCStaffHome({ user }: { user: any }) {
-  const { theme } = useTheme();
-  const [dash, setDash] = useState<any>(null);
-  const [cases, setCases] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const [dRes, cRes] = await Promise.allSettled([
-        authenticatedFetch('/api/mobile/case-logs/dashboard').then((r: Response) => r.json()),
-        authenticatedFetch('/api/mobile/case-logs?limit=10').then((r: Response) => r.json()),
-      ]);
-      if (dRes.status === 'fulfilled') setDash(dRes.value);
-      if (cRes.status === 'fulfilled') setCases((cRes.value as any).data || []);
-    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  // Auto-refresh on focus + 30s polling (without blinking)
-  useFocusEffect(
-    useCallback(() => {
-      void load(true);
-      const interval = setInterval(() => { void load(true); }, 30000);
-      return () => clearInterval(interval);
-    }, [load])
-  );
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
-  const roleLabel = (user?.role || '').replace(/_/g, ' ');
-
-  return (
-    <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
-        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
-      </HomeAppBar>
-      <ScrollView
-        contentContainerStyle={ss.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <GreetingRow greeting={greeting} roleLabel={roleLabel || 'Staff'} icon="account-circle-outline" />
-
-        {/* Dashboard summary */}
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
-          <>
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY CASE LOGS</Text>
-            <View style={ss.statsGrid}>
-              <StatCard label="Total" value={dash?.total ?? 0} color="#2563EB" onPress={() => router.push('/hc-case-logs')} />
-              <StatCard label="Open" value={dash?.open ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'open' } })} />
-              <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'resolved' } })} />
-              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/hc-case-logs', params: { status: 'closed' } })} />
-            </View>
-
-            {cases.length > 0 && (
-              <>
-                <View style={ss.rowBetween}>
-                  <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>RECENT CASES</Text>
-                  <TouchableOpacity onPress={() => router.push('/hc-case-logs')}>
-                    <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>View all</Text>
-                  </TouchableOpacity>
-                </View>
-                {cases.map(item => (
-                  <CaseRow key={item.id} item={item} onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })} />
-                ))}
-              </>
-            )}
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-//  HC Engineer Home
-function HCEngineerHome({ user }: { user: any }) {
-  const { theme } = useTheme();
-  const [dash, setDash] = useState<any>(null);
-  const [pmsDash, setPmsDash] = useState<any>(null);
-  const [cases, setCases] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const [dRes, cRes, pRes] = await Promise.allSettled([
-        authenticatedFetch('/api/mobile/case-logs/dashboard').then((r: Response) => r.json()),
-        authenticatedFetch('/api/mobile/case-logs?limit=10').then((r: Response) => r.json()),
-        fetchMyPmsStats(),
-      ]);
-      if (dRes.status === 'fulfilled') setDash(dRes.value);
-      if (cRes.status === 'fulfilled') setCases((cRes.value as any).data || []);
-      if (pRes.status === 'fulfilled') setPmsDash(pRes.value);
-    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  // Auto-refresh on focus + 30s polling (without blinking)
-  useFocusEffect(
-    useCallback(() => {
-      void load(true);
-      const interval = setInterval(() => { void load(true); }, 30000);
-      return () => clearInterval(interval);
-    }, [load])
-  );
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
-
-  return (
-    <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <HomeAppBar title="System Terminal" initial={(firstName[0] || 'U').toUpperCase()}>
-        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
-      </HomeAppBar>
-      <ScrollView
-        contentContainerStyle={ss.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <GreetingRow greeting={greeting} roleLabel="ENGINEER" icon="account-hard-hat" />
-
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
-          <>
-            <View style={ss.statsGrid}>
-              <StatCard label="Assigned" value={dash?.assigned ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
-              <StatCard label="In Progress" value={dash?.inProgress ?? 0} color="#D97706" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'in_progress' } })} />
-              <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
-              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
-            </View>
-
-            <TotalCasesChart total={dash?.total ?? 0} ytdMetrics={dash?.ytdMetrics} />
-
-            <TouchableOpacity
-              style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => router.push('/pms-assignments')} activeOpacity={0.7}
-            >
-              <View style={ss.rowBetween}>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary }}>Preventive Maintenance</Text>
-                <MaterialCommunityIcons name="cog-outline" size={24} color={theme.textMuted} />
-              </View>
-              <Text style={{ fontSize: 14, color: theme.textSecondary, marginVertical: Spacing.md }}>
-                {Number(pmsDash?.assigned ?? 0) > 0 ? `Next scheduled maintenance in 14 days.` : `No upcoming maintenance scheduled.`}
-              </Text>
-              
-              <View style={{ flexDirection: 'column', gap: 8, width: '100%' }}>
-                <View style={ss.rowBetween}>
-                  <Text style={{ fontSize: 14, color: theme.textPrimary }}>Server Rack A</Text>
-                  <Text style={{ fontSize: 12, fontFamily: Fonts.mono, fontWeight: '700', color: '#D97706' }}>Pending</Text>
-                </View>
-                <View style={{ height: 4, width: '100%', backgroundColor: theme.borderLight, borderRadius: 2, overflow: 'hidden' }}>
-                  <View style={{ width: '70%', height: '100%', backgroundColor: '#D97706' }} />
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[ss.statCard, { width: '100%', alignItems: 'stretch', flexDirection: 'column', backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => router.push('/training-sessions' as any)} activeOpacity={0.7}
-            >
-              <View style={ss.rowBetween}>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary }}>Training Sessions</Text>
-                <MaterialCommunityIcons name="school-outline" size={24} color={theme.textMuted} />
-              </View>
-              <Text style={{ fontSize: 14, color: theme.textSecondary, marginVertical: Spacing.md }}>
-                New modules available for certification.
-              </Text>
-              <View style={{ width: '100%', paddingVertical: 10, borderWidth: 1, borderColor: theme.border, borderRadius: 4, alignItems: 'center' }}>
-                 <Text style={{ fontSize: 12, fontFamily: Fonts.mono, fontWeight: '700', color: theme.textPrimary }}>VIEW MODULES</Text>
-              </View>
-            </TouchableOpacity>
-
-            {cases.filter(item => !['resolved', 'closed'].includes(item.status)).length > 0 && (
-              <>
-                <View style={ss.rowBetween}>
-                  <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ASSIGNED TO ME</Text>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/tasks')}>
-                    <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>View all</Text>
-                  </TouchableOpacity>
-                </View>
-                {cases.filter(item => !['resolved', 'closed'].includes(item.status)).map(item => (
-                  <CaseRow key={item.id} item={item} onPress={() => router.push({ pathname: '/hc-case-log-detail', params: { id: String(item.id), sourceType: item.source_type || 'work_order' } })} />
-                ))}
-              </>
-            )}
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ΓöÇΓöÇΓöÇ HC Admin Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-function HCAdminHome({ user }: { user: any }) {
-  const { theme } = useTheme();
-  const [dash, setDash] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const res = await authenticatedFetch('/api/mobile/case-logs/dashboard').then((r: Response) => r.json());
-      setDash(res);
-    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  // Auto-refresh on focus + 30s polling (without blinking)
-  useFocusEffect(
-    useCallback(() => {
-      void load(true);
-      const interval = setInterval(() => { void load(true); }, 30000);
-      return () => clearInterval(interval);
-    }, [load])
-  );
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
-
-  return (
-    <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
-        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
-      </HomeAppBar>
-      <ScrollView
-        contentContainerStyle={ss.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <GreetingRow greeting={greeting} roleLabel="Admin" icon="shield-account-outline" />
-
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
-          <>
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>CASE LOG OVERVIEW</Text>
-            <View style={ss.statsGrid}>
-              <StatCard label="Total" value={dash?.total ?? 0} color="#2563EB" onPress={() => router.push('/(tabs)/tasks')} />
-              <StatCard label="Open" value={dash?.open ?? 0} color="#DC2626" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'open' } })} />
-              <StatCard label="Assigned" value={dash?.assigned ?? 0} color="#2563EB" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'assigned' } })} />
-              <StatCard label="In Progress" value={dash?.inProgress ?? 0} color="#D97706" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'in_progress' } })} />
-              <StatCard label="Resolved" value={dash?.resolved ?? 0} color="#059669" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'resolved' } })} />
-              <StatCard label="Closed" value={dash?.closed ?? 0} color="#64748B" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { status: 'closed' } })} />
-            </View>
-
-            {(dash?.engineerStats?.length ?? 0) > 0 && (
-              <>
-                <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ENGINEER PERFORMANCE</Text>
-                {dash.engineerStats.map((e: any, i: number) => (
-                  <View key={i} style={[ss.engRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <View style={[ss.engAvatar, { backgroundColor: theme.primaryBg }]}>
-                      <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 16 }}>
-                        {(e.engineer_name || '?')[0]}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[ss.engName, { color: theme.textPrimary }]}>{e.engineer_name}</Text>
-                      <Text style={[ss.engSub, { color: theme.textSecondary }]}>
-                        {e.pending} pending ┬╖ {e.in_progress} in progress ┬╖ {e.resolved} resolved
-                      </Text>
-                    </View>
-                    <Text style={{ fontWeight: '700', color: theme.textPrimary }}>{e.total}</Text>
-                  </View>
-                ))}
-              </>
-            )}
-
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>TRAINING</Text>
-            <TouchableOpacity
-              style={[ss.pmsCard, { backgroundColor: theme.surface, borderColor: '#e9d5ff' }]}
-              onPress={() => router.push('/training-sessions' as any)}
-              activeOpacity={0.75}
-            >
-              <View style={[ss.pmsIconBox, { backgroundColor: '#f3e8ff' }]}>
-                <MaterialCommunityIcons name="school-outline" size={26} color="#7c3aed" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[ss.pmsCardTitle, { color: theme.textPrimary }]}>Training Sessions</Text>
-                <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>Schedule, attend & manage training</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
-            <View style={ss.actionsRow}>
-              {([
-                { icon: 'package-variant', label: 'Assets', color: theme.primary, route: '/assets' },
-                { icon: 'clipboard-text-outline', label: 'All Cases', color: '#D97706', route: '/(tabs)/tasks' },
-                { icon: 'account-group-outline', label: 'Users', color: '#7C3AED', route: '/(tabs)/assignments' },
-              ] as const).map(a => (
-                <TouchableOpacity key={a.label}
-                  style={[ss.actionBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                  onPress={() => router.push(a.route as any)} activeOpacity={0.7}
-                >
-                  <View style={[ss.actionIcon, { backgroundColor: a.color + '18' }]}>
-                    <MaterialCommunityIcons name={a.icon as any} size={22} color={a.color} />
-                  </View>
-                  <Text style={[ss.actionLabel, { color: theme.textPrimary }]}>{a.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ΓöÇΓöÇΓöÇ Department Head Home ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-function DeptHeadHome({ user }: { user: any }) {
-  const { theme } = useTheme();
-  const [stats, setStats] = useState<any>(null);
-  const [pending, setPending] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    const timeout = (ms: number) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-    try {
-      const [sRes, pRes] = await Promise.allSettled([
-        Promise.race([fetchDeptHeadStats(), timeout(5000)]),
-        Promise.race([fetchDeptHeadPending(), timeout(5000)]),
-      ]);
-      if (sRes.status === 'fulfilled') setStats(sRes.value);
-      if (pRes.status === 'fulfilled') setPending(Array.isArray(pRes.value) ? pRes.value.length : 0);
-    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  useFocusEffect(useCallback(() => {
-    void load(true);
-    const t = setInterval(() => void load(true), 30000);
-    return () => clearInterval(t);
-  }, [load]));
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
-
-  return (
-    <SafeAreaView style={[ss.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
-        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
-      </HomeAppBar>
-      <ScrollView
-        contentContainerStyle={ss.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={theme.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <GreetingRow greeting={greeting} roleLabel="Department Head" icon="shield-account-outline" />
-
-        {/* PMS Overview stats */}
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 20 }} /> : (
-          <>
-            <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>MY PMS OVERVIEW</Text>
-            <View style={ss.statsGrid}>
-              <StatCard label="Total" value={stats?.total ?? 0} color="#2563EB" onPress={() => router.push('/dept-head-pms')} />
-              <StatCard label="Pending" value={stats?.pending ?? 0} color="#DC2626" onPress={() => router.push('/dept-head-pms')} />
-              <StatCard label="Approved" value={stats?.approved ?? 0} color="#059669" />
-              <StatCard label="Closed" value={stats?.closed ?? 0} color="#64748B" />
-            </View>
-          </>
-        )}
-
-        {/* PMS Review action card */}
-        <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>PMS REVIEW</Text>
-        <TouchableOpacity
-          style={[dhs.pmsCard, { backgroundColor: '#0891b20d', borderColor: '#0891b240' }]}
-          onPress={() => router.push('/dept-head-pms')}
-          activeOpacity={0.8}
-        >
-          <View style={[dhs.pmsIconBox, { backgroundColor: '#0891b220' }]}>
-            <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#0891b2" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[dhs.pmsCardTitle, { color: '#0c4a6e' }]}>Review & Close Submissions</Text>
-            <Text style={{ fontSize: 12, color: '#0891b2', marginTop: 2 }}>Close completed engineer PMS reports</Text>
-          </View>
-          {pending > 0 && (
-            <View style={[ss.pmsBadge]}>
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{pending}</Text>
-            </View>
-          )}
-          <MaterialCommunityIcons name="chevron-right" size={20} color="#0891b2" />
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-const dhs = StyleSheet.create({
-  pmsCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
-  pmsIconBox: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  pmsCardTitle: { fontSize: 15, fontWeight: '700' },
-});
-
-// ΓöÇΓöÇΓöÇ Root ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-export default function HomeScreen() {
-  const { user, capabilities } = useAuth();
-  const isDH = user?.role === 'department_head' || user?.role === 'dept_head';
-  if (capabilities.isHCStaff) return <HCStaffHome user={user} />;
-  if (capabilities.isHCEngineer) return <HCEngineerHome user={user} />;
-  if (capabilities.isHCAdmin) return <HCAdminHome user={user} />;
-  if (isDH) return <DeptHeadHome user={user} />;
-  return <LegacyHome user={user} capabilities={capabilities} />;
-}
-
-// ΓöÇΓöÇΓöÇ Styles ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const ss = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { padding: Spacing.lg, paddingBottom: 48, gap: Spacing.md },
-  topBar: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-
-  // Top app bar
-  appBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, height: 56, borderBottomWidth: 1 },
-  appBarLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
-  appAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  appAvatarTxt: { fontWeight: '800', fontSize: 14 },
-  appBarTitle: { fontSize: 18, fontWeight: '600', letterSpacing: -0.2, flex: 1 },
-  appBarActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
-  appBarIconBtn: { padding: 2 },
-  appBarBadge: { position: 'absolute', top: -5, right: -6, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5 },
-  appBarBadgeTxt: { fontSize: 9, color: '#fff', fontWeight: '700' },
-
-  // Greeting + role badge
-  greetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, marginBottom: Spacing.xs },
-  greetBig: { flex: 1, fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.6 },
-  roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.sm, borderWidth: 1 },
-  roleBadgeTxt: { fontFamily: Fonts.mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  greeting: { fontSize: 13, marginBottom: 2, fontWeight: '500' },
-  name: { fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.4 },
-  company: { fontSize: 12, marginTop: 2 },
-  roleTag: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.sm, fontFamily: Fonts.mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', overflow: 'hidden' },
-  qrBtn: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  raiseCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: Spacing.md, borderRadius: Radius.lg },
-  raiseCtaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  sectionTitle: { ...Typography.overline, marginTop: 4 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
-  statCard: { width: '47.5%', borderRadius: Radius.sm, padding: Spacing.lg, borderWidth: 1, alignItems: 'flex-start', gap: 6 },
-  statLabel: { ...Typography.overline, fontSize: 10 },
-  statValue: { ...Typography.metricNum },
-  caseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, paddingLeft: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, overflow: 'hidden' },
-  caseStripe: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
-  caseTitle: { fontWeight: '700', fontSize: 13 },
-  caseDesc: { fontSize: 12, marginTop: 2 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  engRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, ...Shadows.xs },
-  engAvatar: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  engName: { fontWeight: '700', fontSize: 13 },
-  engSub: { fontSize: 11, marginTop: 2 },
-  actionsRow: { flexDirection: 'row', gap: Spacing.sm },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionBtn: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
-  actionIcon: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  legacyCard: { width: '47.5%', padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, gap: 8 },
-  pmsCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.sm },
-  pmsIconBox: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  pmsCardTitle: { fontSize: 15, fontWeight: '700' },
-  pmsBadge: { backgroundColor: '#2347C5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, minWidth: 28, alignItems: 'center' },
-});
-
-// ΓöÇΓöÇΓöÇ Quick-action card ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-function ActionCard({ icon, label, sublabel, color, onPress }: {
-  icon: string; label: string; sublabel?: string; color: string; onPress: () => void;
+// ─── Quick action tile ────────────────────────────────────────────────────────
+function ActionTile({ icon, label, color, onPress }: {
+  icon: string; label: string; color: string; onPress: () => void;
 }) {
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-      onPress={onPress}
-      activeOpacity={0.7}
+      style={[styles.actionTile, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={onPress} activeOpacity={0.75}
     >
-      <View style={[styles.actionIconWrap, { backgroundColor: color + '15' }]}>
+      <View style={[styles.actionIcon, { backgroundColor: color + '18' }]}>
+        <MaterialCommunityIcons name={icon as any} size={24} color={color} />
+      </View>
+      <Text style={[styles.actionLabel, { color: theme.textPrimary }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Module card (Trainings / PMS) ────────────────────────────────────────────
+function ModuleCard({ icon, label, value, sub, color, onPress }: {
+  icon: string; label: string; value: string | number; sub?: string; color: string; onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[styles.modCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={onPress} activeOpacity={0.8}
+    >
+      <View style={[styles.modIcon, { backgroundColor: color + '18' }]}>
         <MaterialCommunityIcons name={icon as any} size={22} color={color} />
       </View>
-      <Text style={[styles.actionLabel, { color: theme.textPrimary }]} numberOfLines={1}>{label}</Text>
-      {sublabel ? <Text style={[styles.actionSub, { color: theme.textSecondary }]} numberOfLines={1}>{sublabel}</Text> : null}
+      <Text style={[styles.modValue, { color: theme.textPrimary }]}>{value}</Text>
+      <Text style={[styles.modLabel, { color: theme.textPrimary }]}>{label}</Text>
+      {sub ? <Text style={[styles.modSub, { color: theme.textMuted }]}>{sub}</Text> : null}
     </TouchableOpacity>
   );
 }
 
-// ΓöÇΓöÇΓöÇ Main ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-function LegacyHome({ user, capabilities }: { user: any; capabilities: any }) {
-  const { theme } = useTheme();
-  const [progress, setProgress] = useState<any>(null);
-  const [notifCount, setNotifCount] = useState(0);
-  const [pendingPms, setPendingPms] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const isDeptHead = user?.role === 'department_head' || user?.role === 'dept_head';
-
-  const load = useCallback(async () => {
-    // 5-second timeout so the spinner doesn't hang if the backend is unreachable
-    const timeout = (ms: number) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-    try {
-      const promises: Promise<any>[] = [
-        Promise.race([fetchMyTodayProgress(), timeout(5000)]),
-        Promise.race([fetchNotificationCount(), timeout(5000)]),
-      ];
-      if (isDeptHead) promises.push(Promise.race([fetchDeptHeadPending(), timeout(5000)]));
-
-      const results = await Promise.allSettled(promises);
-      if (results[0].status === 'fulfilled') setProgress(results[0].value);
-      if (results[1].status === 'fulfilled') setNotifCount((results[1].value as any).unread ?? (results[1].value as any).count ?? 0);
-      if (isDeptHead && results[2]?.status === 'fulfilled') setPendingPms(Array.isArray(results[2].value) ? results[2].value.length : 0);
-    } catch { /* silent */ } finally {
-      setLoading(false); setRefreshing(false);
-    }
-  }, [isDeptHead]);
-
-  useEffect(() => { void load(); }, [load]);
-  const onRefresh = () => { setRefreshing(true); void load(); };
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
-
-  const roleLabel = (user?.role || 'Employee').replace(/_/g, ' ');
+// ─── Recent work order row ────────────────────────────────────────────────────
+function OrderRow({ item, theme }: { item: any; theme: any }) {
+  const status: string = item.status ?? 'open';
+  const statusColor =
+    status === 'completed' ? theme.success :
+    status === 'in_progress' ? theme.warning :
+    theme.primary;
+  const statusLabel =
+    status === 'in_progress' ? 'In Progress' :
+    status.charAt(0).toUpperCase() + status.slice(1);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <HomeAppBar title={user?.companyName || 'System Terminal'} initial={(firstName[0] || 'U').toUpperCase()}>
-        {canViewNotifications(capabilities) ? (
-          <TouchableOpacity
-            onPress={() => router.push('/notifications')}
-            style={ss.appBarIconBtn}
-            hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
-            activeOpacity={0.6}
-          >
-            <MaterialCommunityIcons name="bell-outline" size={23} color={theme.textSecondary} />
-            {notifCount > 0 ? (
-              <View style={[ss.appBarBadge, { backgroundColor: theme.danger, borderColor: theme.background }]}>
-                <Text style={ss.appBarBadgeTxt}>{notifCount > 99 ? '99+' : notifCount}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        ) : null}
-        {canRegisterAssets(capabilities) ? <AppBarIcon icon="plus" onPress={() => router.push('/add-asset')} /> : null}
-        <AppBarIcon icon="qrcode-scan" onPress={() => router.push('/qr-scanner')} />
-      </HomeAppBar>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <GreetingRow greeting={greeting} roleLabel={roleLabel} icon="shield-account-outline" />
+    <TouchableOpacity
+      style={[styles.orderRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: String(item.id) } })}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.orderStripe, { backgroundColor: statusColor }]} />
+      <View style={styles.orderBody}>
+        <Text style={[styles.orderTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+          {item.title ?? item.description ?? `WO-${item.id}`}
+        </Text>
+        <Text style={[styles.orderSub, { color: theme.textMuted }]} numberOfLines={1}>
+          {item.assetName ?? item.location ?? '—'}
+        </Text>
+      </View>
+      <View style={[styles.statusPill, { backgroundColor: statusColor + '18' }]}>
+        <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-        {/* Today stats */}
-        {loading ? (
-          <ActivityIndicator color={theme.primary} style={{ marginVertical: Spacing.xl }} />
-        ) : progress ? (
-          <View style={[styles.statsRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {[
-              { label: 'Assigned', value: (progress as any).assigned ?? 0, color: theme.primary },
-              { label: 'Done', value: (progress as any).completed ?? 0, color: '#059669' },
-              { label: 'Pending', value: (progress as any).pending ?? 0, color: '#D97706' },
-            ].map(({ label, value, color }, i, arr) => (
-              <View key={label} style={[styles.statItem, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: theme.border }]}>
-                <Text style={[styles.statValue, { color }]}>{value}</Text>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{label}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
+// ─── Main screen ─────────────────────────────────────────────────────────────
+export default function HomeTab() {
+  const { theme } = useTheme();
+  const { user, capabilities } = useAuth();
+  const { scopedCompanyId } = useCompanyScope();
+  const [orders, setOrders]                   = useState<any[]>([]);
+  const [stats, setStats]                     = useState<any>(null);
+  const [pms, setPms]                         = useState<any>(null);
+  const [trainings, setTrainings]             = useState<any[]>([]);
+  const [assignedRequests, setAssignedRequests] = useState<any[]>([]);
+  const [newTrainings, setNewTrainings]       = useState<any[]>([]);
+  const [loading, setLoading]                 = useState(true);
+  const [refreshing, setRefreshing]           = useState(false);
 
-        {/* ΓöÇΓöÇ Quick actions ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
-        <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
-        <View style={styles.actionsGrid}>
-          <ActionCard icon="package-variant" label="Assets" sublabel="Browse & scan" color={theme.primary} onPress={() => router.push('/assets')} />
+  const load = useCallback(async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
+    try {
+      const [wo, st, pm, tr, aq] = await Promise.allSettled([
+        fetchWorkOrders(scopedCompanyId ? { companyId: scopedCompanyId } : undefined),
+        fetchWorkOrderStats(scopedCompanyId),
+        fetchMyPmsStats(),
+        fetchMyTrainings(),
+        fetchWorkOrders({ assignedToMe: true }),
+      ]);
+      if (wo.status === 'fulfilled') {
+        const raw = wo.value;
+        const arr = Array.isArray(raw) ? raw : (raw as any)?.data ?? [];
+        setOrders(arr as any[]);
+      }
+      if (st.status === 'fulfilled') setStats(st.value);
+      if (pm.status === 'fulfilled') setPms(pm.value);
+      if (tr.status === 'fulfilled') {
+        const arr = Array.isArray(tr.value) ? tr.value as any[] : (tr.value as any)?.data ?? [];
+        setTrainings(arr);
+        // Show new/pending trainings as alerts
+        const pending = arr.filter((t: any) =>
+          ['assigned', 'pending', 'scheduled', 'upcoming'].includes(
+            (t.status ?? t.assignmentStatus ?? '').toLowerCase()
+          )
+        );
+        setNewTrainings(pending);
+      }
+      if (aq.status === 'fulfilled') {
+        const arr = Array.isArray(aq.value) ? aq.value as any[] : [];
+        // Show open/unresolved assigned requests
+        const openReqs = arr.filter((q: any) =>
+          !['closed', 'resolved', 'completed'].includes((q.status ?? '').toLowerCase())
+        );
+        setAssignedRequests(openReqs);
+      }
+    } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
+  }, [scopedCompanyId]);
 
-          {hasTechAccess(capabilities) ? (
-            <ActionCard icon="clipboard-check-outline" label="Checklists" sublabel="My assignments" color="#059669" onPress={() => router.push('/(tabs)/checklists')} />
-          ) : null}
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-          {canManageTeam(capabilities) ? (
-            <ActionCard icon="account-group-outline" label="My Team" sublabel="Assignments" color="#7C3AED" onPress={() => router.push('/(tabs)/assignments')} />
-          ) : null}
+  const onRefresh = () => { setRefreshing(true); void load(true); };
 
-          {hasTechAccess(capabilities) ? (
-            <ActionCard icon="briefcase-outline" label="Work Orders" sublabel="Active orders" color="#D97706" onPress={() => router.push('/work-orders')} />
-          ) : null}
+  const initial = (user?.fullName ?? 'U').charAt(0).toUpperCase();
+  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';
 
-          <ActionCard icon="clipboard-list-outline" label="HC Requests" sublabel="Queries & work orders" color="#0284C7" onPress={() => router.push('/hc-requests')} />
+  const open       = stats?.open        ?? orders.filter(o => o.status === 'open').length;
+  const inProgress = stats?.inProgress  ?? orders.filter(o => o.status === 'in_progress').length;
+  const completed  = stats?.completed   ?? orders.filter(o => o.status === 'completed').length;
+  const total      = stats?.total       ?? orders.length;
+  const overdue    = stats?.overdue     ?? 0;
+  const recent     = orders.slice(0, 5);
 
-          <ActionCard icon="ticket-outline" label="My Issues" sublabel="Track raised requests" color="#7C3AED" onPress={() => router.push('/my-requests')} />
+  const trainingCount    = trainings.length;
+  const trainingUpcoming = trainings.filter(t =>
+    ['scheduled', 'upcoming'].includes((t.status ?? '').toLowerCase())
+  ).length;
 
-          {capabilities.isHCEngineer ? (
-            <ActionCard icon="wrench-clock" label="Assigned Issues" sublabel="Complete & resolve" color="#DC2626" onPress={() => router.push('/assigned-queries')} />
-          ) : null}
+  const totalAlerts = assignedRequests.length + newTrainings.length;
 
-          <ActionCard icon="history" label="History" sublabel="Past submissions" color={theme.info} onPress={() => router.push('/history')} />
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: '#E8F1FF' }]} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#E8F1FF" />
 
-          {hasTechAccess(capabilities) ? (
-            <ActionCard icon="school-outline" label="Training" sublabel="OJT modules" color="#059669" onPress={() => router.push('/training')} />
-          ) : null}
+      {/* Light header */}
+      <View style={[styles.header, { backgroundColor: '#E8F1FF' }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.greeting, { color: '#4B7BE5' }]}>{greeting},</Text>
+          <Text style={[styles.userName, { color: '#1A2C5A' }]} numberOfLines={1}>{user?.fullName ?? 'Welcome'}</Text>
+          <Text style={[styles.companySub, { color: '#6B84B0' }]} numberOfLines={1}>{user?.companyName}</Text>
         </View>
-
-        {/*Dept Head PMS Review*/}
-        {(user?.role === 'department_head' || user?.role === 'dept_head') && (
-          <>
-            <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>PMS REVIEW</Text>
+        <View style={styles.headerRight}>
+          {totalAlerts > 0 && (
             <TouchableOpacity
-              style={[styles.pmsApprovalCard, { backgroundColor: '#0891b212', borderColor: '#0891b240' }]}
-              onPress={() => router.push('/dept-head-pms')}
-              activeOpacity={0.8}
+              style={styles.alertBell}
+              onPress={() => router.push('/notifications')}
+              activeOpacity={0.75}
             >
-              <View style={[styles.pmsApprovalIcon, { backgroundColor: '#0891b220' }]}>
-                <MaterialCommunityIcons name="clipboard-check-outline" size={26} color="#0891b2" />
+              <MaterialCommunityIcons name="bell-ring" size={22} color="#EF4444" />
+              <View style={styles.alertBadge}>
+                <Text style={styles.alertBadgeText}>{totalAlerts > 9 ? '9+' : totalAlerts}</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.pmsApprovalTitle, { color: '#0c4a6e' }]}>Review & Close Submissions</Text>
-                <Text style={[styles.pmsApprovalSub, { color: '#0891b2' }]}>Close completed engineer PMS reports</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.logoWrap}>
+            <Image source={LOGO} style={styles.logo} resizeMode="cover" />
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.background }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+      >
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 48 }} size="large" color={theme.primary} />
+        ) : (
+          <>
+            {/* Admin entry — HC admins only */}
+            {capabilities?.isHCAdmin && (
+              <TouchableOpacity
+                style={[styles.adminBanner, { backgroundColor: theme.surface, borderColor: theme.primary + '40' }]}
+                onPress={() => router.push('/admin-dashboard')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.adminIcon, { backgroundColor: theme.primaryBg }]}>
+                  <MaterialCommunityIcons name="view-dashboard-outline" size={22} color={theme.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.adminTitle, { color: theme.textPrimary }]}>Admin Dashboard</Text>
+                  <Text style={[styles.adminSub, { color: theme.textMuted }]}>Multi-company profiles & management</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={theme.primary} />
+              </TouchableOpacity>
+            )}
+
+            {/* Overview — Requests count hero */}
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Overview</Text>
+            <View style={[styles.hero, { backgroundColor: theme.primary }]}>
+              <View style={styles.heroTopRow}>
+                <Text style={styles.heroTitle}>Requests</Text>
+                <TouchableOpacity onPress={() => router.push('/(tabs)/requests')} style={styles.heroLink} activeOpacity={0.7}>
+                  <Text style={styles.heroLinkText}>View all</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
+                </TouchableOpacity>
               </View>
-              {pendingPms > 0 && (
-                <View style={styles.pmsApprovalBadge}>
-                  <Text style={styles.pmsApprovalBadgeText}>{pendingPms}</Text>
+              <View style={styles.heroStats}>
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                  <Text style={styles.heroNum}>{open}</Text>
+                  <View style={styles.heroLabelRow}>
+                    <View style={[styles.dot, { backgroundColor: '#93C5FD' }]} />
+                    <Text style={styles.heroLabel}>Open</Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.heroDivider} />
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                  <Text style={styles.heroNum}>{inProgress}</Text>
+                  <View style={styles.heroLabelRow}>
+                    <View style={[styles.dot, { backgroundColor: '#FCD34D' }]} />
+                    <Text style={styles.heroLabel}>In Progress</Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.heroDivider} />
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                  <Text style={styles.heroNum}>{completed}</Text>
+                  <View style={styles.heroLabelRow}>
+                    <View style={[styles.dot, { backgroundColor: '#86EFAC' }]} />
+                    <Text style={styles.heroLabel}>Completed</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+              {total > 0 && (
+                <View style={styles.segTrack}>
+                  <View style={{ flex: open,       backgroundColor: '#93C5FD' }} />
+                  <View style={{ flex: inProgress, backgroundColor: '#FCD34D' }} />
+                  <View style={{ flex: completed,  backgroundColor: '#86EFAC' }} />
                 </View>
               )}
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#0891b2" />
-            </TouchableOpacity>
+              <View style={styles.heroFooter}>
+                <Text style={styles.heroFootText}>{total} total</Text>
+                {overdue > 0 && (
+                  <View style={styles.overduePill}>
+                    <MaterialCommunityIcons name="clock-alert-outline" size={12} color="#fff" />
+                    <Text style={styles.overdueText}>{overdue} overdue</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Modules — Trainings + PMS */}
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Modules</Text>
+            <View style={styles.modGrid}>
+              <ModuleCard
+                icon="school-outline" label="Trainings" color="#7C3AED"
+                value={trainingCount}
+                sub={trainingUpcoming > 0 ? `${trainingUpcoming} upcoming` : 'View sessions'}
+                onPress={() => router.push('/training')}
+              />
+              <ModuleCard
+                icon="calendar-clock" label="PMS" color={theme.warning}
+                value={pms?.total ?? 0}
+                sub={pms ? `${pms.completed ?? 0} done · ${pms.assigned ?? 0} due` : 'Scheduler'}
+                onPress={() => router.push('/pms-assignments')}
+              />
+            </View>
+
+            {/* Quick actions */}
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Quick Actions</Text>
+            <View style={styles.actionsGrid}>
+              <ActionTile icon="package-variant"        label="Assets"      color={theme.primary}  onPress={() => router.push('/(tabs)/assets')} />
+              <ActionTile icon="briefcase-check-outline" label="Requests"   color={theme.warning}  onPress={() => router.push('/(tabs)/requests')} />
+              <ActionTile icon="chart-bar"              label="Reports"     color={theme.success}  onPress={() => router.push('/(tabs)/reports')} />
+              <ActionTile icon="qrcode-scan"            label="Scan QR"     color={theme.info}     onPress={() => router.push('/qr-scanner')} />
+              <ActionTile icon="clipboard-check"        label="Checklists"  color="#7C3AED"        onPress={() => router.push('/(tabs)/checklists')} />
+              <ActionTile icon="bell-outline"           label="Alerts"      color={theme.danger}   onPress={() => router.push('/notifications')} />
+            </View>
+
+            {/* Alerts — assigned requests & trainings */}
+            {(assignedRequests.length > 0 || newTrainings.length > 0) && (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Alerts</Text>
+                <View style={styles.alertList}>
+                  {assignedRequests.map((req, i) => (
+                    <TouchableOpacity
+                      key={req.id ?? i}
+                      style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+                      onPress={() => router.push({ pathname: '/work-order-details', params: { orderId: String(req.id) } })}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
+                        <MaterialCommunityIcons name="clipboard-text-outline" size={18} color="#EA580C" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
+                          {req.issueDescription ?? req.sourceLabel ?? req.assetName ?? `Work Order #${req.id}`}
+                        </Text>
+                        <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
+                          {req.assetName ? `${req.assetName} · ` : ''}{req.status === 'in_progress' ? 'In Progress' : 'Assigned to you'}
+                        </Text>
+                      </View>
+                      <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
+                    </TouchableOpacity>
+                  ))}
+                  {newTrainings.map((tr, i) => (
+                    <TouchableOpacity
+                      key={tr.id ?? i}
+                      style={[styles.alertRow, { backgroundColor: '#F3E8FF', borderColor: '#C4B5FD' }]}
+                      onPress={() => router.push('/training')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.alertRowIcon, { backgroundColor: '#EDE9FE' }]}>
+                        <MaterialCommunityIcons name="school-outline" size={18} color="#7C3AED" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.alertRowTitle, { color: '#5B21B6' }]} numberOfLines={1}>
+                          {tr.title ?? tr.name ?? tr.sessionName ?? `Training #${tr.id}`}
+                        </Text>
+                        <Text style={[styles.alertRowSub, { color: '#7C3AED' }]}>Training assigned to you</Text>
+                      </View>
+                      <MaterialCommunityIcons name="chevron-right" size={18} color="#7C3AED" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Recent requests */}
+            {recent.length > 0 && (
+              <>
+                <View style={styles.recentHeader}>
+                  <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Recent Requests</Text>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/requests')}>
+                    <Text style={[styles.seeAll, { color: theme.primary }]}>See all</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.orderList}>
+                  {recent.map(item => (
+                    <OrderRow key={item.id} item={item} theme={theme} />
+                  ))}
+                </View>
+              </>
+            )}
           </>
         )}
-
-        {/* ΓöÇΓöÇ Role chip ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
-        <View style={[styles.roleChip, { backgroundColor: theme.primaryBg, borderColor: theme.primary + '30' }]}>
-          <MaterialCommunityIcons name="shield-account-outline" size={16} color={theme.primary} />
-          <Text style={[styles.roleText, { color: theme.primary }]}>{user?.role?.replace(/_/g, ' ')}</Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { padding: Spacing.lg, paddingBottom: 40, gap: Spacing.lg },
+  safe:    { flex: 1 },
+  header:  { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerLeft:  { flex: 1 },
+  greeting:    { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  userName:    { ...Typography.h2 },
+  companySub:  { fontSize: 13, marginTop: 2 },
+  headerRight:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 4 },
+  avatarCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText:   { fontSize: 16, fontWeight: '800', color: '#fff' },
+  logoWrap:     { width: 42, height: 42, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', padding: 2 },
+  logo:         { width: '100%', height: '100%', borderRadius: 10 },
 
-  topBar: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-  greeting: { fontSize: 13, marginBottom: 2 },
-  name: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
-  company: { fontSize: 12, marginTop: 2 },
-  topActions: { flexDirection: 'row', gap: Spacing.sm, paddingTop: 4 },
-  iconBtn: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, ...Shadows.xs },
-  badge: { position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#fff' },
-  badgeText: { fontSize: 9, color: '#fff', fontWeight: '700' },
+  // Alert bell
+  alertBell:      { position: 'relative', padding: 4 },
+  alertBadge:     { position: 'absolute', top: 0, right: 0, width: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  alertBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
 
-  statsRow: { flexDirection: 'row', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden', ...Shadows.sm },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.lg },
-  statValue: { ...Typography.metricNum, fontSize: 24, lineHeight: 30 },
-  statLabel: { ...Typography.overline, fontSize: 10, marginTop: 4 },
+  // Alert rows (below quick actions)
+  alertList:     { marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.lg },
+  alertRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5, ...Shadows.sm },
+  alertRowIcon:  { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  alertRowTitle: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  alertRowSub:   { fontSize: 11, marginTop: 1 },
 
-  sectionTitle: { ...Typography.overline },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  actionCard: { width: '47.5%', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, gap: 4, ...Shadows.xs },
-  actionIconWrap: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  actionLabel: { fontSize: 13, fontWeight: '700' },
-  actionSub: { fontSize: 11 },
+  scroll: { paddingBottom: Spacing.xxl, gap: 0 },
 
-  roleChip: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1 },
-  roleText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  // Admin banner
+  adminBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.lg, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5, ...Shadows.sm },
+  adminIcon:   { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  adminTitle:  { fontSize: 15, fontWeight: '800' },
+  adminSub:    { fontSize: 12, marginTop: 1 },
 
-  pmsApprovalCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, ...Shadows.xs },
-  pmsApprovalIcon: { width: 50, height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  pmsApprovalTitle: { fontSize: 15, fontWeight: '700' },
-  pmsApprovalSub: { fontSize: 12, marginTop: 2 },
-  pmsApprovalBadge: { backgroundColor: '#7c3aed', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, minWidth: 28, alignItems: 'center' },
-  pmsApprovalBadgeText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  // Requests hero band
+  hero:      { marginHorizontal: Spacing.lg, marginBottom: Spacing.lg, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Shadows.md },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroTitle: { fontSize: 16, fontWeight: '800', color: '#fff' },
+  heroLink:  { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  heroLinkText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  heroStats: { flexDirection: 'row', alignItems: 'center' },
+  heroStat:  { flex: 1, alignItems: 'center', gap: 4 },
+  heroNum:   { fontSize: 30, fontWeight: '900', color: '#fff', lineHeight: 34 },
+  heroLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  heroLabel: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  dot:       { width: 7, height: 7, borderRadius: 4 },
+  heroDivider: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.2)' },
+  segTrack:  { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)' },
+  heroFooter: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  heroFootText: { fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(239,68,68,0.85)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.full },
+  overdueText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+
+  // Module cards
+  modGrid: { flexDirection: 'row', marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.lg },
+  modCard: { flex: 1, borderRadius: Radius.lg, padding: Spacing.md, gap: 4, borderWidth: 1, ...Shadows.sm },
+  modIcon: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  modValue: { fontSize: 24, fontWeight: '800' },
+  modLabel: { fontSize: 14, fontWeight: '700' },
+  modSub:   { fontSize: 11, fontWeight: '500' },
+
+  statsRow: { flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.lg, marginBottom: Spacing.lg },
+  statCard: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xs, alignItems: 'center', gap: 2, borderWidth: 1, ...Shadows.sm },
+  statIconBox: { width: 28, height: 28, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  statLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+
+  sectionTitle: { ...Typography.h4, marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
+
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.lg },
+  actionTile:  { width: '31%', borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: Spacing.sm, borderWidth: 1, ...Shadows.sm },
+  actionIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+
+  recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
+  seeAll:       { fontSize: 13, fontWeight: '700' },
+
+  orderList: { marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.md },
+  orderRow:  { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden', ...Shadows.sm },
+  orderStripe: { width: 4, alignSelf: 'stretch' },
+  orderBody:   { flex: 1, padding: Spacing.md, gap: 2 },
+  orderTitle:  { ...Typography.bodyS, fontWeight: '700' },
+  orderSub:    { fontSize: 12, fontWeight: '400' },
+  statusPill:  { marginRight: Spacing.md, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
+  statusText:  { fontSize: 11, fontWeight: '700' },
 });
