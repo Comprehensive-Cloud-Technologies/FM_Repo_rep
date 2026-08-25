@@ -802,6 +802,104 @@ function CalEventCard({ ev, onClick }) {
   );
 }
 
+// ─── Delete Schedules by Month / Range ───────────────────────────────────────
+function DeleteSchedulesModal({ token, onClose, onDeleted }) {
+  const [mode, setMode]   = useState("months");  // 'months' | 'range'
+  const [from, setFrom]   = useState("");
+  const [to, setTo]       = useState("");
+  const [picked, setPicked] = useState(new Set());
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState("");
+
+  // Build a rolling list: 3 months back → 12 months ahead
+  const monthOptions = (() => {
+    const out = [];
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    for (let i = 0; i < 16; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("default", { month: "short", year: "numeric" });
+      out.push({ key, label });
+    }
+    return out;
+  })();
+
+  const toggleMonth = (k) =>
+    setPicked(p => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
+
+  const submit = async () => {
+    setErr("");
+    const body = mode === "months"
+      ? { months: [...picked] }
+      : { from, to };
+    if (mode === "months" && picked.size === 0) return setErr("Select at least one month.");
+    if (mode === "range" && (!from || !to))     return setErr("Choose both a start and end date.");
+    const desc = mode === "months" ? `${picked.size} month(s)` : `${from} → ${to}`;
+    if (!window.confirm(`Delete ALL PMS schedules in ${desc}? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch("POST", "/api/company-portal/pms/schedules/bulk-delete", body, token);
+      onDeleted(r?.deleted ?? 0);
+    } catch (e) { setErr(e.message); setBusy(false); }
+  };
+
+  const tab = (m, label) => (
+    <button onClick={() => setMode(m)}
+      style={{ ...S.btn(mode === m ? "primary" : "ghost"), padding: "7px 14px", fontSize: "13px" }}>{label}</button>
+  );
+
+  return (
+    <Modal title="Delete PMS Schedules" onClose={onClose} maxWidth={520}>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        {tab("months", "By Month")}
+        {tab("range", "By Date Range")}
+      </div>
+
+      {mode === "months" ? (
+        <div>
+          <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "10px" }}>
+            Select the month(s) whose schedules you want to delete.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: "8px" }}>
+            {monthOptions.map(m => {
+              const on = picked.has(m.key);
+              return (
+                <button key={m.key} onClick={() => toggleMonth(m.key)}
+                  style={{ padding: "8px 6px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                    border: `1.5px solid ${on ? "#dc2626" : "#e2e8f0"}`,
+                    background: on ? "#fef2f2" : "#fff", color: on ? "#dc2626" : "#475569" }}>
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 160px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>From</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ ...S.input }} />
+          </div>
+          <div style={{ flex: "1 1 160px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "5px" }}>To</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ ...S.input }} />
+          </div>
+        </div>
+      )}
+
+      {err && <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "13px" }}>{err}</div>}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
+        <button style={S.btn("ghost")} onClick={onClose} disabled={busy}>Cancel</button>
+        <button style={{ ...S.btn("danger"), opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
+          {busy ? "Deleting…" : "🗑 Delete Selected"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My Hospital" }) {
   const [schedules,      setSchedules]      = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -1098,10 +1196,11 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
         {(filters.search || filters.engineer || filters.status || filters.fromDate || filters.toDate) && (
           <button style={S.btn("ghost")} onClick={() => setFilters({ search: "", engineer: "", status: "", fromDate: "", toDate: "" })}>✕ Reset</button>
         )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button style={S.btn("secondary")} onClick={exportAssetMonthlyReport} disabled={exporting}>
             {exporting ? "⏳ Exporting..." : "📥 Export Excel"}
           </button>
+          <button style={S.btn("danger")} onClick={() => setModal("deleteRange")}>🗑 Delete Schedules</button>
           <button style={S.btn("primary")} onClick={() => setModal("create")}>+ Create PMS Schedule</button>
         </div>
       </div>
@@ -1606,6 +1705,11 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
               onCancel={() => setModal(null)} />
           </div>
         </>
+      )}
+      {modal === "deleteRange" && (
+        <DeleteSchedulesModal token={token}
+          onClose={() => setModal(null)}
+          onDeleted={(n) => { setModal(null); showToast(`Deleted ${n} schedule${n !== 1 ? "s" : ""}.`); load(); }} />
       )}
       {modal?.view && (
         <Modal title={`Schedule ${modal.view.schedule_number}`} onClose={() => setModal(null)} maxWidth={900}>

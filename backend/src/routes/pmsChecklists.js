@@ -744,8 +744,45 @@ router.delete("/schedules/:id", async (req, res, next) => {
       [req.params.id, cid(req)]
     );
     if (!existing) return res.status(404).json({ message: "Not found" });
+    await pool.query("DELETE FROM pms_schedule_assets WHERE schedule_id = ?", [req.params.id]).catch(() => {});
     await pool.query("DELETE FROM pms_schedules WHERE id = ?", [req.params.id]);
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST /schedules/bulk-delete — delete all schedule occurrences whose
+// maintenance_date falls within a date range (and optionally specific months).
+// Body: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD', months?: ['YYYY-MM', ...] }
+router.post("/schedules/bulk-delete", async (req, res, next) => {
+  try {
+    const { from, to, months } = req.body || {};
+    const companyId = cid(req);
+
+    let where = "company_id = ?";
+    const params = [companyId];
+
+    if (Array.isArray(months) && months.length) {
+      // Specific months e.g. ['2026-08','2026-10']
+      const valid = months.filter(m => /^\d{4}-\d{2}$/.test(m));
+      if (!valid.length) return res.status(400).json({ message: "No valid months provided" });
+      where += ` AND DATE_FORMAT(maintenance_date, '%Y-%m') IN (${valid.map(() => "?").join(",")})`;
+      params.push(...valid);
+    } else if (from && to) {
+      where += " AND maintenance_date BETWEEN ? AND ?";
+      params.push(from, to);
+    } else {
+      return res.status(400).json({ message: "Provide a date range (from/to) or a list of months" });
+    }
+
+    // Collect affected schedule ids first so we can clean up child rows
+    const [rows] = await pool.query(`SELECT id FROM pms_schedules WHERE ${where}`, params);
+    const ids = rows.map(r => r.id);
+    if (!ids.length) return res.json({ ok: true, deleted: 0 });
+
+    const ph = ids.map(() => "?").join(",");
+    await pool.query(`DELETE FROM pms_schedule_assets WHERE schedule_id IN (${ph})`, ids).catch(() => {});
+    await pool.query(`DELETE FROM pms_schedules WHERE id IN (${ph})`, ids);
+    res.json({ ok: true, deleted: ids.length });
   } catch (err) { next(err); }
 });
 
