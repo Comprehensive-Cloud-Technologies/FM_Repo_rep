@@ -17,11 +17,34 @@ import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
+import {
+  PERMISSIONS, getPermissionCatalog, getEffectivePermissions,
+  resolvePermissionsForRole, invalidatePermissionCache, MANAGEABLE_ROLE_KEYS,
+} from "../rbac/permissions.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
 
 const cid = (req) => req.companyUser.companyId;
+
+// ── Auto-migration: role → permission grants (dynamic RBAC, Phase 2) ─────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS role_permission_grants (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        company_id INT UNSIGNED NOT NULL,
+        role_key VARCHAR(80) NOT NULL,
+        permission_key VARCHAR(80) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_role_perm (company_id, role_key, permission_key),
+        KEY idx_company_role (company_id, role_key)
+      )
+    `);
+  } catch (err) {
+    if (!isMigrationSafeError(err)) console.error("[role-permission-grants] migration:", err.message);
+  }
+})();
 
 const slugify = (s) =>
   String(s || "")
@@ -51,6 +74,89 @@ const slugify = (s) =>
     if (!isMigrationSafeError(err)) console.error("[company-roles] migration:", err.message);
   }
 })();
+
+// ─── RBAC: permission catalog + per-role grants (admin only) ─────────────────
+
+const ROLE_LABELS = {
+  admin: "Admin", engineer: "Engineer", department_head: "Department Head",
+  doctor: "Doctor", nurse: "Nurse", ward_boy: "Ward Boy", employee: "Employee",
+};
+
+/* GET /permissions/catalog — grouped permission catalog for the Roles UI */
+router.get("/permissions/catalog", requirePermission("role:manage"), (req, res) => {
+  res.json({ catalog: getPermissionCatalog() });
+});
+
+/* GET /permissions/roles — every manageable role + its effective permissions */
+router.get("/permissions/roles", requirePermission("role:manage"), async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    // Custom company roles (if any) are manageable too
+    let customKeys = [];
+    try {
+      const [rows] = await pool.query(
+        "SELECT DISTINCT role_key FROM company_roles WHERE company_id = ? AND is_active = TRUE", [companyId]
+      );
+      customKeys = rows.map((r) => r.role_key);
+    } catch { /* table shape varies; ignore */ }
+
+    const roleKeys = [...new Set([...MANAGEABLE_ROLE_KEYS, ...customKeys])];
+    const [grantRows] = await pool.query(
+      "SELECT role_key, permission_key FROM role_permission_grants WHERE company_id = ?", [companyId]
+    );
+    const grantsByRole = {};
+    for (const g of grantRows) (grantsByRole[g.role_key] ||= []).push(g.permission_key);
+
+    const roles = roleKeys.map((roleKey) => {
+      const hasCustom = !!grantsByRole[roleKey];
+      const permissions = hasCustom
+        ? grantsByRole[roleKey].filter((p) => PERMISSIONS.includes(p))
+        : [...resolvePermissionsForRole(roleKey)];
+      return {
+        roleKey,
+        label: ROLE_LABELS[roleKey] || roleKey,
+        permissions: permissions.sort(),
+        isCustomized: hasCustom,
+        locked: roleKey === "admin",   // admin always has all permissions
+      };
+    });
+    res.json({ roles });
+  } catch (err) { next(err); }
+});
+
+/* PUT /permissions/roles/:roleKey — replace a role's granted permissions */
+router.put("/permissions/roles/:roleKey", requirePermission("role:manage"), async (req, res, next) => {
+  try {
+    const companyId = cid(req);
+    const roleKey = String(req.params.roleKey || "").toLowerCase();
+    if (roleKey === "admin") return res.status(400).json({ message: "The Admin role always has all permissions and cannot be edited." });
+
+    const requested = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+    const valid = [...new Set(requested.filter((p) => PERMISSIONS.includes(p)))];
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query("DELETE FROM role_permission_grants WHERE company_id = ? AND role_key = ?", [companyId, roleKey]);
+      if (valid.length) {
+        const values = valid.map(() => "(?, ?, ?)").join(", ");
+        const params = valid.flatMap((p) => [companyId, roleKey, p]);
+        await conn.query(
+          `INSERT INTO role_permission_grants (company_id, role_key, permission_key) VALUES ${values}`,
+          params
+        );
+      }
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback(); throw e;
+    } finally {
+      conn.release();
+    }
+
+    invalidatePermissionCache(companyId, roleKey);
+    res.json({ ok: true, roleKey, permissions: valid.sort() });
+  } catch (err) { next(err); }
+});
 
 /* ── List roles ───────────────────────────────────────────────────────────── */
 router.get("/", async (req, res, next) => {
