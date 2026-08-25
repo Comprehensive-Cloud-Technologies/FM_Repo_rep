@@ -19,6 +19,7 @@ interface AuthState {
   user:         AppUser | null;
   capabilities: RoleCapabilities;
   permissions:  string[];     // RBAC resolved permission keys (resource:action)
+  hasPermissions: boolean;    // true once the server has delivered an rbacPermissions array
   isLoaded:     boolean;
 }
 
@@ -33,6 +34,7 @@ const Ctx = createContext<AuthCtx>({
   user:         null,
   capabilities: EMPTY_CAPS,
   permissions:  [],
+  hasPermissions: false,
   isLoaded:     false,
   setUser:      () => {},
   clearUser:    () => {},
@@ -44,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user:     null,
     capabilities: EMPTY_CAPS,
     permissions: [],
+    hasPermissions: false,
     isLoaded: false,
   });
 
@@ -51,24 +54,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({
       user:         u,
       capabilities: u?.roleCapabilities ?? EMPTY_CAPS,
-      permissions:  u?.rbacPermissions ?? [],
+      permissions:  Array.isArray(u?.rbacPermissions) ? u!.rbacPermissions! : [],
+      // Whether the server actually delivered a permission list. An empty
+      // array is a valid, authoritative "no permissions" (revoke-all); an
+      // absent field means a legacy/stale session that hasn't re-verified.
+      hasPermissions: Array.isArray(u?.rbacPermissions),
       isLoaded:     true,
     });
   }, []);
 
   const clearUser = useCallback(() => {
-    setState({ user: null, capabilities: EMPTY_CAPS, permissions: [], isLoaded: true });
+    setState({ user: null, capabilities: EMPTY_CAPS, permissions: [], hasPermissions: false, isLoaded: true });
   }, []);
 
   const can = useCallback(
     (permission: string) => {
-      // Normal path: check the server-resolved permission list.
-      if (state.permissions.length) return state.permissions.includes(permission);
-      // Fallback for sessions that logged in before the RBAC payload existed:
-      // don't strip buttons from admins until they re-login. Server still enforces.
-      return (state.user?.role ?? '').toLowerCase() === 'admin';
+      // Until the server has delivered an rbacPermissions array (fresh login /
+      // verify), don't block anything — the server still enforces every action.
+      if (!state.hasPermissions) return true;
+      // Authoritative check: an empty array correctly denies everything.
+      return state.permissions.includes(permission);
     },
-    [state.permissions, state.user],
+    [state.permissions, state.hasPermissions],
   );
 
   return (
