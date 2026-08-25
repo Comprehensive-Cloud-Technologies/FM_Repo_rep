@@ -879,7 +879,7 @@ router.get("/by-department", async (req, res, next) => {
        LEFT JOIN ticket_sla_clocks esc ON esc.ticket_sla_id = ts.id AND esc.clock_type = 'resolution'
        ${where}
        GROUP BY ts.snapshot_department_id, ts.snapshot_dept_name
-       ORDER BY totalCalls DESC`,
+       ORDER BY breachedCount DESC, totalCalls DESC`,
       params
     );
 
