@@ -369,7 +369,9 @@ import {
 
 
 
-
+  getRbacCatalogForCompany,
+  getRbacRolePermissionsForCompany,
+  setRbacRolePermissionsForCompany,
 } from "../api";
 
 
@@ -4549,6 +4551,125 @@ function AdminShiftsSection({ token, companies = [] }) {
 
 
 
+
+/* ─── Client Portal: per-company Role Permissions (platform-scoped) ─────────── */
+function ClientRolePermissionsSection({ token, companies = [] }) {
+  const [companyId, setCompanyId] = useState("");
+  const [catalog, setCatalog]     = useState([]);
+  const [roles, setRoles]         = useState([]);
+  const [activeRole, setActiveRole] = useState(null);
+  const [draft, setDraft]         = useState(new Set());
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [msg, setMsg]             = useState("");
+  const [err, setErr]             = useState("");
+
+  const load = useCallback(async (cid) => {
+    if (!cid) { setRoles([]); setCatalog([]); return; }
+    setLoading(true); setErr(""); setActiveRole(null);
+    try {
+      const [cat, rl] = await Promise.all([
+        getRbacCatalogForCompany(token, cid),
+        getRbacRolePermissionsForCompany(token, cid),
+      ]);
+      setCatalog(cat.catalog || []);
+      setRoles(rl.roles || []);
+    } catch (e) { setErr(e.message || "Failed to load"); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(companyId); }, [companyId, load]);
+
+  const openRole = (r) => { if (r.locked) return; setActiveRole(r.roleKey); setDraft(new Set(r.permissions)); setMsg(""); setErr(""); };
+  const toggle = (k) => setDraft((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const toggleGroup = (perms, on) => setDraft((p) => { const n = new Set(p); perms.forEach((pm) => on ? n.add(pm.key) : n.delete(pm.key)); return n; });
+
+  const save = async () => {
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      await setRbacRolePermissionsForCompany(token, companyId, activeRole, [...draft]);
+      setMsg("Permissions saved."); await load(companyId); setActiveRole(null);
+    } catch (e) { setErr(e.message || "Save failed"); }
+    finally { setSaving(false); }
+  };
+
+  const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" };
+
+  return (
+    <div style={{ maxWidth: "1000px" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Roles &amp; Permissions</h1>
+        <p style={{ color: "#64748b", fontSize: "13.5px", margin: "4px 0 0" }}>Select a company, then choose exactly what each role can view and do.</p>
+      </div>
+
+      <div style={{ ...card, marginBottom: "16px" }}>
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>COMPANY</label>
+        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}
+          style={{ padding: "9px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", minWidth: "260px", background: "#fff" }}>
+          <option value="">Select a company…</option>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.companyName || c.name}</option>)}
+        </select>
+      </div>
+
+      {err && <div style={{ padding: "10px 14px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "13px", marginBottom: "12px" }}>{err}</div>}
+      {msg && <p style={{ color: "#16a34a", fontSize: "13px", fontWeight: 600 }}>{msg}</p>}
+
+      {!companyId ? null : loading ? (
+        <div style={card}><p style={{ color: "#94a3b8", fontSize: "13px", margin: 0 }}>Loading…</p></div>
+      ) : !activeRole ? (
+        <div style={{ ...card }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
+            {roles.map((r) => (
+              <button key={r.roleKey} onClick={() => openRole(r)} disabled={r.locked}
+                style={{ textAlign: "left", padding: "14px 16px", borderRadius: "10px", cursor: r.locked ? "default" : "pointer", border: "1px solid #e2e8f0", background: r.locked ? "#f8fafc" : "#fff" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{r.label}</span>
+                  {r.locked ? <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", background: "#e2e8f0", padding: "2px 8px", borderRadius: "10px" }}>ALL</span>
+                    : r.isCustomized ? <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px" }}>Custom</span>
+                    : <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#0369a1", background: "#e0f2fe", padding: "2px 8px", borderRadius: "10px" }}>Default</span>}
+                </div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
+                  {r.locked ? "Full access (cannot be edited)" : `${r.permissions.length} permission${r.permissions.length !== 1 ? "s" : ""}`}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", flexWrap: "wrap" }}>
+            <button onClick={() => setActiveRole(null)} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>← Back</button>
+            <span style={{ fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>{roles.find((r) => r.roleKey === activeRole)?.label}</span>
+            <span style={{ fontSize: "12px", color: "#94a3b8" }}>{draft.size} selected</span>
+          </div>
+          {catalog.map((grp) => {
+            const allOn = grp.permissions.every((p) => draft.has(p.key));
+            return (
+              <div key={grp.group} style={{ marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{grp.group}</span>
+                  <button onClick={() => toggleGroup(grp.permissions, !allOn)} style={{ fontSize: "11.5px", fontWeight: 600, color: "#2563eb", background: "none", border: "none", cursor: "pointer" }}>{allOn ? "Clear all" : "Select all"}</button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "8px" }}>
+                  {grp.permissions.map((p) => (
+                    <label key={p.key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#334155", cursor: "pointer", padding: "8px 10px", borderRadius: "8px", border: `1px solid ${draft.has(p.key) ? "#bfdbfe" : "#e2e8f0"}`, background: draft.has(p.key) ? "#eff6ff" : "#fff" }}>
+                      <input type="checkbox" checked={draft.has(p.key)} onChange={() => toggle(p.key)} />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
+            <button onClick={() => setActiveRole(null)} disabled={saving} style={{ padding: "9px 18px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 700, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save Permissions"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminEmployeesSection({ token, companies = [], initialCompanyId = null, onCompanySelected }) {
   const allCos = Array.isArray(companies) ? companies : [];
@@ -15493,6 +15614,10 @@ const CompanyPortal = () => {
           <button className={nav === "employees" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("employees"); setShowAddForm(false); }} title="Employees">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span className="nav-label">Employees</span>
+          </button>
+          <button className={nav === "roles" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("roles"); setShowAddForm(false); }} title="Roles & Permissions">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+            <span className="nav-label">Roles &amp; Permissions</span>
           </button>
           <button className={nav === "locations" ? "client-side-item active" : "client-side-item"} onClick={() => { setNav("locations"); setShowAddForm(false); }} title="Locations">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -26645,6 +26770,13 @@ const CompanyPortal = () => {
 
 
           <AdminEmployeesSection token={token} companies={companies} initialCompanyId={empInitCompanyId} onCompanySelected={() => setEmpInitCompanyId(null)} />
+        )}
+
+        {nav === "roles" && (
+          <ClientRolePermissionsSection token={token} companies={companies} />
+        )}
+        {false && (
+          <span />
 
 
 
@@ -29791,29 +29923,47 @@ const CompanyPortal = () => {
 
               {/* ?????? ASSET PROFILE ?????? */}
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ marginBottom: "10px" }}>
-                  <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Asset Profile</h2>
-                  <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                  {["total_assets","critical","non_critical","total_asset_value","rber",,"new_addition"].map(id => {
-                    const t = tileConfig[id];
-                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} noFilter={t.noFilter} />;
-                  })}
+                <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>
+                  Asset Profile
+                  <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Click a tile to navigate to that report</span>
+                </h2>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "10px", alignItems: "stretch" }}>
+                  {/* 3×2 KPI tiles */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                    {["total_assets","critical","non_critical","total_asset_value","rber","new_addition"].map(id => {
+                      const t = tileConfig[id];
+                      if (!t) return null;
+                      return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} noFilter={t.noFilter} />;
+                    })}
+                  </div>
+                  {/* Equipment Category donut */}
+                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px", textAlign: "center" }}>Asset Category Breakdown</p>
+                    <DonutChart data={assetPieData} size={140} />
+                  </div>
                 </div>
               </div>
 
               {/* ?????? COMPLAINT PROFILE ?????? */}
               <div style={{ marginBottom: "24px" }}>
-                <div style={{ marginBottom: "10px" }}>
-                  <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>Complaint Profile</h2>
-                  <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Click a tile to navigate to that report</p>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                  {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
-                    const t = tileConfig[id];
-                    return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
-                  })}
+                <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>
+                  Complaint Profile
+                  <span style={{ fontSize: "11px", fontWeight: 400, color: "#94a3b8", marginLeft: "8px", textTransform: "none", letterSpacing: 0 }}>Click a tile to navigate to that report</span>
+                </h2>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "10px", alignItems: "stretch" }}>
+                  {/* 3×2 KPI tiles */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                    {["total_complaint","wip","lt7d","gt7d","resolved","closed"].map(id => {
+                      const t = tileConfig[id];
+                      if (!t) return null;
+                      return <KpiTile key={id} id={id} label={t.label} value={t.value} col={t.col} icon={TILE_ICONS[id]} />;
+                    })}
+                  </div>
+                  {/* Complaint status donut */}
+                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <p style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px", textAlign: "center" }}>Complaint Status</p>
+                    <DonutChart data={complaintPieData} size={140} />
+                  </div>
                 </div>
               </div>
 

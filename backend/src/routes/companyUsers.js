@@ -4,6 +4,10 @@ import crypto from "crypto";
 import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  PERMISSIONS, getPermissionCatalog, resolvePermissionsForRole,
+  invalidatePermissionCache, MANAGEABLE_ROLE_KEYS,
+} from "../rbac/permissions.js";
 
 const router = Router();
 
@@ -704,6 +708,85 @@ router.put("/:userId/companies", async (req, res, next) => {
     }
 
     res.json({ success: true, additionalCompanyIds: toInsert });
+  } catch (err) { next(err); }
+});
+
+// ─── Platform-scoped RBAC: manage a company's role permissions ────────────────
+// The Client (platform) portal manages many companies by companyId; these mirror
+// the company-portal /roles/permissions endpoints but take companyId in the path.
+const ROLE_LABELS = {
+  admin: "Admin", engineer: "Engineer", department_head: "Department Head",
+  doctor: "Doctor", nurse: "Nurse", ward_boy: "Ward Boy", employee: "Employee",
+};
+
+/* GET /companies/:companyId/rbac/catalog */
+router.get("/companies/:companyId/rbac/catalog", (req, res) => {
+  res.json({ catalog: getPermissionCatalog() });
+});
+
+/* GET /companies/:companyId/rbac/roles */
+router.get("/companies/:companyId/rbac/roles", async (req, res, next) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    if (!companyId) return res.status(400).json({ message: "Invalid companyId" });
+
+    let customKeys = [];
+    try {
+      const [rows] = await pool.query(
+        "SELECT DISTINCT role_key FROM company_roles WHERE company_id = ? AND is_active = TRUE", [companyId]
+      );
+      customKeys = rows.map((r) => r.role_key);
+    } catch { /* ignore */ }
+
+    const roleKeys = [...new Set([...MANAGEABLE_ROLE_KEYS, ...customKeys])];
+    let grantRows = [];
+    try {
+      [grantRows] = await pool.query(
+        "SELECT role_key, permission_key FROM role_permission_grants WHERE company_id = ?", [companyId]
+      );
+    } catch { /* table may not exist yet */ }
+    const grantsByRole = {};
+    for (const g of grantRows) (grantsByRole[g.role_key] ||= []).push(g.permission_key);
+
+    const roles = roleKeys.map((roleKey) => {
+      const hasCustom = !!grantsByRole[roleKey];
+      const permissions = hasCustom
+        ? grantsByRole[roleKey].filter((p) => PERMISSIONS.includes(p))
+        : [...resolvePermissionsForRole(roleKey)];
+      return {
+        roleKey, label: ROLE_LABELS[roleKey] || roleKey,
+        permissions: permissions.sort(), isCustomized: hasCustom, locked: roleKey === "admin",
+      };
+    });
+    res.json({ roles });
+  } catch (err) { next(err); }
+});
+
+/* PUT /companies/:companyId/rbac/roles/:roleKey */
+router.put("/companies/:companyId/rbac/roles/:roleKey", async (req, res, next) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const roleKey = String(req.params.roleKey || "").toLowerCase();
+    if (!companyId) return res.status(400).json({ message: "Invalid companyId" });
+    if (roleKey === "admin") return res.status(400).json({ message: "The Admin role always has all permissions and cannot be edited." });
+
+    const requested = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+    const valid = [...new Set(requested.filter((p) => PERMISSIONS.includes(p)))];
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query("DELETE FROM role_permission_grants WHERE company_id = ? AND role_key = ?", [companyId, roleKey]);
+      if (valid.length) {
+        const values = valid.map(() => "(?, ?, ?)").join(", ");
+        const params = valid.flatMap((p) => [companyId, roleKey, p]);
+        await conn.query(`INSERT INTO role_permission_grants (company_id, role_key, permission_key) VALUES ${values}`, params);
+      }
+      await conn.commit();
+    } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+
+    invalidatePermissionCache(companyId, roleKey);
+    res.json({ ok: true, roleKey, permissions: valid.sort() });
   } catch (err) { next(err); }
 });
 

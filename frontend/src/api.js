@@ -226,10 +226,15 @@ export const updateCompanyRole  = (token, id, data) => request("PUT", `/api/comp
 export const deleteCompanyRole  = (token, id) => request("DELETE", `/api/company-portal/roles/${id}`, undefined, { authToken: token });
 export const reorderCompanyRoles = (token, items) => request("PUT", "/api/company-portal/roles/reorder/bulk", { items }, { authToken: token });
 
-// ─── RBAC: dynamic role permissions ─────────────────────────────────────────
+// ─── RBAC: dynamic role permissions (company portal — company token) ──────────
 export const getRbacCatalog          = (token) => request("GET", "/api/company-portal/roles/permissions/catalog", undefined, { authToken: token });
 export const getRbacRolePermissions  = (token) => request("GET", "/api/company-portal/roles/permissions/roles", undefined, { authToken: token });
 export const setRbacRolePermissions  = (token, roleKey, permissions) => request("PUT", `/api/company-portal/roles/permissions/roles/${roleKey}`, { permissions }, { authToken: token });
+
+// ─── RBAC: platform-scoped role permissions (client portal — by companyId) ────
+export const getRbacCatalogForCompany         = (token, companyId) => request("GET", `/api/company-users/companies/${companyId}/rbac/catalog`, undefined, { authToken: token });
+export const getRbacRolePermissionsForCompany = (token, companyId) => request("GET", `/api/company-users/companies/${companyId}/rbac/roles`, undefined, { authToken: token });
+export const setRbacRolePermissionsForCompany = (token, companyId, roleKey, permissions) => request("PUT", `/api/company-users/companies/${companyId}/rbac/roles/${roleKey}`, { permissions }, { authToken: token });
 export const createTemplateUserAssignment = (token, data) => request("POST", "/api/company-portal/template-user-assignments", data, { authToken: token });
 export const getTemplateUserAssignments = (token) => request("GET", "/api/company-portal/template-user-assignments", undefined, { authToken: token });
 export const getMyTemplateAssignments = (token) => request("GET", "/api/company-portal/template-user-assignments/mine", undefined, { authToken: token });
