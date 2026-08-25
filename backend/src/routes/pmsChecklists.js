@@ -1241,7 +1241,7 @@ router.get("/my-pms/:id/checklist", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch("/my-pms/:id/start", async (req, res, next) => {
+router.patch("/my-pms/:id/start", requirePermission("pms:fill"), async (req, res, next) => {
   try {
     const userId = req.companyUser.id;
     const [[psa]] = await pool.query(
@@ -1259,7 +1259,7 @@ router.patch("/my-pms/:id/start", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch("/my-pms/:id/complete", async (req, res, next) => {
+router.patch("/my-pms/:id/complete", requirePermission("pms:fill"), async (req, res, next) => {
   try {
     const userId = req.companyUser.id;
     const userName = req.companyUser.fullName || req.companyUser.email;

@@ -115,7 +115,8 @@ function OrderRow({ item, theme }: { item: any; theme: any }) {
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function HomeTab() {
   const { theme } = useTheme();
-  const { user, capabilities } = useAuth();
+  const { user, capabilities, can, isLoaded } = useAuth();
+  const show = (perm: string) => !isLoaded ? true : can(perm);
   const [caseLogs, setCaseLogs]               = useState<any[]>([]);   // merged WO + AQ assigned to / raised by me
   const [pms, setPms]                         = useState<any>(null);
   const [trainings, setTrainings]             = useState<any[]>([]);
@@ -278,31 +279,39 @@ export default function HomeTab() {
               </View>
             </View>
 
-            {/* Modules — Trainings + PMS */}
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Modules</Text>
-            <View style={styles.modGrid}>
-              <ModuleCard
-                icon="school-outline" label="Trainings" color="#7C3AED"
-                value={trainingCount}
-                sub={trainingUpcoming > 0 ? `${trainingUpcoming} upcoming` : 'View sessions'}
-                onPress={() => router.push('/training')}
-              />
-              <ModuleCard
-                icon="calendar-clock" label="PMS" color={theme.warning}
-                value={pms?.total ?? 0}
-                sub={pms ? `${pms.completed ?? 0} done · ${pms.assigned ?? 0} due` : 'Scheduler'}
-                onPress={() => router.push('/pms-assignments')}
-              />
-            </View>
+            {/* Modules — Trainings + PMS (hidden when the role can't view them) */}
+            {(show('training:view') || show('pms:view')) && (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Modules</Text>
+                <View style={styles.modGrid}>
+                  {show('training:view') && (
+                    <ModuleCard
+                      icon="school-outline" label="Trainings" color="#7C3AED"
+                      value={trainingCount}
+                      sub={trainingUpcoming > 0 ? `${trainingUpcoming} upcoming` : 'View sessions'}
+                      onPress={() => router.push('/training')}
+                    />
+                  )}
+                  {show('pms:view') && (
+                    <ModuleCard
+                      icon="calendar-clock" label="PMS" color={theme.warning}
+                      value={pms?.total ?? 0}
+                      sub={pms ? `${pms.completed ?? 0} done · ${pms.assigned ?? 0} due` : 'Scheduler'}
+                      onPress={() => router.push('/pms-assignments')}
+                    />
+                  )}
+                </View>
+              </>
+            )}
 
-            {/* Quick actions */}
+            {/* Quick actions — each tile hidden when its module view is revoked */}
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Quick Actions</Text>
             <View style={styles.actionsGrid}>
-              <ActionTile icon="package-variant"        label="Assets"      color={theme.primary}  onPress={() => router.push('/(tabs)/assets')} />
-              <ActionTile icon="briefcase-check-outline" label="Requests"   color={theme.warning}  onPress={() => router.push('/(tabs)/requests')} />
-              <ActionTile icon="chart-bar"              label="Reports"     color={theme.success}  onPress={() => router.push('/(tabs)/reports')} />
-              <ActionTile icon="qrcode-scan"            label="Scan QR"     color={theme.info}     onPress={() => router.push('/qr-scanner')} />
-              <ActionTile icon="clipboard-check"        label="Checklists"  color="#7C3AED"        onPress={() => router.push('/(tabs)/checklists')} />
+              {show('asset:view')    && <ActionTile icon="package-variant"        label="Assets"      color={theme.primary}  onPress={() => router.push('/(tabs)/assets')} />}
+              {show('case_log:view') && <ActionTile icon="briefcase-check-outline" label="Requests"   color={theme.warning}  onPress={() => router.push('/(tabs)/requests')} />}
+              {show('report:view')   && <ActionTile icon="chart-bar"              label="Reports"     color={theme.success}  onPress={() => router.push('/(tabs)/reports')} />}
+              {show('asset:view')    && <ActionTile icon="qrcode-scan"          label="Scan QR"     color={theme.info}     onPress={() => router.push('/qr-scanner')} />}
+              {show('pms:fill')      && <ActionTile icon="clipboard-check"        label="Checklists"  color="#7C3AED"        onPress={() => router.push('/(tabs)/checklists')} />}
               <ActionTile icon="bell-outline"           label="Alerts"      color={theme.danger}   onPress={() => router.push('/notifications')} />
             </View>
 

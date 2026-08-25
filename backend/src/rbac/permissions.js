@@ -24,7 +24,7 @@ export const PERMISSIONS = Object.freeze([
   // Work orders
   "work_order:view", "work_order:create", "work_order:assign", "work_order:update_status", "work_order:delete",
   // PMS
-  "pms:view", "pms:schedule", "pms:delete", "pms:assign_checklist",
+  "pms:view", "pms:schedule", "pms:delete", "pms:assign_checklist", "pms:fill",
   // Calibration
   "calibration:view", "calibration:schedule", "calibration:delete",
   // Training
@@ -47,7 +47,7 @@ const B = {
     "asset:view", "asset:create", "asset:edit", "asset:transfer",
     "case_log:view", "case_log:assign", "case_log:start", "case_log:resolve", "case_log:close",
     "work_order:view",
-    "pms:view", "calibration:view", "training:view", "report:view",
+    "pms:view", "pms:fill", "calibration:view", "training:view", "report:view",
   ]),
 
   supervisor: () => new Set([
@@ -64,7 +64,7 @@ const B = {
 
   technician: () => new Set([
     "asset:view", "case_log:view", "work_order:view", "work_order:update_status",
-    "training:view",
+    "pms:view", "pms:fill", "training:view",
   ]),
 
   department_head: () => new Set([
@@ -160,14 +160,15 @@ export function invalidatePermissionCache(companyId, role) {
 export const PERMISSION_LABELS = {
   "asset:view": "View assets", "asset:create": "Create assets", "asset:edit": "Edit assets",
   "asset:delete": "Delete assets", "asset:transfer": "Assign / transfer assets",
-  "case_log:view": "View case logs", "case_log:create": "Raise case logs",
-  "case_log:assign": "Assign case logs", "case_log:start": "Start (mark in progress)",
-  "case_log:resolve": "Resolve case logs", "case_log:close": "Close case logs",
+  "case_log:view": "View requests", "case_log:create": "Raise requests",
+  "case_log:assign": "Assign requests", "case_log:start": "Start (mark in progress)",
+  "case_log:resolve": "Resolve requests", "case_log:close": "Close requests",
   "work_order:view": "View work orders", "work_order:create": "Create work orders",
   "work_order:assign": "Assign work orders", "work_order:update_status": "Update work-order status",
   "work_order:delete": "Delete work orders",
   "pms:view": "View PMS", "pms:schedule": "Create/edit PMS schedules & checklists",
   "pms:delete": "Delete PMS schedules", "pms:assign_checklist": "Assign checklists to assets",
+  "pms:fill": "Fill / complete PMS checklists",
   "calibration:view": "View calibration", "calibration:schedule": "Manage calibration schedules & vendors",
   "calibration:delete": "Delete calibration",
   "training:view": "View training", "training:schedule": "Create training sessions",
@@ -177,16 +178,21 @@ export const PERMISSION_LABELS = {
 };
 
 const GROUP_LABELS = {
-  asset: "Assets", case_log: "Case Logs", work_order: "Work Orders",
+  asset: "Assets", case_log: "Requests", work_order: "Work Orders",
   pms: "PMS", calibration: "Calibration", training: "Training",
   report: "Reports", role: "Administration", user: "Administration",
 };
+
+// Resources kept for backend enforcement but hidden from the Roles UI grid.
+// work_order is a web-only concept; the mobile "Requests" tab uses case_log.
+const HIDDEN_CATALOG_RESOURCES = new Set(["work_order"]);
 
 /** Returns [{ group, permissions:[{key,label}] }] for rendering the Roles UI. */
 export function getPermissionCatalog() {
   const byGroup = new Map();
   for (const key of PERMISSIONS) {
     const resource = key.split(":")[0];
+    if (HIDDEN_CATALOG_RESOURCES.has(resource)) continue;
     const group = GROUP_LABELS[resource] || resource;
     if (!byGroup.has(group)) byGroup.set(group, []);
     byGroup.get(group).push({ key, label: PERMISSION_LABELS[key] || key });
