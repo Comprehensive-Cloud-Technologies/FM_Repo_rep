@@ -324,12 +324,12 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
         </div>
 
         {/* Step indicator */}
-        <div style={{ padding: "12px 24px", display: "flex", gap: 8, background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+        <div style={{ padding: "12px 24px", display: "flex", gap: 8, background: "#f8fafc", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
           {STEPS.map((label, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: step > i + 1 ? "#16a34a" : step === i + 1 ? "#2563eb" : "#e2e8f0", color: step >= i + 1 ? "#fff" : "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700 }}>{step > i + 1 ? "✓" : i + 1}</div>
-              <span style={{ fontSize: "12.5px", fontWeight: step === i + 1 ? 700 : 400, color: step === i + 1 ? "#1e40af" : "#64748b" }}>{label}</span>
-              {i < 2 && <div style={{ width: 30, height: 1, background: "#e2e8f0", margin: "0 2px" }} />}
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+              <div style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", background: step > i + 1 ? "#16a34a" : step === i + 1 ? "#2563eb" : "#e2e8f0", color: step >= i + 1 ? "#fff" : "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700 }}>{step > i + 1 ? "✓" : i + 1}</div>
+              <span style={{ fontSize: "12.5px", fontWeight: step === i + 1 ? 700 : 400, color: step === i + 1 ? "#1e40af" : "#64748b", whiteSpace: "nowrap" }}>{label}</span>
+              {i < 2 && <div style={{ width: 24, height: 1, background: "#e2e8f0", margin: "0 2px" }} />}
             </div>
           ))}
         </div>
@@ -391,19 +391,22 @@ function CreateScheduleWizard({ token, onClose, onCreated }) {
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
+        {/* Footer — sticky, always visible */}
+        <div style={{ flexShrink: 0, padding: "14px 24px", borderTop: "1px solid #e2e8f0", background: "#fff",
+          borderBottomLeftRadius: "16px", borderBottomRightRadius: "16px",
+          display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+          boxShadow: "0 -4px 12px rgba(0,0,0,0.04)" }}>
           <button style={S.btn("ghost")} onClick={step === 1 ? onClose : () => setStep(s => s - 1)}>{step === 1 ? "Cancel" : "← Back"}</button>
           <div style={{ display: "flex", gap: 8 }}>
             {step < 3 && (
-              <button style={S.btn("primary")} onClick={() => {
+              <button style={{ ...S.btn("primary"), padding: "10px 24px" }} onClick={() => {
                 if (step === 1 && !form.calibrationDate) return setToast({ msg: "Select a date", type: "error" });
                 if (step === 2) return advanceToReview();
                 setStep(s => s + 1);
               }}>Next →</button>
             )}
             {step === 3 && (
-              <button style={S.btn("success")} onClick={() => save(replaceConflicts)} disabled={saving}>{saving ? "Creating…" : "✓ Create Schedule"}</button>
+              <button style={{ ...S.btn("success"), padding: "10px 24px" }} onClick={() => save(replaceConflicts)} disabled={saving}>{saving ? "Creating…" : "✓ Create Schedule"}</button>
             )}
           </div>
         </div>

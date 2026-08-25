@@ -583,9 +583,9 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
         {/* Left: select checklist */}
-        <div style={S.card}>
+        <div style={{ ...S.card, position: "sticky", top: "12px" }}>
           <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a", marginBottom: "12px" }}>1. Select Checklist</div>
           <select value={selectedCL} onChange={e => setSelectedCL(e.target.value)}
             style={{ ...S.input, background: "#fff" }}>
@@ -633,13 +633,13 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
 
         {/* Right: assets table */}
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "10px", flexWrap: "wrap" }}>
             <div style={{ fontSize: "13px", color: "#475569" }}>
               <strong>{visibleAssets.length}</strong> assets from <span style={{ color: "#2563eb", fontWeight: 700 }}>{hospitalFilter || selectedCompanyName}</span> · <strong>{selectedAssets.size}</strong> selected
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button style={S.btn()} onClick={toggleAll}>{selectedAssets.size === visibleAssets.length && visibleAssets.length > 0 ? "Deselect All" : "Select All"}</button>
-              <button style={{ ...S.btn("primary"), opacity: assigning || !selectedAssets.size || !selectedCL ? 0.6 : 1 }}
+              <button style={{ ...S.btn("primary"), padding: "8px 20px", opacity: assigning || !selectedAssets.size || !selectedCL ? 0.6 : 1 }}
                 onClick={assign} disabled={assigning || !selectedAssets.size || !selectedCL}>
                 {assigning ? "Assigning…" : `Assign to ${selectedAssets.size} Asset${selectedAssets.size !== 1 ? "s" : ""}`}
               </button>
