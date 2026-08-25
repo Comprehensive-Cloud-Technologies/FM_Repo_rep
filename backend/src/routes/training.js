@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 import crypto from "crypto";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { isMigrationSafeError } from "../db.js";
 import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
 
@@ -231,7 +232,7 @@ router.get("/sessions", async (req, res, next) => {
 });
 
 // POST /sessions — create
-router.post("/sessions", async (req, res, next) => {
+router.post("/sessions", requirePermission("training:schedule"), async (req, res, next) => {
   try {
     const { title, description, trainerName, trainingDate, startTime, endTime, durationMinutes, venue, category, departmentId, departmentName, status, notes } = req.body;
     if (!title?.trim()) return res.status(400).json({ message: "Training title is required" });
@@ -288,7 +289,7 @@ router.patch("/sessions/:id", async (req, res, next) => {
 });
 
 // DELETE /sessions/:id
-router.delete("/sessions/:id", async (req, res, next) => {
+router.delete("/sessions/:id", requirePermission("training:delete"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const [[session]] = await pool.query("SELECT id, title FROM training_sessions WHERE id = ? AND company_id = ?", [id, cid(req)]);
@@ -301,7 +302,7 @@ router.delete("/sessions/:id", async (req, res, next) => {
 
 // POST /sessions/bulk-delete — delete sessions by month list or date range
 // Body: { from, to } or { months: ['YYYY-MM', ...] }
-router.post("/sessions/bulk-delete", async (req, res, next) => {
+router.post("/sessions/bulk-delete", requirePermission("training:delete"), async (req, res, next) => {
   try {
     const { from, to, months } = req.body || {};
     let where = "company_id = ?";

@@ -10,6 +10,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pool from "../db.js";
+import { getEffectivePermissionList } from "../rbac/permissions.js";
 
 const router = Router();
 // M-8: Do NOT cache JWT_SECRET at module load time — read from process.env inline at each call
@@ -264,6 +265,8 @@ router.post("/login", async (req, res, next) => {
 
     // Fetch dynamic role capabilities
     const roleCapabilities = await getRoleCapabilities(user.companyId, user.role);
+    // RBAC: resolved flat permission list (resource:action) — same for web & mobile
+    const rbacPermissions = await getEffectivePermissionList({ id: user.id, companyId: user.companyId, role: user.role });
 
     delete user.passwordHash;
     res.json({
@@ -281,6 +284,7 @@ router.post("/login", async (req, res, next) => {
         permissions: mergedPermissions,
         moduleAccess: effectiveModuleAccess,
         roleCapabilities,
+        rbacPermissions,
       },
     });
   } catch (err) {
@@ -319,12 +323,13 @@ router.get("/verify", async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.status !== "Active") {
+    if (String(user.status || "").toLowerCase() !== "active") {
       return res.status(403).json({ message: "Account is inactive" });
     }
 
     const roleCapabilities = await getRoleCapabilities(user.companyId, user.role);
-    res.json({ user: { ...user, roleCapabilities } });
+    const rbacPermissions = await getEffectivePermissionList({ id: user.id, companyId: user.companyId, role: user.role });
+    res.json({ user: { ...user, roleCapabilities, rbacPermissions } });
   } catch (err) {
     if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Invalid or expired token" });

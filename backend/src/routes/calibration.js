@@ -14,6 +14,7 @@ import multer from "multer";
 import path from "path";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { isMigrationSafeError } from "../db.js";
 import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
 
@@ -263,7 +264,7 @@ router.get("/vendors", async (req, res, next) => {
 });
 
 // POST /vendors — create vendor
-router.post("/vendors", async (req, res, next) => {
+router.post("/vendors", requirePermission("calibration:schedule"), async (req, res, next) => {
   try {
     const { vendorName, contactPerson, mobile, email, companyName, gstNumber, address, city, state, country } = req.body;
     if (!vendorName?.trim()) return res.status(400).json({ message: "Vendor name is required" });
@@ -280,7 +281,7 @@ router.post("/vendors", async (req, res, next) => {
 });
 
 // PATCH /vendors/:id — update vendor
-router.patch("/vendors/:id", async (req, res, next) => {
+router.patch("/vendors/:id", requirePermission("calibration:schedule"), async (req, res, next) => {
   try {
     const { vendorName, contactPerson, mobile, email, companyName, gstNumber, address, city, state, country, status } = req.body;
     const id = Number(req.params.id);
@@ -298,7 +299,7 @@ router.patch("/vendors/:id", async (req, res, next) => {
 });
 
 // DELETE /vendors/:id — delete vendor (only if not referenced)
-router.delete("/vendors/:id", async (req, res, next) => {
+router.delete("/vendors/:id", requirePermission("calibration:schedule"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const [[v]] = await pool.query("SELECT id, company_id FROM calibration_vendors WHERE id = ?", [id]);
@@ -359,7 +360,7 @@ router.get("/schedules", async (req, res, next) => {
 });
 
 // POST /schedules — create schedule(s)
-router.post("/schedules", async (req, res, next) => {
+router.post("/schedules", requirePermission("calibration:schedule"), async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();

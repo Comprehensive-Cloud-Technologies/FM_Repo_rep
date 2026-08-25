@@ -16,6 +16,7 @@ import { Router } from "express";
 import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -107,7 +108,7 @@ router.get("/", async (req, res, next) => {
 });
 
 /* ── Create role ──────────────────────────────────────────────────────────── */
-router.post("/", async (req, res, next) => {
+router.post("/", requirePermission("role:manage"), async (req, res, next) => {
   try {
     const { label, parentRoleKey, color, bgColor, sortOrder,
             canRaiseSoftIssue, canResolveSoftIssue, isSoftManager,
@@ -179,7 +180,7 @@ router.post("/", async (req, res, next) => {
 });
 
 /* ── Update role ──────────────────────────────────────────────────────────── */
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", requirePermission("role:manage"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
@@ -242,7 +243,7 @@ router.put("/:id", async (req, res, next) => {
 });
 
 /* ── Delete role ──────────────────────────────────────────────────────────── */
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", requirePermission("role:manage"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
@@ -257,7 +258,7 @@ router.delete("/:id", async (req, res, next) => {
 });
 
 /* ── Bulk reorder ─────────────────────────────────────────────────────────── */
-router.put("/reorder/bulk", async (req, res, next) => {
+router.put("/reorder/bulk", requirePermission("role:manage"), async (req, res, next) => {
   try {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     for (const it of items) {

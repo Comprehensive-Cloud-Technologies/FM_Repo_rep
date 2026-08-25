@@ -12,6 +12,7 @@ import { body, query, param } from "express-validator";
 import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { isMigrationSafeError } from "../db.js";
 import { sendPushNotification, sendMulticast } from "../services/fcmService.js";
 
@@ -257,7 +258,7 @@ router.get("/checklists", async (req, res, next) => {
 });
 
 // POST /checklists — create checklist with items
-router.post("/checklists", validate([
+router.post("/checklists", requirePermission("pms:schedule"), validate([
   body("checklistName").trim().notEmpty().withMessage("checklistName required"),
   body("frequency").optional().isString(),
   body("items").optional().isArray(),
@@ -314,7 +315,7 @@ router.get("/checklists/:id", async (req, res, next) => {
 });
 
 // PUT /checklists/:id — update checklist and replace items
-router.put("/checklists/:id", async (req, res, next) => {
+router.put("/checklists/:id", requirePermission("pms:schedule"), async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -364,7 +365,7 @@ router.put("/checklists/:id", async (req, res, next) => {
 });
 
 // DELETE /checklists/:id
-router.delete("/checklists/:id", async (req, res, next) => {
+router.delete("/checklists/:id", requirePermission("pms:schedule"), async (req, res, next) => {
   try {
     const [[existing]] = await pool.query(
       "SELECT id FROM pms_checklists WHERE id = ? AND company_id = ?",
@@ -434,7 +435,7 @@ router.post("/checklists/:id/duplicate", async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // POST /assign — bulk assign checklist to multiple assets
-router.post("/assign", validate([
+router.post("/assign", requirePermission("pms:assign_checklist"), validate([
   body("checklistId").isInt({ min: 1 }).withMessage("checklistId required"),
   body("assetIds").isArray({ min: 1 }).withMessage("assetIds required"),
 ]), async (req, res, next) => {
@@ -543,7 +544,7 @@ router.post("/schedules/check-conflicts", async (req, res, next) => {
 });
 
 // POST /schedules — create a new schedule and attach assets (generates recurring occurrences)
-router.post("/schedules", validate([
+router.post("/schedules", requirePermission("pms:schedule"), validate([
   body("maintenanceDate").isDate().withMessage("maintenanceDate required (YYYY-MM-DD)"),
   body("assetIds").isArray({ min: 1 }).withMessage("assetIds required"),
 ]), async (req, res, next) => {
@@ -737,7 +738,7 @@ router.put("/schedules/:id", async (req, res, next) => {
 });
 
 // DELETE /schedules/:id
-router.delete("/schedules/:id", async (req, res, next) => {
+router.delete("/schedules/:id", requirePermission("pms:delete"), async (req, res, next) => {
   try {
     const [[existing]] = await pool.query(
       "SELECT id FROM pms_schedules WHERE id = ? AND company_id = ?",
@@ -753,7 +754,7 @@ router.delete("/schedules/:id", async (req, res, next) => {
 // POST /schedules/bulk-delete — delete all schedule occurrences whose
 // maintenance_date falls within a date range (and optionally specific months).
 // Body: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD', months?: ['YYYY-MM', ...] }
-router.post("/schedules/bulk-delete", async (req, res, next) => {
+router.post("/schedules/bulk-delete", requirePermission("pms:delete"), async (req, res, next) => {
   try {
     const { from, to, months } = req.body || {};
     const companyId = cid(req);
