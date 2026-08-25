@@ -4773,7 +4773,7 @@ export default function CompanyEmployeePortal() {
     const enabledSet = Array.isArray(enabledModules)
       ? new Set(enabledModules.map(normalizeModuleKey).filter(Boolean))
       : null;
-    const ALWAYS_VISIBLE = new Set(["dashboard", "asset-intelligence", "roles"]);
+    const ALWAYS_VISIBLE = new Set(["dashboard", "asset-intelligence"]);
 
     const byCompany = !enabledSet
       ? base
