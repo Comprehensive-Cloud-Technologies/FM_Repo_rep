@@ -1627,7 +1627,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
   const [notes,            setNotes]            = useState("");
   const [assets,           setAssets]           = useState([]);
   const [departments,      setDepartments]      = useState([]);
-  const [assetFilters,     setAssetFilters]     = useState({ search: "", departmentId: "", assetCategory: "" });
+  const [assetFilters,     setAssetFilters]     = useState({ search: "", departmentId: "", assetCategory: "", hasChecklist: "" });
   const [selectedAssets,   setSelectedAssets]   = useState(new Set());
   const [saving,           setSaving]           = useState(false);
   const [err,              setErr]              = useState("");
@@ -1657,11 +1657,18 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
       .finally(() => setAssetsLoading(false));
   }, [token, assetFilters]);
 
+  // Client-side "checklist assigned" filter (checklist info is already on each row)
+  const visibleAssets = assets.filter(a => {
+    if (assetFilters.hasChecklist === "yes") return !!a.checklistName;
+    if (assetFilters.hasChecklist === "no")  return !a.checklistName;
+    return true;
+  });
+
   const toggleAsset = (id) =>
     setSelectedAssets(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () =>
-    setSelectedAssets(assets.length > 0 && selectedAssets.size === assets.length
-      ? new Set() : new Set(assets.map(a => a.id)));
+    setSelectedAssets(visibleAssets.length > 0 && selectedAssets.size === visibleAssets.length
+      ? new Set() : new Set(visibleAssets.map(a => a.id)));
 
   const advanceToReview = async () => {
     if (!selectedAssets.size) { setErr("Select at least one asset."); return; }
@@ -1837,8 +1844,15 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                 <option value="">All Categories</option>
                 {ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
               </select>
-              {(assetFilters.search || assetFilters.departmentId || assetFilters.assetCategory) && (
-                <button style={S.btn("ghost")} onClick={() => setAssetFilters({ search: "", departmentId: "", assetCategory: "" })}>
+              <select value={assetFilters.hasChecklist}
+                onChange={e => setAssetFilters(p => ({ ...p, hasChecklist: e.target.value }))}
+                style={{ ...S.input, maxWidth: "180px", background: "#fff" }}>
+                <option value="">All Checklists</option>
+                <option value="yes">Checklist Assigned</option>
+                <option value="no">No Checklist</option>
+              </select>
+              {(assetFilters.search || assetFilters.departmentId || assetFilters.assetCategory || assetFilters.hasChecklist) && (
+                <button style={S.btn("ghost")} onClick={() => setAssetFilters({ search: "", departmentId: "", assetCategory: "", hasChecklist: "" })}>
                   ✕ Clear
                 </button>
               )}
@@ -1852,7 +1866,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
               <div style={{ fontSize: "13px", color: selectedAssets.size > 0 ? "#1d4ed8" : "#64748b" }}>
                 {assetsLoading ? "Loading assets…" : (
                   <>
-                    <strong>{assets.length}</strong> assets found
+                    <strong>{visibleAssets.length}</strong> assets found
                     {selectedAssets.size > 0 && <> · <strong style={{ color: "#16a34a" }}>{selectedAssets.size} selected</strong></>}
                   </>
                 )}
@@ -1865,8 +1879,8 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                   </button>
                 )}
                 <button style={{ ...S.btn(), fontSize: "12px", padding: "5px 10px" }} onClick={toggleAll}
-                  disabled={assets.length === 0}>
-                  {assets.length > 0 && selectedAssets.size === assets.length ? "Deselect All" : "Select All"}
+                  disabled={visibleAssets.length === 0}>
+                  {visibleAssets.length > 0 && selectedAssets.size === visibleAssets.length ? "Deselect All" : "Select All"}
                 </button>
               </div>
             </div>
@@ -1884,7 +1898,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                     <tr style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 1 }}>
                       <th style={{ ...S.th, width: "40px" }}>
                         <input type="checkbox"
-                          checked={assets.length > 0 && selectedAssets.size === assets.length}
+                          checked={visibleAssets.length > 0 && selectedAssets.size === visibleAssets.length}
                           onChange={toggleAll} />
                       </th>
                       {["Asset Name", "Asset ID", "Department", "Last PMS", "Next Due", "Checklist"].map(h => (
@@ -1893,7 +1907,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {assets.map((a, i) => {
+                    {visibleAssets.map((a, i) => {
                       const isSelected = selectedAssets.has(a.id);
                       return (
                         <tr key={a.id} onClick={() => toggleAsset(a.id)}
@@ -1930,7 +1944,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                         </tr>
                       );
                     })}
-                    {assets.length === 0 && !assetsLoading && (
+                    {visibleAssets.length === 0 && !assetsLoading && (
                       <tr><td colSpan={7} style={{ padding: "48px", textAlign: "center", color: "#94a3b8" }}>
                         <div style={{ fontWeight: 600, marginBottom: "4px" }}>No assets found</div>
                         <div style={{ fontSize: "12px" }}>Try adjusting your search or filter criteria</div>

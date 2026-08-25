@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import {
-  fetchCaseLogDashboard, fetchCaseLogs,
+  fetchCaseLogs,
   fetchMyPmsStats, fetchMyTrainings,
 } from '../../utils/api';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
@@ -45,9 +45,9 @@ function ActionTile({ icon, label, color, onPress }: {
       onPress={onPress} activeOpacity={0.75}
     >
       <View style={[styles.actionIcon, { backgroundColor: color + '18' }]}>
-        <MaterialCommunityIcons name={icon as any} size={24} color={color} />
+        <MaterialCommunityIcons name={icon as any} size={20} color={color} />
       </View>
-      <Text style={[styles.actionLabel, { color: theme.textPrimary }]}>{label}</Text>
+      <Text style={[styles.actionLabel, { color: theme.textPrimary }]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -117,7 +117,6 @@ export default function HomeTab() {
   const { theme } = useTheme();
   const { user, capabilities } = useAuth();
   const [caseLogs, setCaseLogs]               = useState<any[]>([]);   // merged WO + AQ assigned to / raised by me
-  const [stats, setStats]                     = useState<any>(null);
   const [pms, setPms]                         = useState<any>(null);
   const [trainings, setTrainings]             = useState<any[]>([]);
   const [newTrainings, setNewTrainings]       = useState<any[]>([]);
@@ -127,13 +126,11 @@ export default function HomeTab() {
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [st, cl, pm, tr] = await Promise.allSettled([
-        fetchCaseLogDashboard(),   // combined open/in-progress/resolved counts (role-filtered)
+      const [cl, pm, tr] = await Promise.allSettled([
         fetchCaseLogs(),           // merged WO + AQ list for this user
         fetchMyPmsStats(),
         fetchMyTrainings(),
       ]);
-      if (st.status === 'fulfilled') setStats(st.value);
       if (cl.status === 'fulfilled') setCaseLogs(Array.isArray(cl.value) ? cl.value : []);
       if (pm.status === 'fulfilled') setPms(pm.value);
       if (tr.status === 'fulfilled') {
@@ -156,17 +153,22 @@ export default function HomeTab() {
 
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';
 
-  // Combined counts from the case-log dashboard (WO + AQ)
-  const open       = stats?.open       ?? caseLogs.filter(o => o.status === 'open').length;
-  const inProgress = (stats?.inProgress ?? 0) + (stats?.assigned ?? 0);
-  const completed  = (stats?.resolved  ?? 0) + (stats?.closed ?? 0);
-  const total      = stats?.total      ?? caseLogs.length;
+  // Counts computed from the actual list — same bucketing as the Requests tab,
+  // so the two screens always agree (no double-counting).
+  const bucket = (s: string) => {
+    const st = (s ?? '').toLowerCase();
+    if (st === 'in_progress' || st === 'assigned') return 'in_progress';
+    if (st === 'resolved' || st === 'closed' || st === 'completed') return 'completed';
+    return 'open';
+  };
+  const open       = caseLogs.filter(o => bucket(o.status) === 'open').length;
+  const inProgress = caseLogs.filter(o => bucket(o.status) === 'in_progress').length;
+  const completed  = caseLogs.filter(o => bucket(o.status) === 'completed').length;
+  const total      = caseLogs.length;
   const overdue    = 0;
 
   // Actionable case logs assigned to me → shown as alerts, tap opens the issue detail
-  const actionable = caseLogs.filter((c: any) =>
-    ['open', 'assigned', 'in_progress'].includes((c.status ?? '').toLowerCase())
-  );
+  const actionable = caseLogs.filter((c: any) => bucket(c.status) !== 'completed');
   const recent     = caseLogs.slice(0, 5);
 
   const trainingCount    = trainings.length;
@@ -233,7 +235,7 @@ export default function HomeTab() {
                 </TouchableOpacity>
               </View>
               <View style={styles.heroStats}>
-                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push({ pathname: '/(tabs)/requests', params: { filter: 'open' } })} activeOpacity={0.7}>
                   <Text style={styles.heroNum}>{open}</Text>
                   <View style={styles.heroLabelRow}>
                     <View style={[styles.dot, { backgroundColor: '#93C5FD' }]} />
@@ -241,7 +243,7 @@ export default function HomeTab() {
                   </View>
                 </TouchableOpacity>
                 <View style={styles.heroDivider} />
-                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push({ pathname: '/(tabs)/requests', params: { filter: 'in_progress' } })} activeOpacity={0.7}>
                   <Text style={styles.heroNum}>{inProgress}</Text>
                   <View style={styles.heroLabelRow}>
                     <View style={[styles.dot, { backgroundColor: '#FCD34D' }]} />
@@ -249,7 +251,7 @@ export default function HomeTab() {
                   </View>
                 </TouchableOpacity>
                 <View style={styles.heroDivider} />
-                <TouchableOpacity style={styles.heroStat} onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.heroStat} onPress={() => router.push({ pathname: '/(tabs)/requests', params: { filter: 'completed' } })} activeOpacity={0.7}>
                   <Text style={styles.heroNum}>{completed}</Text>
                   <View style={styles.heroLabelRow}>
                     <View style={[styles.dot, { backgroundColor: '#86EFAC' }]} />
@@ -454,9 +456,9 @@ const styles = StyleSheet.create({
   sectionTitle: { ...Typography.h4, marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
 
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.lg },
-  actionTile:  { width: '31%', borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: Spacing.sm, borderWidth: 1, ...Shadows.sm },
-  actionIcon:  { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  actionTile:  { width: '31.5%', borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xs, alignItems: 'center', gap: 6, borderWidth: 1, ...Shadows.sm },
+  actionIcon:  { width: 38, height: 38, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 11.5, fontWeight: '700', textAlign: 'center' },
 
   recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
   seeAll:       { fontSize: 13, fontWeight: '700' },

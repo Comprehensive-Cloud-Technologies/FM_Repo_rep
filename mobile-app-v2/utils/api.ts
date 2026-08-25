@@ -7,10 +7,11 @@
 
 
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import { uploadAsync as fsUploadAsync, FileSystemUploadType, getInfoAsync as fsGetInfoAsync } from 'expo-file-system/legacy';
-import { cacheData, getCachedData, addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from './offlineStorage';
+import { cacheData, getCachedData, addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, clearAllCache } from './offlineStorage';
 import { notifyNetworkStatus } from './networkStatus';
 import type { RoleCapabilities } from './permissions';
 
@@ -247,6 +248,10 @@ export async function verifyToken(): Promise<{ user: AppUser } | null> {
 
 export async function logout() {
   await clearSession();
+  // Wipe cached API responses + persisted admin company-scope so the next
+  // user never sees the previous company's data.
+  await clearAllCache();
+  await AsyncStorage.removeItem('@fmv2_admin_scoped_company').catch(() => {});
 }
 
 /**
@@ -259,6 +264,10 @@ export async function logoutUser() {
     SecureStore.deleteItemAsync(TOKEN_KEY),
     SecureStore.deleteItemAsync(USER_KEY),
   ]);
+  // Clear cached data + admin company-scope so a different account logging in
+  // does not inherit this session's cached assets/requests.
+  await clearAllCache();
+  await AsyncStorage.removeItem('@fmv2_admin_scoped_company').catch(() => {});
 }
 
 /**

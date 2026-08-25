@@ -32,6 +32,19 @@ export async function getCachedData(key: string): Promise<unknown | null> {
   } catch { return null; }
 }
 
+/**
+ * Remove every cached API response (@fmv2_cache:*). Call on logout / account
+ * switch so a new user never sees the previous company's cached data
+ * (e.g. another company's asset list).
+ */
+export async function clearAllCache(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const cacheKeys = keys.filter((k) => k.startsWith(CACHE_PREFIX));
+    if (cacheKeys.length) await AsyncStorage.multiRemove(cacheKeys);
+  } catch { /* non-fatal */ }
+}
+
 export async function getOfflineQueue(): Promise<QueuedSubmission[]> {
   try {
     const raw = await AsyncStorage.getItem(QUEUE_KEY);

@@ -198,7 +198,8 @@ router.post("/login", async (req, res, next) => {
       return res.status(400).json({ message: "Username cannot be blank" });
     }
 
-    // Find user by username and company (case-insensitive)
+    // Find user by username OR email within the company (case-insensitive).
+    // Admins are often created with an email but no username, so allow either.
     const [[user]] = await pool.query(
       `SELECT cu.id, cu.company_id AS "companyId", cu.full_name AS "fullName",
               cu.email, cu.phone, cu.designation, cu.role, cu.status,
@@ -207,16 +208,17 @@ router.post("/login", async (req, res, next) => {
               c.company_name AS "companyName"
        FROM company_users cu
        JOIN companies c ON c.id = cu.company_id
-       WHERE LOWER(cu.username) = LOWER(?)
+       WHERE (LOWER(cu.username) = LOWER(?) OR LOWER(cu.email) = LOWER(?))
          AND cu.company_id = ?`,
-      [username, companyId]
+      [username, username, companyId]
     );
 
     if (!user) {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
-    if (user.status !== "Active") {
+    // Case-insensitive status check ('Active' / 'active' both allowed)
+    if (String(user.status || "").toLowerCase() !== "active") {
       return res.status(403).json({ message: "Account is inactive. Contact your administrator." });
     }
 

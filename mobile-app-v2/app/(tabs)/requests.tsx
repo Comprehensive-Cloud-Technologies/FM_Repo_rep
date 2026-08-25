@@ -1,5 +1,5 @@
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, FlatList, StatusBar, StyleSheet,
   Text, TouchableOpacity, View,
@@ -118,10 +118,19 @@ function statusBucket(status: string): FilterType {
 export default function RequestsTab() {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [orders, setOrders]         = useState<any[]>([]);
   const [filter, setFilter]         = useState<FilterType>('all');
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Honor an initial filter passed from the dashboard (Open / In Progress / Completed tap)
+  useEffect(() => {
+    const f = params.filter;
+    if (f === 'open' || f === 'in_progress' || f === 'completed' || f === 'all') {
+      setFilter(f);
+    }
+  }, [params.filter]);
 
   const canCreate = (user as any)?.role === 'admin' || (user as any)?.role === 'supervisor';
 
