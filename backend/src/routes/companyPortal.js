@@ -2955,7 +2955,7 @@ router.get("/asset-queries", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post("/asset-queries", async (req, res, next) => {
+router.post("/asset-queries", requirePermission("case_log:create"), async (req, res, next) => {
   try {
     const { assetId, title, description, images, priority = "normal", cutoffHours = 24 } = req.body;
     if (!assetId || !title?.trim()) return res.status(400).json({ message: "assetId and title required" });
@@ -3030,7 +3030,7 @@ router.post("/asset-queries", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch("/asset-queries/:id/resolve", async (req, res, next) => {
+router.patch("/asset-queries/:id/resolve", requirePermission("case_log:resolve"), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { resolutionNote, partsReplaced, beforePhotos, afterPhotos } = req.body;
@@ -3132,7 +3132,7 @@ const closeLimiter = rateLimit({
 });
 
 // Close a resolved request — close code is optional (pass it to verify, or omit to skip verification)
-router.patch("/asset-queries/:id/close", closeLimiter, async (req, res, next) => {
+router.patch("/asset-queries/:id/close", closeLimiter, requirePermission("case_log:close"), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { closeCode } = req.body;
@@ -3159,7 +3159,7 @@ router.patch("/asset-queries/:id/close", closeLimiter, async (req, res, next) =>
 });
 
 /* ── Asset Queries — assign engineer ──────────────────────────────────── */
-router.patch("/asset-queries/:id/assign", async (req, res, next) => {
+router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), async (req, res, next) => {
   try {
     if (!["admin", "supervisor", "catalyst_admin"].includes(req.companyUser.role))
       return res.status(403).json({ message: "Admin/supervisor only" });
@@ -5092,7 +5092,7 @@ router.put("/work-orders/:id/assign", requirePermission("work_order:assign"), as
 });
 
 /* PATCH /asset-queries/:id/assign  – duplicate of the earlier assign handler; kept for legacy callers */
-router.patch("/asset-queries/:id/assign", async (req, res, next) => {
+router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), async (req, res, next) => {
   try {
     const { role } = req.companyUser;
     if (role !== "admin" && role !== "supervisor") {
@@ -7156,7 +7156,7 @@ router.patch("/pre-qr/:id/link", async (req, res, next) => {
 });
 
 // POST /pre-qr/:id/register-asset – mobile scan flow: create a brand-new asset and link this QR to it
-router.post("/pre-qr/:id/register-asset", async (req, res, next) => {
+router.post("/pre-qr/:id/register-asset", requirePermission("asset:create"), async (req, res, next) => {
   try {
     const {
       assetName, assetType = "healthcare", location, notes,

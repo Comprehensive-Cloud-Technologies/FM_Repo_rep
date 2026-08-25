@@ -11,6 +11,7 @@ import { query, body, param } from "express-validator";
 import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -854,7 +855,7 @@ router.post("/records/rber", validate([
    9. UPDATE ASSET HEALTHCARE FIELDS (PATCH)
    PATCH /api/company-portal/healthcare/assets/:id
    ═══════════════════════════════════════════════════════════════════════════ */
-router.patch("/assets/:id", validate([
+router.patch("/assets/:id", requirePermission("asset:edit"), validate([
   param("id").isInt({ min: 1 }),
   body("isVerified").optional().isBoolean(),
   body("status").optional().isIn(["Active","Inactive","Unverified"]),

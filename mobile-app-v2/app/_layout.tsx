@@ -2,10 +2,11 @@ import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import React, { Component, useEffect, useRef } from 'react';
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, View, StyleSheet, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme, Spacing, Radius, Typography } from '../utils/theme';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { CompanyScopeProvider } from '../context/CompanyScopeContext';
 import { verifyToken } from '../utils/api';
 import { startNetworkMonitor } from '../utils/networkStatus';
 import OfflineBanner from '../components/OfflineBanner';
@@ -73,6 +74,21 @@ function AuthBootstrap({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live permission refresh: whenever the app returns to the foreground,
+  // re-verify to pull the latest role permissions. So when an admin changes a
+  // role's permissions on the portal, the mobile UI (tabs, buttons, screens)
+  // updates on the user's next app switch — no re-login needed.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        verifyToken().then((result) => {
+          if (result?.user) setUser(result.user);
+        }).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [setUser]);
+
   return <>{children}</>;
 }
 
@@ -127,7 +143,9 @@ export default function RootLayout() {
     <AppErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <RootLayoutInner />
+          <CompanyScopeProvider>
+            <RootLayoutInner />
+          </CompanyScopeProvider>
         </AuthProvider>
       </ThemeProvider>
     </AppErrorBoundary>
