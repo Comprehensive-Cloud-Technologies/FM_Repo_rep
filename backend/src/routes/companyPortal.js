@@ -161,15 +161,26 @@ router.use(requireCompanyAuth);
 // ── GET /all-companies  (engineer/catalyst_admin: list all companies for asset assignment) ───
 router.get("/all-companies", async (req, res, next) => {
   try {
-    const { role, companyId } = req.companyUser;
-    // Only engineers and catalyst_admins may enumerate all companies.
-    // All other roles receive only their own company to prevent tenant enumeration.
+    const { role, companyId, id: userId } = req.companyUser;
+    // Engineers / catalyst_admins may enumerate all companies (asset assignment).
     if (role === "catalyst_admin" || role === "engineer") {
       const [rows] = await pool.query(
         "SELECT id, company_name AS companyName FROM companies ORDER BY company_name"
       );
       return res.json(rows);
     }
+    // Admins get their own company + any companies granted via user_company_access
+    // (multi-company switching in the mobile app).
+    if (role === "admin") {
+      const ids = await getAccessibleCompanyIds(userId, companyId);
+      const ph = ids.map(() => "?").join(",");
+      const [rows] = await pool.query(
+        `SELECT id, company_name AS companyName FROM companies WHERE id IN (${ph}) ORDER BY company_name`,
+        ids
+      );
+      return res.json(rows);
+    }
+    // All other roles: own company only (prevents tenant enumeration).
     const [rows] = await pool.query(
       "SELECT id, company_name AS companyName FROM companies WHERE id = ?",
       [companyId]
