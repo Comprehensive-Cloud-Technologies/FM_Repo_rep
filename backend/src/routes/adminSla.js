@@ -1294,7 +1294,7 @@ router.get("/performance/company/:companyId/by-department", async (req, res, nex
               COUNT(DISTINCT CASE WHEN
                 (rc.status='met'  OR (rc.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(rc.adjusted_due_at,  rc.due_at)))
                 AND
-                (ac.status='met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.engineer_attended_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
+                (ac.status='met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.in_progress_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
                 AND
                 (esc.status='met' OR (esc.status IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(esc.adjusted_due_at, esc.due_at)))
               THEN ts.id END) AS overallMet,
@@ -1340,7 +1340,7 @@ router.get("/performance/company/:companyId/by-equipment", async (req, res, next
               COUNT(DISTINCT CASE WHEN
                 (rc.status='met'  OR (rc.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(rc.adjusted_due_at,  rc.due_at)))
                 AND
-                (ac.status='met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.engineer_attended_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
+                (ac.status='met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.in_progress_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
                 AND
                 (esc.status='met' OR (esc.status IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(esc.adjusted_due_at, esc.due_at)))
               THEN ts.id END) AS overallMet,
@@ -1653,8 +1653,8 @@ router.get("/performance/company/:companyId/breach-details", async (req, res, ne
                 c.completed_at AS resolvedAt, c.status AS clockStatus,
                 cu.full_name AS engineerName, aq.status AS ticketStatus,
                 sp.name AS policyName,
-                aq.engineer_responded_at AS responseAt,
-                aq.engineer_attended_at AS attendanceAt,
+                aq.assigned_at AS responseAt,
+                aq.in_progress_at AS attendanceAt,
                 aq.resolved_at AS resolutionAt
          FROM ticket_sla ts
          JOIN ticket_sla_clocks c ON c.ticket_sla_id = ts.id

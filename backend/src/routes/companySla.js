@@ -41,6 +41,39 @@ async function resolveCompanyIds(req) {
   return [cid(req)];
 }
 
+/**
+ * Attach hospital name, make, model and serial number to record rows (by assetId).
+ * One extra query per request — keeps the complex SLA SQL untouched.
+ */
+async function enrichAssetMeta(rows) {
+  const ids = [...new Set((rows || []).map(r => r.assetId).filter(Boolean))];
+  if (!ids.length) return rows || [];
+  const ph = ids.map(() => "?").join(",");
+  let map = {};
+  try {
+    const [meta] = await pool.query(
+      `SELECT a.id AS assetId,
+              c.company_name AS hospitalName,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.make')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.manufacturer'))) AS make,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.model')) AS model,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.serialNo')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.srNo'))) AS serialNo
+       FROM assets a
+       LEFT JOIN companies c ON c.id = a.company_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       WHERE a.id IN (${ph})`,
+      ids
+    );
+    for (const m of meta) map[m.assetId] = m;
+  } catch { /* metadata is best-effort */ }
+  return (rows || []).map(r => ({
+    hospitalName: map[r.assetId]?.hospitalName ?? null,
+    make:         map[r.assetId]?.make ?? null,
+    model:        map[r.assetId]?.model ?? null,
+    serialNo:     map[r.assetId]?.serialNo ?? null,
+    ...r,
+  }));
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TICKET SLA ACTIONS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -81,8 +114,8 @@ router.post("/attend/:queryId", async (req, res, next) => {
     const actorId = req.companyUser.id;
 
     await pool.query(
-      `UPDATE asset_queries SET engineer_attended_at = NOW(), updated_at = NOW()
-       WHERE id = ? AND company_id = ? AND engineer_attended_at IS NULL`,
+      `UPDATE asset_queries SET in_progress_at = COALESCE(in_progress_at, NOW()), updated_at = NOW()
+       WHERE id = ? AND company_id = ? AND in_progress_at IS NULL`,
       [queryId, cid(req)]
     );
 
@@ -666,7 +699,7 @@ router.get("/tile-records", async (req, res, next) => {
          ORDER BY avgMttrMins DESC LIMIT ? OFFSET ?`,
         [...baseParams, lim, off]
       );
-      return res.json({ rows, total: rows.length, page, pages: 1 });
+      return res.json({ rows: await enrichAssetMeta(rows), total: rows.length, page, pages: 1 });
     }
 
     if (tile === "repeat") {
@@ -691,7 +724,7 @@ router.get("/tile-records", async (req, res, next) => {
          ORDER BY totalBreakdowns DESC LIMIT ? OFFSET ?`,
         [...baseParams, lim, off]
       );
-      return res.json({ rows, total: rows.length, page, pages: 1 });
+      return res.json({ rows: await enrichAssetMeta(rows), total: rows.length, page, pages: 1 });
     }
 
     const clockType = ["response","attendance","resolution"].includes(tile) ? tile : null;
@@ -751,7 +784,7 @@ router.get("/tile-records", async (req, res, next) => {
          ORDER BY ts.sla_start_time DESC LIMIT ? OFFSET ?`,
         [clockType, ...baseParams, lim, off]
       );
-      return res.json({ rows, total: Number(total), page, pages: Math.ceil(Number(total) / lim) });
+      return res.json({ rows: await enrichAssetMeta(rows), total: Number(total), page, pages: Math.ceil(Number(total) / lim) });
     }
 
     // overall — one row per ticket with effective SLA status
@@ -793,7 +826,7 @@ router.get("/tile-records", async (req, res, next) => {
        ORDER BY ts.sla_start_time DESC LIMIT ? OFFSET ?`,
       [...baseParams, lim, off]
     );
-    return res.json({ rows, total: Number(total), page, pages: Math.ceil(Number(total) / lim) });
+    return res.json({ rows: await enrichAssetMeta(rows), total: Number(total), page, pages: Math.ceil(Number(total) / lim) });
   } catch (err) { next(err); }
 });
 
@@ -818,7 +851,7 @@ router.get("/by-department", async (req, res, next) => {
          COUNT(DISTINCT CASE WHEN
            (rc.status = 'met'  OR (rc.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(rc.adjusted_due_at,  rc.due_at)))
            AND
-           (ac.status = 'met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.engineer_attended_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
+           (ac.status = 'met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.in_progress_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
            AND
            (esc.status = 'met' OR (esc.status IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(esc.adjusted_due_at, esc.due_at)))
          THEN ts.id END) AS overallMet,
@@ -879,7 +912,7 @@ router.get("/by-equipment", async (req, res, next) => {
          COUNT(DISTINCT CASE WHEN
            (rc.status = 'met'  OR (rc.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(rc.adjusted_due_at,  rc.due_at)))
            AND
-           (ac.status = 'met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.engineer_attended_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
+           (ac.status = 'met'  OR (ac.status  IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.in_progress_at, aq.resolved_at, aq.updated_at) <= COALESCE(ac.adjusted_due_at, ac.due_at)))
            AND
            (esc.status = 'met' OR (esc.status IN ('running','paused') AND aq.status IN ('resolved','closed') AND COALESCE(aq.resolved_at, aq.updated_at) <= COALESCE(esc.adjusted_due_at, esc.due_at)))
          THEN ts.id END) AS overallMet,
@@ -1320,8 +1353,8 @@ router.get("/breach-details", async (req, res, next) => {
                 c.completed_at AS resolvedAt, c.status AS clockStatus,
                 cu.full_name AS engineerName, aq.status AS ticketStatus,
                 sp.name AS policyName,
-                aq.engineer_responded_at AS responseAt,
-                aq.engineer_attended_at AS attendanceAt,
+                aq.assigned_at AS responseAt,
+                aq.in_progress_at AS attendanceAt,
                 aq.resolved_at AS resolutionAt
          FROM ticket_sla ts
          JOIN ticket_sla_clocks c ON c.ticket_sla_id = ts.id

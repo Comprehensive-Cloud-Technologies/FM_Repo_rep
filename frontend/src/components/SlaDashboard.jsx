@@ -212,6 +212,41 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
       "Breach Records");
   };
 
+  // Export ALL records for the open tile modal (fetches full set, not just the page)
+  const exportTileRecords = async () => {
+    if (!tileModal) return;
+    const p = new URLSearchParams();
+    if (allCompaniesMode) p.set("allCompanies", "true");
+    p.set("tile", tileModal.tile); p.set("page", "1"); p.set("limit", "10000");
+    if (filters.dateFrom) p.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo)   p.set("dateTo",   filters.dateTo);
+    const data = await fetch(`${bUrl()}/tile-records?${p}`, { headers: hdr() }).then(r => r.ok ? r.json() : null).catch(() => null);
+    const rows = data?.rows ?? tileModal.rows ?? [];
+    const isAsset = ["mttr", "repeat"].includes(tileModal.tile);
+    const fname = `${tileModal.label.replace(/\s+/g, "_").toLowerCase()}_records.xlsx`;
+    if (isAsset) {
+      downloadXlsx(fname,
+        ["Asset ID", "Asset Name", "Hospital", "Make", "Model", "Serial No", "Department",
+          tileModal.tile === "repeat" ? "Total Breakdowns" : "Avg MTTR",
+          tileModal.tile === "repeat" ? "Avg MTTR" : "Total Calls", "Total Breaches"],
+        rows.map(r => [r.assetUniqueId || (r.assetId ? `#${r.assetId}` : "—"), r.assetName ?? "—",
+          r.hospitalName ?? "—", r.make ?? "—", r.model ?? "—", r.serialNo ?? "—", r.deptName ?? "—",
+          tileModal.tile === "repeat" ? r.totalBreakdowns : (r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—"),
+          tileModal.tile === "repeat" ? (r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—") : r.totalCalls,
+          r.totalBreaches ?? "—"]),
+        tileModal.label);
+    } else {
+      downloadXlsx(fname,
+        ["Ticket #", "Asset ID", "Asset Name", "Hospital", "Make", "Model", "Serial No", "Department",
+          "Engineer", "Priority", "Status", "SLA Stage", "Clock Status", "Target", "Actual", "Date"],
+        rows.map(r => [`#${r.queryId}`, r.assetUniqueId || (r.assetId ? `#${r.assetId}` : "—"), r.assetName ?? "—",
+          r.hospitalName ?? "—", r.make ?? "—", r.model ?? "—", r.serialNo ?? "—", r.deptName ?? "—",
+          r.engineerName ?? "Unassigned", r.priority ?? "—", r.status ?? "—", r.clockType || "all",
+          r.clockStatus ?? "—", fmtMins(r.targetMins), fmtMins(r.actualMins), fmtDate(r.createdAt)]),
+        tileModal.label);
+    }
+  };
+
   // ── Derived values ─────────────────────────────────────────────────────────
   const d = slaDash || {};
   const bd = breakdown;
@@ -811,7 +846,12 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
                   {onNavigateToAsset && <span style={{ marginLeft: "8px", color: "#94a3b8" }}>· Click Asset ID to view asset details</span>}
                 </div>
               </div>
-              <button onClick={() => setTileModal(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", cursor: "pointer", color: "#475569", fontWeight: 600 }}>✕ Close</button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {!tileModal.loading && tileModal.rows.length > 0 && (
+                  <button onClick={exportTileRecords} style={{ background: "#fff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", cursor: "pointer", color: "#2563eb", fontWeight: 600 }}>↓ Export Excel</button>
+                )}
+                <button onClick={() => setTileModal(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", cursor: "pointer", color: "#475569", fontWeight: 600 }}>✕ Close</button>
+              </div>
             </div>
 
             {/* Modal body */}
@@ -825,7 +865,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
                   <thead style={{ position: "sticky", top: 0 }}>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["Asset ID", "Asset Name", "Department",
+                      {["Asset ID", "Asset Name", "Hospital", "Make", "Model", "Serial No", "Department",
                         tileModal.tile === "repeat" ? "Total Breakdowns" : "Avg MTTR (hrs)",
                         tileModal.tile === "repeat" ? "Avg MTTR (hrs)" : "Total Calls",
                         "Total Breaches"].map(h => (
@@ -847,6 +887,10 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
                           )}
                         </td>
                         <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a" }}>{r.assetName || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.hospitalName || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.make || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569" }}>{r.model || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#475569", fontFamily: "monospace", fontSize: "11.5px" }}>{r.serialNo || "—"}</td>
                         <td style={{ padding: "9px 12px", color: "#475569" }}>{r.deptName || "—"}</td>
                         <td style={{ padding: "9px 12px", fontWeight: 700, color: tileModal.tile === "repeat" ? "#dc2626" : "#2563eb" }}>
                           {tileModal.tile === "repeat" ? r.totalBreakdowns : (r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—")}
@@ -866,7 +910,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
                   <thead style={{ position: "sticky", top: 0 }}>
                     <tr style={{ background: "#f8fafc" }}>
-                      {["Ticket #", "Asset ID", "Asset Name", "Department", "Engineer", "Priority", "Status", "SLA Stage", "Clock Status", "Target", "Actual", "Date"].map(h => (
+                      {["Ticket #", "Asset ID", "Asset Name", "Hospital", "Make", "Model", "Serial No", "Department", "Engineer", "Priority", "Status", "SLA Stage", "Clock Status", "Target", "Actual", "Date"].map(h => (
                         <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#475569", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
                       ))}
                     </tr>
@@ -888,6 +932,10 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
                             )}
                           </td>
                           <td style={{ padding: "9px 12px", fontWeight: 600, color: "#0f172a", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.assetName || "—"}</td>
+                          <td style={{ padding: "9px 12px", color: "#475569" }}>{r.hospitalName || "—"}</td>
+                          <td style={{ padding: "9px 12px", color: "#475569" }}>{r.make || "—"}</td>
+                          <td style={{ padding: "9px 12px", color: "#475569" }}>{r.model || "—"}</td>
+                          <td style={{ padding: "9px 12px", color: "#475569", fontFamily: "monospace", fontSize: "11.5px" }}>{r.serialNo || "—"}</td>
                           <td style={{ padding: "9px 12px", color: "#475569" }}>{r.deptName || "—"}</td>
                           <td style={{ padding: "9px 12px", color: "#475569" }}>{r.engineerName || <span style={{ color: "#cbd5e1" }}>Unassigned</span>}</td>
                           <td style={{ padding: "9px 12px" }}>
