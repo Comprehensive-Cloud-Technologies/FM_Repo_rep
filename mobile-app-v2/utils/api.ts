@@ -336,14 +336,20 @@ export interface CaseLogStats {
   engineerStats?: any[]; ytdMetrics?: number[];
 }
 
-/** Combined open/in-progress/resolved counts for the signed-in user (engineer sees only theirs). */
-export async function fetchCaseLogDashboard(): Promise<CaseLogStats> {
-  return apiGet<CaseLogStats>('/api/mobile/case-logs/dashboard');
+/** Combined open/in-progress/resolved counts. Admins may pass a companyId
+ *  (one of their assigned companies) to scope to that company. */
+export async function fetchCaseLogDashboard(companyId?: number): Promise<CaseLogStats> {
+  const qs = companyId ? `?companyId=${companyId}` : '';
+  return apiGet<CaseLogStats>(`/api/mobile/case-logs/dashboard${qs}`);
 }
 
-/** Merged list of case logs (work orders + asset queries) assigned to / raised by the user. */
-export async function fetchCaseLogs(status?: string): Promise<any[]> {
-  const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+/** Merged list of case logs (work orders + asset queries). Admins may pass a
+ *  companyId (one of their assigned companies) to scope to that company. */
+export async function fetchCaseLogs(status?: string, companyId?: number): Promise<any[]> {
+  const q = new URLSearchParams();
+  if (status && status !== 'all') q.set('status', status);
+  if (companyId) q.set('companyId', String(companyId));
+  const qs = q.toString() ? `?${q}` : '';
   const res = await apiGet<{ data: any[] }>(`/api/mobile/case-logs${qs}`);
   return Array.isArray(res) ? res : (res?.data ?? []);
 }

@@ -74,10 +74,35 @@ const isHCStaff    = r => ['nurse','doctor','ward_boy'].includes((r||'').toLower
 const isHCEngineer = r => (r||'').toLowerCase() === 'engineer';
 const isHCAdmin    = r => (r||'').toLowerCase() === 'admin';
 
+// Companies this user may access = own company + rows in user_company_access.
+async function accessibleCompanyIds(userId, primaryId) {
+  const [extra] = await pool.query(
+    "SELECT company_id AS companyId FROM user_company_access WHERE user_id = ?", [userId]
+  ).catch(() => [[]]);
+  const ids = new Set([Number(primaryId)]);
+  extra.forEach(r => ids.add(Number(r.companyId)));
+  return [...ids];
+}
+
+/**
+ * Resolve the company to scope this request to. An admin may pass
+ * ?companyId=<one of their assigned companies> to view that company's data;
+ * anyone else (or an unauthorized id) stays on their own company.
+ */
+async function resolveScopeCompanyId(req) {
+  const own = req.companyUser.companyId;
+  const requested = Number(req.query.companyId);
+  if (!requested || requested === own) return own;
+  if (!isHCAdmin(req.companyUser.role)) return own;
+  const allowed = await accessibleCompanyIds(req.companyUser.id, own);
+  return allowed.includes(requested) ? requested : own;
+}
+
 // ─── GET /dashboard ───────────────────────────────────────────────────────────
 router.get("/dashboard", async (req, res, next) => {
   try {
-    const { id: userId, companyId, role } = req.companyUser;
+    const { id: userId, role } = req.companyUser;
+    const companyId = await resolveScopeCompanyId(req);
 
     // ── Work orders query ─────────────────────────────────────────────────────
     let woWhere = "WHERE wo.company_id = ?";
@@ -213,7 +238,8 @@ router.get("/engineers", async (req, res, next) => {
 // ─── GET / ─────────────────────────────────────────────────────────────────────
 router.get("/", async (req, res, next) => {
   try {
-    const { id: userId, companyId, role } = req.companyUser;
+    const { id: userId, role } = req.companyUser;
+    const companyId = await resolveScopeCompanyId(req);
     const page  = Math.max(1, Number(req.query.page  || 1));
     const limit = Math.min(100, Number(req.query.limit || 30));
     const offset = (page - 1) * limit;

@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { useCompanyScope } from '../../context/CompanyScopeContext';
 import {
   fetchCaseLogs,
   fetchMyPmsStats, fetchMyTrainings,
@@ -116,6 +117,7 @@ function OrderRow({ item, theme }: { item: any; theme: any }) {
 export default function HomeTab() {
   const { theme } = useTheme();
   const { user, capabilities, can, isLoaded } = useAuth();
+  const { scopedCompanyId } = useCompanyScope();
   const show = (perm: string) => !isLoaded ? true : can(perm);
   const [caseLogs, setCaseLogs]               = useState<any[]>([]);   // merged WO + AQ assigned to / raised by me
   const [pms, setPms]                         = useState<any>(null);
@@ -128,7 +130,7 @@ export default function HomeTab() {
     if (!isRefresh) setLoading(true);
     try {
       const [cl, pm, tr] = await Promise.allSettled([
-        fetchCaseLogs(),           // merged WO + AQ list for this user
+        fetchCaseLogs(undefined, scopedCompanyId),   // merged WO + AQ (admin: scoped company)
         fetchMyPmsStats(),
         fetchMyTrainings(),
       ]);
@@ -146,7 +148,7 @@ export default function HomeTab() {
         setNewTrainings(pending);
       }
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [scopedCompanyId]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 

@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchCaseLogs, fetchCaseLogDashboard } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
+import { useCompanyScope } from '../../context/CompanyScopeContext';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
 import EmptyState from '../../components/EmptyState';
 
@@ -119,6 +120,7 @@ function statusBucket(status: string): FilterType {
 function RequestsTab() {
   const { theme } = useTheme();
   const { can } = useAuth();
+  const { scopedCompanyId } = useCompanyScope();
   const params = useLocalSearchParams<{ filter?: string }>();
   const [orders, setOrders]         = useState<any[]>([]);
   const [filter, setFilter]         = useState<FilterType>('all');
@@ -137,11 +139,11 @@ function RequestsTab() {
 
   const load = useCallback(async () => {
     try {
-      // Unified case logs (work orders + asset queries) for this user, role-filtered
-      const arr = await fetchCaseLogs();
+      // Unified case logs (work orders + asset queries); admins can scope to an assigned company
+      const arr = await fetchCaseLogs(undefined, scopedCompanyId);
       setOrders(Array.isArray(arr) ? arr : []);
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [scopedCompanyId]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
