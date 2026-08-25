@@ -510,10 +510,15 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
   const [selectedCL, setSelectedCL] = useState(initialChecklist?.id?.toString() || "");
   const [selectedAssets, setSelectedAssets] = useState(new Set());
   const [filters, setFilters]       = useState({ search: "", departmentId: "", assetCategory: "", withChecklist: "" });
+  const [hospitalFilter, setHospitalFilter] = useState("");   // client-side hospital filter
   const [departments, setDepartments] = useState([]);
   const [assigning, setAssigning]   = useState(false);
   const [result, setResult]         = useState(null);
   const [err, setErr]               = useState("");
+
+  // Distinct hospitals present in the loaded assets + the assets visible after the hospital filter
+  const hospitals = [...new Set(assets.map(a => a.companyName).filter(Boolean))].sort();
+  const visibleAssets = hospitalFilter ? assets.filter(a => a.companyName === hospitalFilter) : assets;
 
   useEffect(() => {
     apiFetch("GET", "/api/company-portal/pms/checklists?status=active", null, token).then(setChecklists).catch(() => {});
@@ -548,8 +553,8 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
   }, [token, filters, selectedCompanyId]);
 
   const toggleAll = () => {
-    if (selectedAssets.size === assets.length) setSelectedAssets(new Set());
-    else setSelectedAssets(new Set(assets.map(a => a.id)));
+    if (selectedAssets.size === visibleAssets.length) setSelectedAssets(new Set());
+    else setSelectedAssets(new Set(visibleAssets.map(a => a.id)));
   };
 
   const assign = async () => {
@@ -599,6 +604,14 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
           })()}
 
           <div style={{ marginTop: "20px", fontWeight: 700, fontSize: "14px", color: "#0f172a", marginBottom: "12px" }}>2. Filter Assets</div>
+          {hospitals.length > 1 && (
+            <select value={hospitalFilter}
+              onChange={e => { setHospitalFilter(e.target.value); setSelectedAssets(new Set()); }}
+              style={{ ...S.input, background: "#fff", marginBottom: "8px" }}>
+              <option value="">All Hospitals ({hospitals.length})</option>
+              {hospitals.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          )}
           <input value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
             placeholder="Search assets…" style={{ ...S.input, marginBottom: "8px" }} />
           <select value={filters.departmentId} onChange={e => setFilters(p => ({ ...p, departmentId: e.target.value }))}
@@ -622,10 +635,10 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
             <div style={{ fontSize: "13px", color: "#475569" }}>
-              <strong>{assets.length}</strong> assets from <span style={{ color: "#2563eb", fontWeight: 700 }}>{selectedCompanyName}</span> · <strong>{selectedAssets.size}</strong> selected
+              <strong>{visibleAssets.length}</strong> assets from <span style={{ color: "#2563eb", fontWeight: 700 }}>{hospitalFilter || selectedCompanyName}</span> · <strong>{selectedAssets.size}</strong> selected
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button style={S.btn()} onClick={toggleAll}>{selectedAssets.size === assets.length ? "Deselect All" : "Select All"}</button>
+              <button style={S.btn()} onClick={toggleAll}>{selectedAssets.size === visibleAssets.length && visibleAssets.length > 0 ? "Deselect All" : "Select All"}</button>
               <button style={{ ...S.btn("primary"), opacity: assigning || !selectedAssets.size || !selectedCL ? 0.6 : 1 }}
                 onClick={assign} disabled={assigning || !selectedAssets.size || !selectedCL}>
                 {assigning ? "Assigning…" : `Assign to ${selectedAssets.size} Asset${selectedAssets.size !== 1 ? "s" : ""}`}
@@ -637,12 +650,12 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                  <th style={S.th}><input type="checkbox" checked={assets.length > 0 && selectedAssets.size === assets.length} onChange={toggleAll} /></th>
+                  <th style={S.th}><input type="checkbox" checked={visibleAssets.length > 0 && selectedAssets.size === visibleAssets.length} onChange={toggleAll} /></th>
                   {["Hospital","Asset","ID","Dept","Location","Current Checklist","Last PMS"].map(h => <th key={h} style={S.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {assets.map((a, i) => {
+                {visibleAssets.map((a, i) => {
                   const hasChecklist = !!a.checklistName;
                   return (
                     <tr key={a.id} style={{ background: selectedAssets.has(a.id) ? "#eff6ff" : hasChecklist ? "#f0fdf4" : (i % 2 === 0 ? "#fff" : "#fafafa"), cursor: "pointer" }}
@@ -664,7 +677,7 @@ function AssignTab({ token, initialChecklist, onDone, selectedCompanyId = "", se
                     </tr>
                   );
                 })}
-                {assets.length === 0 && !assetsLoading && (
+                {visibleAssets.length === 0 && !assetsLoading && (
                   <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: assetsErr ? "#dc2626" : "#94a3b8" }}>
                     {assetsErr || "No assets found. Check that assets are registered in this company."}
                   </td></tr>

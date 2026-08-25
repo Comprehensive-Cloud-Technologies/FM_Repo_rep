@@ -169,7 +169,8 @@ export default function HomeTab() {
 
   // Actionable case logs assigned to me → shown as alerts, tap opens the issue detail
   const actionable = caseLogs.filter((c: any) => bucket(c.status) !== 'completed');
-  const recent     = caseLogs.slice(0, 5);
+  // Recent list shows only unresolved requests — resolved/closed drop off the dashboard
+  const recent     = actionable.slice(0, 5);
 
   const trainingCount    = trainings.length;
   const trainingUpcoming = trainings.filter(t =>
