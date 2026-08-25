@@ -18,26 +18,32 @@ import { EMPTY_CAPS, type RoleCapabilities } from '../utils/permissions';
 interface AuthState {
   user:         AppUser | null;
   capabilities: RoleCapabilities;
+  permissions:  string[];     // RBAC resolved permission keys (resource:action)
   isLoaded:     boolean;
 }
 
 interface AuthCtx extends AuthState {
   setUser: (u: AppUser | null) => void;
   clearUser: () => void;
+  /** True if the signed-in user has the given RBAC permission. */
+  can: (permission: string) => boolean;
 }
 
 const Ctx = createContext<AuthCtx>({
   user:         null,
   capabilities: EMPTY_CAPS,
+  permissions:  [],
   isLoaded:     false,
   setUser:      () => {},
   clearUser:    () => {},
+  can:          () => false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user:     null,
     capabilities: EMPTY_CAPS,
+    permissions: [],
     isLoaded: false,
   });
 
@@ -45,16 +51,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({
       user:         u,
       capabilities: u?.roleCapabilities ?? EMPTY_CAPS,
+      permissions:  u?.rbacPermissions ?? [],
       isLoaded:     true,
     });
   }, []);
 
   const clearUser = useCallback(() => {
-    setState({ user: null, capabilities: EMPTY_CAPS, isLoaded: true });
+    setState({ user: null, capabilities: EMPTY_CAPS, permissions: [], isLoaded: true });
   }, []);
 
+  const can = useCallback(
+    (permission: string) => state.permissions.includes(permission),
+    [state.permissions],
+  );
+
   return (
-    <Ctx.Provider value={{ ...state, setUser, clearUser }}>
+    <Ctx.Provider value={{ ...state, setUser, clearUser, can }}>
       {children}
     </Ctx.Provider>
   );

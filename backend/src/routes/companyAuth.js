@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pool from "../db.js";
 import { validate } from "../validators.js";
+import { getEffectivePermissionList } from "../rbac/permissions.js";
 
 const router = Router();
 
@@ -114,6 +115,8 @@ router.post(
         { expiresIn: "10h" }
       );
 
+      const rbacPermissions = await getEffectivePermissionList({ id: user.id, companyId: user.companyId, role: user.role });
+
       return res.json({
         token,
         user: {
@@ -125,6 +128,7 @@ router.post(
           role: user.role,
           permissions: mergedPermissions,
           moduleAccess: effectiveModuleAccess,
+          rbacPermissions,
         },
       });
     } catch (err) {

@@ -44,6 +44,8 @@ export interface AppUser {
   permissions?:     Record<string, unknown>;
   moduleAccess?:    string[];
   roleCapabilities: RoleCapabilities;
+  /** RBAC resolved permission keys (resource:action) — server source of truth. */
+  rbacPermissions?: string[];
 }
 
 export interface StoredCompany {
