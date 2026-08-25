@@ -20,6 +20,7 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import {
   PERMISSIONS, getPermissionCatalog, getEffectivePermissions,
   resolvePermissionsForRole, invalidatePermissionCache, MANAGEABLE_ROLE_KEYS,
+  CONFIGURED_SENTINEL,
 } from "../rbac/permissions.js";
 
 const router = Router();
@@ -133,19 +134,20 @@ router.put("/permissions/roles/:roleKey", requirePermission("role:manage"), asyn
 
     const requested = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
     const valid = [...new Set(requested.filter((p) => PERMISSIONS.includes(p)))];
+    // Always write the sentinel so an explicitly-empty role stays empty
+    // (instead of falling back to code defaults).
+    const toInsert = [CONFIGURED_SENTINEL, ...valid];
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
       await conn.query("DELETE FROM role_permission_grants WHERE company_id = ? AND role_key = ?", [companyId, roleKey]);
-      if (valid.length) {
-        const values = valid.map(() => "(?, ?, ?)").join(", ");
-        const params = valid.flatMap((p) => [companyId, roleKey, p]);
-        await conn.query(
-          `INSERT INTO role_permission_grants (company_id, role_key, permission_key) VALUES ${values}`,
-          params
-        );
-      }
+      const values = toInsert.map(() => "(?, ?, ?)").join(", ");
+      const params = toInsert.flatMap((p) => [companyId, roleKey, p]);
+      await conn.query(
+        `INSERT INTO role_permission_grants (company_id, role_key, permission_key) VALUES ${values}`,
+        params
+      );
       await conn.commit();
     } catch (e) {
       await conn.rollback(); throw e;

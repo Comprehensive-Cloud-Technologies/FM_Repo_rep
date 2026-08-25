@@ -7,7 +7,7 @@ import { useTheme, Spacing } from '../../utils/theme';
 
 export default function TabsLayout() {
   const { theme } = useTheme();
-  const { user, isLoaded, permissions, can } = useAuth();
+  const { user, isLoaded, can } = useAuth();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -18,11 +18,12 @@ export default function TabsLayout() {
     ({ color, size }: { color: string; size: number }) =>
       <MaterialCommunityIcons name={name as any} size={size} color={color} />;
 
-  // Mobile tab visibility is permission-driven (configured from the company /
-  // client dashboards). Home & Profile always show. When no permissions have
-  // loaded yet (first paint / legacy session) show everything, so tabs never
-  // flash-hide before the permission list arrives.
-  const showTab = (perm: string) => permissions.length === 0 ? true : can(perm);
+  // Mobile tab visibility is permission-driven (module "view" permission set
+  // from the company / client dashboards). Home & Profile always show.
+  // Show everything only until auth has loaded, so tabs never flash-hide
+  // before the permission list arrives; once loaded, an empty set correctly
+  // hides tabs (revoke-all works).
+  const showTab = (perm: string) => !isLoaded ? true : can(perm);
   const tabOpts = (perm: string, title: string, iconName: string) =>
     showTab(perm)
       ? { title, tabBarIcon: icon(iconName) }
@@ -54,9 +55,9 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={screenOpts}>
       <Tabs.Screen name="home"     options={{ title: 'Home',     tabBarIcon: icon('home-variant') }} />
-      <Tabs.Screen name="assets"   options={tabOpts('mobile:assets',   'Assets',   'package-variant')} />
-      <Tabs.Screen name="requests" options={tabOpts('mobile:requests', 'Requests', 'briefcase-check-outline')} />
-      <Tabs.Screen name="reports"  options={tabOpts('mobile:reports',  'Reports',  'chart-bar')} />
+      <Tabs.Screen name="assets"   options={tabOpts('asset:view',    'Assets',   'package-variant')} />
+      <Tabs.Screen name="requests" options={tabOpts('case_log:view', 'Requests', 'briefcase-check-outline')} />
+      <Tabs.Screen name="reports"  options={tabOpts('report:view',   'Reports',  'chart-bar')} />
       <Tabs.Screen name="profile"  options={{ title: 'Profile',  tabBarIcon: icon('account-circle') }} />
       {/* Hidden legacy screens — kept for deep-link navigation */}
       <Tabs.Screen name="dashboard"     options={{ href: null }} />

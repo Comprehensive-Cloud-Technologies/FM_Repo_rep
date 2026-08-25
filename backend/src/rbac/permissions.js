@@ -31,8 +31,6 @@ export const PERMISSIONS = Object.freeze([
   "training:view", "training:schedule", "training:delete", "training:mark_attendance",
   // Reports
   "report:view",
-  // Mobile app — which tabs a role sees on the mobile app (Home & Profile always shown)
-  "mobile:assets", "mobile:requests", "mobile:reports",
   // Administration
   "role:manage", "user:manage",
 ]);
@@ -50,7 +48,6 @@ const B = {
     "case_log:view", "case_log:assign", "case_log:start", "case_log:resolve", "case_log:close",
     "work_order:view",
     "pms:view", "calibration:view", "training:view", "report:view",
-    "mobile:assets", "mobile:requests", "mobile:reports",
   ]),
 
   supervisor: () => new Set([
@@ -61,7 +58,6 @@ const B = {
     "calibration:view", "calibration:schedule", "calibration:delete",
     "training:view", "training:schedule", "training:delete",
     "report:view",
-    "mobile:assets", "mobile:requests", "mobile:reports",
   ]),
 
   technical_lead: () => B.supervisor(),
@@ -69,21 +65,19 @@ const B = {
   technician: () => new Set([
     "asset:view", "case_log:view", "work_order:view", "work_order:update_status",
     "training:view",
-    "mobile:assets", "mobile:requests",
   ]),
 
   department_head: () => new Set([
     "asset:view", "case_log:view", "pms:view", "calibration:view",
     "training:view", "report:view",
-    "mobile:assets", "mobile:requests", "mobile:reports",
   ]),
 
-  doctor:   () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view", "mobile:assets", "mobile:requests"]),
-  nurse:    () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view", "mobile:assets", "mobile:requests"]),
-  ward_boy: () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view", "mobile:assets", "mobile:requests"]),
+  doctor:   () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view"]),
+  nurse:    () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view"]),
+  ward_boy: () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view"]),
 };
 
-const EMPLOYEE_BASELINE = () => new Set(["asset:view", "case_log:view", "case_log:create", "mobile:requests"]);
+const EMPLOYEE_BASELINE = () => new Set(["asset:view", "case_log:view", "case_log:create"]);
 
 // Roles the admin can manage permissions for in the Roles UI (admin is locked = all).
 export const MANAGEABLE_ROLE_KEYS = [
@@ -122,9 +116,17 @@ export async function getEffectivePermissions(companyUser) {
       "SELECT permission_key FROM role_permission_grants WHERE company_id = ? AND role_key = ?",
       [companyId, key]
     );
-    set = rows.length
-      ? new Set(rows.map((r) => r.permission_key).filter((p) => PERMISSIONS.includes(p)))
-      : resolvePermissionsForRole(key);
+    // A saved role always carries the CONFIGURED_SENTINEL row, so we can tell
+    // "explicitly configured (possibly zero permissions)" from "never
+    // configured". Only the latter falls back to code defaults.
+    if (rows.length === 0) {
+      set = resolvePermissionsForRole(key);
+    } else {
+      set = new Set(
+        rows.map((r) => r.permission_key)
+            .filter((p) => p !== CONFIGURED_SENTINEL && PERMISSIONS.includes(p))
+      );
+    }
   } catch {
     // Table missing / DB error → safe fallback to code defaults
     set = resolvePermissionsForRole(key);
@@ -132,6 +134,10 @@ export async function getEffectivePermissions(companyUser) {
   _cache.set(cacheKey, { set: [...set], exp: Date.now() + CACHE_TTL_MS });
   return set;
 }
+
+// Marker row written on every explicit save so an empty permission set is
+// distinguishable from an unconfigured role. Never a real permission.
+export const CONFIGURED_SENTINEL = "__configured__";
 
 /** Convenience: resolved permissions as a sorted array (for API responses). */
 export async function getEffectivePermissionList(companyUser) {
@@ -167,14 +173,13 @@ export const PERMISSION_LABELS = {
   "training:view": "View training", "training:schedule": "Create training sessions",
   "training:delete": "Delete training sessions", "training:mark_attendance": "Mark attendance",
   "report:view": "View reports",
-  "mobile:assets": "Show Assets tab", "mobile:requests": "Show Requests tab", "mobile:reports": "Show Reports tab",
   "role:manage": "Manage roles & permissions", "user:manage": "Manage users",
 };
 
 const GROUP_LABELS = {
   asset: "Assets", case_log: "Case Logs", work_order: "Work Orders",
   pms: "PMS", calibration: "Calibration", training: "Training",
-  report: "Reports", mobile: "Mobile App (tabs)", role: "Administration", user: "Administration",
+  report: "Reports", role: "Administration", user: "Administration",
 };
 
 /** Returns [{ group, permissions:[{key,label}] }] for rendering the Roles UI. */

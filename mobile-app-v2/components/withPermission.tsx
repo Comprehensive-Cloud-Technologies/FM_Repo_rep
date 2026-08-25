@@ -50,9 +50,10 @@ export function withPermission<P extends object>(
   permission: string,
 ) {
   return function Guarded(props: P) {
-    const { can, permissions, isLoaded } = useAuth();
-    // Allow while unknown/loading; enforce once the resolved list is present.
-    const allowed = !isLoaded || permissions.length === 0 ? true : can(permission);
+    const { can, isLoaded } = useAuth();
+    // Allow only while auth is still loading; once loaded, enforce strictly
+    // (an explicitly-empty permission set correctly blocks access).
+    const allowed = !isLoaded ? true : can(permission);
     if (!allowed) return <NoAccess />;
     return <Component {...props} />;
   };
