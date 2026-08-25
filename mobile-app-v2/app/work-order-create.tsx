@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { withPermission } from '../components/withPermission';
 import React, { useEffect, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TextInput,
@@ -12,7 +13,7 @@ import Header from '../components/Header';
 
 const PRIORITIES = ['low', 'medium', 'high'];
 
-export default function WorkOrderCreateScreen() {
+function WorkOrderCreateScreen() {
   const { theme } = useTheme();
   const [team,       setTeam]       = useState<any[]>([]);
   const [assets,     setAssets]     = useState<any[]>([]);
@@ -174,3 +175,5 @@ const styles = StyleSheet.create({
   createBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 56, borderRadius: Radius.lg, marginTop: Spacing.md },
   createBtnText: { ...Typography.h3, color: '#fff' },
 });
+
+export default withPermission(WorkOrderCreateScreen, 'work_order:create');

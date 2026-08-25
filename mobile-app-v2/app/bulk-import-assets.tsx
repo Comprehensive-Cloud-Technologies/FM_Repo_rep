@@ -12,6 +12,7 @@
  *  5. Each created asset already has a QR code (assetUniqueId) ready to scan.
  */
 import React, { useState } from 'react';
+import { withPermission } from '../components/withPermission';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   StyleSheet, Alert,
@@ -27,7 +28,7 @@ import {
 } from '../utils/api';
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export default function BulkImportAssetsScreen() {
+function BulkImportAssetsScreen() {
   const { theme } = useTheme();
 
   const [pickedFile,   setPickedFile]   = useState<{ uri: string; name: string } | null>(null);
@@ -309,3 +310,5 @@ const styles = (theme: any) => StyleSheet.create({
   modalItemText: { fontSize: 15 },
   emptyDept:     { textAlign: 'center', padding: Spacing.xl },
 });
+
+export default withPermission(BulkImportAssetsScreen, 'asset:create');

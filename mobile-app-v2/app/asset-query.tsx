@@ -4,6 +4,7 @@
  * the user raise a query / report an issue, capturing or picking images.
  */
 import { router, useLocalSearchParams } from 'expo-router';
+import { withPermission } from '../components/withPermission';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, KeyboardAvoidingView,
@@ -17,7 +18,7 @@ import { fetchAssetByBarcode, submitAssetQuery, uploadQueryImage, getToken } fro
 import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
 
-export default function AssetQueryScreen() {
+function AssetQueryScreen() {
   const { theme } = useTheme();
   const { assetId, assetName: paramName, barcodeStr } = useLocalSearchParams<{
     assetId: string;
@@ -345,3 +346,5 @@ const styles = StyleSheet.create({
   doneBtn:       { paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, borderRadius: Radius.lg, marginTop: Spacing.md },
   doneBtnText:   { ...Typography.h4, color: '#fff' },
 });
+
+export default withPermission(AssetQueryScreen, 'case_log:create');

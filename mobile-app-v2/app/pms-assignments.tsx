@@ -3,6 +3,7 @@
  * Engineer's PMS assignment list → QR scan verification → Checklist fill → Complete
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { withPermission } from '../components/withPermission';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   StyleSheet, Alert, TextInput, Modal, SafeAreaView as RNSafeAreaView, Platform,
@@ -78,7 +79,7 @@ function getNextPmsDate(maintenanceDateStr: string, frequency?: string): string 
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export default function PmsAssignmentsScreen() {
+function PmsAssignmentsScreen() {
   const { theme } = useTheme();
   const { status: initialStatus } = useLocalSearchParams<{ status?: string }>();
 
@@ -500,3 +501,5 @@ const ss = StyleSheet.create({
   submitBtn:     { backgroundColor: '#16a34a', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   submitText:    { color: '#fff', fontWeight: '700', fontSize: 16 },
 });
+
+export default withPermission(PmsAssignmentsScreen, 'pms:view');

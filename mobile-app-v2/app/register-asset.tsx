@@ -3,6 +3,7 @@
  * Shown when a user scans an unlinked pre-generated QR code.
  */
 import React, { useEffect, useState } from 'react';
+import { withPermission } from '../components/withPermission';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   StyleSheet, Alert, TextInput, KeyboardAvoidingView, Platform, Image, Modal,
@@ -421,7 +422,7 @@ function PickerModal({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export default function RegisterAssetScreen() {
+function RegisterAssetScreen() {
   const { theme } = useTheme();
   const { qrUid, qrId, companyName } = useLocalSearchParams<{ qrUid: string; qrId: string; companyName?: string }>();
 
@@ -1186,3 +1187,5 @@ const docStyles = StyleSheet.create({
   fileName:  { flex: 1, fontSize: 13, fontWeight: '500' },
   attachBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: Radius.md, padding: 14 },
 });
+
+export default withPermission(RegisterAssetScreen, 'asset:create');

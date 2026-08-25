@@ -17,6 +17,8 @@
 import { Router } from "express";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
+import { getEffectivePermissions } from "../rbac/permissions.js";
 import { completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
 
 // ── Expo Push helper ──────────────────────────────────────────────────────────
@@ -348,7 +350,7 @@ router.get("/:id", async (req, res, next) => {
 });
 
 // ─── POST / — create case log ─────────────────────────────────────────────────
-router.post("/", async (req, res, next) => {
+router.post("/", requirePermission("case_log:create"), async (req, res, next) => {
   try {
     const { id: userId, companyId, role } = req.companyUser;
     const { assetId, assetName, location, issueDescription, priority = "medium", departmentId } = req.body;
@@ -394,6 +396,20 @@ router.patch("/:id/status", async (req, res, next) => {
     const { id } = req.params;
     const { status, remarks } = req.body;
     const sourceType = req.query.source_type || req.body.source_type || 'work_order';
+
+    // RBAC: map the requested transition to a case-log permission (deny by default)
+    const permForStatus = {
+      in_progress: "case_log:start",
+      resolved:    "case_log:resolve",
+      closed:      "case_log:close",
+      open:        "case_log:start",   // reopen counts as start
+    }[status];
+    if (permForStatus) {
+      const perms = await getEffectivePermissions(req.companyUser);
+      if (!perms.has(permForStatus)) {
+        return res.status(403).json({ message: `Permission denied: ${permForStatus} required` });
+      }
+    }
 
     // ── Asset query status update ─────────────────────────────────────────────
     if (sourceType === 'asset_query') {
@@ -529,7 +545,7 @@ router.patch("/:id/remarks", async (req, res, next) => {
 });
 
 // ─── PATCH /:id/assign ────────────────────────────────────────────────────────
-router.patch("/:id/assign", async (req, res, next) => {
+router.patch("/:id/assign", requirePermission("case_log:assign"), async (req, res, next) => {
   try {
     const { companyId, role } = req.companyUser;
     if (!isHCAdmin(role)) return res.status(403).json({ message: "Admin only" });

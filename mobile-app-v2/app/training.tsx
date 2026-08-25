@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { withPermission } from '../components/withPermission';
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ import Header from '../components/Header';
 import StatusBadge, { statusVariant } from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 
-export default function TrainingScreen() {
+function TrainingScreen() {
   const { theme } = useTheme();
   const [trainings, setTrainings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,3 +86,5 @@ const styles = StyleSheet.create({
   progressFill: { height: 6, borderRadius: 3 },
   progressText: { ...Typography.micro },
 });
+
+export default withPermission(TrainingScreen, 'training:view');

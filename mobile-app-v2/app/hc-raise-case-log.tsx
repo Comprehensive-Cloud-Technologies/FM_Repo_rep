@@ -4,6 +4,7 @@
  * Params: assetId?, assetName? (pre-filled from QR scan)
  */
 import { router, useLocalSearchParams } from 'expo-router';
+import { withPermission } from '../components/withPermission';
 import React, { useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -21,7 +22,7 @@ const PRIORITIES = [
   { value: 'critical', label: 'Critical', color: '#7C3AED' },
 ];
 
-export default function HCRaiseCaseLog() {
+function HCRaiseCaseLog() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ assetId?: string; assetName?: string; location?: string }>();
 
@@ -150,3 +151,5 @@ const ss = StyleSheet.create({
   submitBtn:   { padding: Spacing.md + 2, borderRadius: Radius.lg, alignItems: 'center', marginTop: Spacing.md },
   submitText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
+
+export default withPermission(HCRaiseCaseLog, 'case_log:create');
