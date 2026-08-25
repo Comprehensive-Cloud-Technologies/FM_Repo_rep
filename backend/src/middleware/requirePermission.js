@@ -11,10 +11,13 @@ import { getEffectivePermissions } from "../rbac/permissions.js";
 export function requirePermission(permission) {
   return async (req, res, next) => {
     try {
-      if (!req.companyUser) {
+      // Works with either auth context: requireCompanyAuth (req.companyUser)
+      // or requireAuth (req.user, which now carries role for company JWTs).
+      const subject = req.companyUser || req.user;
+      if (!subject) {
         return res.status(401).json({ message: "Authentication required" });
       }
-      const perms = await getEffectivePermissions(req.companyUser);
+      const perms = await getEffectivePermissions(subject);
       if (!perms.has(permission)) {
         return res.status(403).json({ message: `Permission denied: ${permission} required` });
       }
@@ -29,10 +32,13 @@ export function requirePermission(permission) {
 export function requireAnyPermission(...permissions) {
   return async (req, res, next) => {
     try {
-      if (!req.companyUser) {
+      // Works with either auth context: requireCompanyAuth (req.companyUser)
+      // or requireAuth (req.user, which now carries role for company JWTs).
+      const subject = req.companyUser || req.user;
+      if (!subject) {
         return res.status(401).json({ message: "Authentication required" });
       }
-      const perms = await getEffectivePermissions(req.companyUser);
+      const perms = await getEffectivePermissions(subject);
       if (!permissions.some((p) => perms.has(p))) {
         return res.status(403).json({ message: `Permission denied: one of [${permissions.join(", ")}] required` });
       }

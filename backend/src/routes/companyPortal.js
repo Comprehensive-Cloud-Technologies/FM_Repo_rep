@@ -9,6 +9,7 @@ import multer from "multer";
 import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
@@ -1604,7 +1605,7 @@ const excelAssetUpload = multer({
 // Form fields (multipart): file (required)
 // Department is resolved per-row from the "departmentName" column (optional).
 // Each row auto-generates a unique asset ID + QR entry.
-router.post("/assets/bulk-import", (req, res, next) => {
+router.post("/assets/bulk-import", requirePermission("asset:create"), (req, res, next) => {
   excelAssetUpload.single("file")(req, res, (err) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Excel file is too large. Maximum allowed size is 10 MB." });
@@ -2387,9 +2388,8 @@ router.post("/assets/:id/calibration-records", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post("/assets", async (req, res, next) => {
+router.post("/assets", requirePermission("asset:create"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room, status = "Active", metadata = {} } = req.body;
     const pmsChecklistId = req.body.pmsChecklistId || null;
     if (!assetName?.trim() || !assetType) return res.status(400).json({ message: "assetName and assetType are required" });
@@ -2465,7 +2465,7 @@ router.post("/assets", async (req, res, next) => {
 });
 
 // ── POST /assets/manual  (engineer: add asset to ANY company) ────────────────
-router.post("/assets/manual", async (req, res, next) => {
+router.post("/assets/manual", requirePermission("asset:create"), async (req, res, next) => {
   try {
     const { companyId, departmentId, assetName, assetType = "healthcare",
             building, floor, room, workingStatus, criticality, metadata = {},
@@ -2550,9 +2550,8 @@ router.post("/assets/manual", async (req, res, next) => {
 });
 
 // ── PATCH /assets/:id/verify  (admin: mark asset as verified) ────────────────
-router.patch("/assets/:id/verify", async (req, res, next) => {
+router.patch("/assets/:id/verify", requirePermission("asset:edit"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
     const [[check]] = await pool.query(
       "SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]
@@ -2565,9 +2564,8 @@ router.patch("/assets/:id/verify", async (req, res, next) => {
 
 
 // ── PATCH /assets/:id  (admin: update asset fields) ──────────────────────────
-router.patch("/assets/:id", async (req, res, next) => {
+router.patch("/assets/:id", requirePermission("asset:edit"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
     const { assetName, assetUniqueId, assetType, departmentId, building, floor, room,
             buildingId, floorId, roomId, locationId,
@@ -2680,9 +2678,8 @@ router.patch("/assets/:id", async (req, res, next) => {
 });
 
 // DELETE /assets/delete-all — delete ALL assets for this company (no limit, admin only)
-router.delete("/assets/delete-all", async (req, res, next) => {
+router.delete("/assets/delete-all", requirePermission("asset:delete"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const companyId = cid(req);
     // Cascade: remove QR links first, then details, then assets
     await pool.query("DELETE FROM asset_pre_qr WHERE company_id = ?", [companyId]);
@@ -2696,9 +2693,8 @@ router.delete("/assets/delete-all", async (req, res, next) => {
 });
 
 // DELETE /assets/bulk  — delete multiple assets at once (must be before /:id)
-router.delete("/assets/bulk", async (req, res, next) => {
+router.delete("/assets/bulk", requirePermission("asset:delete"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const ids = Array.isArray(req.body.ids)
       ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))]
       : [];
@@ -2737,9 +2733,8 @@ router.delete("/assets/bulk", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete("/assets/:id", async (req, res, next) => {
+router.delete("/assets/:id", requirePermission("asset:delete"), async (req, res, next) => {
   try {
-    if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
     const { id } = req.params;
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
     if (!check) return res.status(404).json({ message: "Asset not found" });
@@ -2758,9 +2753,8 @@ router.delete("/assets/:id", async (req, res, next) => {
 });
 
 /* ── Asset assignment ────────────────────────────────────────────────────────── */
-router.patch("/assets/:id/assign", async (req, res, next) => {
+router.patch("/assets/:id/assign", requirePermission("asset:transfer"), async (req, res, next) => {
   try {
-    if (!["admin", "supervisor"].includes(req.companyUser.role)) return res.status(403).json({ message: "Admin or supervisor only" });
     const { id } = req.params;
     const { userId } = req.body; // null to unassign
     const [[check]] = await pool.query("SELECT id FROM assets WHERE id = ? AND company_id = ?", [id, cid(req)]);
@@ -4963,7 +4957,7 @@ router.get("/work-orders", async (req, res, next) => {
 });
 
 /* POST /work-orders  – create a work order (optionally linked to a flag) */
-router.post("/work-orders", async (req, res, next) => {
+router.post("/work-orders", requirePermission("work_order:create"), async (req, res, next) => {
   try {
     const companyId = cid(req);
     const { role, id: userId } = req.companyUser;
@@ -5051,7 +5045,7 @@ router.post("/work-orders", async (req, res, next) => {
 });
 
 /* PUT /work-orders/:id/assign  – assign or re-assign a work order */
-router.put("/work-orders/:id/assign", async (req, res, next) => {
+router.put("/work-orders/:id/assign", requirePermission("work_order:assign"), async (req, res, next) => {
   try {
     const companyId = cid(req);
     const { role, id: userId } = req.companyUser;
@@ -5250,7 +5244,7 @@ router.patch("/asset-queries/:id/priority", async (req, res, next) => {
 });
 
 /* PATCH /work-orders/:id/priority  – update work order priority */
-router.patch("/work-orders/:id/priority", async (req, res, next) => {
+router.patch("/work-orders/:id/priority", requirePermission("work_order:update_status"), async (req, res, next) => {
   try {
     const { role } = req.companyUser;
     if (role !== "admin" && role !== "supervisor" && role !== "catalyst_admin") {
@@ -5281,7 +5275,7 @@ router.patch("/work-orders/:id/priority", async (req, res, next) => {
 });
 
 /* PUT /work-orders/:id/status  – update work order status */
-router.put("/work-orders/:id/status", async (req, res, next) => {
+router.put("/work-orders/:id/status", requirePermission("work_order:update_status"), async (req, res, next) => {
   try {
     const { role, id: userId } = req.companyUser;
     const woId = Number(req.params.id);
@@ -5447,7 +5441,7 @@ router.patch("/work-orders/:id/cutoff", async (req, res, next) => {
 });
 
 // Delete a work order (admin only)
-router.delete("/work-orders/:id", async (req, res, next) => {
+router.delete("/work-orders/:id", requirePermission("work_order:delete"), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { role } = req.companyUser;

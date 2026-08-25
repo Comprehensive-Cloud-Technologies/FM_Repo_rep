@@ -19,7 +19,7 @@ export const PERMISSIONS = Object.freeze([
   "case_log:view", "case_log:create", "case_log:assign", "case_log:start",
   "case_log:resolve", "case_log:close",
   // Work orders
-  "work_order:view", "work_order:assign", "work_order:update_status", "work_order:delete",
+  "work_order:view", "work_order:create", "work_order:assign", "work_order:update_status", "work_order:delete",
   // PMS
   "pms:view", "pms:schedule", "pms:delete", "pms:assign_checklist",
   // Calibration
@@ -43,14 +43,14 @@ const B = {
   engineer: () => new Set([
     "asset:view", "asset:create", "asset:edit", "asset:transfer",
     "case_log:view", "case_log:assign", "case_log:start", "case_log:resolve", "case_log:close",
-    "work_order:view", "work_order:assign", "work_order:update_status",
+    "work_order:view",
     "pms:view", "calibration:view", "training:view", "report:view",
   ]),
 
   supervisor: () => new Set([
-    "asset:view", "asset:edit",
+    "asset:view", "asset:create", "asset:edit", "asset:transfer",
     "case_log:view", "case_log:assign",
-    "work_order:view", "work_order:assign", "work_order:update_status",
+    "work_order:view", "work_order:create", "work_order:assign", "work_order:update_status", "work_order:delete",
     "pms:view", "pms:schedule", "pms:delete", "pms:assign_checklist",
     "calibration:view", "calibration:schedule", "calibration:delete",
     "training:view", "training:schedule", "training:delete",
