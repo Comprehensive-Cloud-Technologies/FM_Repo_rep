@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { getApiBaseUrl } from "../utils/runtimeConfig";
 
 const BASE = getApiBaseUrl();
@@ -11,20 +12,22 @@ const RAG = {
   grey:  { dot: "#94a3b8", bg: "#f8fafc", border: "#e2e8f0", num: "#64748b" },
 };
 const pctCol = (v) => v == null ? "#64748b" : v >= 95 ? "#16a34a" : v >= 90 ? "#ea580c" : "#dc2626";
-const fmtMins = (m) => m == null ? "—" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+// Round minutes to 2 decimals (drops trailing zeros): 35.40000000009 -> 35.4
+const round2 = (n) => (n == null ? null : +Number(n).toFixed(2));
+const fmtMins = (m) => m == null ? "—" : m < 60 ? `${round2(m)}m` : `${Math.floor(m / 60)}h ${round2(m % 60)}m`;
 const fmtDate = (s) => s ? new Date(s).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
-function downloadCSV(filename, headers, rows) {
-  const esc = (v) => {
-    const s = v == null ? "" : String(v);
-    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [headers.join(","), ...rows.map(r => r.map(esc).join(","))].join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+// Export an array-of-arrays (headers + rows) to a real .xlsx workbook.
+function downloadXlsx(filename, headers, rows, sheetName = "Report") {
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  // Auto-size columns to their widest cell (cap at 60 chars)
+  ws["!cols"] = headers.map((h, i) => {
+    const w = Math.max(String(h).length, ...rows.map(r => String(r[i] ?? "").length));
+    return { wch: Math.min(Math.max(w + 2, 10), 60) };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  XLSX.writeFile(wb, filename.endsWith(".xlsx") ? filename : filename.replace(/\.csv$/i, "") + ".xlsx");
 }
 
 export default function SlaDashboard({ token, allCompaniesMode = false, externalRefreshKey = 0, apiBase: apiBaseProp, onNavigateToAsset }) {
@@ -172,41 +175,41 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
 
   // ── Export helpers ────────────────────────────────────────────────────────
   const exportEngineers = () => {
-    downloadCSV("engineer_performance_sla.csv",
+    downloadXlsx("engineer_performance_sla.xlsx",
       ["Engineer", "Total Assigned", "Resolved", "Within SLA", "Breached", "SLA %", "Response %", "Resolution %", "Avg MTTR", "Last Ticket"],
       slaByEng.map(r => [r.engineerName, r.totalCalls, r.resolvedCount ?? "—", r.overallMet, r.breachedCount ?? "—",
         r.overallPct != null ? r.overallPct + "%" : "—", r.responsePct != null ? r.responsePct + "%" : "—",
         r.resPct != null ? r.resPct + "%" : "—",
         r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : r.avgMttrHours != null ? r.avgMttrHours + "h" : "—",
-        r.lastTicketAt ? new Date(r.lastTicketAt).toLocaleDateString() : "—"])
-    );
+        r.lastTicketAt ? new Date(r.lastTicketAt).toLocaleDateString() : "—"]),
+      "Engineer Performance");
   };
 
   const exportAssets = () => {
-    downloadCSV("asset_breakdown_report.csv",
+    downloadXlsx("asset_breakdown_report.xlsx",
       ["Asset ID", "Asset Name", "Total Calls", "Total Breaches", "Overall SLA %", "Avg MTTR"],
       slaByAsset.map(r => [r.assetDisplayId ?? r.assetName, r.assetName, r.totalCalls, r.totalBreaches,
         r.overallPct != null ? r.overallPct + "%" : "—",
-        r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—"])
-    );
+        r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—"]),
+      "Asset Breakdown");
   };
 
   const exportDepartments = () => {
-    downloadCSV("department_sla_report.csv",
+    downloadXlsx("department_sla_report.xlsx",
       ["Department", "Total Calls", "Within SLA", "Breached", "SLA %", "Avg MTTR"],
       slaByDept.map(r => [r.deptName, r.totalCalls, r.overallMet, r.breachedCount ?? "—",
         r.overallPct != null ? r.overallPct + "%" : "—",
-        r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—"])
-    );
+        r.avgMttrMins != null ? fmtMins(r.avgMttrMins) : "—"]),
+      "By Department");
   };
 
   const exportBreaches = () => {
-    downloadCSV("breach_records.csv",
+    downloadXlsx("breach_records.xlsx",
       ["Ticket #", "Priority", "Asset", "Department", "SLA Stage", "Target", "Overdue By", "Engineer", "Reason"],
       breachRows.map(r => [r.queryId, r.priority, r.assetName ?? "—", r.deptName ?? "—",
         r.clockType, fmtMins(r.targetMins), fmtMins(r.breachMins), r.engineerName ?? "Unassigned",
-        r.breachReason ?? "Unclassified"])
-    );
+        r.breachReason ?? "Unclassified"]),
+      "Breach Records");
   };
 
   // ── Derived values ─────────────────────────────────────────────────────────
@@ -322,19 +325,19 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
         const tiles = [
           { id: "overall",    label: "Overall Compliance", icon: "◎",
             value: unifiedCompliance ?? d.slaScore, unit: "%", target: 95, higher: true, band: 5,
-            targetText: "≥ 95%", barPct: unifiedCompliance ?? d.slaScore,
+            targetText: "New ≥ 95% · Old ≥ 85%", barPct: unifiedCompliance ?? d.slaScore,
             detail: ticketTotal > 0 ? `${ticketCompliant} met · ${ticketBreached} breached · ${ticketTotal} total` : null },
           { id: "response",   label: "Response Time",      icon: "⚡",
             value: d.responseSla?.pct,   unit: "%", target: 95, higher: true, band: 5,
-            targetText: "≥ 95%", barPct: d.responseSla?.pct,
+            targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.responseSla?.pct,
             detail: d.responseSla ? `${d.responseSla.met ?? 0}/${d.responseSla.total ?? 0} tickets` : null },
           { id: "attendance", label: "Attendance",         icon: "👨‍🔧",
             value: d.attendanceSla?.pct, unit: "%", target: 95, higher: true, band: 5,
-            targetText: "≥ 95%", barPct: d.attendanceSla?.pct,
+            targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.attendanceSla?.pct,
             detail: d.attendanceSla ? `${d.attendanceSla.met ?? 0}/${d.attendanceSla.total ?? 0} tickets` : null },
           { id: "resolution", label: "Resolution",         icon: "✅",
             value: d.resolutionSla?.pct, unit: "%", target: 95, higher: true, band: 5,
-            targetText: "≥ 95%", barPct: d.resolutionSla?.pct,
+            targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.resolutionSla?.pct,
             detail: d.resolutionSla ? `${d.resolutionSla.met ?? 0}/${d.resolutionSla.total ?? 0} tickets` : null },
           { id: "pm",         label: "PM Compliance",      icon: "🗓",
             value: d.pmCompliance, unit: "%", target: 98, higher: true, band: 5,
@@ -543,7 +546,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
           {slaByEng.length > 0 && (
             <button onClick={exportEngineers}
               style={{ padding: "5px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, color: "#2563eb", cursor: "pointer" }}>
-              ↓ Export CSV
+              ↓ Export Excel
             </button>
           )}
         </div>
@@ -615,7 +618,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             By Department
-            {slaByDept.length > 0 && <button onClick={exportDepartments} style={{ fontSize: "11px", color: "#2563eb", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>↓ CSV</button>}
+            {slaByDept.length > 0 && <button onClick={exportDepartments} style={{ fontSize: "11px", color: "#2563eb", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>↓ Excel</button>}
           </div>
           <div style={{ overflowX: "auto", maxHeight: "280px", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
@@ -651,7 +654,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "12px", fontWeight: 700, color: "#475569", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             Asset Breakdown (Highest → Lowest)
-            {slaByAsset.length > 0 && <button onClick={exportAssets} style={{ fontSize: "11px", color: "#2563eb", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>↓ CSV</button>}
+            {slaByAsset.length > 0 && <button onClick={exportAssets} style={{ fontSize: "11px", color: "#2563eb", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>↓ Excel</button>}
           </div>
           <div style={{ overflowX: "auto", maxHeight: "280px", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
@@ -697,7 +700,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
       <div style={{ marginBottom: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Breach Analysis</h2>
-          {breachRows.length > 0 && <button onClick={exportBreaches} style={{ padding: "5px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, color: "#2563eb", cursor: "pointer" }}>↓ Export CSV</button>}
+          {breachRows.length > 0 && <button onClick={exportBreaches} style={{ padding: "5px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, color: "#2563eb", cursor: "pointer" }}>↓ Export Excel</button>}
         </div>
         {(() => {
           const bs = breachSummary;
