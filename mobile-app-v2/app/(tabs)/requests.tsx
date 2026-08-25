@@ -117,7 +117,7 @@ function statusBucket(status: string): FilterType {
 
 export default function RequestsTab() {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { can } = useAuth();
   const params = useLocalSearchParams<{ filter?: string }>();
   const [orders, setOrders]         = useState<any[]>([]);
   const [filter, setFilter]         = useState<FilterType>('all');
@@ -132,7 +132,7 @@ export default function RequestsTab() {
     }
   }, [params.filter]);
 
-  const canCreate = (user as any)?.role === 'admin' || (user as any)?.role === 'supervisor';
+  const canCreate = can('work_order:create');
 
   const load = useCallback(async () => {
     try {

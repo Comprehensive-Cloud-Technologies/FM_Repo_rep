@@ -61,8 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const can = useCallback(
-    (permission: string) => state.permissions.includes(permission),
-    [state.permissions],
+    (permission: string) => {
+      // Normal path: check the server-resolved permission list.
+      if (state.permissions.length) return state.permissions.includes(permission);
+      // Fallback for sessions that logged in before the RBAC payload existed:
+      // don't strip buttons from admins until they re-login. Server still enforces.
+      return (state.user?.role ?? '').toLowerCase() === 'admin';
+    },
+    [state.permissions, state.user],
   );
 
   return (
