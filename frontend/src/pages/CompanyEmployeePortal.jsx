@@ -3117,6 +3117,19 @@ function RolePermissionsPanel({ token }) {
 /* ─── Role Management Modal (custom hierarchy) ───────────────────────── */
 function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
   const [roles, setRoles] = useState(initialRoles || []);
+  // "Reports To" options = built-in roles (Admin, Dept Head, …) + any custom
+  // roles, deduped by key. Ensures Admin is always selectable as a parent.
+  const parentRoleOptions = (() => {
+    const seen = new Set();
+    const out = [];
+    for (const h of HIERARCHY_CHAIN) {
+      if (!seen.has(h.role)) { seen.add(h.role); out.push({ roleKey: h.role, label: h.label }); }
+    }
+    for (const r of roles) {
+      if (r?.roleKey && !seen.has(r.roleKey)) { seen.add(r.roleKey); out.push({ roleKey: r.roleKey, label: r.label, id: r.id }); }
+    }
+    return out;
+  })();
   const [draftLabel, setDraftLabel] = useState("");
   const [draftParent, setDraftParent] = useState("");
   const [draftColor, setDraftColor] = useState("#2563eb");
@@ -3274,7 +3287,7 @@ function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
                     <select value={editForm.parentRoleKey || ""} onChange={(e) => setEditForm((p) => ({ ...p, parentRoleKey: e.target.value }))}
                       style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", border: "1px solid #c7d2fe", borderRadius: "6px", fontSize: "13px", background: "#fff" }}>
                       <option value="">— Top of hierarchy —</option>
-                      {roles.filter((x) => x.id !== r.id).map((x) => <option key={x.roleKey} value={x.roleKey}>{x.label}</option>)}
+                      {parentRoleOptions.filter((x) => x.roleKey !== r.roleKey).map((x) => <option key={x.roleKey} value={x.roleKey}>{x.label}</option>)}
                     </select>
                   </div>
                   <div>
@@ -3306,7 +3319,7 @@ function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
             <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#64748b", marginBottom: "4px" }}>Reports To (optional)</label>
             <select value={draftParent} onChange={(e) => setDraftParent(e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px", background: "#fff" }}>
               <option value="">— Top of hierarchy —</option>
-              {roles.map((r) => <option key={r.roleKey} value={r.roleKey}>{r.label}</option>)}
+              {parentRoleOptions.map((r) => <option key={r.roleKey} value={r.roleKey}>{r.label}</option>)}
             </select>
           </div>
           <div>
@@ -8316,12 +8329,7 @@ export default function CompanyEmployeePortal() {
                 </div>
                 {canManage && (
                   <div style={{ display: "flex", gap: "8px" }}>
-                    {isAdmin && canEmpUpdate && (
-                      <Btn onClick={() => setShowRolesModal(true)} outline color="#7c3aed" bg="#fff">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
-                        Manage Roles
-                      </Btn>
-                    )}
+                    {/* Role management moved to the dedicated "Roles & Permissions" sidebar tab */}
                     <Btn onClick={() => setShowImport(true)} outline color="#64748b" bg="#fff">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
                       Import CSV
