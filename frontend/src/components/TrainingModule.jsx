@@ -667,6 +667,107 @@ function SessionDetail({ sessionId, token, onBack }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SCHEDULER TAB (Calendar + Session List)
+// ─── Delete Training Sessions by Month / Range ───────────────────────────────
+function DeleteSessionsModal({ token, onClose, onDeleted }) {
+  const [mode, setMode]   = useState("months");
+  const [from, setFrom]   = useState("");
+  const [to, setTo]       = useState("");
+  const [picked, setPicked] = useState(new Set());
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState("");
+
+  const monthOptions = (() => {
+    const out = [];
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    for (let i = 0; i < 16; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      out.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+                 label: d.toLocaleString("default", { month: "short", year: "numeric" }) });
+    }
+    return out;
+  })();
+
+  const toggleMonth = (k) =>
+    setPicked(p => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
+
+  const submit = async () => {
+    setErr("");
+    if (mode === "months" && picked.size === 0) return setErr("Select at least one month.");
+    if (mode === "range" && (!from || !to))     return setErr("Choose both a start and end date.");
+    const body = mode === "months" ? { months: [...picked] } : { from, to };
+    const desc = mode === "months" ? `${picked.size} month(s)` : `${from} → ${to}`;
+    if (!window.confirm(`Delete ALL training sessions in ${desc}? Attendance records are removed too. This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${TRN_API}/sessions/bulk-delete`, { method: "POST", body: JSON.stringify(body) }, token);
+      onDeleted(r?.deleted ?? 0);
+    } catch (e) { setErr(e.message); setBusy(false); }
+  };
+
+  const tab = (m, label) => (
+    <button onClick={() => setMode(m)}
+      style={{ ...S.btn(mode === m ? "primary" : "ghost"), padding: "7px 14px", fontSize: "13px" }}>{label}</button>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: "16px", width: "min(520px, 96vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 16px 48px rgba(0,0,0,0.2)" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a" }}>Delete Training Sessions</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#94a3b8" }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+            {tab("months", "By Month")}
+            {tab("range", "By Date Range")}
+          </div>
+
+          {mode === "months" ? (
+            <>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "10px" }}>Select the month(s) whose sessions you want to delete.</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: "8px" }}>
+                {monthOptions.map(m => {
+                  const on = picked.has(m.key);
+                  return (
+                    <button key={m.key} onClick={() => toggleMonth(m.key)}
+                      style={{ padding: "8px 6px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                        border: `1.5px solid ${on ? "#dc2626" : "#e2e8f0"}`,
+                        background: on ? "#fef2f2" : "#fff", color: on ? "#dc2626" : "#475569" }}>
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 160px" }}>
+                <label style={S.label}>From</label>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={S.input} />
+              </div>
+              <div style={{ flex: "1 1 160px" }}>
+                <label style={S.label}>To</label>
+                <input type="date" value={to} onChange={e => setTo(e.target.value)} style={S.input} />
+              </div>
+            </div>
+          )}
+
+          {err && <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "13px" }}>{err}</div>}
+        </div>
+
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <button style={S.btn("ghost")} onClick={onClose} disabled={busy}>Cancel</button>
+          <button style={{ ...S.btn("danger"), opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
+            {busy ? "Deleting…" : "🗑 Delete Selected"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 function SchedulerTab({ token }) {
   const [sessions, setSessions] = useState([]);
@@ -676,6 +777,7 @@ function SchedulerTab({ token }) {
   const [calView, setCalView] = useState("month"); // month | week | day
   const [listView, setListView] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [filters, setFilters] = useState({ status: "", search: "", department: "" });
   const [toast, setToast] = useState(null);
@@ -729,6 +831,9 @@ function SchedulerTab({ token }) {
     <div>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {showCreate && <SessionModal token={token} departments={departments} onClose={() => setShowCreate(false)} onSaved={load} />}
+      {showDelete && <DeleteSessionsModal token={token}
+        onClose={() => setShowDelete(false)}
+        onDeleted={(n) => { setShowDelete(false); setToast({ msg: `Deleted ${n} session${n !== 1 ? "s" : ""}` }); load(); }} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
@@ -748,6 +853,7 @@ function SchedulerTab({ token }) {
           </select>
           <button style={S.btn(!listView ? "primary" : "ghost")} onClick={() => setListView(false)}>📅 Calendar</button>
           <button style={S.btn(listView ? "primary" : "ghost")} onClick={() => setListView(true)}>☰ List</button>
+          <button style={S.btn("danger")} onClick={() => setShowDelete(true)}>🗑 Delete Sessions</button>
           <button style={S.btn("success")} onClick={() => setShowCreate(true)}>+ New Session</button>
         </div>
       </div>

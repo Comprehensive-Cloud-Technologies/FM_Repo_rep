@@ -299,6 +299,32 @@ router.delete("/sessions/:id", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /sessions/bulk-delete — delete sessions by month list or date range
+// Body: { from, to } or { months: ['YYYY-MM', ...] }
+router.post("/sessions/bulk-delete", async (req, res, next) => {
+  try {
+    const { from, to, months } = req.body || {};
+    let where = "company_id = ?";
+    const params = [cid(req)];
+
+    if (Array.isArray(months) && months.length) {
+      const valid = months.filter(m => /^\d{4}-\d{2}$/.test(m));
+      if (!valid.length) return res.status(400).json({ message: "No valid months provided" });
+      where += ` AND DATE_FORMAT(training_date, '%Y-%m') IN (${valid.map(() => "?").join(",")})`;
+      params.push(...valid);
+    } else if (from && to) {
+      where += " AND training_date BETWEEN ? AND ?";
+      params.push(from, to);
+    } else {
+      return res.status(400).json({ message: "Provide a date range (from/to) or a list of months" });
+    }
+
+    // Child rows (attendance, documents) are removed by ON DELETE CASCADE
+    const [result] = await pool.query(`DELETE FROM training_sessions WHERE ${where}`, params);
+    res.json({ success: true, deleted: result.affectedRows || 0 });
+  } catch (e) { next(e); }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ATTENDANCE MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════════
