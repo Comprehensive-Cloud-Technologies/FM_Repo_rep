@@ -67,6 +67,9 @@ import {
   createCompanyRole,
   updateCompanyRole,
   deleteCompanyRole,
+  getRbacCatalog,
+  getRbacRolePermissions,
+  setRbacRolePermissions,
   createTemplateUserAssignment,
   getTemplateUserAssignments,
   getMyTemplateAssignments,
@@ -2990,6 +2993,127 @@ function FleetMaintModal({ token, fleetAssets, onClose, onSaved }) {
   );
 }
 
+/* ─── Role Permissions (dynamic RBAC) ─────────────────────────────────── */
+function RolePermissionsPanel({ token }) {
+  const [catalog, setCatalog] = useState([]);
+  const [roles, setRoles]     = useState([]);
+  const [activeRole, setActiveRole] = useState(null);   // roleKey being edited
+  const [draft, setDraft]     = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [msg, setMsg]         = useState("");
+  const [err, setErr]         = useState("");
+
+  const load = async () => {
+    setLoading(true); setErr("");
+    try {
+      const [cat, rl] = await Promise.all([getRbacCatalog(token), getRbacRolePermissions(token)]);
+      setCatalog(cat.catalog || []);
+      setRoles(rl.roles || []);
+    } catch (e) { setErr(e.message || "Failed to load permissions"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  const openRole = (r) => {
+    if (r.locked) return;
+    setActiveRole(r.roleKey);
+    setDraft(new Set(r.permissions));
+    setMsg(""); setErr("");
+  };
+  const toggle = (key) =>
+    setDraft((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleGroup = (perms, on) =>
+    setDraft((p) => { const n = new Set(p); perms.forEach((pm) => on ? n.add(pm.key) : n.delete(pm.key)); return n; });
+
+  const save = async () => {
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      await setRbacRolePermissions(token, activeRole, [...draft]);
+      setMsg("Permissions saved.");
+      await load();
+      setActiveRole(null);
+    } catch (e) { setErr(e.message || "Save failed"); }
+    finally { setSaving(false); }
+  };
+
+  const box = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px", marginTop: "20px" };
+
+  return (
+    <div style={box}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+        <div>
+          <h2 style={{ fontSize: "17px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Role Permissions</h2>
+          <p style={{ color: "#64748b", fontSize: "13px", margin: "2px 0 0" }}>Choose exactly what each role can view and do, on web and mobile.</p>
+        </div>
+      </div>
+      {err && <Alert>{err}</Alert>}
+      {msg && <p style={{ color: "#16a34a", fontSize: "13px", fontWeight: 600 }}>{msg}</p>}
+
+      {loading ? (
+        <p style={{ color: "#94a3b8", fontSize: "13px", padding: "16px 0" }}>Loading…</p>
+      ) : !activeRole ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px", marginTop: "12px" }}>
+          {roles.map((r) => (
+            <button key={r.roleKey} onClick={() => openRole(r)} disabled={r.locked}
+              style={{ textAlign: "left", padding: "14px 16px", borderRadius: "10px", cursor: r.locked ? "default" : "pointer",
+                border: "1px solid #e2e8f0", background: r.locked ? "#f8fafc" : "#fff" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{r.label}</span>
+                {r.locked
+                  ? <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", background: "#e2e8f0", padding: "2px 8px", borderRadius: "10px" }}>ALL</span>
+                  : r.isCustomized
+                    ? <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "10px" }}>Custom</span>
+                    : <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#0369a1", background: "#e0f2fe", padding: "2px 8px", borderRadius: "10px" }}>Default</span>}
+              </div>
+              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
+                {r.locked ? "Full access (cannot be edited)" : `${r.permissions.length} permission${r.permissions.length !== 1 ? "s" : ""}`}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ marginTop: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", flexWrap: "wrap" }}>
+            <button onClick={() => setActiveRole(null)} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>← Back</button>
+            <span style={{ fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>{roles.find((r) => r.roleKey === activeRole)?.label}</span>
+            <span style={{ fontSize: "12px", color: "#94a3b8" }}>{draft.size} selected</span>
+          </div>
+
+          {catalog.map((grp) => {
+            const allOn = grp.permissions.every((p) => draft.has(p.key));
+            return (
+              <div key={grp.group} style={{ marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{grp.group}</span>
+                  <button onClick={() => toggleGroup(grp.permissions, !allOn)}
+                    style={{ fontSize: "11.5px", fontWeight: 600, color: "#2563eb", background: "none", border: "none", cursor: "pointer" }}>
+                    {allOn ? "Clear all" : "Select all"}
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "8px" }}>
+                  {grp.permissions.map((p) => (
+                    <label key={p.key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#334155", cursor: "pointer",
+                      padding: "8px 10px", borderRadius: "8px", border: `1px solid ${draft.has(p.key) ? "#bfdbfe" : "#e2e8f0"}`, background: draft.has(p.key) ? "#eff6ff" : "#fff" }}>
+                      <input type="checkbox" checked={draft.has(p.key)} onChange={() => toggle(p.key)} />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
+            <button onClick={() => setActiveRole(null)} disabled={saving} style={{ padding: "9px 18px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 700, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save Permissions"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Role Management Modal (custom hierarchy) ───────────────────────── */
 function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
   const [roles, setRoles] = useState(initialRoles || []);
@@ -3098,49 +3222,12 @@ function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
 
   const handleClose = () => { onSaved(roles); onClose(); };
 
-  const PermCheckboxes = ({ form, setForm }) => (
-    <>
-      <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "10px" }}>
-        <p style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Soft Services Mobile Permissions</p>
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          {[
-            { key: "canRaiseSoftIssue",   label: "Can raise issues (Client Supervisor)" },
-            { key: "canResolveSoftIssue", label: "Can resolve issues (Catalyst Supervisor)" },
-            { key: "isSoftManager",       label: "Manager view only (Client Manager)" },
-          ].map(({ key, label }) => (
-            <label key={key} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569", cursor: "pointer" }}>
-              <input type="checkbox" checked={!!form[key]} onChange={(e) => {
-                const v = e.target.checked;
-                const reset = key === "canRaiseSoftIssue" || key === "canResolveSoftIssue" || key === "isSoftManager"
-                  ? { canRaiseSoftIssue: false, canResolveSoftIssue: false, isSoftManager: false }
-                  : {};
-                setForm((p) => ({ ...p, ...reset, [key]: v }));
-              }} />
-              {label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "10px", marginTop: "6px" }}>
-        <p style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Technical Asset Mobile Permissions</p>
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          {[
-            { key: "isTechnicalSupervisor", label: "Technical Supervisor (assign checklists, manage team)" },
-            { key: "isTechnician",          label: "Technician (fill assigned checklists)" },
-          ].map(({ key, label }) => (
-            <label key={key} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569", cursor: "pointer" }}>
-              <input type="checkbox" checked={!!form[key]} onChange={(e) => {
-                const v = e.target.checked;
-                const other = key === "isTechnicalSupervisor" ? "isTechnician" : "isTechnicalSupervisor";
-                setForm((p) => ({ ...p, [other]: v ? false : p[other], [key]: v }));
-              }} />
-              {label}
-            </label>
-          ))}
-        </div>
-        <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px" }}>A role can have both Technical and Soft Service permissions simultaneously.</p>
-      </div>
-    </>
+  const PermCheckboxes = () => (
+    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "10px", marginTop: "6px" }}>
+      <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>
+        Access is now controlled per role in <strong>Role Permissions</strong> below — choose exactly what each role can view and do.
+      </p>
+    </div>
   );
 
   const content = (
@@ -3164,11 +3251,6 @@ function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
               </div>
               <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, background: r.bgColor || "#dbeafe", color: r.color || "#2563eb" }}>{r.label}</span>
               <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>{r.parentRoleKey ? `reports to ${roles.find((x) => x.roleKey === r.parentRoleKey)?.label || r.parentRoleKey}` : "top level"}</span>
-              {r.canRaiseSoftIssue    && <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "10.5px", fontWeight: 600, background: "#fef9c3", color: "#854d0e" }}>Raises Issues</span>}
-              {r.canResolveSoftIssue  && <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "10.5px", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>Resolves Issues</span>}
-              {r.isSoftManager        && <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "10.5px", fontWeight: 600, background: "#e0f2fe", color: "#0369a1" }}>Manager View</span>}
-              {r.isTechnicalSupervisor && <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "10.5px", fontWeight: 600, background: "#eff6ff", color: "#1d4ed8" }}>Tech Supervisor</span>}
-              {r.isTechnician         && <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "10.5px", fontWeight: 600, background: "#f5f3ff", color: "#6d28d9" }}>Technician</span>}
               <span style={{ marginLeft: "auto", fontSize: "11px", color: "#94a3b8" }}>{r.roleKey}</span>
               <button onClick={() => editingId === r.id ? cancelEdit() : startEdit(r)} disabled={saving}
                 style={{ padding: "4px 10px", border: `1px solid ${editingId === r.id ? "#c7d2fe" : "#e2e8f0"}`, background: editingId === r.id ? "#eef2ff" : "#f8fafc", color: editingId === r.id ? "#4f46e5" : "#475569", borderRadius: "6px", cursor: "pointer", fontSize: "11.5px", fontWeight: 600 }}>
@@ -3252,11 +3334,12 @@ function RolesModal({ token, initialRoles, onClose, onSaved, inline = false }) {
     <div>
       <div style={{ marginBottom: "22px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.5px", marginBottom: "4px" }}>Manage Roles</h1>
-        <p style={{ color: "#64748b", fontSize: "13.5px" }}>Define your organization's role hierarchy and mobile app permissions. Top of list = top of chain.</p>
+        <p style={{ color: "#64748b", fontSize: "13.5px" }}>Define your organization's role hierarchy and app permissions. Top of list = top of chain.</p>
       </div>
       <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
         {content}
       </div>
+      <RolePermissionsPanel token={token} />
     </div>
   );
 
