@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { withPermission } from '../../components/withPermission';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, FlatList, StatusBar, StyleSheet,
@@ -80,7 +81,7 @@ function AssetCard({ item, theme }: { item: any; theme: any }) {
 }
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
-export default function AssetsTab() {
+function AssetsTab() {
   const { theme } = useTheme();
   const { can } = useAuth();
   const { scopedCompanyId } = useCompanyScope();
@@ -223,3 +224,5 @@ const styles = StyleSheet.create({
   metaChip:   { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText:   { fontSize: 11 },
 });
+
+export default withPermission(AssetsTab, 'asset:view');

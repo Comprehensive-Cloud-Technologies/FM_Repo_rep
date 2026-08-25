@@ -226,7 +226,8 @@ export default function HomeTab() {
               </TouchableOpacity>
             )}
 
-            {/* Overview — Requests count hero */}
+            {/* Overview — Requests count hero (hidden without Requests view) */}
+            {show('case_log:view') && (<>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Overview</Text>
             <View style={[styles.hero, { backgroundColor: theme.primary }]}>
               <View style={styles.heroTopRow}>
@@ -278,6 +279,7 @@ export default function HomeTab() {
                 )}
               </View>
             </View>
+            </>)}
 
             {/* Modules — Trainings + PMS (hidden when the role can't view them) */}
             {(show('training:view') || show('pms:view')) && (
@@ -315,12 +317,12 @@ export default function HomeTab() {
               <ActionTile icon="bell-outline"           label="Alerts"      color={theme.danger}   onPress={() => router.push('/notifications')} />
             </View>
 
-            {/* Alerts — assigned requests, case logs & trainings */}
-            {(actionable.length > 0 || newTrainings.length > 0) && (
+            {/* Alerts — assigned requests, case logs & trainings (permission-gated) */}
+            {((show('case_log:view') && actionable.length > 0) || (show('training:view') && newTrainings.length > 0)) && (
               <>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Alerts</Text>
                 <View style={styles.alertList}>
-                  {actionable.map((c, i) => {
+                  {show('case_log:view') && actionable.map((c, i) => {
                     const st = (c.status ?? '').toLowerCase();
                     const sub =
                       st === 'in_progress' ? 'In Progress · Tap to resolve' :
@@ -351,7 +353,7 @@ export default function HomeTab() {
                       </TouchableOpacity>
                     );
                   })}
-                  {newTrainings.map((tr, i) => (
+                  {show('training:view') && newTrainings.map((tr, i) => (
                     <TouchableOpacity
                       key={`tr-${tr.id ?? i}`}
                       style={[styles.alertRow, { backgroundColor: '#F3E8FF', borderColor: '#C4B5FD' }]}
@@ -375,7 +377,7 @@ export default function HomeTab() {
             )}
 
             {/* Recent requests */}
-            {recent.length > 0 && (
+            {show('case_log:view') && recent.length > 0 && (
               <>
                 <View style={styles.recentHeader}>
                   <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Recent Requests</Text>

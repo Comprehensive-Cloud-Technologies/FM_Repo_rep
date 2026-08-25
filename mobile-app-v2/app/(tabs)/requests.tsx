@@ -1,4 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { withPermission } from '../../components/withPermission';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, FlatList, StatusBar, StyleSheet,
@@ -115,7 +116,7 @@ function statusBucket(status: string): FilterType {
   return 'open';
 }
 
-export default function RequestsTab() {
+function RequestsTab() {
   const { theme } = useTheme();
   const { can } = useAuth();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -278,3 +279,5 @@ const styles = StyleSheet.create({
   priorityText: { fontSize: 11, fontWeight: '700' },
   dateText: { fontSize: 11 },
 });
+
+export default withPermission(RequestsTab, 'case_log:view');
