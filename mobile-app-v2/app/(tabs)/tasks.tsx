@@ -224,13 +224,13 @@ function HCTasksScreen() {
   };
 
   return (
-    <SafeAreaView style={[hcSS.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <View style={[hcSS.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <Text style={[hcSS.headerTitle, { color: theme.textPrimary }]}>
+    <SafeAreaView style={[hcSS.safe, { backgroundColor: theme.primary }]} edges={['top']}>
+      <View style={[hcSS.header, { backgroundColor: theme.primary }]}>
+        <Text style={[hcSS.headerTitle, { color: '#fff' }]}>
           {capabilities.isHCAdmin ? 'All Case Logs' : 'My Assigned Cases'}
         </Text>
         {capabilities.isHCAdmin && (
-          <TouchableOpacity onPress={() => router.push('/hc-raise-case-log')} style={[hcSS.addBtn, { backgroundColor: theme.primary }]}>
+          <TouchableOpacity onPress={() => router.push('/hc-raise-case-log')} style={[hcSS.addBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
             <MaterialCommunityIcons name="plus" size={18} color="#fff" />
           </TouchableOpacity>
         )}
@@ -245,6 +245,7 @@ function HCTasksScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
       {loading
         ? <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
         : <FlatList
@@ -263,6 +264,7 @@ function HCTasksScreen() {
             }
           />
       }
+      </View>
     </SafeAreaView>
   );
 }
@@ -424,24 +426,25 @@ function LegacyTasksScreen() {
   ];
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      {/* ── Header ── */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.primary }]} edges={['top']}>
+      {/* ── Blue Header ── */}
+      <View style={[styles.header, { backgroundColor: theme.primary, borderBottomWidth: 0 }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>My Tasks</Text>
-          <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
+          <Text style={[styles.headerTitle, { color: '#fff' }]}>My Tasks</Text>
+          <Text style={[styles.headerSub, { color: 'rgba(255,255,255,0.72)' }]}>
             {allTasks.length} total · {totalPending} pending
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.historyBtn, { backgroundColor: theme.primaryBg }]}
+          style={[styles.historyBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
           onPress={() => router.push('/history')}
           hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
         >
-          <MaterialCommunityIcons name="history" size={20} color={theme.primary} />
+          <MaterialCommunityIcons name="history" size={20} color="rgba(255,255,255,0.9)" />
         </TouchableOpacity>
       </View>
 
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
       {loading ? (
         <ActivityIndicator color={theme.primary} style={{ marginTop: Spacing.xxl }} />
       ) : (
@@ -517,6 +520,7 @@ function LegacyTasksScreen() {
           </ScrollView>
         </>
       )}
+      </View>
     </SafeAreaView>
   );
 }

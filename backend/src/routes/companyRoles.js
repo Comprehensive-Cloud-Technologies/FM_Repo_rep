@@ -108,6 +108,15 @@ router.get("/permissions/roles", requirePermission("role:manage"), async (req, r
     const grantsByRole = {};
     for (const g of grantRows) (grantsByRole[g.role_key] ||= []).push(g.permission_key);
 
+    // How many users are currently assigned to each role → blast-radius display
+    const userCounts = {};
+    try {
+      const [cntRows] = await pool.query(
+        "SELECT role, COUNT(*) AS n FROM company_users WHERE company_id = ? GROUP BY role", [companyId]
+      );
+      for (const r of cntRows) userCounts[String(r.role || "").toLowerCase()] = Number(r.n) || 0;
+    } catch { /* table shape varies; counts optional */ }
+
     const roles = roleKeys.map((roleKey) => {
       const hasCustom = !!grantsByRole[roleKey];
       const permissions = hasCustom
@@ -118,6 +127,7 @@ router.get("/permissions/roles", requirePermission("role:manage"), async (req, r
         label: ROLE_LABELS[roleKey] || roleKey,
         permissions: permissions.sort(),
         isCustomized: hasCustom,
+        userCount: userCounts[roleKey] || 0,
         locked: roleKey === "admin",   // admin always has all permissions
       };
     });
@@ -134,6 +144,20 @@ router.put("/permissions/roles/:roleKey", requirePermission("role:manage"), asyn
 
     const requested = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
     const valid = [...new Set(requested.filter((p) => PERMISSIONS.includes(p)))];
+
+    // ── Anti-escalation guard ────────────────────────────────────────────────
+    // An editor can only grant permissions they themselves hold. Admins hold
+    // every permission, so they're unaffected; a non-admin with role:manage
+    // cannot hand out powers (e.g. asset:delete, user:manage) they don't have.
+    const editorPerms = await getEffectivePermissions(req.companyUser);
+    const escalating = valid.filter((p) => !editorPerms.has(p));
+    if (escalating.length > 0) {
+      return res.status(403).json({
+        message: "You can only grant permissions you already have. Blocked: " + escalating.join(", "),
+        blocked: escalating,
+      });
+    }
+
     // Always write the sentinel so an explicitly-empty role stays empty
     // (instead of falling back to code defaults).
     const toInsert = [CONFIGURED_SENTINEL, ...valid];

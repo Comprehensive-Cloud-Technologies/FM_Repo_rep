@@ -11,6 +11,9 @@ import { verifyCompanyCode, getStoredUser, getStoredCompany } from '../utils/api
 import { useAuth } from '../context/AuthContext';
 import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 
+const ASSETPRO_LOGO = require('../assets/images/AssetPro.jpg');
+const CATALYST_LOGO = require('../assets/images/catalyst-logo.png');
+
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MAX = Math.min(SCREEN_W - Spacing.xl * 2, 440);
 
@@ -29,7 +32,9 @@ export default function CompanyCodeScreen() {
       const company = await getStoredCompany();
       if (user && company) {
         setUser(user);
-        router.replace('/(tabs)/home');
+        // Admins resume into the multi-company admin dashboard, not the
+        // engineer/doctor home.
+        router.replace(user?.roleCapabilities?.isHCAdmin ? '/admin-dashboard' : '/(tabs)/home');
       } else if (company) {
         router.replace({ pathname: '/login', params: { companyId: String(company.companyId), companyName: company.companyName } });
       } else {
@@ -74,16 +79,18 @@ export default function CompanyCodeScreen() {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Catalyst Logo */}
+          {/* Asset Pro Logo & App Name */}
           <View style={styles.header}>
-            <Image
-              source={require('../assets/images/catalyst-logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel="Catalyst Solutions logo"
-            />
-            <Text style={[styles.appName, { color: theme.textPrimary }]}>HTM App</Text>
-            <Text style={[styles.tagline, { color: theme.textSecondary }]}>Facility Management</Text>
+            <View style={styles.appLogoWrap}>
+              <Image
+                source={ASSETPRO_LOGO}
+                style={styles.appLogo}
+                resizeMode="cover"
+                accessibilityLabel="Asset Pro logo"
+              />
+            </View>
+            <Text style={[styles.appName, { color: theme.textPrimary }]}>Asset Pro</Text>
+            <Text style={[styles.tagline, { color: theme.textSecondary }]}>Hospital Asset Management</Text>
           </View>
 
           {/* Card */}
@@ -127,9 +134,18 @@ export default function CompanyCodeScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.footer, { color: theme.textMuted }]}>
-            Powered by Catalyst Solutions
-          </Text>
+          {/* Catalyst branding - small, below card */}
+          <View style={styles.catalystBrand}>
+            <Image
+              source={CATALYST_LOGO}
+              style={styles.catalystLogo}
+              resizeMode="contain"
+              accessibilityLabel="Catalyst Solutions"
+            />
+            <Text style={[styles.footer, { color: theme.textMuted }]}>
+              Powered by Catalyst Solutions
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -142,10 +158,14 @@ const styles = StyleSheet.create({
   loadWrap:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll:    { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, paddingBottom: Spacing.xxl },
   header:    { alignItems: 'center', marginBottom: Spacing.xxl },
+  // AssetPro logo
+  appLogoWrap: { width: 80, height: 80, borderRadius: 20, overflow: 'hidden', marginBottom: Spacing.md, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 },
+  appLogo:   { width: '100%', height: '100%' },
+  // Legacy (unused) – kept for reference
   logo:      { width: 160, height: 80, marginBottom: Spacing.lg },
   appName:   { ...Typography.h1, marginBottom: 4, textAlign: 'center' },
   tagline:   { ...Typography.body, textAlign: 'center' },
-  card:      { alignSelf: 'center', borderRadius: Radius.xxl, padding: Spacing.xl, marginBottom: Spacing.xl },
+  card:      { alignSelf: 'center', borderRadius: Radius.xxl, padding: Spacing.xl, marginBottom: Spacing.lg },
   cardTitle: { ...Typography.h3, marginBottom: Spacing.sm },
   cardSub:   { ...Typography.body, marginBottom: Spacing.xl },
   inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, marginBottom: Spacing.lg, height: 54 },
@@ -153,5 +173,8 @@ const styles = StyleSheet.create({
   input:     { flex: 1, ...Typography.body, letterSpacing: 2 },
   btn:       { height: 54, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   btnText:   { ...Typography.h4, color: '#fff' },
+  // Catalyst brand below card
+  catalystBrand: { alignItems: 'center', gap: Spacing.xs },
+  catalystLogo:  { width: 90, height: 36, marginBottom: 2 },
   footer:    { ...Typography.micro, textAlign: 'center' },
 });

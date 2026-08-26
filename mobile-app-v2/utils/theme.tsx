@@ -15,11 +15,11 @@ export const Fonts = {
 //   LIGHT → "Precision Engineering Interface" — crisp white, signal-blue accents
 //   DARK  → "OLED Engineering Edition"        — true black, matrix-green accents
 export const Colors = {
-  // Brand — signal blue (light-mode primary / accent)
-  primary:        '#0051D5',
-  primaryLight:   '#316BF3',
-  primaryDark:    '#003EA8',
-  primaryBg:      '#E6EDFD',
+  // Brand — Sky Blue Pro
+  primary:        '#2563EB',
+  primaryLight:   '#3B82F6',
+  primaryDark:    '#1E40AF',
+  primaryBg:      '#DBEAFE',
   secondary:      '#131B2E',
   secondaryBg:    '#E8EAF0',
 
@@ -30,8 +30,8 @@ export const Colors = {
   warningBg:      '#F7ECDD',
   danger:         '#BA1A1A',
   dangerBg:       '#FBE9E7',
-  info:           '#0051D5',
-  infoBg:         '#E6EDFD',
+  info:           '#2563EB',
+  infoBg:         '#DBEAFE',
 
   // Neutral — Precision Engineering surface ramp
   gray50:         '#F7F9FB',
@@ -50,7 +50,7 @@ export const Colors = {
 };
 
 export const LightTheme = {
-  background:       Colors.gray50,
+  background:       '#F0F7FF',
   surface:          Colors.white,
   surfaceAlt:       Colors.gray100,
   surfaceElevated:  Colors.white,
@@ -79,11 +79,11 @@ export const LightTheme = {
   infoBg:           Colors.infoBg,
 
   tabBarBg:         Colors.white,
-  tabBarBorder:     Colors.gray200,
+  tabBarBorder:     '#DBEAFE',
   tabBarActive:     Colors.primary,
   tabBarInactive:   Colors.gray400,
 
-  headerBg:         Colors.gray50,
+  headerBg:         '#F0F7FF',
   headerBorder:     Colors.gray200,
   headerText:       Colors.gray900,
 
@@ -160,7 +160,7 @@ export type AppTheme = typeof LightTheme;
 export const Typography = {
   display: { fontSize: 32, fontWeight: '700' as const, lineHeight: 40, letterSpacing: -0.6 },
   h1:    { fontSize: 28, fontWeight: '700' as const, lineHeight: 36, letterSpacing: -0.5 },
-  h2:    { fontSize: 24, fontWeight: '700' as const, lineHeight: 32, letterSpacing: -0.4 },
+  h2:    { fontSize: 20, fontWeight: '600' as const, lineHeight: 32, letterSpacing: -0.4 },
   h3:    { fontSize: 20, fontWeight: '600' as const, lineHeight: 28, letterSpacing: -0.2 },
   h4:    { fontSize: 16, fontWeight: '600' as const, lineHeight: 24, letterSpacing: -0.1 },
   body:  { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },

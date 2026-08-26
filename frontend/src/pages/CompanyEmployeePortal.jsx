@@ -20,6 +20,7 @@ import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../co
 import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
 import CalibrationModule from "../components/CalibrationModule.jsx";
 import TrainingModule from "../components/TrainingModule.jsx";
+import RoleMatrixManager from "../components/RoleMatrixManager.jsx";
 import { useAlertSound } from "../hooks/useAlertSound";
 import {
   getCompanyPortalMe,
@@ -8590,14 +8591,11 @@ export default function CompanyEmployeePortal() {
           );
         })()}
 
-        {/* ── Manage Roles (inline tab) ─────────────────────── */}
+        {/* ── Manage Roles + Permissions matrix (inline tab) ─────── */}
         {nav === "roles" && (
-          <RolesModal
+          <RoleMatrixManager
             token={token}
-            initialRoles={customRoles}
-            inline={true}
-            onClose={() => {}}
-            onSaved={(list) => {
+            onRolesChanged={(list) => {
               setCustomRoles(list);
               applyCustomRoles(list);
               setRoleRefreshKey((k) => k + 1);

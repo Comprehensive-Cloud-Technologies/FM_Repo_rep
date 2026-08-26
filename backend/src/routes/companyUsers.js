@@ -5,7 +5,7 @@ import pool from "../db.js";
 import { isMigrationSafeError } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  PERMISSIONS, getPermissionCatalog, resolvePermissionsForRole,
+  PERMISSIONS, getPermissionCatalog, resolvePermissionsForRole, getEffectivePermissions,
   invalidatePermissionCache, MANAGEABLE_ROLE_KEYS, CONFIGURED_SENTINEL,
 } from "../rbac/permissions.js";
 
@@ -772,6 +772,18 @@ router.put("/companies/:companyId/rbac/roles/:roleKey", async (req, res, next) =
 
     const requested = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
     const valid = [...new Set(requested.filter((p) => PERMISSIONS.includes(p)))];
+
+    // Anti-escalation: an editor can only grant permissions they hold. Admins
+    // hold everything (no-op for them); a scoped editor can't hand out more.
+    const editorPerms = await getEffectivePermissions(req.user);
+    const escalating = valid.filter((p) => !editorPerms.has(p));
+    if (escalating.length > 0) {
+      return res.status(403).json({
+        message: "You can only grant permissions you already have. Blocked: " + escalating.join(", "),
+        blocked: escalating,
+      });
+    }
+
     // Always persist the sentinel so an explicitly-empty role stays empty.
     const toInsert = [CONFIGURED_SENTINEL, ...valid];
 

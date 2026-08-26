@@ -60,21 +60,25 @@ export default function ProfileTab() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.primary }]} edges={['top']}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.background }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
 
-        {/* Avatar + name */}
-        <View style={[styles.hero, Shadows.sm, { backgroundColor: theme.surface }]}>
-          <View style={[styles.avatarRing, { backgroundColor: theme.primaryBg }]}>
-            <View style={[styles.avatar, Shadows.brand, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{(user?.fullName ?? 'U').charAt(0).toUpperCase()}</Text>
+        {/* Blue hero header */}
+        <View style={[styles.hero, { backgroundColor: theme.primary, borderRadius: 0 }]}>
+          <View style={[styles.avatarRing, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <View style={[styles.avatar, { backgroundColor: '#fff' }]}>
+              <Text style={[styles.avatarText, { color: theme.primary }]}>{(user?.fullName ?? 'U').charAt(0).toUpperCase()}</Text>
             </View>
           </View>
-          <Text style={[styles.name, { color: theme.textPrimary }]}>{user?.fullName}</Text>
-          <Text style={[styles.company, { color: theme.textSecondary }]}>{user?.companyName}</Text>
-          <View style={[styles.rolePill, { backgroundColor: theme.primaryBg }]}>
-            <MaterialCommunityIcons name="shield-account" size={13} color={theme.primary} />
-            <Text style={[styles.roleText, { color: theme.primary }]}>{user?.role ?? 'Employee'}</Text>
+          <Text style={[styles.name, { color: '#fff' }]}>{user?.fullName}</Text>
+          <Text style={[styles.company, { color: 'rgba(255,255,255,0.72)' }]}>{user?.companyName}</Text>
+          <View style={[styles.rolePill, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <MaterialCommunityIcons name="shield-account" size={13} color="rgba(255,255,255,0.9)" />
+            <Text style={[styles.roleText, { color: '#fff' }]}>{user?.role ?? 'Employee'}</Text>
           </View>
         </View>
 
@@ -121,12 +125,12 @@ export default function ProfileTab() {
         </View>
 
         {/* Sign out */}
-        <TouchableOpacity style={[styles.logoutBtn, { borderColor: theme.danger + '50', backgroundColor: theme.dangerBg }]} onPress={handleLogout}>
+        <TouchableOpacity style={[styles.logoutBtn, { borderColor: theme.danger + '50', backgroundColor: theme.dangerBg, marginHorizontal: Spacing.lg }]} onPress={handleLogout}>
           <MaterialCommunityIcons name="logout" size={20} color={theme.danger} />
           <Text style={[styles.logoutText, { color: theme.danger }]}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.version, { color: theme.textMuted }]}>FM App v2.0.0</Text>
+        <Text style={[styles.version, { color: theme.textMuted }]}>AssetPro v2.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -134,8 +138,8 @@ export default function ProfileTab() {
 
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
-  scroll:       { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xxl },
-  hero:         { alignItems: 'center', paddingVertical: Spacing.xl, borderRadius: Radius.xxl },
+  scroll:       { gap: Spacing.lg, paddingBottom: Spacing.xxl },
+  hero:         { alignItems: 'center', paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
   avatarRing:   { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
   avatar:       { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
   avatarText:   { fontSize: 30, color: '#fff', fontWeight: '800' },
@@ -143,7 +147,7 @@ const styles = StyleSheet.create({
   company:      { ...Typography.body, marginBottom: Spacing.md },
   rolePill:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full },
   roleText:     { ...Typography.label, textTransform: 'capitalize' },
-  section:      { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md },
+  section:      { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, marginHorizontal: Spacing.lg },
   sectionPad:   { paddingVertical: Spacing.xs },
   sectionTitle: { ...Typography.h4 },
   sectionSub:   { ...Typography.bodyS, marginTop: -Spacing.sm },
