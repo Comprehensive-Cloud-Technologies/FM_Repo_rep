@@ -134,6 +134,12 @@ export default function CompanyCodeScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Email login — for multi-company users / admins (no code needed) */}
+          <TouchableOpacity style={styles.emailLoginBtn} onPress={() => router.push('/login-email')} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="email-outline" size={18} color={theme.primary} />
+            <Text style={[styles.emailLoginText, { color: theme.primary }]}>Sign in with email instead</Text>
+          </TouchableOpacity>
+
           {/* Catalyst branding - small, below card */}
           <View style={styles.catalystBrand}>
             <Image
@@ -173,6 +179,9 @@ const styles = StyleSheet.create({
   input:     { flex: 1, ...Typography.body, letterSpacing: 2 },
   btn:       { height: 54, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   btnText:   { ...Typography.h4, color: '#fff' },
+  // Email login link
+  emailLoginBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.lg, padding: Spacing.sm },
+  emailLoginText: { fontSize: 14, fontWeight: '600' },
   // Catalyst brand below card
   catalystBrand: { alignItems: 'center', gap: Spacing.xs },
   catalystLogo:  { width: 90, height: 36, marginBottom: 2 },

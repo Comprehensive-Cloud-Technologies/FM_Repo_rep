@@ -177,6 +177,40 @@ async function getRoleCapabilities(companyId, roleKey) {
   };
 }
 
+/* ── Build the login response (token + user) from a company_users row ──────── */
+async function buildSession(user) {
+  const [[rolePermRow]] = await pool.query(
+    `SELECT permissions FROM role_permissions WHERE company_id = ? AND role = ? LIMIT 1`,
+    [user.companyId, user.role]
+  );
+  const mergedPermissions = mergeCrudPermissions(
+    toObject(rolePermRow?.permissions),
+    toObject(user.permissions)
+  );
+  const userModuleAccess = toArray(user.moduleAccess);
+  const derivedRoleModules = readableModules(mergedPermissions);
+  const effectiveModuleAccess = userModuleAccess.length ? userModuleAccess : derivedRoleModules;
+
+  const token = jwt.sign(
+    { sub: user.id, email: user.email, companyId: user.companyId, role: user.role, type: "company_user" },
+    process.env.JWT_SECRET,
+    { expiresIn: "90d" }
+  );
+  const roleCapabilities = await getRoleCapabilities(user.companyId, user.role);
+  const rbacPermissions = await getEffectivePermissionList({ id: user.id, companyId: user.companyId, role: user.role });
+
+  return {
+    token,
+    user: {
+      id: user.id, fullName: user.fullName, email: user.email, phone: user.phone,
+      designation: user.designation, role: user.role, companyId: user.companyId,
+      companyName: user.companyName, supervisorId: user.supervisorId,
+      permissions: mergedPermissions, moduleAccess: effectiveModuleAccess,
+      roleCapabilities, rbacPermissions,
+    },
+  };
+}
+
 /* ── Mobile Login (username + password) ──────────────────────────────────────── */
 router.post("/login", async (req, res, next) => {
   try {
@@ -233,60 +267,73 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
-    const [[rolePermRow]] = await pool.query(
-      `SELECT permissions
-       FROM role_permissions
-       WHERE company_id = ? AND role = ?
-       LIMIT 1`,
-      [user.companyId, user.role]
+    delete user.passwordHash;
+    res.json(await buildSession(user));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ── Mobile Login by EMAIL (no company code) ─────────────────────────────────
+ * For users assigned to multiple companies (and admins): sign in with just
+ * email + password. Company code is not required. Returns the same session
+ * plus the list of companies the user may access. */
+router.post("/login-email", async (req, res, next) => {
+  try {
+    const rawEmail = req.body.email || req.body.username;
+    const rawPassword = req.body.password;
+    if (!rawEmail || !rawPassword) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+    const email = String(rawEmail).trim().slice(0, 128);
+    const password = String(rawPassword).slice(0, 128);
+
+    // Candidate rows across every company that carry this email.
+    const [rows] = await pool.query(
+      `SELECT cu.id, cu.company_id AS "companyId", cu.full_name AS "fullName",
+              cu.email, cu.phone, cu.designation, cu.role, cu.status,
+              cu.password_hash AS "passwordHash", cu.supervisor_id AS "supervisorId",
+              cu.permissions, cu.module_access AS "moduleAccess",
+              c.company_name AS "companyName"
+         FROM company_users cu
+         JOIN companies c ON c.id = cu.company_id
+        WHERE LOWER(cu.email) = LOWER(?)`,
+      [email]
     );
+    if (!rows.length) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-    const mergedPermissions = mergeCrudPermissions(
-      toObject(rolePermRow?.permissions),
-      toObject(user.permissions)
-    );
+    // Pick the active row whose password verifies. Prefer an admin row so a
+    // multi-company admin lands on their admin home company.
+    rows.sort((a, b) => (b.role === "admin") - (a.role === "admin"));
+    let user = null;
+    for (const r of rows) {
+      if (String(r.status || "").toLowerCase() !== "active") continue;
+      if (!r.passwordHash) continue;
+      // eslint-disable-next-line no-await-in-loop
+      if (await bcrypt.compare(password, r.passwordHash)) { user = r; break; }
+    }
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-    const userModuleAccess = toArray(user.moduleAccess);
-    const derivedRoleModules = readableModules(mergedPermissions);
-    const effectiveModuleAccess = userModuleAccess.length ? userModuleAccess : derivedRoleModules;
-
-    // Generate JWT token (compatible with requireCompanyAuth middleware)
-    const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        companyId: user.companyId,
-        role: user.role,
-        type: "company_user",
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "90d" }
-    );
-
-    // Fetch dynamic role capabilities
-    const roleCapabilities = await getRoleCapabilities(user.companyId, user.role);
-    // RBAC: resolved flat permission list (resource:action) — same for web & mobile
-    const rbacPermissions = await getEffectivePermissionList({ id: user.id, companyId: user.companyId, role: user.role });
+    // Companies this user may access = primary + user_company_access rows.
+    let companies = [];
+    try {
+      const [accessRows] = await pool.query(
+        `SELECT c.id, c.company_name AS "companyName"
+           FROM companies c
+          WHERE c.id = ?
+             OR c.id IN (SELECT company_id FROM user_company_access WHERE user_id = ?)
+          ORDER BY (c.id = ?) DESC, c.company_name ASC`,
+        [user.companyId, user.id, user.companyId]
+      );
+      companies = accessRows;
+    } catch { companies = [{ id: user.companyId, companyName: user.companyName }]; }
 
     delete user.passwordHash;
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        phone: user.phone,
-        designation: user.designation,
-        role: user.role,
-        companyId: user.companyId,
-        companyName: user.companyName,
-        supervisorId: user.supervisorId,
-        permissions: mergedPermissions,
-        moduleAccess: effectiveModuleAccess,
-        roleCapabilities,
-        rbacPermissions,
-      },
-    });
+    res.json({ ...(await buildSession(user)), companies });
   } catch (err) {
     next(err);
   }

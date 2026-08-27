@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, Redirect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator, Image, RefreshControl, ScrollView, StatusBar,
@@ -153,6 +153,12 @@ export default function HomeTab() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const onRefresh = () => { setRefreshing(true); void load(true); };
+
+  // Admins use the dedicated multi-company dashboard — never the engineer home
+  // (no Overview / Quick actions / Modules sections for them).
+  if (isLoaded && capabilities?.isHCAdmin) {
+    return <Redirect href="/admin-dashboard" />;
+  }
 
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';
 

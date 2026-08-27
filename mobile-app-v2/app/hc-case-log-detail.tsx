@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { authenticatedFetch, API_BASE, closeAssetQuery } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useCompanyScope } from '../context/CompanyScopeContext';
 import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -31,6 +32,7 @@ const STATUS_FLOW: { key: string; label: string }[] = [
 export default function HCCaseLogDetail() {
   const { theme } = useTheme();
   const { capabilities, user } = useAuth();
+  const { scopedCompanyId } = useCompanyScope();
   const { id, action, sourceType } = useLocalSearchParams<{ id: string; action?: string; sourceType?: string }>();
 
   const isAQ = sourceType === 'asset_query';
@@ -57,14 +59,15 @@ export default function HCCaseLogDetail() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Admin: load engineers list
+  // Admin: load engineers list (of the company being viewed, if scoped)
   useEffect(() => {
     if (!capabilities.isHCAdmin) return;
-    authenticatedFetch('/api/mobile/case-logs/engineers')
+    const cq = scopedCompanyId ? `?companyId=${scopedCompanyId}` : '';
+    authenticatedFetch(`/api/mobile/case-logs/engineers${cq}`)
       .then(r => r.json())
       .then((d: any) => setEngineers(d.data || []))
       .catch(() => {});
-  }, [capabilities.isHCAdmin]);
+  }, [capabilities.isHCAdmin, scopedCompanyId]);
 
   // Auto-prompt close if action param — for AQ items close without code then navigate to review
   useEffect(() => {
@@ -131,7 +134,10 @@ export default function HCCaseLogDetail() {
   const assignEngineer = async (engineerId: number) => {
     setUpdating(true);
     try {
-      const res = await authenticatedFetch(`/api/mobile/case-logs/${id}/assign`, {
+      const url = isAQ
+        ? `/api/mobile/case-logs/${id}/assign?source_type=asset_query`
+        : `/api/mobile/case-logs/${id}/assign`;
+      const res = await authenticatedFetch(url, {
         method: 'PATCH',
         body: JSON.stringify({ engineerId }),
       });

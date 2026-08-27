@@ -221,6 +221,29 @@ export async function loginEmployee(
   return { token, user };
 }
 
+/** Code-optional login: sign in with just email + password (multi-company users / admins). */
+export async function loginWithEmail(
+  email: string,
+  password: string
+): Promise<{ user: AppUser; token: string; companies: Array<{ id: number; companyName: string }> }> {
+  const res = await fetch(`${API_BASE}/api/mobile-auth/login-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const msg = await res.json().catch(() => ({ message: 'Login failed' }));
+    throw new Error((msg as any).message ?? 'Login failed');
+  }
+  const { token, user, companies } = await res.json() as
+    { token: string; user: AppUser; companies: Array<{ id: number; companyName: string }> };
+  await setToken(token);
+  await setStoredUser(user);
+  // Store the primary company so the auto-resume path works like code login.
+  await setStoredCompany({ companyId: user.companyId, companyName: user.companyName, companyCode: '' } as StoredCompany);
+  return { token, user, companies: companies || [] };
+}
+
 export async function verifyToken(): Promise<{ user: AppUser } | null> {
   try {
     const token = await getToken();
@@ -781,6 +804,23 @@ export async function fetchWorkOrderStats(companyId?: number): Promise<{
 
 export async function fetchWorkOrderById(id: number) {
   return apiGet<unknown>(`/api/company-portal/work-orders/${id}`);
+}
+
+/** Admin dashboard KPI snapshot for one company (or the token's own if omitted). */
+export interface DashboardSnapshot {
+  total: number; working: number; notWorking: number; wip: number; hnf: number;
+  totalComplaints: number; wipComplaints: number; wipLt7: number; wipGt7: number;
+  resolvedComplaints: number; closedComplaints: number;
+  calibrationDueThisMonth: number; calibrationOverdue: number; calibrationUpcoming: number;
+  [k: string]: number | unknown;
+}
+export async function fetchDashboardSnapshot(companyId?: number): Promise<DashboardSnapshot> {
+  const cq = companyId ? `?companyId=${companyId}` : '';
+  return apiGet<DashboardSnapshot>(`/api/company-portal/healthcare/snapshot${cq}`);
+}
+/** Roll-up across every company the admin can access. */
+export async function fetchDashboardAggregate(): Promise<DashboardSnapshot> {
+  return apiGet<DashboardSnapshot>(`/api/company-portal/healthcare/aggregate-snapshot`);
 }
 
 export async function fetchWorkOrdersByAsset(assetId: number): Promise<any[]> {

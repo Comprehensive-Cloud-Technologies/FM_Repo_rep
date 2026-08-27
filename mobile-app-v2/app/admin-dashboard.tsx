@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useCompanyScope } from '../context/CompanyScopeContext';
-import { fetchAllCompanies, fetchWorkOrderStats, fetchAssets } from '../utils/api';
+import { fetchAllCompanies, fetchDashboardSnapshot, fetchDashboardAggregate, fetchCaseLogs, type DashboardSnapshot } from '../utils/api';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../utils/theme';
 
 // ─── Profile definitions ──────────────────────────────────────────────────────
@@ -126,26 +126,48 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const { scopedCompany, scopedCompanyId } = useCompanyScope();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [stats, setStats]     = useState<any>(null);
-  const [assetCount, setAssetCount] = useState<number | null>(null);
+  const [snap, setSnap]       = useState<DashboardSnapshot | null>(null);
+  const [recent, setRecent]   = useState<any[]>([]);
+  const [viewAll, setViewAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const activeCompanyName = scopedCompany?.companyName ?? user?.companyName ?? 'Company';
+  const activeCompanyName = viewAll
+    ? 'All hospitals'
+    : (scopedCompany?.companyName ?? user?.companyName ?? 'Company');
 
   const load = useCallback(async () => {
     try {
-      const [st, assets] = await Promise.allSettled([
-        fetchWorkOrderStats(scopedCompanyId),
-        fetchAssets(scopedCompanyId ? { companyId: scopedCompanyId } : undefined),
-      ]);
-      if (st.status === 'fulfilled') setStats(st.value);
-      if (assets.status === 'fulfilled') setAssetCount(Array.isArray(assets.value) ? assets.value.length : 0);
+      if (viewAll) {
+        const agg = await fetchDashboardAggregate().catch(() => null);
+        setSnap(agg); setRecent([]);
+      } else {
+        const [s, r] = await Promise.allSettled([
+          fetchDashboardSnapshot(scopedCompanyId),
+          fetchCaseLogs(undefined, scopedCompanyId),
+        ]);
+        setSnap(s.status === 'fulfilled' ? s.value : null);
+        setRecent(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value.slice(0, 5) : []);
+      }
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
-  }, [scopedCompanyId]);
+  }, [scopedCompanyId, viewAll]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   const onRefresh = () => { setRefreshing(true); void load(); };
+
+  const n = (k: string) => Number((snap as any)?.[k] ?? 0);
+  const RED = '#DC2626';
+  const kpis = [
+    { label: 'Assets',         value: n('total'),                   color: theme.primary },
+    { label: 'Working',        value: n('working'),                 color: theme.success },
+    { label: 'Not working',    value: n('notWorking') + n('hnf'),   color: RED },
+    { label: 'Requests',       value: n('totalComplaints'),         color: theme.info },
+    { label: 'In progress',    value: n('wipComplaints'),           color: theme.warning },
+    { label: 'Overdue >7d',    value: n('wipGt7'),                  color: RED },
+    { label: 'Resolved',       value: n('resolvedComplaints'),      color: theme.success },
+    { label: 'Calib. due',     value: n('calibrationDueThisMonth'), color: theme.warning },
+    { label: 'Calib. overdue', value: n('calibrationOverdue'),      color: RED },
+  ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.primary }]} edges={['top']}>
@@ -168,44 +190,80 @@ export default function AdminDashboard() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
       >
-        {/* Company switcher */}
-        <TouchableOpacity
-          style={[styles.switcher, { backgroundColor: theme.surface, borderColor: theme.primary + '40' }]}
-          onPress={() => setPickerOpen(true)}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.switcherIcon, { backgroundColor: theme.primaryBg }]}>
-            <MaterialCommunityIcons name="office-building" size={22} color={theme.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.switcherLabel, { color: theme.textMuted }]}>Viewing company</Text>
-            <Text style={[styles.switcherName, { color: theme.textPrimary }]} numberOfLines={1}>{activeCompanyName}</Text>
-          </View>
-          <View style={[styles.switcherBtn, { backgroundColor: theme.primary }]}>
-            <MaterialCommunityIcons name="swap-horizontal" size={16} color="#fff" />
-            <Text style={styles.switcherBtnText}>Switch</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Quick totals */}
-        <View style={styles.totalsRow}>
-          <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.totalNum, { color: theme.primary }]}>{loading ? '—' : assetCount ?? 0}</Text>
-            <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Assets</Text>
-          </View>
-          <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.totalNum, { color: theme.info }]}>{loading ? '—' : stats?.open ?? 0}</Text>
-            <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Open</Text>
-          </View>
-          <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.totalNum, { color: theme.warning }]}>{loading ? '—' : stats?.inProgress ?? 0}</Text>
-            <Text style={[styles.totalLabel, { color: theme.textMuted }]}>In Progress</Text>
-          </View>
-          <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.totalNum, { color: theme.success }]}>{loading ? '—' : stats?.completed ?? 0}</Text>
-            <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Completed</Text>
-          </View>
+        {/* View mode: this hospital vs all hospitals */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity onPress={() => setViewAll(false)} activeOpacity={0.8}
+            style={[styles.modePill, { backgroundColor: !viewAll ? theme.primary : theme.surface, borderColor: theme.primary + '40' }]}>
+            <Text style={[styles.modeText, { color: !viewAll ? '#fff' : theme.textSecondary }]}>This hospital</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setViewAll(true)} activeOpacity={0.8}
+            style={[styles.modePill, { backgroundColor: viewAll ? theme.primary : theme.surface, borderColor: theme.primary + '40' }]}>
+            <Text style={[styles.modeText, { color: viewAll ? '#fff' : theme.textSecondary }]}>All hospitals</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Company switcher (per-hospital mode) */}
+        {!viewAll ? (
+          <TouchableOpacity
+            style={[styles.switcher, { backgroundColor: theme.surface, borderColor: theme.primary + '40' }]}
+            onPress={() => setPickerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.switcherIcon, { backgroundColor: theme.primaryBg }]}>
+              <MaterialCommunityIcons name="office-building" size={22} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switcherLabel, { color: theme.textMuted }]}>Viewing company</Text>
+              <Text style={[styles.switcherName, { color: theme.textPrimary }]} numberOfLines={1}>{activeCompanyName}</Text>
+            </View>
+            <View style={[styles.switcherBtn, { backgroundColor: theme.primary }]}>
+              <MaterialCommunityIcons name="swap-horizontal" size={16} color="#fff" />
+              <Text style={styles.switcherBtnText}>Switch</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.switcher, { backgroundColor: theme.surface, borderColor: theme.primary + '40' }]}>
+            <View style={[styles.switcherIcon, { backgroundColor: theme.primaryBg }]}>
+              <MaterialCommunityIcons name="domain" size={22} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switcherLabel, { color: theme.textMuted }]}>Viewing</Text>
+              <Text style={[styles.switcherName, { color: theme.textPrimary }]}>All assigned hospitals</Text>
+            </View>
+          </View>
+        )}
+
+        {/* KPI grid */}
+        <View style={styles.kpiGrid}>
+          {kpis.map(k => (
+            <View key={k.label} style={[styles.kpiCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.kpiNum, { color: k.color }]}>{loading ? '—' : k.value}</Text>
+              <Text style={[styles.kpiLabel, { color: theme.textMuted }]}>{k.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Recent requests (per-hospital) */}
+        {!viewAll && recent.length > 0 && (
+          <View style={{ gap: Spacing.sm }}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recent Requests</Text>
+            {recent.map((it: any, idx: number) => (
+              <TouchableOpacity key={it.id ?? idx}
+                style={[styles.recentRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => router.push('/(tabs)/requests')} activeOpacity={0.8}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.recentTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {it.assetName || it.title || it.subject || `Request #${it.id ?? ''}`}
+                  </Text>
+                  <Text style={[styles.recentSub, { color: theme.textMuted }]} numberOfLines={1}>
+                    {[it.department, it.status].filter(Boolean).join(' · ') || 'Open'}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Profiles */}
         <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Management Profiles</Text>
@@ -239,6 +297,22 @@ const styles = StyleSheet.create({
   totalCard:  { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', gap: 2, borderWidth: 1, ...Shadows.sm },
   totalNum:   { fontSize: 20, fontWeight: '800' },
   totalLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+
+  // View-mode toggle
+  modeRow:  { flexDirection: 'row', gap: Spacing.sm },
+  modePill: { flex: 1, borderRadius: Radius.full, paddingVertical: 10, alignItems: 'center', borderWidth: 1.5 },
+  modeText: { fontSize: 13, fontWeight: '700' },
+
+  // KPI grid
+  kpiGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  kpiCard:  { width: '31%', flexGrow: 1, borderRadius: Radius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs, alignItems: 'center', gap: 2, borderWidth: 1, ...Shadows.sm },
+  kpiNum:   { fontSize: 22, fontWeight: '800' },
+  kpiLabel: { fontSize: 10.5, fontWeight: '600', textAlign: 'center' },
+
+  // Recent requests feed
+  recentRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1 },
+  recentTitle: { fontSize: 14, fontWeight: '700' },
+  recentSub:   { fontSize: 12, marginTop: 1 },
 
   sectionTitle: { ...Typography.h4, marginBottom: -Spacing.sm },
 

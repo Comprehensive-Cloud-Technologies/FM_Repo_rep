@@ -221,9 +221,11 @@ router.get("/dashboard", async (req, res, next) => {
 });
 router.get("/engineers", async (req, res, next) => {
   try {
-    const { companyId, role } = req.companyUser;
+    const { role } = req.companyUser;
     if (!isHCAdmin(role)) return res.status(403).json({ message: "Admin only" });
 
+    // Engineers of the company the admin is currently scoped to (?companyId=).
+    const companyId = await resolveScopeCompanyId(req);
     const [rows] = await pool.query(
       `SELECT id, full_name AS fullName, designation, phone
          FROM company_users
@@ -315,9 +317,13 @@ router.get("/", async (req, res, next) => {
 // ─── GET /:id ─────────────────────────────────────────────────────────────────
 router.get("/:id", async (req, res, next) => {
   try {
-    const { id: userId, companyId, role } = req.companyUser;
+    const { id: userId, companyId } = req.companyUser;
     const { id } = req.params;
     const sourceType = req.query.source_type || 'work_order';
+    // Admins / multi-company users may open a case log from any company they can
+    // access — not just their own — so scope to the full accessible set.
+    const ids = await accessibleCompanyIds(userId, companyId);
+    const ph = ids.map(() => '?').join(',');
 
     // ── Asset query (QR scan) detail ──────────────────────────────────────────
     if (sourceType === 'asset_query') {
@@ -341,8 +347,8 @@ router.get("/:id", async (req, res, next) => {
          LEFT JOIN departments d         ON d.id  = a.department_id
          LEFT JOIN company_users cu      ON cu.id = aq.assigned_to
          LEFT JOIN company_users raised_by ON raised_by.id = aq.raised_by
-         WHERE aq.id = ? AND aq.company_id = ?`,
-        [id, companyId]
+         WHERE aq.id = ? AND aq.company_id IN (${ph})`,
+        [id, ...ids]
       );
       if (!aq) return res.status(404).json({ message: "Request not found" });
       return res.json({ data: aq });
@@ -366,8 +372,8 @@ router.get("/:id", async (req, res, next) => {
        LEFT JOIN assets a              ON a.id  = wo.asset_id
        LEFT JOIN departments d         ON d.id  = a.department_id
        LEFT JOIN company_users raised_by ON raised_by.id = wo.company_user_id
-       WHERE wo.id = ? AND wo.company_id = ? AND wo.source_label = 'Mobile Case Log'`,
-      [id, companyId]
+       WHERE wo.id = ? AND wo.company_id IN (${ph}) AND wo.source_label = 'Mobile Case Log'`,
+      [id, ...ids]
     );
 
     if (!wo) return res.status(404).json({ message: "Case log not found" });
@@ -422,6 +428,9 @@ router.patch("/:id/status", async (req, res, next) => {
     const { id } = req.params;
     const { status, remarks } = req.body;
     const sourceType = req.query.source_type || req.body.source_type || 'work_order';
+    // Admins may act on a case log from any company they can access.
+    const ids = await accessibleCompanyIds(userId, companyId);
+    const ph = ids.map(() => '?').join(',');
 
     // RBAC: map the requested transition to a case-log permission (deny by default)
     const permForStatus = {
@@ -440,8 +449,8 @@ router.patch("/:id/status", async (req, res, next) => {
     // ── Asset query status update ─────────────────────────────────────────────
     if (sourceType === 'asset_query') {
       const [[aq]] = await pool.query(
-        "SELECT * FROM asset_queries WHERE id = ? AND company_id = ?",
-        [id, companyId]
+        `SELECT * FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+        [id, ...ids]
       );
       if (!aq) return res.status(404).json({ message: "Request not found" });
 
@@ -476,8 +485,8 @@ router.patch("/:id/status", async (req, res, next) => {
 
     // ── Work order status update ──────────────────────────────────────────────
     const [[wo]] = await pool.query(
-      "SELECT * FROM work_orders WHERE id = ? AND company_id = ? AND source_label = 'Mobile Case Log'",
-      [id, companyId]
+      `SELECT * FROM work_orders WHERE id = ? AND company_id IN (${ph}) AND source_label = 'Mobile Case Log'`,
+      [id, ...ids]
     );
     if (!wo) return res.status(404).json({ message: "Case log not found" });
 
@@ -512,7 +521,7 @@ router.patch("/:id/status", async (req, res, next) => {
     if (status === 'resolved' && wo.company_user_id) {
       const [[raiser]] = await pool.query(
         "SELECT full_name, push_token FROM company_users WHERE id = ? AND company_id = ?",
-        [wo.company_user_id, companyId]
+        [wo.company_user_id, wo.company_id]
       );
       if (raiser) {
         const [[engineer]] = await pool.query(
@@ -524,7 +533,7 @@ router.patch("/:id/status", async (req, res, next) => {
         const title = `✅ Case ${woNum} Resolved`;
         const body = `Resolved by ${engineerName}${noteText}`;
 
-        await createInAppNotification(companyId, wo.company_user_id, title, body);
+        await createInAppNotification(wo.company_id, wo.company_user_id, title, body);
         if (raiser.push_token) {
           await sendExpoPush(raiser.push_token, title, body, {
             screen: '/(tabs)/home',
@@ -545,6 +554,8 @@ router.patch("/:id/remarks", async (req, res, next) => {
     const { id } = req.params;
     const { remarks } = req.body;
     const sourceType = req.query.source_type || req.body.source_type || "work_order";
+    const ids = await accessibleCompanyIds(userId, companyId);
+    const ph = ids.map(() => '?').join(',');
 
     if (!remarks) return res.status(400).json({ message: "Remarks are required" });
     if (!isHCEngineer(role) && !isHCAdmin(role))
@@ -552,15 +563,15 @@ router.patch("/:id/remarks", async (req, res, next) => {
 
     if (sourceType === "asset_query") {
       const [[aq]] = await pool.query(
-        "SELECT id FROM asset_queries WHERE id = ? AND company_id = ?",
-        [id, companyId]
+        `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+        [id, ...ids]
       );
       if (!aq) return res.status(404).json({ message: "Case log not found" });
       await pool.query("UPDATE asset_queries SET resolution_note = ? WHERE id = ?", [remarks, id]);
     } else {
       const [[wo]] = await pool.query(
-        "SELECT id FROM work_orders WHERE id = ? AND company_id = ? AND source_label = 'Mobile Case Log'",
-        [id, companyId]
+        `SELECT id FROM work_orders WHERE id = ? AND company_id IN (${ph}) AND source_label = 'Mobile Case Log'`,
+        [id, ...ids]
       );
       if (!wo) return res.status(404).json({ message: "Case log not found" });
       await pool.query("UPDATE work_orders SET completion_note = ? WHERE id = ?", [remarks, id]);
@@ -573,16 +584,35 @@ router.patch("/:id/remarks", async (req, res, next) => {
 // ─── PATCH /:id/assign ────────────────────────────────────────────────────────
 router.patch("/:id/assign", requirePermission("case_log:assign"), async (req, res, next) => {
   try {
-    const { companyId, role } = req.companyUser;
+    const { id: userId, companyId, role } = req.companyUser;
     if (!isHCAdmin(role)) return res.status(403).json({ message: "Admin only" });
 
     const { id } = req.params;
     const { engineerId } = req.body;
+    const sourceType = req.query.source_type || req.body.source_type || 'work_order';
     if (!engineerId) return res.status(400).json({ message: "engineerId is required" });
 
+    const ids = await accessibleCompanyIds(userId, companyId);
+    const ph = ids.map(() => '?').join(',');
+
+    // ── Asset query (QR / app raised) assignment ──────────────────────────────
+    if (sourceType === 'asset_query') {
+      const [[aq]] = await pool.query(
+        `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`,
+        [id, ...ids]
+      );
+      if (!aq) return res.status(404).json({ message: "Request not found" });
+      await pool.query(
+        "UPDATE asset_queries SET assigned_to = ?, assigned_at = COALESCE(assigned_at, NOW()), updated_at = NOW() WHERE id = ?",
+        [Number(engineerId), id]
+      );
+      return res.json({ message: "Assigned successfully" });
+    }
+
+    // ── Work order (Mobile Case Log) assignment ───────────────────────────────
     const [[wo]] = await pool.query(
-      "SELECT id FROM work_orders WHERE id = ? AND company_id = ? AND source_label = 'Mobile Case Log'",
-      [id, companyId]
+      `SELECT id FROM work_orders WHERE id = ? AND company_id IN (${ph}) AND source_label = 'Mobile Case Log'`,
+      [id, ...ids]
     );
     if (!wo) return res.status(404).json({ message: "Case log not found" });
 

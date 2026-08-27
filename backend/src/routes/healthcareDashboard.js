@@ -28,6 +28,16 @@ async function getAccessibleCompanyIds(userId, primaryCompanyId) {
   extra.forEach((r) => ids.add(Number(r.companyId)));
   return [...ids];
 }
+
+// For multi-company users, honor a ?companyId= override that is within their
+// accessible set (used by the mobile admin company switcher); else own company.
+async function resolveScopeCompanyId(req) {
+  const own = Number(req.companyUser.companyId);
+  const requested = Number(req.query.companyId);
+  if (!requested || requested === own) return own;
+  const accessible = await getAccessibleCompanyIds(req.companyUser.id, own);
+  return accessible.includes(requested) ? requested : own;
+}
 const paginationParams = [
   query("page").optional().isInt({ min: 1 }),
   query("limit").optional().isInt({ min: 1, max: 500 }),
@@ -35,6 +45,7 @@ const paginationParams = [
 
 const filterParams = [
   ...paginationParams,
+  query("companyId").optional().isInt({ min: 1 }),
   query("dateFrom").optional().isDate(),
   query("dateTo").optional().isDate(),
   query("departmentId").optional().isInt({ min: 1 }),
@@ -89,7 +100,7 @@ function buildAssetWhere(companyId, q) {
    ═══════════════════════════════════════════════════════════════════════════ */
 router.get("/snapshot", validate(filterParams), async (req, res, next) => {
   try {
-    const companyId = req.companyUser.companyId;
+    const companyId = await resolveScopeCompanyId(req);
     const { where, p } = buildAssetWhere(companyId, req.query);
 
     const [[assetRow], [[reqStats]], [[calibrationStats]]] = await Promise.all([

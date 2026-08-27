@@ -93,15 +93,21 @@ function summarize(draft) {
 // Salesforce-style checkmark cell. Sensitive permissions read as normal when
 // off (no visual alarm) and turn red only once granted; the confirm dialog is
 // what actually guards them.
-function Check({ on, disabled, sensitive, onClick }) {
+function Check({ on, disabled, readOnly, sensitive, onClick }) {
   if (disabled) return <span style={{ color: "#cbd5e1", fontSize: "14px" }}>–</span>;
   const onColor = sensitive ? "#dc2626" : "#2563eb";
+  const boxStyle = {
+    width: "18px", height: "18px", borderRadius: "4px", padding: 0,
+    border: `1.5px solid ${on ? onColor : "#cbd5e1"}`, background: on ? onColor : "#fff",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all .12s",
+  };
+  const mark = on ? <span style={{ color: "#fff", fontSize: "11px", lineHeight: 1, fontWeight: 900 }}>✓</span> : null;
+  // Read-only: show the state but non-interactive (locked view / admin).
+  if (readOnly) return <span style={{ ...boxStyle, cursor: "default" }}>{mark}</span>;
   return (
     <button onClick={onClick} aria-pressed={on} title={sensitive ? "Sensitive — confirm required to grant" : (on ? "Granted — click to revoke" : "Click to grant")}
-      style={{ width: "18px", height: "18px", borderRadius: "4px", cursor: "pointer", padding: 0,
-        border: `1.5px solid ${on ? onColor : "#cbd5e1"}`, background: on ? onColor : "#fff",
-        display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all .12s" }}>
-      {on && <span style={{ color: "#fff", fontSize: "11px", lineHeight: 1, fontWeight: 900 }}>✓</span>}
+      style={{ ...boxStyle, cursor: "pointer" }}>
+      {mark}
     </button>
   );
 }
@@ -156,6 +162,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
   const [activeKey, setActiveKey] = useState(null);
   const [draft, setDraft]         = useState(new Set());
   const [dirty, setDirty]         = useState(false);
+  const [editing, setEditing]     = useState(false);    // matrix is locked until Edit is clicked
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [msg, setMsg]             = useState("");
@@ -189,7 +196,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
   // Auto-open a freshly created role in editing mode (empty by default).
   useEffect(() => {
     if (pendingSelect && roles.some((r) => r.roleKey === pendingSelect)) {
-      setActiveKey(pendingSelect); setDraft(new Set()); setDirty(false); setPendingSelect(null);
+      setActiveKey(pendingSelect); setDraft(new Set()); setDirty(false); setEditing(true); setPendingSelect(null);
     }
   }, [roles, pendingSelect]);
 
@@ -197,7 +204,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
     if (dirty && !window.confirm("Discard unsaved permission changes?")) return;
     setActiveKey(r.roleKey);
     setDraft(new Set(r.permissions));
-    setDirty(false); setMsg(""); setErr("");
+    setDirty(false); setEditing(false); setMsg(""); setErr("");
   };
 
   const applyToggle = (key) => {
@@ -206,7 +213,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
   };
   // Enabling a sensitive permission routes through a confirm; revoking never does.
   const attemptToggle = (key, labelText) => {
-    if (!active || active.locked) return;
+    if (!active || active.locked || !editing) return;
     if (!draft.has(key) && SENSITIVE.has(key)) { setConfirmPerm({ key, label: labelText }); return; }
     applyToggle(key);
   };
@@ -224,7 +231,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
     setDirty(true);
   };
   const setAllLevel = (level) => {
-    if (!active || active.locked) return;
+    if (!active || active.locked || !editing) return;
     setDraft((p) => {
       const n = new Set(p);
       MATRIX.forEach((m) => {
@@ -258,7 +265,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
     setSaving(true); setErr(""); setMsg("");
     try {
       await setRbacRolePermissions(token, active.roleKey, [...draft]);
-      setMsg("Permissions saved."); setDirty(false);
+      setMsg("Permissions saved."); setDirty(false); setEditing(false);
       await load();
     } catch (e) { setErr(e.message || "Save failed"); }
     finally { setSaving(false); }
@@ -343,12 +350,20 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
             <button onClick={() => removeRole(active)} title="Delete role"
               style={{ marginTop: "22px", padding: "9px 14px", borderRadius: "8px", border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}>🗑 Delete role</button>
           )}
-          {active && (
-            <span style={{ marginTop: "24px", marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "10px",
-              color: active.locked ? "#64748b" : "#b45309", background: active.locked ? "#e2e8f0" : "#fef3c7" }}>
-              {active.locked ? "🔒 Full access — cannot edit" : "✎ Editing Mode"}
+          {active && (active.locked ? (
+            <span style={{ marginTop: "24px", marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "10px", color: "#64748b", background: "#e2e8f0" }}>
+              🔒 Full access — cannot edit
             </span>
-          )}
+          ) : editing ? (
+            <span style={{ marginTop: "24px", marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "10px", color: "#b45309", background: "#fef3c7" }}>
+              ✎ Editing Mode
+            </span>
+          ) : (
+            <button onClick={() => setEditing(true)}
+              style={{ marginTop: "20px", marginLeft: "auto", padding: "8px 16px", borderRadius: "8px", border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", fontWeight: 700, fontSize: "12.5px", cursor: "pointer" }}>
+              ✎ Edit permissions
+            </button>
+          ))}
         </div>
 
         {!active ? (
@@ -357,10 +372,10 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
           </div>
         ) : (
           <>
-            {/* Toolbar: search + bulk actions */}
-            {!active.locked && (
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px", alignItems: "center" }}>
-                <input value={modSearch} onChange={(e) => setModSearch(e.target.value)} placeholder="🔍  Search modules…" style={{ ...inp, maxWidth: "260px" }} />
+            {/* Toolbar: search always; bulk actions only while editing */}
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px", alignItems: "center" }}>
+              <input value={modSearch} onChange={(e) => setModSearch(e.target.value)} placeholder="🔍  Search modules…" style={{ ...inp, maxWidth: "260px" }} />
+              {editing && !active.locked && (
                 <select value="" onChange={(e) => { if (e.target.value) { setAllLevel(e.target.value); e.target.value = ""; } }}
                   style={{ ...inp, maxWidth: "170px", background: "#fff", cursor: "pointer", marginLeft: "auto", fontWeight: 600 }}>
                   <option value="">Bulk actions ▾</option>
@@ -368,8 +383,8 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
                   <option value="view">View only (all)</option>
                   <option value="full">Full access (all)</option>
                 </select>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Permission table (Module · Read/Create/Edit/Delete · More) */}
             <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "10px" }}>
@@ -393,7 +408,8 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
                           const key = m.cols[c];
                           return (
                             <td key={c} style={cCell}>
-                              <Check on={key ? draft.has(key) : false} disabled={!key || active.locked}
+                              <Check on={key ? draft.has(key) : false} disabled={!key}
+                                readOnly={active.locked || !editing}
                                 sensitive={key ? SENSITIVE.has(key) : false}
                                 onClick={() => key && attemptToggle(key, friendly(m, key))} />
                             </td>
@@ -419,17 +435,17 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
               <span style={{ fontWeight: 700, color: "#0f172a" }}>In plain words — </span>{summarize(draft)}
             </div>
 
-            {/* Cancel / Save */}
-            {!active.locked && (
+            {/* Cancel / Save — only while editing */}
+            {editing && !active.locked && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "16px", gap: "10px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "11.5px", color: dirty ? "#b45309" : "#94a3b8", fontWeight: 600 }}>
                   {dirty ? "● Unsaved changes" : `${draft.size} permission${draft.size !== 1 ? "s" : ""} enabled`}
                 </span>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <button onClick={() => { setDraft(new Set(active.permissions)); setDirty(false); setMsg(""); }} disabled={saving || !dirty}
-                    style={{ padding: "8px 18px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, fontSize: "12.5px", cursor: !dirty ? "default" : "pointer", opacity: !dirty ? 0.5 : 1 }}>Cancel</button>
-                  <button onClick={save} disabled={saving}
-                    style={{ padding: "8px 22px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                  <button onClick={() => { setDraft(new Set(active.permissions)); setDirty(false); setEditing(false); setMsg(""); }} disabled={saving}
+                    style={{ padding: "8px 18px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 600, fontSize: "12.5px", cursor: "pointer" }}>Cancel</button>
+                  <button onClick={save} disabled={saving || !dirty}
+                    style={{ padding: "8px 22px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: (saving || !dirty) ? "default" : "pointer", opacity: (saving || !dirty) ? 0.6 : 1 }}>
                     {saving ? "Saving…" : "Save Changes"}
                   </button>
                 </div>
@@ -457,7 +473,7 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
                 const sensitive = SENSITIVE.has(o.key);
                 return (
                   <label key={o.key} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "8px 10px", borderRadius: "8px", border: `1px solid ${on ? "#bfdbfe" : "#e2e8f0"}`, background: on ? "#eff6ff" : "#fff", cursor: "pointer" }}>
-                    <Check on={on} disabled={active.locked} sensitive={sensitive} onClick={() => attemptToggle(o.key, o.label.replace(/\s*\(.*\)/, "").toLowerCase())} />
+                    <Check on={on} readOnly={active.locked || !editing} sensitive={sensitive} onClick={() => attemptToggle(o.key, o.label.replace(/\s*\(.*\)/, "").toLowerCase())} />
                     <span style={{ flex: 1, fontSize: "12px", color: "#334155" }}>{o.label}</span>
                     <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "8px", background: TAG_STYLE[o.tag].bg, color: TAG_STYLE[o.tag].color }}>{o.tag}</span>
                     {sensitive && <span style={sensTag}>⚠</span>}
@@ -467,11 +483,13 @@ export default function RoleMatrixManager({ token, onRolesChanged }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px" }}>
               <div style={{ fontSize: "11.5px" }}>
-                <button onClick={() => { otherModal.other.filter((o) => !SENSITIVE.has(o.key)).forEach((o) => draft.add(o.key)); setDraft(new Set(draft)); setDirty(true); }}
-                  style={{ border: "none", background: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0 }}>Allow all (safe)</button>
-                <span style={{ color: "#cbd5e1", margin: "0 7px" }}>•</span>
-                <button onClick={() => { otherModal.other.forEach((o) => draft.delete(o.key)); setDraft(new Set(draft)); setDirty(true); }}
-                  style={{ border: "none", background: "none", color: "#64748b", fontWeight: 700, cursor: "pointer", padding: 0 }}>Deny all</button>
+                {editing && !active.locked && (<>
+                  <button onClick={() => { otherModal.other.filter((o) => !SENSITIVE.has(o.key)).forEach((o) => draft.add(o.key)); setDraft(new Set(draft)); setDirty(true); }}
+                    style={{ border: "none", background: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer", padding: 0 }}>Allow all (safe)</button>
+                  <span style={{ color: "#cbd5e1", margin: "0 7px" }}>•</span>
+                  <button onClick={() => { otherModal.other.forEach((o) => draft.delete(o.key)); setDraft(new Set(draft)); setDirty(true); }}
+                    style={{ border: "none", background: "none", color: "#64748b", fontWeight: 700, cursor: "pointer", padding: 0 }}>Deny all</button>
+                </>)}
               </div>
               <button onClick={() => setOtherModal(null)} style={{ padding: "7px 18px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: "pointer" }}>Done</button>
             </div>
