@@ -1322,10 +1322,11 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                       const file = e.target.files[0]; if (!file) return;
                       const fd = new FormData(); fd.append("file", file);
                       try {
-                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: fd });
-                        const d = await r.json();
+                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+                        const d = await r.json().catch(() => ({}));
+                        if (!r.ok || !d.url) throw new Error(d.message || `Upload failed (${r.status})`);
                         setForm(p => ({ ...p, hcImages: [...(p.hcImages || []), { url: d.url, name: file.name }] }));
-                      } catch { /* silent */ }
+                      } catch (err) { alert(err?.message || "Could not upload image."); }
                       e.target.value = "";
                     }} />
                   </label>
@@ -1381,10 +1382,11 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                       const file = e.target.files[0]; if (!file) return;
                       const fd = new FormData(); fd.append("file", file);
                       try {
-                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: fd });
-                        const d = await r.json();
+                        const r = await fetch(`${API_BASE}/api/upload`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+                        const d = await r.json().catch(() => ({}));
+                        if (!r.ok || !d.url) throw new Error(d.message || `Upload failed (${r.status})`);
                         setForm(p => ({ ...p, hcInvoiceUrl: d.url }));
-                      } catch { /* silent */ }
+                      } catch (err) { alert(err?.message || "Could not upload file."); }
                       e.target.value = "";
                     }} />
                   </label>

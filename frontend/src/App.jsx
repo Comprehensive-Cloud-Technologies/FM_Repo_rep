@@ -5,6 +5,7 @@ import logo from "./images/image.png";
 import ClientManagement from "./pages/ClientManagement";
 import UserManagement from "./pages/UserManagement";
 import CompanyPortal from "./pages/CompanyPortal";
+import ClientConsole from "./pages/console/ClientConsole";
 import CompanyLogin from "./pages/CompanyLogin";
 import CompanyEmployeePortal from "./pages/CompanyEmployeePortal";
 import AssetScanPage from "./pages/AssetScanPage";
@@ -259,6 +260,7 @@ function App() {
     <Routes>
       <Route path="/root-login" element={isRootAuthed ? <Navigate to="/" replace /> : <RootLogin onLogin={handleRootLogin} />} />
       <Route path="/client" element={<CompanyPortal />} />
+      <Route path="/console" element={<ClientConsole />} />
       <Route path="/company" element={<CompanyLogin />} />
       <Route path="/company/portal/*" element={<CompanyEmployeePortal />} />
       <Route path="/company/asset/:id" element={<AssetDetailPage />} />

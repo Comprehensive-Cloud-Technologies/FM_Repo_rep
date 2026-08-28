@@ -863,7 +863,19 @@ export default function AssetDetailPage() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button onClick={() => navigate(-1)}
+          <button onClick={() => {
+              // This page is usually opened via window.open(..., '_blank'), a fresh
+              // tab with no in-app history — navigate(-1) has nowhere to go there.
+              // Close the popup tab if we can; otherwise fall back to real history.
+              const openedAsPopup = window.opener && window.opener !== window;
+              if (openedAsPopup || window.history.length <= 1) {
+                window.close();
+                // If close() was blocked (tab not script-opened), fall back.
+                setTimeout(() => { if (!window.closed) navigate(-1); }, 100);
+              } else {
+                navigate(-1);
+              }
+            }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             Back

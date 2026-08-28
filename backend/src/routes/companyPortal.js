@@ -298,6 +298,9 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_time DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS in_progress_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS assigned_at DATETIME DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS downtime_minutes INT DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS prior_downtime_minutes INT NOT NULL DEFAULT 0`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS last_reopened_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolved_by INT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS resolution_note TEXT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS requester_name VARCHAR(255) DEFAULT NULL`,
@@ -2950,6 +2953,9 @@ router.get("/asset-queries", async (req, res, next) => {
               aq.resolved_by AS "resolvedBy", cu_res.full_name AS "resolvedByName",
               aq.in_progress_at AS "wipAt",
               aq.resolved_at AS "resolvedAt", aq.resolution_note AS "resolutionNote",
+              aq.downtime_minutes AS "downtimeMinutes",
+              aq.prior_downtime_minutes AS "priorDowntimeMinutes",
+              aq.last_reopened_at AS "lastReopenedAt",
               aq.created_at AS "createdAt", aq.updated_at AS "updatedAt"
        FROM asset_queries aq
        JOIN assets a ON a.id = aq.asset_id
@@ -5131,9 +5137,16 @@ router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), 
     if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
 
     const aqAssignedAt = new Date();
+    // Assigning an OPEN request moves it to in_progress — so start the downtime
+    // clock (in_progress_at) at the same moment. Without this, wip_at stays NULL
+    // and the resolved−wip downtime computes to 0, erasing accrued downtime.
     await pool.execute(
-      "UPDATE asset_queries SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?), status = IF(status = 'open', 'in_progress', status) WHERE id = ?",
-      [assignedTo, aqAssignedAt, aqId]
+      `UPDATE asset_queries
+          SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?),
+              in_progress_at = CASE WHEN status = 'open' AND in_progress_at IS NULL THEN ? ELSE in_progress_at END,
+              status = IF(status = 'open', 'in_progress', status)
+        WHERE id = ?`,
+      [assignedTo, aqAssignedAt, aqAssignedAt, aqId]
     );
     res.json({ message: "Assigned", assignedTo: Number(assignedTo), assigneeName: assignee.fullName });
     // Auto-complete response SLA clock when engineer is assigned — use exact assignment timestamp
@@ -5163,18 +5176,51 @@ router.patch("/asset-queries/:id/status", async (req, res, next) => {
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
     const statusNow = new Date();
-    const statusInProgressAt = status === "in_progress" ? statusNow : null;
-    const statusResolvedAt = status === "resolved" ? statusNow : null;
-    let setExtra = "";
-    let extraParams = [];
+    // Read the current cycle so downtime accumulates across reopens instead of
+    // resetting. Mirrors the work_orders lifecycle.
+    const [[cur]] = await pool.query(
+      "SELECT status, in_progress_at, resolved_at, downtime_minutes, prior_downtime_minutes FROM asset_queries WHERE id = ?",
+      [aqId]
+    );
+    const wasResolved = cur && cur.status === "resolved";
+    let statusInProgressAt = null, statusResolvedAt = null;
+    const set = { status, updated_at: statusNow };
+    let attendedIfNull = null;
+
     if (status === "in_progress") {
-      setExtra = ", in_progress_at = CASE WHEN in_progress_at IS NULL THEN ? ELSE in_progress_at END, engineer_attended_at = CASE WHEN engineer_attended_at IS NULL THEN ? ELSE engineer_attended_at END";
-      extraParams = [statusInProgressAt, statusInProgressAt];
+      if (wasResolved) {                       // reopen → bank downtime, start fresh cycle
+        set.prior_downtime_minutes = cur.downtime_minutes != null ? cur.downtime_minutes : (cur.prior_downtime_minutes || 0);
+        set.downtime_minutes = null;
+        set.in_progress_at = statusNow;
+        set.resolved_at = null;
+        set.last_reopened_at = statusNow;
+        statusInProgressAt = statusNow;
+      } else if (!cur || !cur.in_progress_at) { // first time entering WIP
+        set.in_progress_at = statusNow;
+        attendedIfNull = statusNow;
+        statusInProgressAt = statusNow;
+      }
+    } else if (status === "open") {
+      if (wasResolved) {                       // reopen from resolved
+        set.prior_downtime_minutes = cur.downtime_minutes != null ? cur.downtime_minutes : (cur.prior_downtime_minutes || 0);
+        set.downtime_minutes = null;
+        set.in_progress_at = null;
+        set.resolved_at = null;
+        set.last_reopened_at = statusNow;
+      }
     } else if (status === "resolved") {
-      setExtra = ", resolved_at = CASE WHEN resolved_at IS NULL THEN ? ELSE resolved_at END";
-      extraParams = [statusResolvedAt];
+      set.resolved_at = statusNow;             // this resolve (always, so re-resolve after reopen works)
+      const wip = cur && cur.in_progress_at ? new Date(cur.in_progress_at) : null;
+      const seg = wip ? Math.max(0, Math.round((statusNow - wip) / 60000)) : 0;
+      set.downtime_minutes = (cur && cur.prior_downtime_minutes ? cur.prior_downtime_minutes : 0) + seg;
+      statusResolvedAt = statusNow;
     }
-    await pool.execute(`UPDATE asset_queries SET status = ?, updated_at = NOW()${setExtra} WHERE id = ?`, [status, ...extraParams, aqId]);
+
+    const cols = Object.keys(set);
+    let sql = cols.map((c) => `${c} = ?`).join(", ");
+    const params = cols.map((c) => set[c]);
+    if (attendedIfNull) { sql += ", engineer_attended_at = COALESCE(engineer_attended_at, ?)"; params.push(attendedIfNull); }
+    await pool.execute(`UPDATE asset_queries SET ${sql} WHERE id = ?`, [...params, aqId]);
     res.json({ message: "Status updated", status });
 
     // SLA clocks: fire-and-forget on status transitions — pass exact timestamps
@@ -5207,16 +5253,19 @@ router.patch("/asset-queries/:id/cutoff", async (req, res, next) => {
     );
     if (!aq) return res.status(404).json({ message: "Asset query not found" });
 
-    let deadline = null;
+    // Store the wall-clock value the user picked, verbatim, as a MySQL datetime
+    // string — never as a JS Date, which mysql2 would shift by the connection
+    // timezone (the "wrong value after refresh" bug).
+    let deadlineStr = null;
     if (cutoffTime) {
-      const d = new Date(cutoffTime);
-      if (!isNaN(d.getTime())) deadline = d;
+      const m = String(cutoffTime).trim().match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
+      if (m) deadlineStr = `${m[1]} ${m[2]}:${m[3] || "00"}`;
     }
     await pool.execute(
       "UPDATE asset_queries SET cutoff_time = ?, updated_at = NOW() WHERE id = ?",
-      [deadline, aqId]
+      [deadlineStr, aqId]
     );
-    res.json({ message: "Cutoff updated", cutoffTime: deadline });
+    res.json({ message: "Cutoff updated", cutoffTime: deadlineStr });
   } catch (err) { next(err); }
 });
 

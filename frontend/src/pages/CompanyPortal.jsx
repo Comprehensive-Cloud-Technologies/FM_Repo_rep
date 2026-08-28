@@ -21943,13 +21943,13 @@ const CompanyPortal = () => {
 
 
 
-                                    const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", body: fd });
+                                    const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
 
 
 
 
 
-                                    const data = await res.json();
+                                    const data = await res.json().catch(() => ({})); if (!res.ok || !data.url) throw new Error(data.message || `Upload failed (${res.status})`);
 
 
 
@@ -21961,7 +21961,7 @@ const CompanyPortal = () => {
 
 
 
-                                  } catch { /* silent */ }
+                                  } catch (err) { alert(err?.message || "Could not upload image."); }
 
 
 
@@ -22391,13 +22391,13 @@ const CompanyPortal = () => {
 
 
 
-                                      const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", body: fd });
+                                      const res = await fetch(buildApiUrl("/api/upload"), { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
 
 
 
 
 
-                                      const data = await res.json();
+                                      const data = await res.json().catch(() => ({})); if (!res.ok || !data.url) throw new Error(data.message || `Upload failed (${res.status})`);
 
 
 
@@ -22409,7 +22409,7 @@ const CompanyPortal = () => {
 
 
 
-                                    } catch { /* silent */ }
+                                    } catch (err) { alert(err?.message || "Could not upload file."); }
 
 
 

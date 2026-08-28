@@ -1019,8 +1019,10 @@ function CreateWOModal({ employees, companyPortalToken, companyId, onClose, onCr
 
 /* ─── Set Cutoff Modal ────────────────────────────────────────────────────── */
 function SetCutoffModal({ wo, authToken, onClose, onSave }) {
+  // Treat the stored cutoff as wall-clock time — never run it through
+  // Date.toISOString(), which shifts it to UTC and shows the wrong value.
   const [dateVal, setDateVal] = useState(
-    wo.cutoff_time ? new Date(wo.cutoff_time).toISOString().slice(0, 16) : ''
+    wo.cutoff_time ? String(wo.cutoff_time).replace(' ', 'T').slice(0, 16) : ''
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -1639,8 +1641,8 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                                       ? `/api/company-portal/asset-queries/${wo.id}/status`
                                       : `/api/company-portal/work-orders/${wo.id}/status`;
                                     await apiFetch('PATCH', endpoint, { status: 'in_progress' }, authToken);
-                                    load();
-                                  } catch (_) { }
+                                    await load();
+                                  } catch (e) { alert(e?.message || 'Could not acknowledge this request.'); }
                                 }}
                                   style={{ padding: '4px 9px', borderRadius: '6px', border: '1.5px solid #fed7aa', background: '#fff7ed', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>
                                   Acknowledge
