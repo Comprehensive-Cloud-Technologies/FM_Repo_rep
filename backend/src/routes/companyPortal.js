@@ -2332,9 +2332,12 @@ router.get("/assets/:id", async (req, res, next) => {
 router.get("/assets/:id/calibration-records", async (req, res, next) => {
   try {
     const { id } = req.params;
+    // Allow viewing calibration for any asset the user can access (All-Hospitals).
+    const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = ids.map(() => "?").join(",");
     const [[asset]] = await pool.query(
-      "SELECT id FROM assets WHERE id = ? AND company_id = ?",
-      [id, cid(req)]
+      `SELECT id FROM assets WHERE id = ? AND company_id IN (${ph})`,
+      [id, ...ids]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     const [rows] = await pool.query(

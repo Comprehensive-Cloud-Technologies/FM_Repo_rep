@@ -227,6 +227,9 @@ export const deleteCompanyRole  = (token, id) => request("DELETE", `/api/company
 export const reorderCompanyRoles = (token, items) => request("PUT", "/api/company-portal/roles/reorder/bulk", { items }, { authToken: token });
 
 // ─── RBAC: dynamic role permissions (company portal — company token) ──────────
+export const generateIntelligenceReport = (token, prompt, companyId) =>
+  request("POST", "/api/company-portal/asset-intelligence/generate", { prompt, companyId }, { authToken: token });
+
 export const getRbacCatalog          = (token) => request("GET", "/api/company-portal/roles/permissions/catalog", undefined, { authToken: token });
 export const getRbacRolePermissions  = (token) => request("GET", "/api/company-portal/roles/permissions/roles", undefined, { authToken: token });
 export const setRbacRolePermissions  = (token, roleKey, permissions) => request("PUT", `/api/company-portal/roles/permissions/roles/${roleKey}`, { permissions }, { authToken: token });

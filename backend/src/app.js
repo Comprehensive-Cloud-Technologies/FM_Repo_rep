@@ -36,6 +36,8 @@ import templateImportRouter from "./routes/templateImport.js";
 import assetDashboardRouter from "./routes/assetDashboard.js";
 import companyPortalAssetDashboardRouter from "./routes/companyPortalAssetDashboard.js";
 import healthcareDashboardRouter from "./routes/healthcareDashboard.js";
+import assetIntelligenceRouter from "./routes/assetIntelligence.js";
+import assetTransferRouter from "./routes/assetTransfer.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
 import calibrationRouter from "./routes/calibration.js";
 import uploadRouter from "./routes/upload.js";
@@ -134,6 +136,10 @@ app.use("/api/template-import", templateImportRouter);
 app.use("/api/asset-dashboard", assetDashboardRouter);
 app.use("/api/company-portal/asset-dashboard", companyPortalAssetDashboardRouter);
 app.use("/api/company-portal/healthcare", healthcareDashboardRouter);
+app.use("/api/company-portal/asset-intelligence", assetIntelligenceRouter);
+// Mounted AFTER companyPortalRouter so its specific /assets routes win; this
+// adds asset transfer + transfer/calibration history endpoints (was unmounted).
+app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal/pms", pmsChecklistsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/soft-service", softServiceRequestsRouter);

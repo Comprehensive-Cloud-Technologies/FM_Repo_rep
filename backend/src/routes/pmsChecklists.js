@@ -1619,6 +1619,10 @@ router.get("/reports", async (req, res, next) => {
 // GET /reports/:assetId — full PMS timeline for one asset
 router.get("/reports/:assetId", async (req, res, next) => {
   try {
+    // Scope to every company the user can access (admins in All-Hospitals mode
+    // may open an asset that belongs to another accessible hospital).
+    const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = ids.map(() => "?").join(",");
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS assetName, a.generated_asset_id AS generatedAssetId,
               a.asset_unique_id AS assetUniqueId, a.building, a.floor, a.room,
@@ -1628,8 +1632,8 @@ router.get("/reports/:assetId", async (req, res, next) => {
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
-       WHERE a.id = ? AND a.company_id = ?`,
-      [req.params.assetId, cid(req)]
+       WHERE a.id = ? AND a.company_id IN (${ph})`,
+      [req.params.assetId, ...ids]
     );
     if (!asset) return res.status(404).json({ message: "Asset not found" });
 
@@ -1650,9 +1654,9 @@ router.get("/reports/:assetId", async (req, res, next) => {
        LEFT JOIN company_users cu ON cu.id = psa.completed_by
        LEFT JOIN company_users reviewer ON reviewer.id = psa.reviewer_id
        LEFT JOIN pms_checklists pc ON pc.id = psa.checklist_id
-       WHERE psa.asset_id = ? AND ps.company_id = ?
+       WHERE psa.asset_id = ? AND ps.company_id IN (${ph})
        ORDER BY ps.maintenance_date DESC`,
-      [req.params.assetId, cid(req)]
+      [req.params.assetId, ...ids]
     );
 
     res.json({ asset, history });

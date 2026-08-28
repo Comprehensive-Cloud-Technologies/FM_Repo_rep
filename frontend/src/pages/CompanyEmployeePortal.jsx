@@ -21,6 +21,8 @@ import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
 import CalibrationModule from "../components/CalibrationModule.jsx";
 import TrainingModule from "../components/TrainingModule.jsx";
 import RoleMatrixManager from "../components/RoleMatrixManager.jsx";
+import AssetIntelligenceReport from "../components/AssetIntelligenceReport.jsx";
+import { getHCSnapshot } from "../api";
 import { useAlertSound } from "../hooks/useAlertSound";
 import {
   getCompanyPortalMe,
@@ -4853,6 +4855,7 @@ export default function CompanyEmployeePortal() {
   const [departments, setDepartments] = useState([]);
   const [assetTypesList, setAssetTypesList] = useState([]);
   const [assets, setAssets] = useState([]);
+  const [snapshot, setSnapshot] = useState(null); // KPI snapshot for Asset Pro Intelligence page
   const [checklists, setChecklists] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [supervisors, setSupervisors] = useState([]);
@@ -5301,6 +5304,7 @@ export default function CompanyEmployeePortal() {
   useEffect(() => {
     if (!token || nav === "dashboard") return;
     const acParam = allCompaniesMode ? { allCompanies: "true" } : {};
+    if (nav === "asset-intelligence") getHCSnapshot(token).then((d) => d && setSnapshot(d)).catch(() => {});
     if (nav === "departments") load("departments", () => getCompanyPortalDepartments(token, allCompaniesMode)).then((d) => d && setDepartments(d));
     if (nav === "assets") {
       load("assets", () => getCompanyPortalAssets(token, acParam)).then((d) => d && setAssets(d));
@@ -9746,7 +9750,7 @@ export default function CompanyEmployeePortal() {
 
       {/* ── PMS (Preventive Maintenance) ────────────────────────── */}
       {nav === "pms" && (
-        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <PMSChecklistModule token={token} companyId={currentUser?.companyId} currentUser={currentUser} />
         </div>
@@ -9754,7 +9758,7 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Calibration ─────────────────────────────────────────── */}
       {nav === "calibration" && (
-        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <CalibrationModule token={token} />
         </div>
@@ -9762,7 +9766,7 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Training ────────────────────────────────────────────── */}
       {nav === "training" && (
-        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+        <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
           <TrainingModule token={token} />
         </div>
@@ -9770,12 +9774,15 @@ export default function CompanyEmployeePortal() {
 
       {/* ── Asset Pro Intelligence ───────────────────────────── */}
       {nav === "asset-intelligence" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
-        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", background: "#f8fafc", padding: "28px 32px" }}>
+        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", background: "#f8fafc", padding: "28px 32px" }}>
           {companySwitcherBar}
           <div style={{ marginBottom: "24px" }}>
             <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>🧠 Asset Pro Intelligence</h2>
             <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>AI-powered insights, predictive maintenance signals, and asset lifecycle analytics</p>
           </div>
+
+          {/* Natural-language report generator */}
+          <AssetIntelligenceReport token={token} companyId={allCompaniesMode ? undefined : currentUser?.companyId} />
 
           {/* KPI Banner */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "24px" }}>
@@ -9795,7 +9802,8 @@ export default function CompanyEmployeePortal() {
             ))}
           </div>
 
-          {/* Main content area */}
+          {/* Placeholder "coming soon" analytics — removed from UI (not in use) */}
+          {false && (<>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
             {/* Predictive Maintenance */}
             <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "20px" }}>
@@ -9877,12 +9885,13 @@ export default function CompanyEmployeePortal() {
               ))}
             </div>
           </div>
+          </>)}
         </div>
       )}
 
       {/* ── MIS ──────────────────────────────────────────────── */}
       {nav === "mis" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (
-        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 15, overflowY: "auto", background: "#f8fafc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px" }}>
+        <div style={{ position: "fixed", left: 240, top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", background: "#f8fafc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px" }}>
           {companySwitcherBar}
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "64px", marginBottom: "20px", lineHeight: 1 }}>📊</div>
