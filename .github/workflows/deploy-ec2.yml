@@ -1,0 +1,129 @@
+name: Deploy to EC2
+
+# Ships a release to the production EC2 server when a version tag is pushed
+# (e.g. v1.1.0), or when manually run from the Actions tab.
+#
+# Data-safe: only backend/src + frontend/dist are shipped. The server's .env,
+# database, and uploads/ directory are never touched.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   EC2_SSH_KEY   – the *private* SSH key (PEM) that can log into the server
+#   EC2_HOST      – server hostname or IP (e.g. 13.206.99.117)
+#   EC2_USER      – SSH user (e.g. ec2-user)
+# Optional:
+#   EC2_APP_DIR   – app directory on the server (default: /home/ec2-user/fmapp)
+#   HEALTH_URL    – health endpoint to verify (default: https://htm.catalystservices.eco/api/health)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag/branch to deploy (defaults to the current ref)"
+        required: false
+
+# Never run two production deploys at once.
+concurrency:
+  group: deploy-ec2-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        # No env file needed: production resolves the API base to a relative URL
+        # (same origin, proxied by nginx), matching the manual build.
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package artifacts
+        run: |
+          tar -czf backend-deploy.tar.gz -C backend \
+            --exclude=node_modules --exclude=.env --exclude=uploads .
+          tar -czf frontend-deploy.tar.gz -C frontend dist
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload artifacts
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            backend-deploy.tar.gz frontend-deploy.tar.gz \
+            "$EC2_USER@$EC2_HOST:/tmp/"
+
+      - name: Deploy on server
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          APP_DIR: ${{ secrets.EC2_APP_DIR || '/home/ec2-user/fmapp' }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$EC2_USER@$EC2_HOST" \
+            "APP_DIR='$APP_DIR' GIT_COMMIT='$GIT_COMMIT' bash -s" <<'REMOTE'
+          set -e
+          mkdir -p "$APP_DIR/backend" "$APP_DIR/frontend/dist"
+
+          echo "--- Extracting backend (preserving .env & uploads) ---"
+          tar -xzf /tmp/backend-deploy.tar.gz -C "$APP_DIR/backend" \
+            --exclude='.env' --exclude='uploads' --exclude='node_modules'
+
+          echo "--- Installing backend production dependencies ---"
+          cd "$APP_DIR/backend"
+          npm install --omit=dev --prefer-offline 2>&1 | tail -5
+
+          echo "--- Extracting frontend dist ---"
+          tar -xzf /tmp/frontend-deploy.tar.gz -C "$APP_DIR/frontend"
+
+          echo "--- Reloading backend with PM2 (zero-downtime) ---"
+          if pm2 list | grep -qE 'fmapp|backend|server|app'; then
+            GIT_COMMIT="$GIT_COMMIT" pm2 reload all --update-env
+          else
+            cd "$APP_DIR/backend"
+            GIT_COMMIT="$GIT_COMMIT" pm2 start src/server.js --name fmapp-backend --update-env
+            pm2 save
+          fi
+
+          echo "--- Reloading nginx ---"
+          sudo nginx -t && sudo systemctl reload nginx
+
+          rm -f /tmp/backend-deploy.tar.gz /tmp/frontend-deploy.tar.gz
+          pm2 list
+          echo "====== Deploy complete ======"
+          REMOTE
+
+      - name: Health check
+        env:
+          HEALTH_URL: ${{ secrets.HEALTH_URL || 'https://htm.catalystservices.eco/api/health' }}
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || true)
+            if [ "$code" = "200" ]; then echo "Health OK ($HEALTH_URL)"; exit 0; fi
+            echo "Attempt $i: HTTP $code — retrying in 5s"; sleep 5
+          done
+          echo "Health check failed after retries"; exit 1

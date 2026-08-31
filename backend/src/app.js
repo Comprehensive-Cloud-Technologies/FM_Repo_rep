@@ -7,6 +7,7 @@ import hpp from "hpp";
 import { requireAuth } from "./middleware/auth.js";
 import path from "path";
 import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
 import pool from "./db.js";
 import clientsRouter from "./routes/clients.js";
 import usersRouter from "./routes/users.js";
@@ -69,14 +70,23 @@ app.use(express.json());
 app.use(hpp()); // HTTP Parameter Pollution prevention
 app.use(morgan("tiny"));
 
+// ── Running version (from backend/package.json; overridable via APP_VERSION) ──
+const APP_VERSION = (() => {
+  try {
+    const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../package.json");
+    return JSON.parse(readFileSync(pkgPath, "utf8")).version || "unknown";
+  } catch { return process.env.APP_VERSION || "unknown"; }
+})();
+const GIT_COMMIT = process.env.GIT_COMMIT || null;
+
 const healthHandler = async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ok", db: "connected" });
+    res.json({ status: "ok", db: "connected", version: APP_VERSION, commit: GIT_COMMIT });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("[health] DB check failed:", err.message);
-    res.status(503).json({ status: "degraded", db: "error", detail: err.message });
+    res.status(503).json({ status: "degraded", db: "error", detail: err.message, version: APP_VERSION });
   }
 };
 // Rate-limit login/auth endpoints — 100 attempts per 5 minutes per IP
@@ -102,6 +112,7 @@ app.use("/api/", globalLimiter);
 
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
+app.get("/api/version", (_req, res) => res.json({ version: APP_VERSION, commit: GIT_COMMIT }));
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/clients", clientsRouter);
 app.use("/api/users", usersRouter);

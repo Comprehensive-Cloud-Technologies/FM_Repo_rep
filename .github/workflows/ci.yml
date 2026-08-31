@@ -1,0 +1,35 @@
+name: CI
+
+# Fast checks on every push/PR so broken code never reaches a release tag.
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Frontend — install & build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Backend — install & syntax check
+        working-directory: backend
+        run: |
+          npm ci
+          # Byte-compile every source file to catch syntax errors early.
+          find src -name '*.js' -print0 | xargs -0 -n1 node --check
