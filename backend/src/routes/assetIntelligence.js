@@ -368,14 +368,188 @@ function parse(prompt) {
   return { dsKey, ds, whereParts, params, matched, groupBy, groupLabel, limit, wantsTop };
 }
 
+/* ── Special analytical reports ───────────────────────────────────────────────
+ * These answer aggregate questions that don't fit the filter+groupBy model
+ * (e.g. "assets with the most downtime"). Each has its own parameterized,
+ * company-scoped SQL and returns the same shape as /generate. Any error inside
+ * one degrades gracefully to an empty result rather than a 500.               */
+const SPECIAL_REPORTS = [
+  {
+    id: "downtime-leaders",
+    match: (q) => /\bdowntime\b/.test(q),
+    async run(companyIds, ph, q) {
+      const tm = q.match(/\btop (\d{1,3})\b/);
+      const limit = Math.min(200, Math.max(1, tm ? Number(tm[1]) : 15));
+      const [r] = await pool.query(
+        `SELECT a.asset_name AS asset, d.name AS department, co.company_name AS hospital,
+                ROUND(SUM(COALESCE(aq.downtime_minutes,0))/60, 1) AS downtimeHours,
+                COUNT(*) AS tickets
+           FROM asset_queries aq
+           JOIN assets a ON a.id = aq.asset_id
+           LEFT JOIN departments d ON d.id = a.department_id
+           LEFT JOIN companies co ON co.id = aq.company_id
+          WHERE aq.company_id IN (${ph})
+            AND aq.downtime_minutes IS NOT NULL AND aq.downtime_minutes > 0
+          GROUP BY a.id, a.asset_name, d.name, co.company_name
+          ORDER BY SUM(COALESCE(aq.downtime_minutes,0)) DESC
+          LIMIT ${limit}`,
+        companyIds
+      );
+      return {
+        interpreted: ["Assets", "downtime leaders", `top ${limit}`],
+        summary: `Top ${r.length} asset${r.length !== 1 ? "s" : ""} by total downtime.`,
+        columns: [
+          { key: "asset", label: "Asset" }, { key: "department", label: "Department" },
+          { key: "hospital", label: "Hospital" }, { key: "downtimeHours", label: "Downtime (hrs)" },
+          { key: "tickets", label: "Tickets" },
+        ],
+        rows: r,
+        chart: { type: "bar", labelKey: "asset", valueKey: "downtimeHours", unit: "h" },
+      };
+    },
+  },
+  {
+    id: "mttr-by-department",
+    match: (q) => /\bmttr\b/.test(q) || /mean time to (repair|resolution|resolve)/.test(q) || /average (repair|resolution) time/.test(q),
+    async run(companyIds, ph) {
+      const [r] = await pool.query(
+        `SELECT COALESCE(d.name,'—') AS department,
+                ROUND(AVG(TIMESTAMPDIFF(MINUTE, aq.created_at, aq.resolved_at))/60, 1) AS mttrHours,
+                COUNT(*) AS tickets
+           FROM asset_queries aq
+           LEFT JOIN assets a ON a.id = aq.asset_id
+           LEFT JOIN departments d ON d.id = a.department_id
+          WHERE aq.company_id IN (${ph})
+            AND aq.resolved_at IS NOT NULL AND aq.resolved_at > aq.created_at
+            AND TIMESTAMPDIFF(HOUR, aq.created_at, aq.resolved_at) BETWEEN 0 AND 8760
+          GROUP BY d.name
+          ORDER BY mttrHours DESC`,
+        companyIds
+      );
+      return {
+        interpreted: ["Requests", "MTTR", "grouped by department"],
+        summary: `Mean time to repair across ${r.length} department${r.length !== 1 ? "s" : ""}.`,
+        columns: [
+          { key: "department", label: "Department" },
+          { key: "mttrHours", label: "MTTR (hrs)" }, { key: "tickets", label: "Tickets" },
+        ],
+        rows: r,
+        chart: { type: "bar", labelKey: "department", valueKey: "mttrHours", unit: "h" },
+      };
+    },
+  },
+  {
+    id: "warranty-expiring",
+    match: (q) => (/\bwarrant/.test(q) || /\bamc\b/.test(q)) && /(expir|expiry|ending|due|renew|soon)/.test(q),
+    async run(companyIds, ph, q) {
+      const dm = q.match(/\b(\d{1,4}) days\b/);
+      const days = Math.min(3650, Math.max(1, dm ? Number(dm[1]) : 90));
+      const [r] = await pool.query(
+        `SELECT a.asset_name AS asset, d.name AS department, co.company_name AS hospital,
+                DATE_FORMAT(w.we, '%Y-%m-%d') AS expiryDate,
+                DATEDIFF(w.we, CURDATE()) AS daysLeft
+           FROM assets a
+           LEFT JOIN departments d ON d.id = a.department_id
+           LEFT JOIN companies co ON co.id = a.company_id
+           JOIN (
+             SELECT ad.asset_id,
+                    STR_TO_DATE(LEFT(NULLIF(NULLIF(COALESCE(
+                      JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.warrantyEnd')),
+                      JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.warrantyExpiry')),
+                      JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.warranty.endDate')),
+                      JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.amcEnd')),
+                      JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.amc.endDate'))
+                    ),'null'),''), 10), '%Y-%m-%d') AS we
+               FROM asset_details ad
+           ) w ON w.asset_id = a.id
+          WHERE a.company_id IN (${ph})
+            AND w.we IS NOT NULL
+            AND w.we <= DATE_ADD(CURDATE(), INTERVAL ${days} DAY)
+          ORDER BY w.we ASC
+          LIMIT 500`,
+        companyIds
+      );
+      return {
+        interpreted: ["Assets", "warranty / AMC expiring", `within ${days} days`],
+        summary: `${r.length} asset${r.length !== 1 ? "s" : ""} with warranty/AMC expiring within ${days} days (or already expired).`,
+        columns: [
+          { key: "asset", label: "Asset" }, { key: "department", label: "Department" },
+          { key: "hospital", label: "Hospital" }, { key: "expiryDate", label: "Expires on" },
+          { key: "daysLeft", label: "Days left" },
+        ],
+        rows: r,
+      };
+    },
+  },
+  {
+    id: "never-maintained",
+    match: (q) => /never (maintained|serviced)|not (maintained|serviced)|no (maintenance|pms|service)|without maintenance/.test(q),
+    async run(companyIds, ph) {
+      const [r] = await pool.query(
+        `SELECT a.asset_name AS asset, a.asset_unique_id AS code,
+                d.name AS department, co.company_name AS hospital, a.working_status AS status
+           FROM assets a
+           LEFT JOIN departments d ON d.id = a.department_id
+           LEFT JOIN companies co ON co.id = a.company_id
+          WHERE a.company_id IN (${ph})
+            AND NOT EXISTS (SELECT 1 FROM pms_schedule_assets psa
+                              JOIN pms_schedules ps ON ps.id = psa.schedule_id
+                             WHERE psa.asset_id = a.id AND psa.status = 'completed')
+            AND NOT EXISTS (SELECT 1 FROM calibration_schedule_assets csa
+                              JOIN calibration_schedules cs ON cs.id = csa.schedule_id
+                             WHERE csa.asset_id = a.id AND csa.status = 'completed')
+          ORDER BY a.asset_name
+          LIMIT 500`,
+        companyIds
+      );
+      return {
+        interpreted: ["Assets", "never maintained"],
+        summary: `${r.length} asset${r.length !== 1 ? "s" : ""} with no completed PMS or calibration on record.`,
+        columns: [
+          { key: "asset", label: "Asset" }, { key: "code", label: "Code" },
+          { key: "department", label: "Department" }, { key: "hospital", label: "Hospital" },
+          { key: "status", label: "Status" },
+        ],
+        rows: r,
+      };
+    },
+  },
+];
+
+async function runSpecialReport(prompt, companyIds) {
+  const q = " " + String(prompt || "").toLowerCase().trim() + " ";
+  const ph = companyIds.map(() => "?").join(",");
+  for (const rep of SPECIAL_REPORTS) {
+    if (rep.match(q)) {
+      try {
+        const out = await rep.run(companyIds, ph, q);
+        return { ok: true, dataset: rep.id, count: out.rows.length, ...out };
+      } catch (err) {
+        console.error(`[AssetIntelligence] special report ${rep.id} failed:`, err.message);
+        return {
+          ok: true, dataset: rep.id, interpreted: ["Report unavailable"],
+          summary: "This report couldn't be generated from the available data.",
+          columns: [], rows: [], count: 0,
+        };
+      }
+    }
+  }
+  return null;
+}
+
 /* POST /generate — { prompt } → { columns, rows, summary, interpreted } */
 router.post("/generate", requirePermission("report:view"), async (req, res, next) => {
   try {
     const prompt = String(req.body?.prompt || "").slice(0, 500);
     if (!prompt.trim()) return res.status(400).json({ message: "Please type what report you want." });
 
-    const p = parse(prompt);
     const companyIds = await resolveCompanyIds(req);
+
+    // Special analytical reports take precedence over the generic parser.
+    const special = await runSpecialReport(prompt, companyIds);
+    if (special) return res.json(special);
+
+    const p = parse(prompt);
     const ph = companyIds.map(() => "?").join(",");
 
     const where = [`${p.ds.companyCol} IN (${ph})`, ...(p.ds.base ? [p.ds.base] : []), ...p.whereParts].join(" AND ");
@@ -418,6 +592,8 @@ router.post("/generate", requirePermission("report:view"), async (req, res, next
       columns,
       rows,
       count: rows.length,
+      // Grouped reports render as a chart in the chat UI.
+      chart: p.groupBy ? { type: "bar", labelKey: "grp", valueKey: "count" } : null,
     });
   } catch (err) { next(err); }
 });
