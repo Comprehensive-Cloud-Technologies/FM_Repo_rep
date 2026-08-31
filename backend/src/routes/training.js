@@ -19,7 +19,7 @@ import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { isMigrationSafeError } from "../db.js";
-import { uploadToS3, getPresignedUrl, keyFromS3Url } from "../utils/s3.js";
+import { uploadToS3, getPresignedUrl, keyFromS3Url, presignIfS3 } from "../utils/s3.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const S3_READY = Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
@@ -523,7 +523,9 @@ router.get("/sessions/:id/documents", async (req, res, next) => {
     if (type) { sql += " AND document_type = ?"; params.push(type); }
     sql += " ORDER BY document_type, created_at DESC";
     const [rows] = await pool.query(sql, params);
-    res.json(rows);
+    // Presign S3 file URLs — the bucket is private, raw URLs 403 in the browser.
+    const signed = await Promise.all(rows.map(async d => ({ ...d, file_url: await presignIfS3(d.file_url) })));
+    res.json(signed);
   } catch (e) { next(e); }
 });
 
@@ -704,8 +706,9 @@ router.get("/reports/:sessionId", async (req, res, next) => {
       [session.id]
     );
     const [documents] = await pool.query("SELECT * FROM training_documents WHERE session_id = ? ORDER BY document_type, created_at DESC", [session.id]);
+    const signedDocuments = await Promise.all(documents.map(async d => ({ ...d, file_url: await presignIfS3(d.file_url) })));
     const [auditLogs] = await pool.query("SELECT * FROM training_audit_log WHERE target_id = ? AND target_type = 'session' AND company_id = ? ORDER BY created_at DESC LIMIT 20", [session.id, cid(req)]);
-    res.json({ session, attendance, documents, auditLogs });
+    res.json({ session, attendance, documents: signedDocuments, auditLogs });
   } catch (e) { next(e); }
 });
 

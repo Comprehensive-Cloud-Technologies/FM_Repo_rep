@@ -4725,6 +4725,8 @@ export default function CompanyEmployeePortal() {
     if (urlNav && urlNav !== nav) setNavState(urlNav);
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   const [enabledModules, setEnabledModules] = useState(null);
+  // Whether this company has an SLA policy attached (drives SLA UI visibility)
+  const [slaActive, setSlaActive] = useState(false);
   const hasTruthyPermission = useCallback((permNode) => {
     if (permNode === true) return true;
     if (!permNode || typeof permNode !== "object") return false;
@@ -4784,8 +4786,22 @@ export default function CompanyEmployeePortal() {
       ? base
       : base.filter((n) => ALWAYS_VISIBLE.has(n.key) || enabledSet.has(n.key));
 
-    return byCompany.filter((n) => ALWAYS_VISIBLE.has(n.key) || canAccessModuleByPermission(n.key));
-  }, [enabledModules, currentUser?.role, canAccessModuleByPermission]);
+    return byCompany
+      .filter((n) => ALWAYS_VISIBLE.has(n.key) || canAccessModuleByPermission(n.key))
+      // The SLA Dashboard is only meaningful when a policy is actually attached.
+      .filter((n) => n.key !== "sla-dashboard" || slaActive);
+  }, [enabledModules, currentUser?.role, canAccessModuleByPermission, slaActive]);
+
+  // SLA module enabled for this company (respecting the module-access allowlist;
+  // null enabledModules = no restriction = all modules on).
+  const slaModuleEnabled = useMemo(() => {
+    if (!Array.isArray(enabledModules)) return true;
+    const set = new Set(enabledModules.map((v) => String(v || "").trim().toLowerCase()));
+    return set.has("sla-dashboard") || set.has("sla");
+  }, [enabledModules]);
+  // SLA surfaces (ticket-master columns, scores, dashboard) show only when the
+  // module is enabled AND a policy is attached.
+  const slaVisible = slaModuleEnabled && slaActive;
   const [dashboard, setDashboard] = useState(null);
 
   // ── Alert sound / toast / bell notification state ───────────────
@@ -5042,6 +5058,11 @@ export default function CompanyEmployeePortal() {
         return merged;
       });
     }).catch(() => {});
+    // Does this company have an SLA policy attached? Gates all SLA UI surfaces.
+    fetch(`/api/company-portal/sla/active`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setSlaActive(!!d?.active))
+      .catch(() => setSlaActive(false));
     // Load all companies this user has access to (for company switcher)
     fetch(`/api/company-auth/my-companies`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
@@ -6212,7 +6233,7 @@ export default function CompanyEmployeePortal() {
         )}
 
         {/* ── SLA Dashboard ──────────────────────────────────────── */}
-        {nav === "sla-dashboard" && (
+        {nav === "sla-dashboard" && slaVisible && (
           <SlaDashboard
             token={token}
             allCompaniesMode={allCompaniesMode}
@@ -6228,7 +6249,7 @@ export default function CompanyEmployeePortal() {
           const openAssetFromDash = (dashAsset) => {
             navigate(`/company/asset/${dashAsset.id}`);
           };
-          return <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
+          return <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} showSla={slaVisible} externalRefreshKey={hcDashRefreshKey} onOpenAsset={openAssetFromDash} onTileNavigate={(key, filterData) => {
             if (!key) { setAssetStatusFilter(""); return; }
             setNav("assets");
             if (filterData?.criticality) setAssetStatusFilter(filterData.criticality);
@@ -6575,7 +6596,7 @@ export default function CompanyEmployeePortal() {
                     </button>
                   ))}
                 </div>
-                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
+                {dashboardSubNav === "healthcare" ? <HealthcareDashboard token={token} allCompaniesMode={allCompaniesMode} showSla={slaVisible} externalRefreshKey={hcDashRefreshKey} onOpenAsset={(dashAsset) => {
                   navigate(`/company/asset/${dashAsset.id}`);
                 }} onTileNavigate={(key, filterData) => {
                   if (!key) { setAssetStatusFilter(""); return; }
@@ -7757,6 +7778,7 @@ export default function CompanyEmployeePortal() {
               isAdmin={isAdmin && canRequestManage}
               isSupervisor={currentUser.role === "supervisor" && canRequestManage}
               allCompaniesMode={allCompaniesMode}
+              showSla={slaVisible}
             />
           );
         })()}

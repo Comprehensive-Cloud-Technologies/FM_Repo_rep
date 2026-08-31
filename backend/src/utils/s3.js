@@ -135,3 +135,24 @@ export async function presignMetadataImages(meta, expiresIn = EXPIRY) {
   ]);
   return { ...meta, hcImages, images, invoiceImages, hcInvoiceUrl, invoiceUrl };
 }
+
+// ── Presign a single stored URL if it points at our (private) S3 bucket ───────
+// Non-S3 URLs (old EC2 paths, empty values) are returned unchanged. Never throws.
+export async function presignIfS3(url, expiresIn = EXPIRY) {
+  if (!url || typeof url !== "string") return url;
+  const key = keyFromS3Url(url);
+  if (!key) return url; // not one of our S3 objects — leave as-is
+  try { return await getPresignedUrl(key, expiresIn); } catch { return url; }
+}
+
+// ── Presign a list of attachment URLs (array of strings OR {url,...} objects) ──
+// Returns the list in the same shape with S3 URLs swapped for time-limited ones.
+export async function presignUrlList(list, expiresIn = EXPIRY) {
+  if (!Array.isArray(list)) return list;
+  return Promise.all(list.map(async (item) => {
+    if (item && typeof item === "object" && typeof item.url === "string") {
+      return { ...item, url: await presignIfS3(item.url, expiresIn) };
+    }
+    return presignIfS3(item, expiresIn);
+  }));
+}

@@ -13,8 +13,8 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { evaluateRule, createFlag, detectChecklistFlags } from "../utils/flagsHelper.js";
 import { dispatchFlagNotifications } from "../utils/notificationsHelper.js";
 import { emitToCompany } from "../utils/socket.js";
-import { uploadToS3, S3_FOLDERS, presignMetadataImages } from "../utils/s3.js";
-import { initTicketSla, completeClock as slaCompleteClock, recalculateTicketSla } from "../utils/slaV2Engine.js";
+import { uploadToS3, S3_FOLDERS, presignMetadataImages, presignUrlList } from "../utils/s3.js";
+import { initTicketSla, completeClock as slaCompleteClock, recalculateTicketSla, anchorAttendanceClock as slaAnchorAttendance } from "../utils/slaV2Engine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../uploads");
@@ -2967,10 +2967,13 @@ router.get("/asset-queries", async (req, res, next) => {
        ORDER BY aq.created_at DESC${limitClause}`,
       params
     );
-    const normalized = rows.map(r => ({
+    const normalized = await Promise.all(rows.map(async r => ({
       ...r,
-      images: r.images ? (typeof r.images === "string" ? JSON.parse(r.images) : r.images) : [],
-    }));
+      // Presign attachment URLs (private S3 bucket → raw URLs 403 in the browser)
+      images: await presignUrlList(
+        r.images ? (typeof r.images === "string" ? JSON.parse(r.images) : r.images) : []
+      ),
+    })));
     res.json(normalized);
   } catch (err) { next(err); }
 });
@@ -3218,6 +3221,9 @@ router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), 
       // Auto-complete response SLA clock when engineer is assigned — use exact assignment timestamp
       slaCompleteClock(Number(id), "response", req.companyUser.id, assignedAt)
         .catch(e => console.warn("[SLA] response completeClock failed for query", id, e?.message));
+      // Attendance SLA runs from assignment → WIP: anchor its deadline to the assignment moment
+      slaAnchorAttendance(Number(id), assignedAt)
+        .catch(e => console.warn("[SLA] anchorAttendanceClock failed for query", id, e?.message));
     }
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -5137,21 +5143,23 @@ router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), 
     if (!assignee) return res.status(404).json({ message: "Assignee not found in this company" });
 
     const aqAssignedAt = new Date();
-    // Assigning an OPEN request moves it to in_progress — so start the downtime
-    // clock (in_progress_at) at the same moment. Without this, wip_at stays NULL
-    // and the resolved−wip downtime computes to 0, erasing accrued downtime.
+    // Assignment records assigned_at only. It does NOT move the ticket into WIP —
+    // the engineer marks In Progress separately (Acknowledge). This keeps the
+    // attendance window (assigned → WIP) and the downtime window (WIP → resolved)
+    // as distinct, non-overlapping intervals.
     await pool.execute(
       `UPDATE asset_queries
-          SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?),
-              in_progress_at = CASE WHEN status = 'open' AND in_progress_at IS NULL THEN ? ELSE in_progress_at END,
-              status = IF(status = 'open', 'in_progress', status)
+          SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?), updated_at = NOW()
         WHERE id = ?`,
-      [assignedTo, aqAssignedAt, aqAssignedAt, aqId]
+      [assignedTo, aqAssignedAt, aqId]
     );
     res.json({ message: "Assigned", assignedTo: Number(assignedTo), assigneeName: assignee.fullName });
     // Auto-complete response SLA clock when engineer is assigned — use exact assignment timestamp
     slaCompleteClock(aqId, "response", req.companyUser.id, aqAssignedAt)
       .catch(e => console.warn("[SLA] response completeClock failed for query", aqId, e?.message));
+    // Attendance SLA runs from assignment → WIP: anchor its deadline to the assignment moment
+    slaAnchorAttendance(aqId, aqAssignedAt)
+      .catch(e => console.warn("[SLA] anchorAttendanceClock failed for query", aqId, e?.message));
   } catch (err) { next(err); }
 });
 

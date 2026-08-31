@@ -238,6 +238,14 @@ const safe = (sql) => pool.query(sql).catch(() => {});
   // Ensure priority column is VARCHAR so it accepts both SLA codes (P1-P4) and mobile values ("normal","high",etc.)
   await safe(`ALTER TABLE asset_queries MODIFY COLUMN priority VARCHAR(40) NULL`);
 
+  // Retroactively hide SLA for tickets that were tracked under the built-in
+  // system default (no policy created/assigned). Without a real policy attached,
+  // SLA must not surface a status or score anywhere in the client UI.
+  await safe(`UPDATE ticket_sla
+                 SET is_sla_eligible = 0,
+                     ineligible_reason = COALESCE(ineligible_reason, 'No SLA policy assigned to this company')
+               WHERE policy_id IS NULL AND is_sla_eligible = 1`);
+
   console.log("[SLA] All SLA tables ready");
 })();
 

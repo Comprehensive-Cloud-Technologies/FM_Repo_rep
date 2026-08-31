@@ -84,6 +84,14 @@ router.use(requireCompanyAuth);
   await safe(`ALTER TABLE pms_schedule_assets ADD COLUMN reviewer_id INT UNSIGNED NULL`);
   await safe(`ALTER TABLE pms_schedule_assets ADD COLUMN reviewer_name VARCHAR(160) NULL`);
   await safe(`ALTER TABLE company_users ADD COLUMN department_id INT UNSIGNED NULL`);
+  // Backfill: propagate schedule-level engineer assignment down to asset rows.
+  // Schedules assigned before per-asset engineer_id was populated wouldn't appear
+  // on the engineer's mobile /my-pms (which filters pms_schedule_assets.engineer_id).
+  await safe(`UPDATE pms_schedule_assets psa
+                JOIN pms_schedules ps ON ps.id = psa.schedule_id
+                 SET psa.engineer_id   = ps.engineer_id,
+                     psa.engineer_name = COALESCE(psa.engineer_name, ps.engineer_name)
+               WHERE psa.engineer_id IS NULL AND ps.engineer_id IS NOT NULL`);
 
   await safe(`CREATE TABLE IF NOT EXISTS pms_submission_responses (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -615,11 +623,16 @@ router.post("/schedules", requirePermission("pms:schedule"), validate([
       const scheduleId = ins.insertId;
       createdScheduleIds.push(scheduleId);
 
-      // Attach assets to this occurrence
-      const assetRows = [...assetMap.values()].map(a => [scheduleId, a.id, a.pms_checklist_id || null, "pending"]);
+      // Attach assets to this occurrence. Propagate the schedule's engineer down
+      // to each asset row — the mobile engineer view (/my-pms) filters on
+      // pms_schedule_assets.engineer_id, so without this the assigned PMS never
+      // appears on the engineer's phone. Only the first occurrence gets the engineer.
+      const psaEngineerId   = isFirst ? (engineerId || null)   : null;
+      const psaEngineerName = isFirst ? (engineerName || null) : null;
+      const assetRows = [...assetMap.values()].map(a => [scheduleId, a.id, a.pms_checklist_id || null, "pending", psaEngineerId, psaEngineerName]);
       if (assetRows.length) {
         await conn.query(
-          "INSERT IGNORE INTO pms_schedule_assets (schedule_id, asset_id, checklist_id, status) VALUES ?",
+          "INSERT IGNORE INTO pms_schedule_assets (schedule_id, asset_id, checklist_id, status, engineer_id, engineer_name) VALUES ?",
           [assetRows]
         );
       }
@@ -733,6 +746,14 @@ router.put("/schedules/:id", async (req, res, next) => {
       [maintenanceDate ?? null, engineerId ?? null, engineerName ?? null,
        status ?? null, notes ?? null, req.params.id]
     );
+    // Propagate the (re)assigned engineer down to the asset rows so it shows in
+    // the mobile engineer view (/my-pms reads pms_schedule_assets.engineer_id).
+    if (engineerId) {
+      await pool.query(
+        "UPDATE pms_schedule_assets SET engineer_id = ?, engineer_name = COALESCE(?, engineer_name) WHERE schedule_id = ?",
+        [engineerId, engineerName ?? null, req.params.id]
+      );
+    }
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -793,7 +814,7 @@ router.post("/schedules/:id/assets", async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const [[existing]] = await conn.query(
-      "SELECT id FROM pms_schedules WHERE id = ? AND company_id = ?",
+      "SELECT id, engineer_id, engineer_name FROM pms_schedules WHERE id = ? AND company_id = ?",
       [req.params.id, cid(req)]
     );
     if (!existing) return res.status(404).json({ message: "Not found" });
@@ -808,12 +829,13 @@ router.post("/schedules/:id/assets", async (req, res, next) => {
         [assetId, cid(req)]
       );
       if (!asset) { skipped++; continue; }
-      assetRows.push([req.params.id, assetId, asset.pms_checklist_id || null, "pending"]);
+      // Inherit the schedule's engineer so new assets appear on that engineer's /my-pms
+      assetRows.push([req.params.id, assetId, asset.pms_checklist_id || null, "pending", existing.engineer_id || null, existing.engineer_name || null]);
       added++;
     }
     if (assetRows.length) {
       await conn.query(
-        "INSERT IGNORE INTO pms_schedule_assets (schedule_id, asset_id, checklist_id, status) VALUES ?",
+        "INSERT IGNORE INTO pms_schedule_assets (schedule_id, asset_id, checklist_id, status, engineer_id, engineer_name) VALUES ?",
         [assetRows]
       );
     }

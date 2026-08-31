@@ -449,6 +449,7 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
                 {filters.source && <button onClick={() => setFilters(f => ({ ...f, source: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
               </div>
             </div>
+            {showSla && (
             <div>
               <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>SLA Status</label>
               <div style={{ position: "relative" }}>
@@ -463,6 +464,7 @@ function FiltersBar({ filters, setFilters, employees, departments, onReset, sear
                 {filters.slaStatus && <button onClick={() => setFilters(f => ({ ...f, slaStatus: "" }))} style={{ position: "absolute", right: "22px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", fontSize: "17px", lineHeight: 1, padding: "0 2px" }} title="Clear">×</button>}
               </div>
             </div>
+            )}
             {allCompaniesMode && (
               <div>
                 <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>Hospital</label>
@@ -1095,7 +1097,7 @@ function SetCutoffModal({ wo, authToken, onClose, onSave }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function RequestTrackingPanel({ token, companyPortalToken, companyId, employees = [], departments = [], isAdmin = false, isSupervisor = false, allCompaniesMode = false }) {
+export default function RequestTrackingPanel({ token, companyPortalToken, companyId, employees = [], departments = [], isAdmin = false, isSupervisor = false, allCompaniesMode = false, showSla = true }) {
   const canManage = isAdmin || isSupervisor;
   const authToken = companyPortalToken || token;
 
@@ -1401,7 +1403,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                       onChange={e => setSelectedIds(e.target.checked ? new Set(requests.map(r => r.id)) : new Set())}
                       style={{ cursor: "pointer" }} />
                   </th>
-                  {["#", "Request #", "Priority", "Hospital", "Department", "Asset / Location", "Remarks", "Raised By", "Assigned To", "Created", "WIP Date", "Response Time", "Resolution Date", "TAT", "SLA", "Status", "SLA Status", "Cutoff", "Actions"].map(h => (
+                  {["#", "Request #", "Priority", "Hospital", "Department", "Asset / Location", "Remarks", "Raised By", "Assigned To", "Created", "WIP Date", "Response Time", "Resolution Date", "TAT", ...(showSla ? ["SLA"] : []), "Status", ...(showSla ? ["SLA Status"] : []), "Cutoff", "Actions"].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", color: h === "SLA" ? "#2563eb" : h === "Priority" ? "#7c3aed" : h === "SLA Status" ? "#0f766e" : "#475569", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", background: h === "SLA" ? "#eff6ff" : h === "Priority" ? "#faf5ff" : h === "SLA Status" ? "#f0fdfa" : undefined }}>{h}</th>
                   ))}
                 </tr>
@@ -1511,24 +1513,28 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                         })()}
                       </td>
                       {/* SLA Column */}
-                      <td style={{ padding: "11px 14px", background: "#f8fbff" }}>
-                        <SlaBadge wo={wo} />
-                      </td>
+                      {showSla && (
+                        <td style={{ padding: "11px 14px", background: "#f8fbff" }}>
+                          <SlaBadge wo={wo} />
+                        </td>
+                      )}
                       <td style={{ padding: "11px 14px" }}>
                         <Badge val={wo.status} styleMap={STATUS_STYLE} />
                       </td>
                       {/* SLA Status: Met / Not Met (auto-derived) */}
-                      <td style={{ padding: "11px 14px", background: "#f6fefb" }}>
-                        {(() => {
-                          const s = slaMetStatus(wo);
-                          if (!s) return <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>—</span>;
-                          return (
-                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }}>
-                              {s.label}
-                            </span>
-                          );
-                        })()}
-                      </td>
+                      {showSla && (
+                        <td style={{ padding: "11px 14px", background: "#f6fefb" }}>
+                          {(() => {
+                            const s = slaMetStatus(wo);
+                            if (!s) return <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>—</span>;
+                            return (
+                              <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }}>
+                                {s.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
                       <td style={{ padding: "11px 14px", fontSize: "12px", whiteSpace: "nowrap" }}>
                         <div style={{ color: overdueFlag ? '#ea580c' : '#64748b', fontWeight: overdueFlag ? 700 : 400 }}>
                           {wo.cutoff_time ? new Date(wo.cutoff_time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}

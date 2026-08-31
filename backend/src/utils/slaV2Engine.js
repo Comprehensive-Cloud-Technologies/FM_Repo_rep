@@ -327,6 +327,15 @@ export async function initTicketSla(opts) {
     // Resolve policy
     const { policyId, level } = await resolvePolicy(assetId, deptId, companyId, assetCategory);
 
+    // No real SLA policy attached anywhere in the hierarchy (company/dept/asset/…)
+    // → do NOT track SLA for this ticket. It stays ineligible so it never shows a
+    // status, score, or clock anywhere until an admin actually creates & assigns a
+    // policy. (The built-in SYSTEM_DEFAULT is only a fallback for rule math, not a
+    // reason to show SLA when nothing was configured.)
+    const hasPolicy   = !!policyId;
+    const effEligible = eligible && hasPolicy;
+    const effReason   = !hasPolicy ? "No SLA policy assigned to this company" : reason;
+
     // Get rules + version
     const { rules, version, calendarId } = await getPolicyRules(policyId, priority);
 
@@ -375,14 +384,14 @@ export async function initTicketSla(opts) {
         policyId || null, version, priority,
         rules.response_mins, rules.attendance_mins, rules.resolution_mins,
         now, responseDue, attendanceDue, resolutionDue,
-        eligible ? 1 : 0, reason,
+        effEligible ? 1 : 0, effReason,
         level,
       ]
     );
 
     const ticketSlaId = tsResult.insertId;
 
-    if (eligible) {
+    if (effEligible) {
       // Insert 3 independent clocks
       const clocks = [
         { type: "response",   target: rules.response_mins,   due: responseDue },
@@ -406,7 +415,7 @@ export async function initTicketSla(opts) {
       ).catch(() => {});
     }
 
-    return { ticketSlaId, priority, policyId, level, eligible };
+    return { ticketSlaId, priority, policyId, level, eligible: effEligible };
   } catch (err) {
     console.error("[SlaV2Engine] initTicketSla error:", err.message);
     return null;
@@ -425,8 +434,11 @@ export async function initTicketSla(opts) {
 export async function completeClock(queryId, clockType, actorId, resolvedAt = null) {
   try {
     const [[ts]] = await pool.query(
-      `SELECT ts.id AS ticketSlaId, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible
-       FROM ticket_sla ts WHERE ts.query_id = ?`,
+      `SELECT ts.id AS ticketSlaId, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible,
+              aq.assigned_at
+       FROM ticket_sla ts
+       LEFT JOIN asset_queries aq ON aq.id = ts.query_id
+       WHERE ts.query_id = ?`,
       [queryId]
     );
     if (!ts || !ts.is_sla_eligible) return null;
@@ -448,8 +460,14 @@ export async function completeClock(queryId, clockType, actorId, resolvedAt = nu
     ).catch(() => [[]]);
     const calendar     = policy?.calendar_id ? await getCalendar(policy.calendar_id) : null;
 
-    // Compute elapsed SLA minutes (wall time minus paused time)
-    const wallMins     = computeSlaMinutes(ts.sla_start_time, now, calendar);
+    // Compute elapsed SLA minutes (wall time minus paused time).
+    // Attendance is measured from when the ticket was ASSIGNED to an engineer
+    // → until the engineer marks it In Progress (WIP), NOT from when it was raised.
+    // Response & resolution still run from ticket creation (sla_start_time).
+    const clockStart   = (clockType === "attendance" && ts.assigned_at)
+      ? ts.assigned_at
+      : ts.sla_start_time;
+    const wallMins     = computeSlaMinutes(clockStart, now, calendar);
     const actualMins   = Math.max(0, wallMins - totalPaused);
     const met          = actualMins <= clock.target_mins;
     const breachMins   = met ? 0 : actualMins - clock.target_mins;
@@ -490,6 +508,59 @@ export async function completeClock(queryId, clockType, actorId, resolvedAt = nu
     return { clockId: clock.id, actualMins, met, breachMins };
   } catch (err) {
     console.error("[SlaV2Engine] completeClock error:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Re-anchor the attendance clock to the assignment moment.
+ * Attendance SLA runs from when a ticket is ASSIGNED to an engineer until the
+ * engineer marks it In Progress. The clock is created at ticket-creation time
+ * (raised), so when the ticket is finally assigned we move its due date to
+ * assigned_at + target so breach is judged from assignment, not from raise.
+ * No-op once the attendance clock is already met/breached.
+ *
+ * @param {number} queryId
+ * @param {Date|string} assignedAt  — exact assignment timestamp
+ */
+export async function anchorAttendanceClock(queryId, assignedAt) {
+  try {
+    if (!assignedAt) return null;
+    const [[ts]] = await pool.query(
+      `SELECT ts.id AS ticketSlaId, ts.policy_id, ts.sla_attendance_mins
+       FROM ticket_sla ts WHERE ts.query_id = ?`,
+      [queryId]
+    );
+    if (!ts) return null;
+
+    const [[clock]] = await pool.query(
+      `SELECT id, target_mins, status FROM ticket_sla_clocks
+       WHERE ticket_sla_id = ? AND clock_type = 'attendance'`,
+      [ts.ticketSlaId]
+    );
+    // Don't move a clock that has already been completed (met/breached)
+    if (!clock || clock.status === "met" || clock.status === "breached") return null;
+
+    const [[policy]] = await pool.query(
+      `SELECT calendar_id FROM sla_policies WHERE id = ?`, [ts.policy_id]
+    ).catch(() => [[]]);
+    const calendar   = policy?.calendar_id ? await getCalendar(policy.calendar_id) : null;
+
+    const start      = new Date(assignedAt);
+    const targetMins = clock.target_mins || ts.sla_attendance_mins || 120;
+    const newDue     = addSlaMinutes(start, targetMins, calendar);
+
+    await pool.query(
+      `UPDATE ticket_sla_clocks SET due_at = ?, updated_at = NOW() WHERE id = ?`,
+      [newDue, clock.id]
+    );
+    await pool.query(
+      `UPDATE ticket_sla SET attendance_due_at = ? WHERE id = ?`,
+      [newDue, ts.ticketSlaId]
+    );
+    return { clockId: clock.id, newDue };
+  } catch (err) {
+    console.error("[SlaV2Engine] anchorAttendanceClock error:", err.message);
     return null;
   }
 }
@@ -714,8 +785,10 @@ export function uiPriorityToSlaPriority(uiPriority) {
 export async function recalculateTicketSla(queryId, newUiPriority) {
   try {
     const [[ts]] = await pool.query(
-      `SELECT ts.id, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible
-       FROM ticket_sla ts WHERE ts.query_id = ?`,
+      `SELECT ts.id, ts.policy_id, ts.sla_start_time, ts.is_sla_eligible, aq.assigned_at
+       FROM ticket_sla ts
+       LEFT JOIN asset_queries aq ON aq.id = ts.query_id
+       WHERE ts.query_id = ?`,
       [queryId]
     );
     if (!ts || !ts.is_sla_eligible) return null;
@@ -725,8 +798,10 @@ export async function recalculateTicketSla(queryId, newUiPriority) {
     const calendar = await getCalendar(calendarId);
 
     const slaStart    = new Date(ts.sla_start_time);
+    // Attendance runs from assignment (not raise) — keep it anchored there on recalc.
+    const attStart    = ts.assigned_at ? new Date(ts.assigned_at) : slaStart;
     const responseDue   = addSlaMinutes(slaStart, rules.response_mins,   calendar);
-    const attendanceDue = addSlaMinutes(slaStart, rules.attendance_mins, calendar);
+    const attendanceDue = addSlaMinutes(attStart, rules.attendance_mins, calendar);
     const resolutionDue = addSlaMinutes(slaStart, rules.resolution_mins, calendar);
 
     await pool.query(
@@ -831,7 +906,11 @@ export async function scanBreaches() {
       ).catch(() => [[]]);
       const calendar = policy?.calendar_id ? await getCalendar(policy.calendar_id) : null;
 
-      const wallMins   = computeSlaMinutes(c.sla_start_time, compareTime, calendar);
+      // Attendance is measured from assignment → WIP, not from ticket creation.
+      const clockStart = (c.clock_type === 'attendance' && c.assigned_at)
+        ? c.assigned_at
+        : c.sla_start_time;
+      const wallMins   = computeSlaMinutes(clockStart, compareTime, calendar);
       const actualMins = Math.max(0, wallMins - Number(c.total_paused_mins || 0));
       const breachMins = Math.max(0, actualMins - c.target_mins);
       const isMet      = actualMins <= c.target_mins;

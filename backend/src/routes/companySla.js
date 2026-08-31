@@ -34,6 +34,26 @@ async function getAccessibleCompanyIds(userId, primaryId) {
 const inFilter = (ids, col) =>
   ids.length === 1 ? `${col} = ?` : `${col} IN (${ids.map(() => "?").join(",")})`;
 
+/**
+ * GET /api/company-portal/sla/active
+ * Does this company (or any accessible company) have an SLA policy attached?
+ * Drives whether the client UI shows SLA columns / scores / dashboard at all.
+ */
+router.get("/active", async (req, res, next) => {
+  try {
+    const ids = await resolveCompanyIds(req);
+    const [[row]] = await pool.query(
+      `SELECT 1 AS ok FROM sla_assignments
+        WHERE is_active = 1 AND scope_type = 'company'
+          AND ${inFilter(ids, "scope_id")}
+          AND (effective_to IS NULL OR effective_to >= CURDATE())
+        LIMIT 1`,
+      ids
+    );
+    res.json({ active: !!row });
+  } catch (err) { next(err); }
+});
+
 async function resolveCompanyIds(req) {
   if (req.query.allCompanies === "true") {
     return getAccessibleCompanyIds(req.companyUser.id, cid(req));

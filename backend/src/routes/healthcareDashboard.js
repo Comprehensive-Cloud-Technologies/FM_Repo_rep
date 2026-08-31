@@ -12,6 +12,7 @@ import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
+import { presignUrlList } from "../utils/s3.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -1407,10 +1408,14 @@ router.get("/requests", validate([
     // Merge and sort by created_at desc
     const allRows = [...woRows, ...aqRows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const total = allRows.length;
-    const pagedRows = allRows.slice(offset, offset + limit).map(r => ({
+    const pagedRows = await Promise.all(allRows.slice(offset, offset + limit).map(async r => ({
       ...r,
-      images: r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : [],
-    }));
+      // Presign attachment URLs — the S3 bucket is private, so raw object URLs
+      // return AccessDenied. Time-limited signed URLs let the browser load them.
+      images: await presignUrlList(
+        r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : []
+      ),
+    })));
 
     // ── Attach SLA data to asset_query rows on this page ─────────────────────
     // score = tickets resolved within SLA target / total evaluated tickets (per-ticket view)
@@ -1456,6 +1461,10 @@ router.get("/requests", validate([
          LEFT JOIN sla_policies sp ON sp.id = ts.policy_id
          LEFT JOIN asset_queries aq ON aq.id = ts.query_id
          WHERE ts.query_id IN (${ph2})
+           -- Only surface SLA when a real policy is attached. Tickets tracked
+           -- under the built-in system default (no policy created/assigned) get
+           -- no SLA status, score, or clocks in the UI.
+           AND ts.policy_id IS NOT NULL
          GROUP BY ts.query_id, ts.is_sla_eligible, ts.priority,
                   ts.sla_response_mins, ts.sla_attendance_mins, ts.sla_resolution_mins,
                   sp.name`,
@@ -1642,7 +1651,23 @@ router.get("/requests", validate([
       [companyId]
     );
 
+    // ── Does this company (scope) have an SLA policy attached? ───────────────
+    // Drives whether the client UI shows SLA columns / scores at all. When no
+    // policy is assigned to the company, the SLA module surfaces are hidden.
+    let slaActive = false;
+    try {
+      const [[slaAssign]] = await pool.query(
+        `SELECT 1 AS ok FROM sla_assignments
+          WHERE is_active = 1 AND scope_type = 'company' AND scope_id IN (${inClause})
+            AND (effective_to IS NULL OR effective_to >= CURDATE())
+          LIMIT 1`,
+        companyIds
+      );
+      slaActive = !!slaAssign;
+    } catch { slaActive = false; }
+
     res.json({
+      slaActive,
       data: rows,
       summary: {
         open:       Number(woCounts[0].open       || 0) + Number(aqCounts[0].open       || 0),
