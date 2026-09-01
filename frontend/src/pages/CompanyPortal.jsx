@@ -12011,6 +12011,24 @@ const CompanyPortal = () => {
 
     setShowAssetModal(true);
 
+    // List rows carry raw (private-S3) image URLs that 403 in the browser.
+    // Re-fetch the asset detail, which returns time-limited pre-signed URLs, and
+    // swap the image fields so photos and the invoice load correctly.
+    fetch(`/api/company-portal/assets/${asset.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const m = d?.metadata;
+        if (!m || typeof m !== "object") return;
+        setAssetForm(p => ({
+          ...p,
+          ...(Array.isArray(m.hcImages)     ? { hcImages: m.hcImages }         : {}),
+          ...(Array.isArray(m.images)       ? { images: m.images }             : {}),
+          ...(m.hcInvoiceUrl !== undefined  ? { hcInvoiceUrl: m.hcInvoiceUrl } : {}),
+          ...(m.invoiceUrl !== undefined    ? { invoiceUrl: m.invoiceUrl }     : {}),
+        }));
+      })
+      .catch(() => {});
+
     // Load location buildings for cascading dropdowns
     const cId = asset.companyId || selectedCompanyId || companies[0]?.id;
     setLocFloors([]); setLocRooms([]); setLocDepts([]);

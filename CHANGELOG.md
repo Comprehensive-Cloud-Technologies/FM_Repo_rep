@@ -15,6 +15,17 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Fixed
+- **PMS schedule details no longer blank in "All Hospitals" mode** — opening (and
+  editing) a schedule now resolves across every hospital the user can access, not
+  just their primary company.
+- **Asset photos load in the Add/Edit asset modal** — the edit form now pulls
+  time-limited pre-signed image URLs (list rows carried raw private-S3 URLs that
+  failed to load).
+- **PMS dashboard counts corrected** — Overdue, Upcoming (30d) and Total Completed
+  now count **unique assets** (`COUNT(DISTINCT …)`) instead of summing per-schedule
+  asset counts.
+
+### Fixed
 - **Asset Transfer destination** lists only the hospitals assigned to the user
   (primary + granted companies) — not every company.
 - **PMS Schedules KPI cards:** "Total Assets" (and Today/Overdue) now count

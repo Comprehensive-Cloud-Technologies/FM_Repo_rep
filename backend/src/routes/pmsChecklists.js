@@ -706,9 +706,13 @@ router.get("/schedules/export", async (req, res, next) => {
 // GET /schedules/:id — details of a specific schedule with full asset list
 router.get("/schedules/:id", async (req, res, next) => {
   try {
+    // Scope to every hospital the user can access, so schedule details open in
+    // "All Hospitals" mode too (not just the user's primary company).
+    const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = ids.map(() => "?").join(",");
     const [[schedule]] = await pool.query(
-      "SELECT * FROM pms_schedules WHERE id = ? AND company_id = ?",
-      [req.params.id, cid(req)]
+      `SELECT * FROM pms_schedules WHERE id = ? AND company_id IN (${ph})`,
+      [req.params.id, ...ids]
     );
     if (!schedule) return res.status(404).json({ message: "Schedule not found" });
 
@@ -734,9 +738,11 @@ router.get("/schedules/:id", async (req, res, next) => {
 // PUT /schedules/:id — update schedule status / engineer
 router.put("/schedules/:id", async (req, res, next) => {
   try {
+    const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = ids.map(() => "?").join(",");
     const [[existing]] = await pool.query(
-      "SELECT id FROM pms_schedules WHERE id = ? AND company_id = ?",
-      [req.params.id, cid(req)]
+      `SELECT id FROM pms_schedules WHERE id = ? AND company_id IN (${ph})`,
+      [req.params.id, ...ids]
     );
     if (!existing) return res.status(404).json({ message: "Not found" });
     const { maintenanceDate, engineerId, engineerName, status, notes } = req.body;
@@ -1094,20 +1100,22 @@ router.get("/dashboard-stats", async (req, res, next) => {
     const monthEnd     = nextMonthDate.toISOString().slice(0, 10);
     const upcoming30   = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 
+    // Count UNIQUE assets (an asset in multiple schedules counts once) for the
+    // asset metrics, and DISTINCT schedules for the schedule metrics.
     const [[stats]] = await pool.query(
       `SELECT
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ?)                                                   AS dueThisMonth,
-         SUM(ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled'))                                 AS overdue,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled'))   AS upcoming30d,
-         SUM(ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed')                       AS completedThisMonth,
-         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN ac.cnt ELSE 0 END)                  AS dueThisMonthAssets,
-         SUM(CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS overdueAssets,
-         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN ac.cnt ELSE 0 END) AS upcoming30dAssets,
-         SUM(CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ac.cnt ELSE 0 END) AS completedThisMonthAssets,
-         SUM(ac.cnt)                                                                                                 AS totalAssetsInPms,
-         SUM(CASE WHEN ps.status = 'completed' THEN ac.cnt ELSE 0 END)                                             AS totalCompletedAssets
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN ps.id END)                                                   AS dueThisMonth,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN ps.id END)                                 AS overdue,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN ps.id END)   AS upcoming30d,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN ps.id END)                       AS completedThisMonth,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? THEN psa.asset_id END)                                            AS dueThisMonthAssets,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date < ? AND ps.status NOT IN ('completed','cancelled') THEN psa.asset_id END)                          AS overdueAssets,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date <= ? AND ps.status NOT IN ('completed','cancelled') THEN psa.asset_id END) AS upcoming30dAssets,
+         COUNT(DISTINCT CASE WHEN ps.maintenance_date >= ? AND ps.maintenance_date < ? AND ps.status = 'completed' THEN psa.asset_id END)                AS completedThisMonthAssets,
+         COUNT(DISTINCT psa.asset_id)                                                                                                                    AS totalAssetsInPms,
+         COUNT(DISTINCT CASE WHEN ps.status = 'completed' THEN psa.asset_id END)                                                                          AS totalCompletedAssets
        FROM pms_schedules ps
-       LEFT JOIN (SELECT schedule_id, COUNT(*) AS cnt FROM pms_schedule_assets GROUP BY schedule_id) ac ON ac.schedule_id = ps.id
+       LEFT JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
        WHERE ps.company_id IN (${ph})`,
       [
         monthStart, monthEnd,
@@ -1122,16 +1130,6 @@ router.get("/dashboard-stats", async (req, res, next) => {
       ]
     );
 
-    // Distinct number of assets enrolled in PMS (an asset scheduled at multiple
-    // frequencies must be counted once, not once per schedule occurrence).
-    const [[distinctRow]] = await pool.query(
-      `SELECT COUNT(DISTINCT psa.asset_id) AS totalDistinctAssets
-         FROM pms_schedules ps
-         JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
-        WHERE ps.company_id IN (${ph})`,
-      ids
-    );
-
     res.json({
       dueThisMonth:              Number(stats?.dueThisMonth              || 0),
       overdue:                   Number(stats?.overdue                   || 0),
@@ -1141,7 +1139,7 @@ router.get("/dashboard-stats", async (req, res, next) => {
       overdueAssets:             Number(stats?.overdueAssets             || 0),
       upcoming30dAssets:         Number(stats?.upcoming30dAssets         || 0),
       completedThisMonthAssets:  Number(stats?.completedThisMonthAssets  || 0),
-      totalAssetsInPms:          Number(distinctRow?.totalDistinctAssets || 0),
+      totalAssetsInPms:          Number(stats?.totalAssetsInPms          || 0),
       totalCompletedAssets:      Number(stats?.totalCompletedAssets      || 0),
     });
   } catch (err) { next(err); }
