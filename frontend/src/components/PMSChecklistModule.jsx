@@ -1200,39 +1200,52 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
         })}
       </div>
 
-      {/* ── KPI drill-down popup ─────────────────────────────────────────────── */}
-      {cardModal && (
+      {/* ── KPI drill-down popup — lists the ASSETS behind the card ──────────── */}
+      {cardModal && (() => {
+        // Flatten the bucket's schedules into unique assets (an asset in several
+        // schedules appears once), keeping the most relevant schedule date/engineer.
+        const parseAssets = (sc) => String(sc.assetsConcat || "").split("||").filter(Boolean).map(tok => {
+          const [id, name, code, status] = tok.split("~");
+          return { id, name, code, status };
+        }).filter(a => a.id);
+        const map = new Map();
+        cardModal.list.forEach(sc => parseAssets(sc).forEach(a => {
+          const k = String(a.id);
+          if (!map.has(k)) map.set(k, { ...a, date: sc.maintenance_date, engineer: sc.engineer_name, schedule: sc.schedule_number });
+        }));
+        const assets = [...map.values()];
+        return (
         <div onClick={() => setCardModal(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: "#fff", borderRadius: "14px", width: "min(760px, 96vw)", maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            style={{ background: "#fff", borderRadius: "14px", width: "min(820px, 96vw)", maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>{cardModal.label} — PMS schedules</div>
-                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{cardModal.list.length} schedule{cardModal.list.length !== 1 ? "s" : ""} · {uniqueAssets(cardModal.list)} asset{uniqueAssets(cardModal.list) !== 1 ? "s" : ""}</div>
+                <div style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>{cardModal.label} — assets</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{assets.length} asset{assets.length !== 1 ? "s" : ""} · {cardModal.list.length} schedule{cardModal.list.length !== 1 ? "s" : ""}</div>
               </div>
               <button onClick={() => setCardModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "24px", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ overflowY: "auto", padding: "8px 0" }}>
-              {cardModal.list.length === 0 ? (
-                <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No schedules in this bucket.</div>
+              {assets.length === 0 ? (
+                <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No assets in this bucket.</div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
                     <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
-                      {["Schedule", "Date", "Engineer", "Status", "Assets"].map(h => (
+                      {["Asset", "Asset ID", "PMS date", "Engineer", "Status"].map(h => (
                         <th key={h} style={{ textAlign: "left", padding: "9px 16px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {cardModal.list.map((s, i) => (
-                      <tr key={s.id ?? i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "9px 16px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{s.schedule_number || `SCH-${s.id}`}</td>
-                        <td style={{ padding: "9px 16px", color: "#334155", whiteSpace: "nowrap" }}>{(s.maintenance_date || "").replace("T", " ").slice(0, 16) || "—"}</td>
-                        <td style={{ padding: "9px 16px", color: "#334155" }}>{s.engineer_name || "Unassigned"}</td>
-                        <td style={{ padding: "9px 16px" }}><span style={{ textTransform: "capitalize", color: "#475569" }}>{s.status || "scheduled"}</span></td>
-                        <td style={{ padding: "9px 16px", color: "#334155", fontVariantNumeric: "tabular-nums" }}>{Number(s.totalAssets || 0)}</td>
+                    {assets.map((a, i) => (
+                      <tr key={a.id ?? i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "9px 16px", fontWeight: 600, color: "#0f172a" }}>{a.name || `Asset #${a.id}`}</td>
+                        <td style={{ padding: "9px 16px", color: "#64748b", fontFamily: "monospace", fontSize: "12px", whiteSpace: "nowrap" }}>{a.code || "—"}</td>
+                        <td style={{ padding: "9px 16px", color: "#334155", whiteSpace: "nowrap" }}>{(a.date || "").replace("T", " ").slice(0, 16) || "—"}</td>
+                        <td style={{ padding: "9px 16px", color: "#334155" }}>{a.engineer || "Unassigned"}</td>
+                        <td style={{ padding: "9px 16px" }}><span style={{ textTransform: "capitalize", color: "#475569" }}>{a.status || "pending"}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1241,7 +1254,8 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Filters ────────────────────────────────────────────────────────── */}
       <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "12px 16px",

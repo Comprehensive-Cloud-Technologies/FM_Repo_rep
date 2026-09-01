@@ -15,6 +15,13 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Fixed
+- **Deleting a PMS schedule in "All Hospitals" mode** no longer 404s — delete
+  (single and bulk) now resolves across every hospital the user can access.
+- **PMS KPI drill-down lists the assets**, not the schedules — clicking a card
+  (Total Assets / Today / Completed / Pending / Overdue) shows the unique assets
+  behind it (name, asset ID, PMS date, engineer, status).
+
+### Fixed
 - **PMS schedule details no longer blank in "All Hospitals" mode** — opening (and
   editing) a schedule now resolves across every hospital the user can access, not
   just their primary company.

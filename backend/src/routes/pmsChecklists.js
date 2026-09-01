@@ -512,10 +512,13 @@ router.get("/schedules", async (req, res, next) => {
               COUNT(psa.id) AS totalAssets,
               SUM(psa.status = 'completed') AS completedAssets,
               SUM(psa.status = 'pending')   AS pendingAssets,
-              GROUP_CONCAT(DISTINCT psa.asset_id) AS assetIds
+              GROUP_CONCAT(DISTINCT psa.asset_id) AS assetIds,
+              GROUP_CONCAT(DISTINCT CONCAT_WS('~', psa.asset_id, COALESCE(a.asset_name,''),
+                COALESCE(a.generated_asset_id,''), COALESCE(psa.status,'')) SEPARATOR '||') AS assetsConcat
        FROM pms_schedules ps
        LEFT JOIN companies co ON co.id = ps.company_id
        LEFT JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id
+       LEFT JOIN assets a ON a.id = psa.asset_id
        ${where}
        GROUP BY ps.id
        ORDER BY ps.maintenance_date DESC`,
@@ -772,9 +775,11 @@ router.put("/schedules/:id", async (req, res, next) => {
 // DELETE /schedules/:id
 router.delete("/schedules/:id", requirePermission("pms:delete"), async (req, res, next) => {
   try {
+    const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = ids.map(() => "?").join(",");
     const [[existing]] = await pool.query(
-      "SELECT id FROM pms_schedules WHERE id = ? AND company_id = ?",
-      [req.params.id, cid(req)]
+      `SELECT id FROM pms_schedules WHERE id = ? AND company_id IN (${ph})`,
+      [req.params.id, ...ids]
     );
     if (!existing) return res.status(404).json({ message: "Not found" });
     await pool.query("DELETE FROM pms_schedule_assets WHERE schedule_id = ?", [req.params.id]).catch(() => {});
@@ -789,10 +794,10 @@ router.delete("/schedules/:id", requirePermission("pms:delete"), async (req, res
 router.post("/schedules/bulk-delete", requirePermission("pms:delete"), async (req, res, next) => {
   try {
     const { from, to, months } = req.body || {};
-    const companyId = cid(req);
+    const companyIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
 
-    let where = "company_id = ?";
-    const params = [companyId];
+    let where = `company_id IN (${companyIds.map(() => "?").join(",")})`;
+    const params = [...companyIds];
 
     if (Array.isArray(months) && months.length) {
       // Specific months e.g. ['2026-08','2026-10']
