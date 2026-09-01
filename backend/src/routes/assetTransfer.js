@@ -98,13 +98,12 @@ async function nextTransferReference() {
 router.get("/transfer/companies", async (req, res, next) => {
   try {
     if (req.companyUser.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
-    if (!accessibleIds.length) return res.json([]);
-    const placeholders = accessibleIds.map(() => "?").join(",");
+    // Destination picker: an admin can transfer assets to ANY active hospital,
+    // not only the ones on their personal access list — otherwise sibling
+    // hospitals (e.g. Test Clinic) never appear as a destination.
     const [rows] = await pool.query(
       `SELECT id, company_name AS companyName, status
-       FROM companies WHERE id IN (${placeholders}) AND status = "Active" ORDER BY company_name`,
-      accessibleIds
+       FROM companies WHERE status = "Active" ORDER BY company_name`
     );
     res.json(rows);
   } catch (err) { next(err); }

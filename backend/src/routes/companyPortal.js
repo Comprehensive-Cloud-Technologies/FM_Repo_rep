@@ -7047,7 +7047,7 @@ router.get("/ojt/mobile/my-assignments", async (req, res, next) => {
        LEFT JOIN assets a ON a.id = ot.asset_id
        LEFT JOIN company_users ab ON ab.id = oup.assigned_by
        WHERE oup.company_user_id = ? AND ot.company_id = ? AND oup.assigned_by IS NOT NULL
-       ORDER BY oup.due_date ASC NULLS LAST, oup.assigned_at DESC`,
+       ORDER BY (oup.due_date IS NULL), oup.due_date ASC, oup.assigned_at DESC`,
       [userId, companyId]
     );
     res.json(rows);

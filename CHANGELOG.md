@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
+### Fixed
+- **Asset Transfer now lists every hospital** as a destination company (an admin
+  can transfer to any active hospital, not only ones on their access list).
+- **Mobile: quieter alerts for clinical staff.** Doctors/nurses/ward boys now
+  only get a home alert when an issue **they raised is resolved** — not for every
+  open ticket. Engineers/supervisors still see their open work as before.
+
 ### Added
 - **PMS schedules can now carry a time** as well as a date (new time picker; the
   maintenance date column is now a DATETIME).

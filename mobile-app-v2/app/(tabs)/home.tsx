@@ -176,9 +176,14 @@ export default function HomeTab() {
   const total      = caseLogs.length;
   const overdue    = 0;
 
-  // Actionable case logs assigned to me → shown as alerts, tap opens the issue detail
-  const actionable = caseLogs.filter((c: any) => bucket(c.status) !== 'completed');
-  // Recent list shows only unresolved requests — resolved/closed drop off the dashboard
+  // Does this user actually work tickets (engineer / supervisor) or only raise
+  // them (doctor / nurse / ward boy)? Raisers should NOT be pestered with every
+  // open ticket — they only get an alert once THEIR issue has been resolved.
+  const canWorkTickets = can('case_log:assign') || !!capabilities?.isTechnician || !!capabilities?.isTechnicalSupervisor;
+  const actionable = canWorkTickets
+    ? caseLogs.filter((c: any) => bucket(c.status) !== 'completed')   // engineers: open work to do
+    : caseLogs.filter((c: any) => bucket(c.status) === 'completed');  // raisers: only resolved issues
+  // Recent list shows the same set the alerts use
   const recent     = actionable.slice(0, 5);
 
   const trainingCount    = trainings.length;
@@ -332,32 +337,40 @@ export default function HomeTab() {
                 <View style={styles.alertList}>
                   {show('case_log:view') && actionable.map((c, i) => {
                     const st = (c.status ?? '').toLowerCase();
+                    const resolved = ['resolved', 'closed', 'completed'].includes(st);
                     const sub =
+                      resolved             ? 'Resolved ✓ · Tap to view' :
                       st === 'in_progress' ? 'In Progress · Tap to resolve' :
                       st === 'assigned'    ? 'Assigned · Tap to start' :
                                              'Tap to view & start';
+                    const rowBg     = resolved ? '#ECFDF5' : '#FFF7ED';
+                    const rowBorder = resolved ? '#A7F3D0' : '#FED7AA';
+                    const iconBg    = resolved ? '#D1FAE5' : '#FEE2C6';
+                    const iconCol   = resolved ? '#059669' : '#EA580C';
+                    const titleCol  = resolved ? '#065F46' : '#92400E';
+                    const subCol    = resolved ? '#047857' : '#B45309';
                     return (
                       <TouchableOpacity
                         key={`cl-${c.source_type ?? 'wo'}-${c.id ?? i}`}
-                        style={[styles.alertRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+                        style={[styles.alertRow, { backgroundColor: rowBg, borderColor: rowBorder }]}
                         onPress={() => router.push({
                           pathname: '/hc-case-log-detail',
                           params: { id: String(c.id), sourceType: c.source_type ?? 'work_order' },
                         })}
                         activeOpacity={0.8}
                       >
-                        <View style={[styles.alertRowIcon, { backgroundColor: '#FEE2C6' }]}>
-                          <MaterialCommunityIcons name="clipboard-alert-outline" size={18} color="#EA580C" />
+                        <View style={[styles.alertRowIcon, { backgroundColor: iconBg }]}>
+                          <MaterialCommunityIcons name={resolved ? 'check-circle-outline' : 'clipboard-alert-outline'} size={18} color={iconCol} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.alertRowTitle, { color: '#92400E' }]} numberOfLines={1}>
+                          <Text style={[styles.alertRowTitle, { color: titleCol }]} numberOfLines={1}>
                             {c.issue_description ?? c.asset_name ?? c.work_order_number ?? `Request #${c.id}`}
                           </Text>
-                          <Text style={[styles.alertRowSub, { color: '#B45309' }]}>
+                          <Text style={[styles.alertRowSub, { color: subCol }]}>
                             {c.asset_name ? `${c.asset_name} · ` : ''}{sub}
                           </Text>
                         </View>
-                        <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
+                        <MaterialCommunityIcons name="chevron-right" size={18} color={iconCol} />
                       </TouchableOpacity>
                     );
                   })}
