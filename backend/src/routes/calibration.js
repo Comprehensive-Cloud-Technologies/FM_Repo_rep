@@ -338,7 +338,17 @@ router.post("/schedules/check-conflicts", async (req, res, next) => {
 // GET /schedules — list/calendar schedules
 router.get("/schedules", async (req, res, next) => {
   try {
-    const { from, to, status, search } = req.query;
+    const { from, to, status, search, allCompanies } = req.query;
+    // Scope to all accessible hospitals when the client asks for it.
+    let companyWhere = "cs.company_id = ?";
+    let params;
+    if (allCompanies === "true") {
+      const ids = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+      companyWhere = `cs.company_id IN (${ids.map(() => "?").join(",")})`;
+      params = [...ids];
+    } else {
+      params = [cid(req)];
+    }
     let sql = `
       SELECT cs.id, cs.schedule_number, cs.calibration_date, cs.frequency, cs.status, cs.notes,
              cs.recurring_group_id, cs.occurrence_index, cs.created_at,
@@ -347,8 +357,7 @@ router.get("/schedules", async (req, res, next) => {
              SUM(csa.status = 'pending') AS pending_assets
       FROM calibration_schedules cs
       LEFT JOIN calibration_schedule_assets csa ON csa.schedule_id = cs.id
-      WHERE cs.company_id = ?`;
-    const params = [cid(req)];
+      WHERE ${companyWhere}`;
     if (from) { sql += ` AND cs.calibration_date >= ?`; params.push(from); }
     if (to)   { sql += ` AND cs.calibration_date <= ?`; params.push(to);   }
     if (status) { sql += ` AND cs.status = ?`; params.push(status); }

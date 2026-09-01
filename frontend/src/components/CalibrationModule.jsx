@@ -623,7 +623,7 @@ function ScheduleDetail({ scheduleId, token, onBack }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // CALENDAR VIEW + SCHEDULER TAB
 // ══════════════════════════════════════════════════════════════════════════════
-function SchedulerTab({ token }) {
+function SchedulerTab({ token, allCompaniesMode = false }) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -641,10 +641,10 @@ function SchedulerTab({ token }) {
       const lastDay = new Date(year, month + 1, 0).getDate();
       const to = `${year}-${String(month + 1).padStart(2, "0")}-${lastDay}`;
       // For list we need wider range
-      const allSchedules = await apiFetch(`${CAL_API}/schedules?from=${from}&to=${to}${filters.status ? `&status=${filters.status}` : ""}`, {}, token);
+      const allSchedules = await apiFetch(`${CAL_API}/schedules?from=${from}&to=${to}${filters.status ? `&status=${filters.status}` : ""}${allCompaniesMode ? "&allCompanies=true" : ""}`, {}, token);
       setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
     } catch { setSchedules([]); } finally { setLoading(false); }
-  }, [token, currentDate, filters]);
+  }, [token, currentDate, filters, allCompaniesMode]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -757,7 +757,7 @@ function SchedulerTab({ token }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS TAB
 // ══════════════════════════════════════════════════════════════════════════════
-function ReportsTab({ token }) {
+function ReportsTab({ token, allCompaniesMode = false }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -770,11 +770,11 @@ function ReportsTab({ token }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, pageSize: 50, ...Object.fromEntries(Object.entries(filters).filter(([,v]) => v)) });
+      const params = new URLSearchParams({ page, pageSize: 50, ...(allCompaniesMode ? { allCompanies: "true" } : {}), ...Object.fromEntries(Object.entries(filters).filter(([,v]) => v)) });
       const data = await apiFetch(`${CAL_API}/reports?${params}`, {}, token);
       setRows(data.rows || []); setTotal(data.total || 0);
     } catch { setRows([]); } finally { setLoading(false); }
-  }, [token, page, filters]);
+  }, [token, page, filters, allCompaniesMode]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -910,7 +910,7 @@ function ReportsTab({ token }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ROOT MODULE
 // ══════════════════════════════════════════════════════════════════════════════
-export default function CalibrationModule({ token }) {
+export default function CalibrationModule({ token, allCompaniesMode = false }) {
   const [tab, setTab] = useState("scheduler");
 
   const TABS = [
@@ -943,9 +943,9 @@ export default function CalibrationModule({ token }) {
       </div>
 
       {/* Tab content */}
-      {tab === "scheduler" && <SchedulerTab token={token} />}
+      {tab === "scheduler" && <SchedulerTab token={token} allCompaniesMode={allCompaniesMode} />}
       {tab === "vendors"   && <VendorsTab   token={token} />}
-      {tab === "reports"   && <ReportsTab   token={token} />}
+      {tab === "reports"   && <ReportsTab   token={token} allCompaniesMode={allCompaniesMode} />}
     </div>
   );
 }

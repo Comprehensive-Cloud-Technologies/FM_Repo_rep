@@ -9716,7 +9716,7 @@ export default function CompanyEmployeePortal() {
       {nav === "calibration" && (
         <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
           {companySwitcherBar}
-          <CalibrationModule token={token} />
+          <CalibrationModule token={token} allCompaniesMode={allCompaniesMode} />
         </div>
       )}
 

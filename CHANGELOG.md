@@ -15,6 +15,11 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Fixed
+- **Calibration module respects "All Hospitals"** — the Scheduler calendar and
+  the asset-wise Reports now aggregate across all accessible hospitals (backend
+  `/calibration/schedules` gained `allCompanies` support).
+
+### Fixed
 - **Ticket Master summary counts** (Open/Assigned/In-Progress/Completed/…) now
   aggregate across **all hospitals** in "All Hospitals" mode instead of showing
   only the primary company.
