@@ -64,8 +64,9 @@ export default function QRScannerScreen() {
             // Unlinked → let user register a new asset
             router.replace({ pathname: '/register-asset', params: { qrUid: raw, qrId: String(qr.id), companyName: qr.companyName ?? '' } });
           } else {
-            // Linked → show asset details + query form
-            router.replace({ pathname: '/asset-query', params: { assetId: String(qr.assetId), assetName: qr.assetName ?? '', barcodeStr: qr.assetUniqueId ?? raw } });
+            // Linked → show the asset details page (PMS, calibration, warranty, etc.),
+            // from where the user can also report a problem.
+            router.replace({ pathname: '/asset-details', params: { assetId: String(qr.assetId), fromQR: '1' } });
           }
           return;
         } catch (preQrErr: any) {
@@ -82,7 +83,7 @@ export default function QRScannerScreen() {
         // Not in pre-QR table → try direct asset lookup by barcode (asset_unique_id)
         try {
           const asset = await fetchAssetByBarcode(raw) as any;
-          router.replace({ pathname: '/asset-query', params: { assetId: String(asset.id), assetName: asset.assetName, barcodeStr: raw } });
+          router.replace({ pathname: '/asset-details', params: { assetId: String(asset.id), fromQR: '1' } });
           return;
         } catch {
           if (isEngineer) {

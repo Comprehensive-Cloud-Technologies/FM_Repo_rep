@@ -2324,8 +2324,21 @@ router.get("/assets/:id", async (req, res, next) => {
       console.error("[assets/:id] assignments query failed:", e.message);
     }
 
+    // Next upcoming PMS for this asset (earliest pending schedule from now).
+    let nextPmsDate = null;
+    try {
+      const [[pmsRow]] = await pool.query(
+        `SELECT DATE_FORMAT(MIN(ps.maintenance_date), '%Y-%m-%d %H:%i') AS nextPms
+           FROM pms_schedule_assets psa
+           JOIN pms_schedules ps ON ps.id = psa.schedule_id
+          WHERE psa.asset_id = ? AND psa.status = 'pending' AND ps.maintenance_date >= NOW()`,
+        [id]
+      );
+      nextPmsDate = pmsRow?.nextPms || null;
+    } catch (e) { /* PMS is optional */ }
+
     const signedMeta = await presignMetadataImages(meta).catch(() => meta);
-    res.json({ ...asset, metadata: signedMeta, checklists, assignments });
+    res.json({ ...asset, metadata: signedMeta, checklists, assignments, nextPmsDate });
   } catch (err) {
     next(err);
   }

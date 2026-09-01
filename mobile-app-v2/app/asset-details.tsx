@@ -144,6 +144,12 @@ export default function AssetDetailsScreen() {
   const calibrationCertificate =
     calibration.certificateNumber ?? undefined;
   const calibrationHistory: any[] = data?.calibrationHistory ?? [];
+  // Warranty / AMC end date — try the common metadata keys.
+  const warrantyEnd =
+    asset.metadata?.warrantyEnd ?? asset.metadata?.warrantyExpiry ??
+    asset.metadata?.warranty?.endDate ?? asset.metadata?.amcEnd ??
+    asset.metadata?.amc?.endDate ?? undefined;
+  const nextPmsValue = data?.nextPmsDate ?? (typeof data?.nextPms === 'string' ? data.nextPms : data?.nextPms?.scheduledDate) ?? undefined;
 
   /** Navigate to the asset chat / query screen */
   const ChatButton = () => (
@@ -564,6 +570,7 @@ export default function AssetDetailsScreen() {
           {asset.metadata?.make        && <InfoRow label="Make / Manufacturer"  value={asset.metadata.make} />}
           {asset.metadata?.model       && <InfoRow label="Model"                value={asset.metadata.model} />}
           {asset.metadata?.serialNo    && <InfoRow label="Serial No."           value={asset.metadata.serialNo} />}
+          {warrantyEnd                 && <InfoRow label="Warranty / AMC Upto"  value={warrantyEnd} />}
           {asset.metadata?.accessories && <InfoRow label="Accessories"          value={asset.metadata.accessories} />}
           {asset.metadata?.dealer      && <InfoRow label="Dealer / Distributor" value={asset.metadata.dealer} />}
           {asset.metadata?.mfgYear     && <InfoRow label="Manufacturing Year"   value={String(asset.metadata.mfgYear)} />}
@@ -683,6 +690,19 @@ export default function AssetDetailsScreen() {
 
         {/* Chat / Query — available after QR scan */}
         {scannedViaQR && <ChatButton />}
+
+        {/* Report a problem — jump to the raise screen (with priority) for this asset */}
+        {scannedViaQR && (
+          <TouchableOpacity
+            style={[chatBtnStyle.btn, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+            onPress={() => router.push({ pathname: '/asset-query', params: { assetId: String(asset.id ?? asset.assetId ?? assetId), assetName, barcodeStr: asset.assetUniqueId ?? asset.uniqueId ?? '' } })}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#EA580C" />
+            <Text style={[chatBtnStyle.text, { color: '#EA580C' }]}>Report a Problem</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color="#EA580C" />
+          </TouchableOpacity>
+        )}
 
         {/* Checklists / logsheets — only unlocked after QR scan */}
         {scannedViaQR ? (

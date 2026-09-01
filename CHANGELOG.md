@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
+### Added
+- **PMS schedules can now carry a time** as well as a date (new time picker; the
+  maintenance date column is now a DATETIME).
+- **Mobile: set priority when raising an issue.** The QR-scan raise screen now
+  has a Low/Normal/High/Critical picker; the chosen priority flows to the ticket
+  and shows on the dashboard.
+- **Mobile: scanning a QR opens the asset details** page showing next PMS,
+  calibration due, warranty/AMC, serial no, make and model — with a "Report a
+  problem" button to raise from there. (`/assets/:id` now returns `nextPmsDate`.)
+
 ### Changed
 - **Asset Pro Intelligence feels more like a real assistant (no added cost).**
   Answers now use natural, varied phrasing with a "💡 insight" line, stream in

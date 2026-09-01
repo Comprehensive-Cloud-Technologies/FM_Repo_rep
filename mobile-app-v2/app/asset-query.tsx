@@ -35,6 +35,7 @@ function AssetQueryScreen() {
   const [uploading, setUploading]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [submitted, setSubmitted]       = useState(false);
+  const [priority, setPriority]         = useState('normal');
 
   useEffect(() => {
     const load = async () => {
@@ -118,7 +119,7 @@ function AssetQueryScreen() {
         title: title.trim(),
         description: description.trim() || undefined,
         images: serverImageUrls.length ? serverImageUrls : undefined,
-        priority: 'normal',
+        priority,
       });
       setSubmitted(true);
     } catch (err: any) {
@@ -252,6 +253,23 @@ function AssetQueryScreen() {
                 multiline
                 numberOfLines={4}
               />
+
+              {/* Priority */}
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Priority</Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                {[
+                  { value: 'low',      label: 'Low',      color: '#16a34a' },
+                  { value: 'normal',   label: 'Normal',   color: '#2563eb' },
+                  { value: 'high',     label: 'High',     color: '#d97706' },
+                  { value: 'critical', label: 'Critical', color: '#dc2626' },
+                ].map((p) => (
+                  <TouchableOpacity key={p.value} onPress={() => setPriority(p.value)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5,
+                      borderColor: p.color, backgroundColor: priority === p.value ? p.color : theme.surface }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: priority === p.value ? '#fff' : p.color }}>{p.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
               {/* Image attachments */}
               <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>

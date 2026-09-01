@@ -70,6 +70,8 @@ router.use(requireCompanyAuth);
   await safe(`ALTER TABLE assets ADD COLUMN last_pms_date DATE NULL`);
   await safe(`ALTER TABLE assets ADD COLUMN next_pms_due DATE NULL`);
   await safe(`ALTER TABLE pms_schedules ADD COLUMN frequency VARCHAR(30) NULL DEFAULT 'Monthly'`);
+  // Store a time-of-day with the maintenance date (schedules can carry a time now).
+  await safe(`ALTER TABLE pms_schedules MODIFY COLUMN maintenance_date DATETIME NOT NULL`);
   await safe(`ALTER TABLE pms_schedule_assets ADD COLUMN engineer_id INT UNSIGNED NULL`);
   await safe(`ALTER TABLE pms_schedule_assets ADD COLUMN engineer_name VARCHAR(160) NULL`);
 
@@ -559,8 +561,10 @@ router.post("/schedules", requirePermission("pms:schedule"), validate([
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { maintenanceDate, engineerId, engineerName, notes, assetIds,
+    const { maintenanceDate, maintenanceTime, engineerId, engineerName, notes, assetIds,
             frequency = 'Monthly', replaceConflicts = false } = req.body;
+    // Time-of-day for the schedule (defaults to 09:00 when not supplied).
+    const timeStr = /^\d{2}:\d{2}/.test(String(maintenanceTime || "")) ? String(maintenanceTime).slice(0, 5) : "09:00";
 
     // If replaceConflicts: cancel all future pending occurrences for selected assets
     if (replaceConflicts && assetIds.length) {
@@ -612,7 +616,7 @@ router.post("/schedules", requirePermission("pms:schedule"), validate([
             notes, frequency, created_by, recurring_group_id, occurrence_index)
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [
-          cid(req), sNum, currentDate,
+          cid(req), sNum, `${currentDate} ${timeStr}:00`,
           isFirst ? (engineerId || null) : null,    // only first gets engineer
           isFirst ? (engineerName || null) : null,
           notes || null, frequency, req.companyUser.id,

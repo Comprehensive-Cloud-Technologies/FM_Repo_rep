@@ -1740,6 +1740,7 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
 function CreateScheduleForm({ token, onSave, onCancel }) {
   const [step,             setStep]             = useState(1);
   const [date,             setDate]             = useState("");
+  const [time,             setTime]             = useState("09:00");
   const [frequency,        setFrequency]        = useState("Monthly");
   const [notes,            setNotes]            = useState("");
   const [assets,           setAssets]           = useState([]);
@@ -1802,7 +1803,7 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
     setSaving(true); setErr("");
     try {
       await apiFetch("POST", "/api/company-portal/pms/schedules", {
-        maintenanceDate: date, frequency, notes,
+        maintenanceDate: date, maintenanceTime: time, frequency, notes,
         assetIds: [...selectedAssets], replaceConflicts: replace,
       }, token);
       onSave();
@@ -1899,10 +1900,20 @@ function CreateScheduleForm({ token, onSave, onCancel }) {
                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>Define when and how often PMS should occur</div>
               </div>
               <div style={{ padding: "20px" }}>
-                <Field label="Maintenance Start Date" required>
-                  <Inp type="date" value={date} onChange={e => setDate(e.target.value)}
-                    style={{ fontSize: "15px", fontWeight: 600 }} />
-                </Field>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 200px" }}>
+                    <Field label="Maintenance Start Date" required>
+                      <Inp type="date" value={date} onChange={e => setDate(e.target.value)}
+                        style={{ fontSize: "15px", fontWeight: 600 }} />
+                    </Field>
+                  </div>
+                  <div style={{ flex: "1 1 140px" }}>
+                    <Field label="Time" required>
+                      <Inp type="time" value={time} onChange={e => setTime(e.target.value)}
+                        style={{ fontSize: "15px", fontWeight: 600 }} />
+                    </Field>
+                  </div>
+                </div>
                 <Field label="Recurrence Frequency" required>
                   <Sel value={frequency} onChange={e => setFrequency(e.target.value)}
                     options={FREQUENCIES.map(f => ({ value: f, label: f }))} />
