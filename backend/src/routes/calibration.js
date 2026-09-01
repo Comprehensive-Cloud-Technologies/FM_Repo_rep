@@ -679,8 +679,15 @@ router.get("/reports", async (req, res, next) => {
     }
 
     let where = companyWhere;
-    // Only assets that have at least one calibration schedule
-    where += ` AND EXISTS (SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id)`;
+    // Include assets that either have a calibration schedule OR are flagged for
+    // calibration at the asset level (a next-due date or calibration_required).
+    // Previously only scheduled assets showed, so the drill-down came up blank
+    // when calibration was tracked on the asset record instead of via schedules.
+    where += ` AND (
+      EXISTS (SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id)
+      OR a.next_calibration_due_date IS NOT NULL
+      OR a.calibration_required = 1
+    )`;
 
     if (search) { where += ` AND (a.asset_name LIKE ? OR a.generated_asset_id LIKE ? OR a.qr_code LIKE ?)`; const s=`%${search}%`; params.push(s,s,s); }
     if (department) { where += ` AND d.id = ?`; params.push(department); }
@@ -699,12 +706,12 @@ router.get("/reports", async (req, res, next) => {
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
               LEFT JOIN calibration_vendors v2 ON v2.id=csa2.vendor_id
               WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.vendor_id IS NOT NULL ORDER BY cs2.calibration_date DESC LIMIT 1) AS lastVendor,
-             (SELECT cs2.calibration_date FROM calibration_schedule_assets csa2
+             COALESCE((SELECT cs2.calibration_date FROM calibration_schedule_assets csa2
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
-              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed' ORDER BY cs2.calibration_date DESC LIMIT 1) AS lastCalibrationDate,
-             (SELECT cs2.calibration_date FROM calibration_schedule_assets csa2
+              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed' ORDER BY cs2.calibration_date DESC LIMIT 1), a.last_calibration_date) AS lastCalibrationDate,
+             COALESCE((SELECT cs2.calibration_date FROM calibration_schedule_assets csa2
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
-              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND cs2.calibration_date >= CURDATE() AND csa2.status='pending' ORDER BY cs2.calibration_date ASC LIMIT 1) AS nextCalibrationDate,
+              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND cs2.calibration_date >= CURDATE() AND csa2.status='pending' ORDER BY cs2.calibration_date ASC LIMIT 1), a.next_calibration_due_date) AS nextCalibrationDate,
              (SELECT COUNT(*) FROM calibration_schedule_assets csa2
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
               WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id) AS totalSchedules,

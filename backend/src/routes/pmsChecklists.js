@@ -511,7 +511,8 @@ router.get("/schedules", async (req, res, next) => {
               co.company_name AS companyName,
               COUNT(psa.id) AS totalAssets,
               SUM(psa.status = 'completed') AS completedAssets,
-              SUM(psa.status = 'pending')   AS pendingAssets
+              SUM(psa.status = 'pending')   AS pendingAssets,
+              GROUP_CONCAT(DISTINCT psa.asset_id) AS assetIds
        FROM pms_schedules ps
        LEFT JOIN companies co ON co.id = ps.company_id
        LEFT JOIN pms_schedule_assets psa ON psa.schedule_id = ps.id

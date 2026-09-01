@@ -918,6 +918,7 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
   const [bulkEngId,      setBulkEngId]      = useState("");
   const [bulkSaving,     setBulkSaving]     = useState(false);
   const [dayPopup,       setDayPopup]       = useState(null);
+  const [cardModal,      setCardModal]      = useState(null); // { label, list } for KPI drill-down
   const [toast,          setToast]          = useState("");
   const [filters,        setFilters]        = useState({ search: "", engineer: "", status: "", fromDate: "", toDate: "" });
   const [exporting,      setExporting]      = useState(false);
@@ -1085,24 +1086,41 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
 
   const engineers = [...new Set(schedules.map(s => s.engineer_name).filter(Boolean))];
 
-  const overdueSchedules = filtered.filter(s => s.status === "overdue" ||
+  // Count UNIQUE assets across a set of schedules (an asset scheduled in several
+  // schedules is counted once) using the assetIds the API returns per schedule.
+  const uniqueAssets = (list) => {
+    const s = new Set();
+    list.forEach(sc => String(sc.assetIds ?? "").split(",").forEach(id => { const t = id.trim(); if (t) s.add(t); }));
+    return s.size;
+  };
+  const todaySchedules     = filtered.filter(s => (s.maintenance_date || "").startsWith(todayStr));
+  const pendingSchedules   = filtered.filter(s => s.status === "scheduled");
+  const overdueSchedules   = filtered.filter(s => s.status === "overdue" ||
     (s.status === "scheduled" && (s.maintenance_date || "").split("T")[0] < todayStr));
   const completedSchedules = filtered.filter(s => s.status === "completed");
   const stats = {
     total:           filtered.length,
-    totalAssets:     filtered.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
-    todayCount:      filtered.filter(s => (s.maintenance_date || "").startsWith(todayStr)).length,
-    todayAssets:     filtered.filter(s => (s.maintenance_date || "").startsWith(todayStr)).reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    totalAssets:     uniqueAssets(filtered),
+    todayCount:      todaySchedules.length,
+    todayAssets:     uniqueAssets(todaySchedules),
     completed:       completedSchedules.length,
-    completedAssets: filtered.reduce((sum, s) => sum + Number(s.completedAssets || 0), 0),
-    pending:         filtered.filter(s => s.status === "scheduled").length,
-    pendingAssets:   filtered.reduce((sum, s) => sum + Number(s.pendingAssets || 0), 0),
+    completedAssets: uniqueAssets(completedSchedules),
+    pending:         pendingSchedules.length,
+    pendingAssets:   uniqueAssets(pendingSchedules),
     overdue:         overdueSchedules.length,
-    overdueAssets:   overdueSchedules.reduce((sum, s) => sum + Number(s.totalAssets || 0), 0),
+    overdueAssets:   uniqueAssets(overdueSchedules),
     pct: filtered.length > 0 ? Math.round(completedSchedules.length / filtered.length * 100) : 0,
     assetPct: 0,
   };
   stats.assetPct = stats.totalAssets > 0 ? Math.round(stats.completedAssets / stats.totalAssets * 100) : 0;
+  // Schedules behind each clickable KPI card, for the drill-down popup.
+  const cardBuckets = {
+    "Total Assets": filtered,
+    "Today":        todaySchedules,
+    "Completed":    completedSchedules,
+    "Pending":      pendingSchedules,
+    "Overdue":      overdueSchedules,
+  };
 
   // Build date → events map
   // Real recurring occurrence rows are now created in DB, so no virtual projection needed
@@ -1163,17 +1181,67 @@ function SchedulesTab({ token, selectedCompanyId = "", selectedCompanyName = "My
           { label: "Pending",       value: stats.pendingAssets,   sub: `${stats.pending} schedules`,         icon: "⏳", bg: "#fef9c3", tc: "#a16207" },
           { label: "Overdue",       value: stats.overdueAssets,   sub: `${stats.overdue} schedules`,         icon: "🚨", bg: "#fee2e2", tc: "#dc2626" },
           { label: "Completion",    value: `${stats.assetPct}%`,  sub: `${stats.pct}% by schedules`,         icon: "📊", bg: "#f5f3ff", tc: "#7c3aed" },
-        ].map(c => (
-          <div key={c.label} style={{ background: c.bg, borderRadius: "14px", padding: "14px 16px", border: `1px solid ${c.bg}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-              <span style={{ fontSize: "16px" }}>{c.icon}</span>
-              <span style={{ fontSize: "10px", fontWeight: 700, color: c.tc, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</span>
+        ].map(c => {
+          const list = cardBuckets[c.label];
+          const clickable = !!list;
+          return (
+            <div key={c.label}
+              onClick={clickable ? () => setCardModal({ label: c.label, list }) : undefined}
+              title={clickable ? `Click to view ${c.label.toLowerCase()}` : undefined}
+              style={{ background: c.bg, borderRadius: "14px", padding: "14px 16px", border: `1px solid ${c.bg}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", cursor: clickable ? "pointer" : "default" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                <span style={{ fontSize: "16px" }}>{c.icon}</span>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: c.tc, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</span>
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{c.value}</div>
+              <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>{c.sub}</div>
             </div>
-            <div style={{ fontSize: "26px", fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{c.value}</div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>{c.sub}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* ── KPI drill-down popup ─────────────────────────────────────────────── */}
+      {cardModal && (
+        <div onClick={() => setCardModal(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: "14px", width: "min(760px, 96vw)", maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>{cardModal.label} — PMS schedules</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{cardModal.list.length} schedule{cardModal.list.length !== 1 ? "s" : ""} · {uniqueAssets(cardModal.list)} asset{uniqueAssets(cardModal.list) !== 1 ? "s" : ""}</div>
+              </div>
+              <button onClick={() => setCardModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "24px", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "8px 0" }}>
+              {cardModal.list.length === 0 ? (
+                <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>No schedules in this bucket.</div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                      {["Schedule", "Date", "Engineer", "Status", "Assets"].map(h => (
+                        <th key={h} style={{ textAlign: "left", padding: "9px 16px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cardModal.list.map((s, i) => (
+                      <tr key={s.id ?? i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "9px 16px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>{s.schedule_number || `SCH-${s.id}`}</td>
+                        <td style={{ padding: "9px 16px", color: "#334155", whiteSpace: "nowrap" }}>{(s.maintenance_date || "").replace("T", " ").slice(0, 16) || "—"}</td>
+                        <td style={{ padding: "9px 16px", color: "#334155" }}>{s.engineer_name || "Unassigned"}</td>
+                        <td style={{ padding: "9px 16px" }}><span style={{ textTransform: "capitalize", color: "#475569" }}>{s.status || "scheduled"}</span></td>
+                        <td style={{ padding: "9px 16px", color: "#334155", fontVariantNumeric: "tabular-nums" }}>{Number(s.totalAssets || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Filters ────────────────────────────────────────────────────────── */}
       <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "12px 16px",

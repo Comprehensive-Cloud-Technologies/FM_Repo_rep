@@ -15,6 +15,16 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Fixed
+- **Asset Transfer destination** lists only the hospitals assigned to the user
+  (primary + granted companies) — not every company.
+- **PMS Schedules KPI cards:** "Total Assets" (and Today/Overdue) now count
+  **unique** assets, not asset-instances summed across schedules; the cards are
+  **clickable** and open a drill-down popup listing the schedules behind each.
+- **Calibration Planner drill-down** no longer comes up blank — the report now
+  includes assets tracked for calibration at the asset level (next-due date /
+  calibration-required), not only those with formal calibration schedules.
+
+### Fixed
 - **Asset Transfer now lists every hospital** as a destination company (an admin
   can transfer to any active hospital, not only ones on their access list).
 - **Mobile: quieter alerts for clinical staff.** Doctors/nurses/ward boys now
