@@ -15,8 +15,10 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Added
-- **Asset Pro Intelligence is now a chat assistant.** Greeting + suggested
-  questions, free-text and voice input, chat-bubble answers with a plain-language
+- **Asset Pro Intelligence is now a guided chat assistant.** A step-by-step flow:
+  personalised greeting → "What would you like a report on?" → pick a module →
+  module-specific questions → the report, with **Back** and **Restart** at every
+  step. Plus free-text and voice input, chat-bubble answers with a plain-language
   summary, inline bar charts for grouped reports, a collapsible data table,
   Excel/PDF download, and contextual follow-up chips that refine the previous
   answer. New report types: assets with the most downtime, MTTR by department,

@@ -9806,7 +9806,7 @@ export default function CompanyEmployeePortal() {
           </div>
 
           {/* Natural-language report generator */}
-          <AssetIntelligenceReport token={token} companyId={allCompaniesMode ? undefined : currentUser?.companyId} />
+          <AssetIntelligenceReport token={token} companyId={allCompaniesMode ? undefined : currentUser?.companyId} userName={currentUser?.fullName} />
 
           {/* KPI Banner */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "24px" }}>
