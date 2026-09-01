@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
+### Changed
+- **Asset Pro Intelligence feels more like a real assistant (no added cost).**
+  Answers now use natural, varied phrasing with a "💡 insight" line, stream in
+  word-by-word, carry a "live data · just now" grounding line and a Copy button,
+  and offer a result-aware "Focus on {top group}" follow-up. The greeting shows a
+  proactive "Today at a glance" strip (open / overdue / PMS-due counts) as
+  tappable shortcuts. All rule-based — no LLM/API.
+
 ### Removed
 - **Soft Services removed from the product.** Gone from all web + mobile screens,
   navigation, role options, asset-type/company-sector/checklist category

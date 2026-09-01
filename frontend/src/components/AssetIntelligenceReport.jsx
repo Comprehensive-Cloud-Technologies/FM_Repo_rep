@@ -54,6 +54,14 @@ function followUps(result, lastQ) {
   } else if (ds === "sla") {
     if (!grouped) { push("Group by priority", `${lastQ} grouped by priority`); push("Group by department", `${lastQ} grouped by department`); }
   }
+  // Result-aware "focus" chip — drill into the biggest group from a chart.
+  if (grouped && result.rows?.length > 1) {
+    const top = result.rows[0];
+    if (top && top.grp && top.grp !== "—") {
+      const base = lastQ.replace(/\bgrouped by[\s\w]*/i, "").trim();
+      push(`Focus on ${top.grp}`, `${base} ${top.grp}`.trim());
+    }
+  }
   if (!/top \d/.test(q)) push("Top 10 only", `top 10 ${lastQ}`);
   return chips.slice(0, 5);
 }
@@ -61,6 +69,55 @@ function followUps(result, lastQ) {
 let _uid = 0;
 const uid = () => `m${++_uid}_${Date.now()}`;
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "there";
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+/* ── Turn a raw result into a natural, human-sounding line + optional insight ─ */
+const DS_NOUN = {
+  assets: "assets", requests: "requests", pms: "PMS tasks", calibration: "calibration items",
+  sla: "SLA records", "downtime-leaders": "assets", "mttr-by-department": "departments",
+  "warranty-expiring": "assets", "never-maintained": "assets",
+};
+function humanize(result, question) {
+  if (!result) return { text: "", insight: "" };
+  const noun = DS_NOUN[result.dataset] || "records";
+  const n = result.count || 0;
+  const grouped = !!(result.chart && result.columns?.some((c) => c.key === "grp"));
+  const filters = (result.interpreted || []).slice(1).filter((f) => !/grouped by/i.test(f));
+  const fstr = filters.length ? " " + filters.join(", ").toLowerCase() : "";
+
+  if (n === 0) {
+    return { text: pick([
+      `Good news — nothing matches${fstr ? " for" + fstr : ""}. You're all clear here. ✅`,
+      `I couldn't find any${fstr ? fstr : ""} ${noun}. Nothing needs your attention right now.`,
+    ]), insight: "" };
+  }
+  if (grouped) {
+    const rows = result.rows || [];
+    const total = rows.reduce((s, r) => s + (Number(r.count) || 0), 0);
+    const label = (result.columns?.[0]?.label || "group").toLowerCase();
+    const top = rows[0];
+    const text = `Across ${rows.length} ${label}${rows.length !== 1 ? "s" : ""}, that's ${total} ${noun}${fstr}.`;
+    let insight = "";
+    if (top && top.grp) {
+      const share = total ? Math.round((Number(top.count) / total) * 100) : 0;
+      insight = (share >= 50 && rows.length > 1)
+        ? `${top.grp} stands out — ${top.count} of them (${share}%).`
+        : `${top.grp} has the most (${top.count}).`;
+    }
+    return { text, insight };
+  }
+  const text = pick([
+    `You have ${n} ${noun}${fstr}.`,
+    `I found ${n} ${noun}${fstr}.`,
+    `That's ${n} ${noun}${fstr} right now.`,
+  ]);
+  let insight = "";
+  if (/overdue/i.test(fstr))            insight = `${n} overdue — worth clearing soon.`;
+  else if (/breach/i.test(fstr))        insight = `${n} SLA breach${n !== 1 ? "es" : ""} to review.`;
+  else if (/not working|faulty/i.test(fstr)) insight = `${n} down — check they're assigned to an engineer.`;
+  else if (/unassigned/i.test(fstr))    insight = `${n} still need an engineer assigned.`;
+  return { text, insight };
+}
 
 /* ── Excel / PDF helpers ──────────────────────────────────────────────────── */
 function toExcel(result) {
@@ -135,12 +192,27 @@ function StepControls({ onBack, backLabel, onRestart, busy }) {
 const ctrl = { display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 11px", borderRadius: "20px", border: "1px solid #e2e8f0", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" };
 
 /* ── Module picker ────────────────────────────────────────────────────────── */
-function ModulePicker({ greetingName, isGreeting, onPick, onRestart, busy, companyId }) {
+function ModulePicker({ greetingName, isGreeting, onPick, onRestart, busy, companyId, briefing, onAsk }) {
   return (
     <div>
       {isGreeting ? (
         <>
           <div style={{ fontSize: "14.5px", color: "#0f172a", fontWeight: 700, marginBottom: "3px" }}>Hi {firstName(greetingName)} 👋 I'm your Asset Pro assistant.</div>
+          {/* Proactive "at a glance" — tappable headline numbers */}
+          {Array.isArray(briefing) && briefing.length > 0 && (
+            <div style={{ margin: "8px 0 12px" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "6px" }}>Today at a glance</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {briefing.map((b, i) => (
+                  <button key={i} disabled={busy} onClick={() => onAsk && onAsk(b.q)} title={`See ${b.label.toLowerCase()}`}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "1px solid #e7ebf3", background: "#fff", cursor: busy ? "default" : "pointer" }}>
+                    <span style={{ fontSize: "18px", fontWeight: 800, color: b.color, fontVariantNumeric: "tabular-nums" }}>{b.value}</span>
+                    <span style={{ fontSize: "12px", color: "#475569", fontWeight: 600 }}>{b.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <p style={{ fontSize: "13px", color: "#475569", margin: "0 0 13px" }}>
             <strong>What would you like a report on?</strong> Pick a module to get started {companyId ? "" : "— covering all facilities you manage"}.
           </p>
@@ -213,7 +285,22 @@ function AnswerCard({ msg, onFollowUp, onBack, onRestart, busy }) {
           ))}
         </div>
       )}
-      <div style={{ fontSize: "13.5px", color: "#0f172a", fontWeight: 600, marginBottom: empty ? 0 : "10px" }}>{result.summary}</div>
+      <Typewriter text={(msg.human && msg.human.text) || result.summary}
+        style={{ fontSize: "13.5px", color: "#0f172a", fontWeight: 600, display: "block", marginBottom: empty ? 0 : "8px", lineHeight: 1.5 }} />
+
+      {!empty && msg.human?.insight && (
+        <div style={{ fontSize: "12.5px", color: "#4338ca", background: "#eef2ff", border: "1px solid #e0e7ff", borderRadius: "8px", padding: "7px 11px", margin: "0 0 10px", display: "flex", gap: "7px", alignItems: "flex-start" }}>
+          <span>💡</span><span>{msg.human.insight}</span>
+        </div>
+      )}
+
+      {!empty && (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "10.5px", color: "#94a3b8", margin: "0 0 8px" }}>
+          <span>Live data · just now</span>
+          <button onClick={() => { try { navigator.clipboard.writeText([(msg.human?.text||result.summary), msg.human?.insight].filter(Boolean).join(" ")); } catch(e){} }}
+            style={{ border: "none", background: "none", color: "#94a3b8", cursor: "pointer", fontSize: "10.5px", padding: 0, textDecoration: "underline" }}>Copy</button>
+        </div>
+      )}
 
       {empty ? (
         <div style={{ padding: "14px", textAlign: "center", color: "#94a3b8", fontSize: "12.5px", background: "#f8fafc", borderRadius: "10px", margin: "8px 0" }}>No matching records found. Try a different question.</div>
@@ -274,11 +361,27 @@ export default function AssetIntelligenceReport({ token, companyId, userName }) 
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [briefing, setBriefing] = useState(null); // proactive "at a glance" stats
   const scrollRef = useRef(null);
   const recogRef = useRef(null);
   const voiceSupported = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy]);
+
+  // Proactive briefing — quietly pull a few headline numbers on open (free; reuses
+  // the same report engine). Shown as tappable chips in the greeting.
+  useEffect(() => {
+    let alive = true;
+    const probes = [
+      { label: "Open requests",  q: "open requests",   color: "#2563eb" },
+      { label: "Overdue",        q: "requests overdue", color: "#dc2626" },
+      { label: "PMS due",        q: "pms due",          color: "#d97706" },
+    ];
+    Promise.all(probes.map((p) =>
+      generateIntelligenceReport(token, p.q, companyId).then((d) => ({ ...p, value: d?.count ?? 0 })).catch(() => null)
+    )).then((res) => { if (alive) setBriefing(res.filter(Boolean)); });
+    return () => { alive = false; };
+  }, [token, companyId]);
 
   const restart = useCallback(() => { setMessages([greeting()]); setInput(""); }, []);
   const backToModules = useCallback(() => {
@@ -301,7 +404,8 @@ export default function AssetIntelligenceReport({ token, companyId, userName }) 
     try {
       const data = await generateIntelligenceReport(token, q, companyId);
       const mk = moduleKey || (moduleByKey(data.dataset) ? data.dataset : null);
-      setMessages((m) => m.map((x) => x.id === typingId ? { id: x.id, role: "assistant", kind: "result", question: q, moduleKey: mk, result: data } : x));
+      const human = humanize(data, q);   // natural phrasing computed once, so it stays stable
+      setMessages((m) => m.map((x) => x.id === typingId ? { id: x.id, role: "assistant", kind: "result", question: q, moduleKey: mk, result: data, human } : x));
     } catch (e) {
       setMessages((m) => m.map((x) => x.id === typingId ? { id: x.id, role: "assistant", kind: "error", moduleKey, text: e.message || "Sorry, I couldn't generate that report." } : x));
     } finally { setBusy(false); }
@@ -332,7 +436,7 @@ export default function AssetIntelligenceReport({ token, companyId, userName }) 
 
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px", background: "#fbfcfe" }}>
         {messages.map((m) => (
-          <MessageRow key={m.id} msg={m} busy={busy} companyId={companyId} userName={userName}
+          <MessageRow key={m.id} msg={m} busy={busy} companyId={companyId} userName={userName} briefing={briefing}
             onPickModule={pickModule} onPickQuestion={ask} onBackToModules={backToModules}
             onBackToQuestions={backToQuestions} onRestart={restart} />
         ))}
@@ -363,7 +467,7 @@ export default function AssetIntelligenceReport({ token, companyId, userName }) 
 }
 
 /* ── Message row ──────────────────────────────────────────────────────────── */
-function MessageRow({ msg, busy, companyId, userName, onPickModule, onPickQuestion, onBackToModules, onBackToQuestions, onRestart }) {
+function MessageRow({ msg, busy, companyId, userName, briefing, onPickModule, onPickQuestion, onBackToModules, onBackToQuestions, onRestart }) {
   if (msg.role === "user") {
     return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "14px" }}>
@@ -375,7 +479,7 @@ function MessageRow({ msg, busy, companyId, userName, onPickModule, onPickQuesti
     <div style={{ display: "flex", gap: "10px", marginBottom: "16px", alignItems: "flex-start" }}>
       <div style={{ width: "30px", height: "30px", flex: "0 0 30px", borderRadius: "9px", background: "linear-gradient(140deg,#4f46e5,#0891b2)", display: "grid", placeItems: "center", fontSize: "15px", marginTop: "2px" }}>🧠</div>
       <div style={{ maxWidth: "88%", background: "#fff", border: "1px solid #e9edf5", padding: "14px 16px", borderRadius: "4px 14px 14px 14px", boxShadow: "0 1px 2px rgba(15,23,42,.04)", width: "100%" }}>
-        {msg.kind === "modules" && <ModulePicker greetingName={userName} isGreeting={msg.greeting} companyId={companyId} busy={busy} onPick={onPickModule} onRestart={onRestart} />}
+        {msg.kind === "modules" && <ModulePicker greetingName={userName} isGreeting={msg.greeting} companyId={companyId} busy={busy} briefing={msg.greeting ? briefing : null} onAsk={onPickQuestion} onPick={onPickModule} onRestart={onRestart} />}
         {msg.kind === "questions" && <QuestionPicker moduleKey={msg.moduleKey} busy={busy} onPick={onPickQuestion} onBack={onBackToModules} onRestart={onRestart} />}
         {msg.kind === "typing" && <TypingInline />}
         {msg.kind === "error" && (
@@ -397,6 +501,25 @@ function TypingInline() {
       <span style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "6px" }}>Pulling your report…</span>
     </div>
   );
+}
+
+/* Reveals text word-by-word so answers feel "spoken", not pasted. Respects
+   reduced-motion and only animates the first time a message renders. */
+function Typewriter({ text, style }) {
+  const words = String(text || "").split(" ");
+  const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [count, setCount] = useState(reduce ? words.length : 0);
+  const doneRef = useRef(reduce);
+  useEffect(() => {
+    if (doneRef.current) { setCount(words.length); return; }
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1; setCount(i);
+      if (i >= words.length) { clearInterval(timer); doneRef.current = true; }
+    }, 45);
+    return () => clearInterval(timer);
+  }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <span style={style}>{words.slice(0, count).join(" ")}</span>;
 }
 function Dot({ d }) {
   return <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#94a3b8", display: "inline-block", animation: `apmpulse 1s ${d}s infinite ease-in-out` }} />;
