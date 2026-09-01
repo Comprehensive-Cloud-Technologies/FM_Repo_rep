@@ -15,6 +15,17 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Fixed
+- **Ticket Master summary counts** (Open/Assigned/In-Progress/Completed/…) now
+  aggregate across **all hospitals** in "All Hospitals" mode instead of showing
+  only the primary company.
+- **Calibration Planner (and PMS) KPI drill-downs** now show the assets for the
+  **clicked bucket** (due-this-month / overdue / upcoming / completed) instead of
+  every calibration record.
+- **Company-portal Edit Asset photos load** — the modal re-fetches pre-signed
+  image URLs, so equipment photos and the invoice display instead of broken
+  thumbnails.
+
+### Fixed
 - **Deleting a PMS schedule in "All Hospitals" mode** no longer 404s — delete
   (single and bulk) now resolves across every hospital the user can access.
 - **PMS KPI drill-down lists the assets**, not the schedules — clicking a card

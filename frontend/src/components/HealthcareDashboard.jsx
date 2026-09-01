@@ -996,17 +996,26 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const past = (d) => d && new Date(d) < today;
+  const in30 = (d) => { if (!d) return false; const x = new Date(d); return x >= today && x <= new Date(today.getTime() + 30 * 86400000); };
+  const thisMonth = (d) => { if (!d) return false; const x = new Date(d), n = new Date(); return x.getFullYear() === n.getFullYear() && x.getMonth() === n.getMonth(); };
 
-  // Training has a real status field, so we can filter it precisely. PMS/Calibration
-  // reports expose only a FUTURE next-due date, so date-bucket filtering here would
-  // wrongly hide overdue/due-this-month rows and show an empty table — instead show
-  // the full hospital-scoped list (the KPI tile already carries the exact count).
+  // Filter the drill-down rows to just the clicked KPI bucket, so a card shows
+  // exactly its own assets (not the whole hospital-scoped list).
   let data = rows;
   if (kpiFilter && type === "training") {
     const st = (r) => (r.status || "").toLowerCase();
     if (kpiFilter === "scheduled") data = rows.filter(r => st(r) === "scheduled");
     else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
     else if (kpiFilter === "overdue") data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
+  } else if (kpiFilter && type === "calibration") {
+    if (kpiFilter === "due_this_month")        data = rows.filter(r => thisMonth(r.nextCalibrationDate));
+    else if (kpiFilter === "overdue")          data = rows.filter(r => past(r.nextCalibrationDate));
+    else if (kpiFilter === "upcoming")         data = rows.filter(r => in30(r.nextCalibrationDate));
+    else if (kpiFilter === "completed_this_month") data = rows.filter(r => thisMonth(r.lastCalibrationDate));
+  } else if (kpiFilter && type === "pms") {
+    if (kpiFilter === "overdue")        data = rows.filter(r => past(r.nextPmsDate));
+    else if (kpiFilter === "upcoming")  data = rows.filter(r => in30(r.nextPmsDate));
+    else if (kpiFilter === "completed") data = rows.filter(r => Number(r.closedPms || 0) > 0);
   }
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";

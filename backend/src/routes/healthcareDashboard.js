@@ -1638,8 +1638,8 @@ router.get("/requests", validate([
          SUM(CASE WHEN wo.status = 'closed'      THEN 1 ELSE 0 END) AS closed,
          SUM(CASE WHEN wo.escalation_level > 0   THEN 1 ELSE 0 END) AS escalated,
          SUM(CASE WHEN wo.is_overdue = 1         THEN 1 ELSE 0 END) AS overdue
-       FROM work_orders wo WHERE wo.company_id = ?`,
-      [companyId]
+       FROM work_orders wo WHERE wo.company_id IN (${inClause})`,
+      companyIds
     );
     const [aqCounts] = await pool.query(
       `SELECT
@@ -1647,8 +1647,8 @@ router.get("/requests", validate([
          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
          SUM(CASE WHEN status = 'resolved'    THEN 1 ELSE 0 END) AS completed,
          SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) AS closed
-       FROM asset_queries WHERE company_id = ?`,
-      [companyId]
+       FROM asset_queries WHERE company_id IN (${inClause})`,
+      companyIds
     );
 
     // ── Does this company (scope) have an SLA policy attached? ───────────────

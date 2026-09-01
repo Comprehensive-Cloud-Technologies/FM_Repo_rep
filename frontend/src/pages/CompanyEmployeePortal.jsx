@@ -1007,6 +1007,29 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   const [form, setForm] = useState(() => buildForm(existing));
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
+
+  // Editing: the list row carries raw (private-S3) image URLs that 403 in the
+  // browser. Re-fetch the asset detail (which returns pre-signed URLs) and swap
+  // the image fields so the equipment photos and invoice actually load.
+  useEffect(() => {
+    if (!existing?.id || !token) return;
+    let alive = true;
+    fetch(`${API_BASE}/api/company-portal/assets/${existing.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive) return;
+        const m = d?.metadata;
+        if (!m || typeof m !== "object") return;
+        setForm(p => ({
+          ...p,
+          ...(Array.isArray(m.hcImages) ? { hcImages: m.hcImages } : {}),
+          ...(Array.isArray(m.images)   ? { images: m.images }     : {}),
+          ...(m.hcInvoiceUrl !== undefined ? { hcInvoiceUrl: m.hcInvoiceUrl } : {}),
+        }));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [existing?.id, token]); // eslint-disable-line react-hooks/exhaustive-deps
   const [fieldErrors, setFieldErrors] = useState({});
   const [locBuildings, setLocBuildings] = useState([]);
   const [locFloors, setLocFloors] = useState([]);
