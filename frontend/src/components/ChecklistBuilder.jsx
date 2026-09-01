@@ -4,7 +4,6 @@ import { createChecklist, getChecklists, getChecklistAssignees, assignChecklistT
 import ChecklistQuestionRow from "./ChecklistQuestionRow";
 
 const categories = [
-  { value: "soft", label: "Soft Services" },
   { value: "technical", label: "Technical Assets" },
   { value: "fleet", label: "Fleet Assets" },
 ];
@@ -42,7 +41,7 @@ const makeQuestion = () => ({
 });
 
 const ChecklistBuilder = ({ token, assets, users = [] }) => {
-  const [category, setCategory] = useState("soft");
+  const [category, setCategory] = useState("technical");
   const [assetId, setAssetId] = useState("");
   const [checklistName, setChecklistName] = useState("");
   const [description, setDescription] = useState("");

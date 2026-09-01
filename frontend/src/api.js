@@ -452,11 +452,7 @@ export const downloadFleetSubmissionsXLSX  = async (token)      => {
   URL.revokeObjectURL(url);
 };
 
-// â”€â”€ Soft Service Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export const getSoftServiceRequestsAll = (token, params = "") =>
-  request("GET", `/api/soft-service/requests/all${params ? `?${params}` : ""}`, undefined, { authToken: token });
-export const getSoftServiceRequestsMy  = (token, params = "") =>
-  request("GET", `/api/soft-service/requests/my${params ? `?${params}` : ""}`, undefined, { authToken: token });
+// Soft Services feature removed.
 
 
 // ── Client Portal – Assets Export ───────────────────────────────────────────

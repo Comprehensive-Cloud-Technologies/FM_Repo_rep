@@ -18,7 +18,6 @@ const API_BASE = getApiBaseUrl();
    Constants
 ───────────────────────────────────────────────────────────────── */
 const ASSET_CATEGORIES = [
-  { value: "soft", label: "Soft Services" },
   { value: "technical", label: "Technical Assets" },
   { value: "fleet", label: "Fleet Assets" },
 ];

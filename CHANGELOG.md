@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
+### Removed
+- **Soft Services removed from the product.** Gone from all web + mobile screens,
+  navigation, role options, asset-type/company-sector/checklist category
+  dropdowns, and the dashboard; the `/api/soft-service` feature route is
+  unmounted. Staff/roles previously set to `soft`/`both` are converted to
+  `technical` on startup, and role-level soft capabilities are cleared. Existing
+  database rows/columns are left dormant (not dropped), so the change is
+  reversible and no data is lost.
+
 ### Added
 - **Asset Pro Intelligence is now a guided chat assistant.** A step-by-step flow:
   personalised greeting → "What would you like a report on?" → pick a module →

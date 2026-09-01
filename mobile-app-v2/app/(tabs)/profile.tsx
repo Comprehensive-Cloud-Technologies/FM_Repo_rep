@@ -24,9 +24,6 @@ function CapBadge({ label, active }: { label: string; active: boolean }) {
 const CAP_LABELS: { key: keyof RoleCapabilities; label: string }[] = [
   { key: 'isTechnicalSupervisor', label: 'Technical Supervisor' },
   { key: 'isTechnician',          label: 'Technician'           },
-  { key: 'isSoftManager',         label: 'Soft Service Manager' },
-  { key: 'canResolveSoftIssue',   label: 'Resolve Soft Issues'  },
-  { key: 'canRaiseSoftIssue',     label: 'Raise Soft Issues'    },
 ];
 
 export default function ProfileTab() {

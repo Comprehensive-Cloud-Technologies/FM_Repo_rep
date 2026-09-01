@@ -98,7 +98,6 @@ import {
   getFleetFuelLogs, createFleetFuelLog, updateFleetFuelLog, deleteFleetFuelLog,
   getFleetMaintenance, createFleetMaintenance, updateFleetMaintenance, updateFleetMaintenanceStatus, deleteFleetMaintenance,
   getFleetSubmissions, getFleetSubmissionDetail, downloadFleetSubmissionsXLSX,
-  getSoftServiceRequestsAll, getSoftServiceRequestsMy,
   // Pre-generated QR codes
   getPreQrCodes, generatePreQrCodes, linkPreQrCode, registerPreQrAsset, deletePreQrCode,
   bulkImportCompanyPortalAssets,
@@ -274,23 +273,8 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
   const isEdit = !!existing;
   const [createdCreds, setCreatedCreds] = useState(null); // holds {fullName,username,password} after create
 
-  // Use the saved service_domain from the DB directly.
-  // Falls back to role-capability derivation only when the field is absent.
-  const deriveServiceDomain = () => {
-    if (isEdit && existing?.serviceDomain) {
-      const sd = existing.serviceDomain.toLowerCase();
-      if (["soft", "technical", "both"].includes(sd)) return sd;
-    }
-    if (!isEdit || !existing?.role) return "technical";
-    const matched = customRoles.find((r) => r.roleKey === existing.role);
-    if (matched) {
-      const hasSoft = matched.canRaiseSoftIssue || matched.isSoftManager;
-      const hasTech = matched.isTechnician || matched.isTechnicalSupervisor;
-      if (hasSoft && hasTech) return "both";
-      if (hasSoft) return "soft";
-    }
-    return "technical";
-  };
+  // Soft Services removed — every user is on the technical workflow.
+  const deriveServiceDomain = () => "technical";
 
   const def = {
     fullName: "", email: "", phone: "", designation: "", role: "technician",
@@ -431,11 +415,7 @@ function EmployeeModal({ existing, token, employees = [], customRoles = [], curr
                   {customRoles
                     .map((r) => {
                       const selected = form.role === r.roleKey;
-                      const domainTag = (r.canRaiseSoftIssue || r.isSoftManager)
-                        ? "🧹 Soft"
-                        : (r.isTechnician || r.isTechnicalSupervisor)
-                          ? "🔧 Tech"
-                          : null;
+                      const domainTag = (r.isTechnician || r.isTechnicalSupervisor) ? "🔧 Tech" : null;
                       return (
                         <button key={r.roleKey} type="button" onClick={() => changeRole(r.roleKey)}
                           style={{ padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: `1.5px solid ${selected ? (r.color || "#6366f1") : "#e2e8f0"}`, background: selected ? (r.bgColor || "#eef2ff") : "#fff", color: selected ? (r.color || "#6366f1") : "#64748b", display: "flex", alignItems: "center", gap: "5px" }}>
@@ -1102,7 +1082,7 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
   const isHCCompany = companySectors.includes("healthcare");
   const isHealthcareLegacy = !hasCustomLayout && (form.assetType === "healthcare" || (isHCCompany && form.assetType !== "soft" && form.assetType !== "fleet" && form.assetType !== "technical" && !hasCustomLayout));
   // Only the three built-in type codes use legacy form layouts; custom types always get the generic form
-  const isSoftLegacy = !hasCustomLayout && form.assetType === "soft";
+  const isSoftLegacy = false; // Soft Services removed — soft asset form disabled
   const isFleetLegacy = !hasCustomLayout && form.assetType === "fleet";
   const isTechnicalLegacy = !hasCustomLayout && !isHealthcareLegacy && form.assetType === "technical";
 
@@ -1289,7 +1269,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
                 {assetTypesList.length > 0
                   ? assetTypesList.map(t => <option key={t.code} value={t.code}>{t.label}</option>)
                   : <>
-                      <option value="soft">Soft Services</option>
                       <option value="technical">Technical</option>
                       <option value="fleet">Fleet</option>
                     </>
@@ -1771,7 +1750,6 @@ function AssetModal({ existing, token, companyId, departments, employees = [], a
 
 /* ─── Checklist Modal ──────────────────────────────────────────── */
 const clCategories = [
-  { value: "soft",      label: "Soft Services"    },
   { value: "technical", label: "Technical Assets"  },
   { value: "fleet",     label: "Fleet Assets"      },
 ];
@@ -1792,7 +1770,7 @@ function ChecklistModal({ existing, assets = [], shifts = [], token, onClose, on
     }));
   };
 
-  const [category,       setCategory]       = useState(existing?.assetType || "soft");
+  const [category,       setCategory]       = useState(existing?.assetType || "technical");
   const [assetId,        setAssetId]         = useState(existing?.assetId ? String(existing.assetId) : "");
   const [checklistName,  setChecklistName]   = useState(existing?.templateName || "");
   const [description,    setDescription]     = useState(existing?.description || "");
@@ -3572,7 +3550,6 @@ function AssetTypesPanel({ token, onLayoutSaved }) {
                               <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#64748b", marginBottom: "3px" }}>Workflow</label>
                               <select value={draft.workflowType} onChange={(e) => setDraft(p => ({ ...p, workflowType: e.target.value }))} style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "0.85rem", background: "#fff" }}>
                                 <option value="standard">Standard</option>
-                                <option value="soft">Soft Services</option>
                                 <option value="technical">Technical</option>
                                 <option value="fleet">Fleet</option>
                               </select>
@@ -3635,7 +3612,6 @@ function AssetTypesPanel({ token, onLayoutSaved }) {
                   <select value={draft.workflowType} onChange={(e) => setDraft(p => ({ ...p, workflowType: e.target.value }))}
                     style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: "7px", fontSize: "0.9rem", background: "#fff" }}>
                     <option value="standard">Standard</option>
-                    <option value="soft">Soft Services</option>
                     <option value="technical">Technical</option>
                     <option value="fleet">Fleet</option>
                   </select>
@@ -4867,9 +4843,6 @@ export default function CompanyEmployeePortal() {
   const [dashWOAssignNote, setDashWOAssignNote]         = useState("");
   const [dashWOAssignSaving, setDashWOAssignSaving]     = useState(false);
   const [dashWOAssignErr, setDashWOAssignErr]           = useState(null);
-  // Dashboard soft requests (visible to all roles that can raise soft requests)
-  const [dashboardSoftRequests, setDashboardSoftRequests] = useState([]);
-  const [dashboardSoftLoading, setDashboardSoftLoading]   = useState(false);
   const [departments, setDepartments] = useState([]);
   const [assetTypesList, setAssetTypesList] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -5112,12 +5085,6 @@ export default function CompanyEmployeePortal() {
       getCompanyPortalDepartments(token).then((d) => d && setDepartments(d)).catch(() => {});
       // Assets load lazily when needed
       getCompanyPortalAssetTypes(token).then(d => d && setAssetTypesList(d)).catch(() => {});
-      // Load soft requests raised by this supervisor
-      setDashboardSoftLoading(true);
-      getSoftServiceRequestsMy(token, "status=open")
-        .then((d) => setDashboardSoftRequests(Array.isArray(d) ? d : []))
-        .catch(() => {})
-        .finally(() => setDashboardSoftLoading(false));
     } else {
       // Employee: preload assigned tasks for dashboard stat card
       getMyTemplateAssignments(token).then((d) => d && setMyAssignments(d)).catch(() => {});
@@ -5198,19 +5165,6 @@ export default function CompanyEmployeePortal() {
         })
         .catch(() => {})
         .finally(() => setDashboardWOLoading(false));
-      // Admin sees all open soft requests
-      setDashboardSoftLoading(true);
-      getSoftServiceRequestsAll(token, "status=open")
-        .then((d) => setDashboardSoftRequests(Array.isArray(d) ? d.slice(0, 5) : []))
-        .catch(() => {})
-        .finally(() => setDashboardSoftLoading(false));
-    } else if (currentUser?.role === "supervisor") {
-      // Supervisor sees their own open soft requests
-      setDashboardSoftLoading(true);
-      getSoftServiceRequestsMy(token, "status=open")
-        .then((d) => setDashboardSoftRequests(Array.isArray(d) ? d : []))
-        .catch(() => {})
-        .finally(() => setDashboardSoftLoading(false));
     }
   }, [nav, token]);
 
@@ -6893,51 +6847,6 @@ export default function CompanyEmployeePortal() {
                       </div>
                     )}
                   </div>
-
-                  {/* Soft Service Requests */}
-                  {(currentUser?.role === "admin" || currentUser?.role === "supervisor") && (
-                  <div style={{ background: "#fff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                      <div>
-                        <p style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a", margin: 0 }}>Soft Service Requests</p>
-                        <p style={{ fontSize: "12px", color: "#94a3b8", margin: 0, marginTop: "2px" }}>Open requests raised by supervisors</p>
-                      </div>
-                    </div>
-                    {dashboardSoftLoading ? (
-                      <p style={{ color: "#94a3b8", fontSize: "13px", padding: "8px 0" }}>Loading…</p>
-                    ) : dashboardSoftRequests.length === 0 ? (
-                      <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8", background: "#f8fafc", borderRadius: "8px", fontSize: "13px" }}>
-                        ✅ No open soft service requests
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {dashboardSoftRequests.map((sr) => (
-                          <div key={sr.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "10px 12px", borderRadius: "8px", border: "1px solid #f1f5f9", background: "#fafafa" }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
-                                <span style={{ flexShrink: 0, padding: "2px 8px", borderRadius: "20px", fontSize: "10.5px", fontWeight: 700, background: "#dcfce7", color: "#166534", textTransform: "capitalize" }}>
-                                  SOFT SERVICE
-                                </span>
-                                <p style={{ margin: 0, fontWeight: 700, fontSize: "12.5px", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {sr.assetName || `Asset #${sr.assetId}`}
-                                </p>
-                              </div>
-                              <p style={{ margin: 0, fontSize: "11.5px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {sr.templateName || "Soft checklist"}{sr.raisedByName ? ` — by ${sr.raisedByName}` : ""}
-                              </p>
-                              <p style={{ margin: "3px 0 0", fontSize: "10.5px", color: "#94a3b8" }}>
-                                {sr.raisedAt ? new Date(sr.raisedAt).toLocaleString() : ""}
-                              </p>
-                            </div>
-                            <span style={{ flexShrink: 0, padding: "4px 10px", borderRadius: "6px", border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#16a34a", fontSize: "11.5px", fontWeight: 600 }}>
-                              Open
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  )}
 
                   </div>{/* end right column */}
                 </div>{/* end 2-col grid */}

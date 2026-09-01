@@ -577,7 +577,6 @@ function PreviewStep({ parsed, fileName, type, onBack, onNext }) {
    STEP 3 — Configure & Save
 ════════════════════════════════════════════════════════════════════════════ */
 const ASSET_CATEGORIES = [
-  { value: "soft",      label: "Soft Services" },
   { value: "technical", label: "Technical" },
   { value: "fleet",     label: "Fleet" },
   { value: "building",  label: "Building" },

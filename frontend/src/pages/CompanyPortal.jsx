@@ -920,7 +920,6 @@ const SECTORS = [
 
 
 
-  { value: "soft_services", label: "Soft Services", icon: "SS", description: "Housekeeping, catering, security" },
 
 
 
@@ -10428,7 +10427,6 @@ const CompanyPortal = () => {
 
 
 
-    if (secs.includes("soft_services") || secs.includes("soft")) allowed.push({ code: "soft", label: "Soft Services", workflowType: "soft" });
 
 
 
@@ -21467,7 +21465,6 @@ const CompanyPortal = () => {
 
 
 
-                      { code: "soft", label: "Soft Services", workflowType: "soft" },
 
 
 
@@ -29321,7 +29318,6 @@ const CompanyPortal = () => {
           const SECTOR_COLORS = {
             healthcare:    { bg: "#eff6ff", col: "#2563eb", label: "Healthcare" },
             technical:     { bg: "#f0fdf4", col: "#16a34a", label: "Technical" },
-            soft_services: { bg: "#fef9c3", col: "#ca8a04", label: "Soft Services" },
             fleet:         { bg: "#fce7f3", col: "#be185d", label: "Fleet" },
             general:       { bg: "#f1f5f9", col: "#475569", label: "General" },
           };

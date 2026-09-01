@@ -405,6 +405,13 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
       updated_at DATETIME DEFAULT NOW() ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_role_perms (company_id, role)
     )`,
+    // ── Soft Services removal: converge everyone onto the technical workflow ──
+    // Staff previously tagged 'soft' or 'both' become 'technical'; role-level
+    // soft capabilities are cleared. (Wrapped statements are individually safe —
+    // if a soft column doesn't exist, the loop's try/catch ignores it.)
+    `UPDATE company_users SET service_domain = 'technical' WHERE service_domain IN ('soft','both')`,
+    `UPDATE company_roles SET can_raise_soft_issue = 0, can_resolve_soft_issue = 0, is_soft_manager = 0
+      WHERE can_raise_soft_issue = 1 OR can_resolve_soft_issue = 1 OR is_soft_manager = 1`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (err) {
@@ -1491,17 +1498,9 @@ router.get("/assets", async (req, res, next) => {
       else if (!serviceDomain)            serviceDomain = 'technical';
     }
 
-    // ── Build soft/technical filter using pre-fetched codes (no subquery) ───
-    let softFilter = '';
-    if (!isAdminRole && serviceDomain !== 'both') {
-      const allSoftCodes = ['soft', ...softTypeCodes].map(c => pool.escape(c)).join(',');
-      if (serviceDomain === 'soft') {
-        softFilter = `AND LOWER(TRIM(COALESCE(a.asset_type,''))) IN (${allSoftCodes})`;
-      } else {
-        // technical — exclude all soft types
-        softFilter = `AND (a.asset_type IS NULL OR LOWER(TRIM(COALESCE(a.asset_type,''))) NOT IN (${allSoftCodes}))`;
-      }
-    }
+    // Soft Services removed: no soft/technical domain partitioning of assets —
+    // every user sees all assets their company access allows.
+    const softFilter = '';
 
     const { search, type, assignedOnly, assignedToMe, verified } = req.query;
 
@@ -4207,7 +4206,7 @@ router.post("/employees", async (req, res, next) => {
       ? req.companyUser.id
       : (supervisorId || null);
 
-    const validDomains = ['technical', 'soft', 'both'];
+    const validDomains = ['technical']; // Soft Services removed
     const resolvedDomain = validDomains.includes(serviceDomain) ? serviceDomain : 'technical';
 
     let passwordHash = null;
@@ -4273,7 +4272,7 @@ router.put("/employees/:id", async (req, res, next) => {
       ? req.companyUser.id
       : (supervisorId !== undefined ? (supervisorId || null) : undefined);
 
-    const validDomains = ['technical', 'soft', 'both'];
+    const validDomains = ['technical']; // Soft Services removed
     let serviceDomainClause = "";
 
     let passwordClause = "";

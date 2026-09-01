@@ -285,9 +285,10 @@ router.post("/", requirePermission("role:manage"), async (req, res, next) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           ...baseValues,
-          canRaiseSoftIssue     ? 1 : 0,
-          canResolveSoftIssue   ? 1 : 0,
-          isSoftManager         ? 1 : 0,
+          // Soft Services removed — soft capabilities are always off.
+          0,
+          0,
+          0,
           isTechnicalSupervisor ? 1 : 0,
           isTechnician          ? 1 : 0,
         ]
@@ -341,18 +342,8 @@ router.put("/:id", requirePermission("role:manage"), async (req, res, next) => {
       fields.push(`sort_order = ?`);
       params.push(sortOrder);
     }
-    if (canRaiseSoftIssue !== undefined) {
-      fields.push(`can_raise_soft_issue = ?`);
-      params.push(canRaiseSoftIssue ? 1 : 0);
-    }
-    if (canResolveSoftIssue !== undefined) {
-      fields.push(`can_resolve_soft_issue = ?`);
-      params.push(canResolveSoftIssue ? 1 : 0);
-    }
-    if (isSoftManager !== undefined) {
-      fields.push(`is_soft_manager = ?`);
-      params.push(isSoftManager ? 1 : 0);
-    }
+    // Soft Services removed — these capabilities can no longer be enabled.
+    void canRaiseSoftIssue; void canResolveSoftIssue; void isSoftManager;
     if (isTechnicalSupervisor !== undefined) {
       fields.push(`is_technical_supervisor = ?`);
       params.push(isTechnicalSupervisor ? 1 : 0);

@@ -336,7 +336,6 @@ export default function TabularLogsheetBuilder({ assets = [], onSave, onCancel, 
                 <select value={meta.assetType} onChange={(e) => setMeta((m) => ({ ...m, assetType: e.target.value }))}
                   style={{ width: "100%", padding: "7px 10px", borderRadius: "7px", border: "1px solid #e2e8f0", fontSize: "13px", background: "#fafafa" }}>
                   <option value="technical">Technical</option>
-                  <option value="soft">Soft Services</option>
                   <option value="fleet">Fleet</option>
                 </select>
               </div>

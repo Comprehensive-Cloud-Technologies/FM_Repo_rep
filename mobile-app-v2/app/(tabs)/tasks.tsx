@@ -31,7 +31,7 @@ import {
   fetchAllSoftRequests,
   authenticatedFetch,
 } from '../../utils/api';
-import { hasSoftAccess, isSoftManager } from '../../utils/permissions';
+// Soft Services removed — soft permission helpers no longer used here.
 import { useTheme, Typography, Spacing, Radius, Shadows } from '../../utils/theme';
 import StatusBadge, { statusVariant } from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
@@ -302,8 +302,8 @@ function LegacyTasksScreen() {
   const [category, setCategory] = useState<TaskCategory>('all');
   const [status,   setStatus]   = useState<TaskStatus>('all');
 
-  const hasSoft    = hasSoftAccess(capabilities);
-  const isSoftMgr  = isSoftManager(capabilities);
+  const hasSoft    = false; // Soft Services removed
+  const isSoftMgr  = false; // Soft Services removed
 
   // ── Load all data ──────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -387,7 +387,7 @@ function LegacyTasksScreen() {
       id:       `req-${r.id}`,
       category: 'request',
       title:    r.assetName    ?? 'Request',
-      subtitle: r.assetUniqueId ?? 'Soft Service',
+      subtitle: r.assetUniqueId ?? 'Request',
       meta:     r.raisedByName
         ? `By ${r.raisedByName} · ${new Date(r.raisedAt).toLocaleDateString()}`
         : new Date(r.raisedAt).toLocaleDateString(),

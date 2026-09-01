@@ -64,7 +64,7 @@ const Txt = (props) => <textarea {...props} rows={3} style={{ ...S.input, resize
 const CHECK_TYPES = ["Visual Inspection","Functional Test","Cleaning","Calibration","Safety Test","Electrical Test","Lubrication","Measurement","Documentation","Other"];
 const RESPONSE_TYPES = ["Pass/Fail","Yes/No","Numeric","Text","Dropdown","Image Upload","Signature"];
 const FREQUENCIES = ["Monthly","Quarterly","Half-Yearly","Yearly","Custom"];
-const ASSET_CATEGORIES = ["healthcare","general","fleet","technical","soft"];
+const ASSET_CATEGORIES = ["healthcare","general","fleet","technical"];
 
 // ─── Checklist Item Row ───────────────────────────────────────────────────────
 function ItemRow({ item, idx, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) {

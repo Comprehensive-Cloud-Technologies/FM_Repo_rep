@@ -23,7 +23,6 @@ const INPUT_TYPES = [
 const FREQUENCIES = ["Hourly", "Daily", "Weekly", "Monthly", "Custom"];
 
 const ASSET_CATEGORIES = [
-  { value: "soft", label: "Soft Services" },
   { value: "technical", label: "Technical" },
   { value: "fleet", label: "Fleet" },
   { value: "building", label: "Building" },

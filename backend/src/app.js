@@ -42,7 +42,9 @@ import assetTransferRouter from "./routes/assetTransfer.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
 import calibrationRouter from "./routes/calibration.js";
 import uploadRouter from "./routes/upload.js";
-import softServiceRequestsRouter from "./routes/softServiceRequests.js";
+// Soft Services feature removed from the product. Route left in the tree but not
+// mounted; existing data is preserved (dormant). See CHANGELOG.
+// import softServiceRequestsRouter from "./routes/softServiceRequests.js";
 import publicDashboardRouter from "./routes/publicDashboard.js";
 import mobileCaseLogsRouter from "./routes/mobileCaseLogs.js";
 import locationsRouter from "./routes/locations.js";
@@ -153,7 +155,8 @@ app.use("/api/company-portal/asset-intelligence", assetIntelligenceRouter);
 app.use("/api/company-portal/assets", assetTransferRouter);
 app.use("/api/company-portal/pms", pmsChecklistsRouter);
 app.use("/api/upload", uploadRouter);
-app.use("/api/soft-service", softServiceRequestsRouter);
+// Soft Services feature removed — route no longer mounted.
+// app.use("/api/soft-service", softServiceRequestsRouter);
 app.use("/api/public", publicDashboardRouter);
 app.use("/api/mobile/case-logs", mobileCaseLogsRouter);
 app.use("/api/locations", locationsRouter);
