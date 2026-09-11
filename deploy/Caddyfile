@@ -1,0 +1,12 @@
+# Automatic HTTPS (Let's Encrypt). Requires dev./test. DNS A-records → this box,
+# and ports 80/443 open. Caddy fetches + renews certs on its own.
+# The upstream names are the network aliases set by docker-compose.yml
+# (APP_ENV=dev → dev-frontend, APP_ENV=test → test-frontend).
+
+dev.htm.catalystservices.eco {
+    reverse_proxy dev-frontend:80
+}
+
+test.htm.catalystservices.eco {
+    reverse_proxy test-frontend:80
+}

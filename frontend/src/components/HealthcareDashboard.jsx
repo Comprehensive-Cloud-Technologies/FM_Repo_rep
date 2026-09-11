@@ -169,7 +169,33 @@ function EquipmentHealthChart({ statuses }) {
   const totalStr = total.toLocaleString("en-IN");
   const numFont = totalStr.length >= 9 ? 13 : totalStr.length >= 7 ? 16 : totalStr.length >= 5 ? 19 : 22;
 
-  let offset = 0;
+  // Build ring segments as arc paths. A minimum sweep keeps a tiny slice (e.g. a
+  // single "Not Working" out of 130) visible as a small block rather than a
+  // hairline that reads as a broken/cracked ring.
+  const MIN_DEG = 7, GAP_DEG = visible.length > 1 ? 1.2 : 0;
+  const polar = (deg) => {
+    const a = (deg - 90) * Math.PI / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  let segments = [];
+  if (total > 0 && visible.length === 1) {
+    segments = [{ full: true, color: visible[0].color, name: visible[0].name, value: visible[0].value, frac: 1 }];
+  } else if (total > 0) {
+    let boosted = visible.map((s) => ({ s, frac: (Number(s.value) || 0) / total, sweep: ((Number(s.value) || 0) / total) * 360 }));
+    boosted = boosted.map((o) => ({ ...o, sweep: o.sweep < MIN_DEG ? MIN_DEG : o.sweep }));
+    const extra = boosted.reduce((a, o) => a + o.sweep, 0) - 360;
+    const redTotal = boosted.filter((o) => o.sweep > MIN_DEG).reduce((a, o) => a + o.sweep, 0);
+    if (extra > 0 && redTotal > 0) boosted.forEach((o) => { if (o.sweep > MIN_DEG) o.sweep -= extra * (o.sweep / redTotal); });
+    let ang = 0;
+    segments = boosted.map((o) => {
+      const a0 = ang + GAP_DEG / 2, a1 = ang + o.sweep - GAP_DEG / 2;
+      ang += o.sweep;
+      const [x0, y0] = polar(a0), [x1, y1] = polar(a1);
+      const large = (a1 - a0) > 180 ? 1 : 0;
+      return { d: `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`, color: o.s.color, name: o.s.name, value: o.s.value, frac: o.frac };
+    });
+  }
+
   return (
     /* flexWrap NEVER wraps — legend is always to the right of the donut */
     <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", flexWrap: "nowrap", overflow: "hidden" }}>
@@ -177,20 +203,17 @@ function EquipmentHealthChart({ statuses }) {
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ filter: "drop-shadow(0 3px 8px rgba(15,23,42,0.10))" }}>
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef2f6" strokeWidth={stroke} />
-          <g transform={`rotate(-90 ${cx} ${cy})`}>
-            {total > 0 && visible.map((s, i) => {
-              const frac = (Number(s.value) || 0) / total;
-              const len = frac * circ;
-              const el = (
-                <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={stroke}
-                  strokeDasharray={`${len} ${circ - len}`} strokeDashoffset={-offset}>
-                  <title>{s.name}: {Number(s.value).toLocaleString("en-IN")} ({(frac * 100).toFixed(1)}%)</title>
-                </circle>
-              );
-              offset += len;
-              return el;
-            })}
-          </g>
+          {segments.map((sg, i) =>
+            sg.full ? (
+              <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={sg.color} strokeWidth={stroke}>
+                <title>{sg.name}: {Number(sg.value).toLocaleString("en-IN")} ({(sg.frac * 100).toFixed(1)}%)</title>
+              </circle>
+            ) : (
+              <path key={i} d={sg.d} fill="none" stroke={sg.color} strokeWidth={stroke}>
+                <title>{sg.name}: {Number(sg.value).toLocaleString("en-IN")} ({(sg.frac * 100).toFixed(1)}%)</title>
+              </path>
+            )
+          )}
           <circle cx={cx} cy={cy} r={r - stroke / 2} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -973,6 +996,11 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [reload, setReload] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  // Reset to first page whenever the search term changes (kpiFilter change remounts).
+  useEffect(() => { setPage(1); }, [search]);
 
   useEffect(() => {
     let alive = true;
@@ -1008,15 +1036,21 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
     else if (kpiFilter === "completed") data = rows.filter(r => st(r) === "completed");
     else if (kpiFilter === "overdue") data = rows.filter(r => st(r) !== "completed" && past(r.training_date));
   } else if (kpiFilter && type === "calibration") {
-    if (kpiFilter === "due_this_month")        data = rows.filter(r => thisMonth(r.nextCalibrationDate));
-    else if (kpiFilter === "overdue")          data = rows.filter(r => past(r.nextCalibrationDate));
-    else if (kpiFilter === "upcoming")         data = rows.filter(r => in30(r.nextCalibrationDate));
-    else if (kpiFilter === "completed_this_month") data = rows.filter(r => thisMonth(r.lastCalibrationDate));
+    // Filter by server-computed bucket flags that match the KPI card definitions exactly.
+    if (kpiFilter === "due_this_month")            data = rows.filter(r => Number(r.isDueThisMonth) === 1);
+    else if (kpiFilter === "overdue")              data = rows.filter(r => Number(r.isOverdue) === 1);
+    else if (kpiFilter === "upcoming")             data = rows.filter(r => Number(r.isUpcoming) === 1);
+    else if (kpiFilter === "completed_this_month") data = rows.filter(r => Number(r.isCompletedThisMonth) === 1);
   } else if (kpiFilter && type === "pms") {
-    if (kpiFilter === "overdue")        data = rows.filter(r => past(r.nextPmsDate));
-    else if (kpiFilter === "upcoming")  data = rows.filter(r => in30(r.nextPmsDate));
-    else if (kpiFilter === "completed") data = rows.filter(r => Number(r.closedPms || 0) > 0);
+    if (kpiFilter === "overdue")        data = rows.filter(r => Number(r.isOverdue) === 1);
+    else if (kpiFilter === "upcoming")  data = rows.filter(r => Number(r.isUpcoming) === 1);
+    else if (kpiFilter === "completed") data = rows.filter(r => Number(r.isCompleted) === 1);
   }
+
+  // Page-wise pagination for the drill-down list
+  const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+  const curPage    = Math.min(page, totalPages);
+  const pageRows   = data.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
   const assetCell = (name, id) => (
@@ -1122,6 +1156,7 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
         )}
       </div>
       {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={() => setReload(x => x + 1)} /> : data.length === 0 ? <EmptyState /> : (
+        <>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
@@ -1132,7 +1167,7 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((row, i) => (
+              {pageRows.map((row, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}
                   onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
                   onMouseLeave={e => e.currentTarget.style.background = ""}>
@@ -1144,6 +1179,21 @@ function KpiReportTable({ type, token, kpiFilter, allCompaniesMode = false }) {
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: "1px solid #eef2f6", flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              Showing {(curPage - 1) * PAGE_SIZE + 1}–{Math.min(curPage * PAGE_SIZE, data.length)} of {data.length}
+            </span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button disabled={curPage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                style={{ padding: "5px 11px", borderRadius: 7, border: "1px solid #e2e8f0", background: curPage <= 1 ? "#f8fafc" : "#fff", color: curPage <= 1 ? "#cbd5e1" : "#475569", fontSize: 12, fontWeight: 600, cursor: curPage <= 1 ? "not-allowed" : "pointer" }}>← Prev</button>
+              <span style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>Page {curPage} of {totalPages}</span>
+              <button disabled={curPage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                style={{ padding: "5px 11px", borderRadius: 7, border: "1px solid #e2e8f0", background: curPage >= totalPages ? "#f8fafc" : "#fff", color: curPage >= totalPages ? "#cbd5e1" : "#475569", fontSize: 12, fontWeight: 600, cursor: curPage >= totalPages ? "not-allowed" : "pointer" }}>Next →</button>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
@@ -1562,6 +1612,7 @@ function ReviewsSection({ token, compact = false, allCompaniesMode = false }) {
   const [page, setPage] = useState(1);
   const [allReviews, setAllReviews] = useState([]);
   const [expanded, setExpanded] = useState(false); // true once user clicks Load More
+  const [showCompactReviews, setShowCompactReviews] = useState(false); // dashboard: reviews hidden behind a link
   const INITIAL_LIMIT = 3;
   const MORE_LIMIT = 6;
 
@@ -1654,11 +1705,30 @@ function ReviewsSection({ token, compact = false, allCompaniesMode = false }) {
             </div>
           </>
         )}
-        {/* Recent reviews in compact mode */}
-        {!loading && data && totalRatings > 0 && allReviews.length > 0 && (
+        {/* Reviews are hidden on the dashboard — shown only when the user clicks the link */}
+        {!loading && data && totalRatings > 0 && allReviews.length > 0 && !showCompactReviews && (
           <div style={{ marginTop: 10, borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-              Recent Reviews
+            <button
+              onClick={() => setShowCompactReviews(true)}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#2563eb', fontSize: '11px', fontWeight: 700 }}
+            >
+              View {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'} →
+            </button>
+          </div>
+        )}
+        {/* Recent reviews in compact mode (revealed on click) */}
+        {!loading && data && totalRatings > 0 && allReviews.length > 0 && showCompactReviews && (
+          <div style={{ marginTop: 10, borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Recent Reviews
+              </div>
+              <button
+                onClick={() => setShowCompactReviews(false)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#94a3b8', fontSize: '10px', fontWeight: 700 }}
+              >
+                Hide
+              </button>
             </div>
             {allReviews.slice(0, 3).map((r) => {
               const text = (r.reviewText || '').trim();

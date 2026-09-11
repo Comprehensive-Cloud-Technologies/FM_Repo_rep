@@ -63,7 +63,9 @@ router.get("/:assetId", async (req, res, next) => {
     // Asset info
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS "assetName", a.asset_unique_id AS "assetUniqueId",
-              a.asset_type AS "assetType", a.status, a.building, a.floor, a.room,
+              a.asset_type AS "assetType", a.status,
+              a.working_status AS "workingStatus", a.working_status AS "working_status",
+              a.building, a.floor, a.room,
               a.calibration_required AS "calibrationRequired",
               a.calibration_frequency AS "calibrationFrequency",
               a.last_calibration_date AS "lastCalibrationDate",

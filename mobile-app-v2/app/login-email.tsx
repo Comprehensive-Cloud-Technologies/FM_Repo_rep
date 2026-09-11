@@ -41,7 +41,7 @@ export default function LoginEmailScreen() {
       const { user } = await loginWithEmail(trimmed, password);
       setUser(user);
       void registerForPushNotifications();
-      router.replace(user?.roleCapabilities?.isHCAdmin ? '/admin-dashboard' : '/(tabs)/home');
+      router.replace('/(tabs)/home');   // admins get the admin dashboard rendered inline on Home
     } catch (err: any) {
       Alert.alert('Login Failed', err.message ?? 'Invalid credentials. Please try again.');
     } finally {

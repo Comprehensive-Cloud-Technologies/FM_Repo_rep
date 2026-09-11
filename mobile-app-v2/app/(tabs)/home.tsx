@@ -1,4 +1,4 @@
-import { router, useFocusEffect, Redirect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator, Image, RefreshControl, ScrollView, StatusBar,
@@ -13,6 +13,7 @@ import {
   fetchMyPmsStats, fetchMyTrainings,
 } from '../../utils/api';
 import { useTheme, Spacing, Radius, Shadows, Typography } from '../../utils/theme';
+import AdminDashboard from '../admin-dashboard';
 
 const LOGO = require('../../assets/images/AssetPro.jpg');
 
@@ -150,14 +151,20 @@ export default function HomeTab() {
     } catch { /* silent */ } finally { setLoading(false); setRefreshing(false); }
   }, [scopedCompanyId]);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  // Engineers load the home feed; admins render the admin dashboard inline (below),
+  // so we skip this fetch for them.
+  useFocusEffect(useCallback(() => {
+    if (capabilities?.isHCAdmin) return;
+    void load();
+  }, [load, capabilities?.isHCAdmin]));
 
   const onRefresh = () => { setRefreshing(true); void load(true); };
 
-  // Admins use the dedicated multi-company dashboard — never the engineer home
-  // (no Overview / Quick actions / Modules sections for them).
+  // Admins use the dedicated multi-company dashboard. Render it INLINE inside the
+  // Home tab rather than redirecting to a route outside the tab group — a render-time
+  // <Redirect> here fired on every refocus and crashed the app when returning to Home.
   if (isLoaded && capabilities?.isHCAdmin) {
-    return <Redirect href="/admin-dashboard" />;
+    return <AdminDashboard />;
   }
 
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';

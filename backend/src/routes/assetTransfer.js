@@ -185,24 +185,15 @@ router.post("/bulk-transfer", async (req, res, next) => {
     if (!toCompanyId)    return res.status(400).json({ message: "toCompanyId required" });
 
     const toId    = Number(toCompanyId);
-    // Allow caller to specify a source company (e.g. admin viewing another hospital);
-    // must be in the user's accessible list.
-    let fromId = cid(req);
-    if (fromCompanyId && Number(fromCompanyId) !== fromId) {
-      const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
-      const requestedFrom = Number(fromCompanyId);
-      if (!accessibleIds.includes(requestedFrom))
-        return res.status(403).json({ message: "Access denied to source company" });
-      fromId = requestedFrom;
-    }
     const toDeptId = toDepartmentId ? Number(toDepartmentId) : null;
+    // Each asset's source is its OWN company (must be one this admin can access),
+    // derived per-asset below — so a non-primary / mixed selection still transfers.
+    const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
+    const accPh = accessibleIds.map(() => "?").join(",");
 
-    const [[toCo]]   = await pool.query("SELECT company_name FROM companies WHERE id = ?", [toId]);
-    const [[fromCo]] = await pool.query("SELECT company_name FROM companies WHERE id = ?", [fromId]);
+    const [[toCo]] = await pool.query("SELECT company_name FROM companies WHERE id = ?", [toId]);
     if (!toCo) return res.status(404).json({ message: "Target company not found" });
-
-    const fromName = fromCo?.company_name || `Company ${fromId}`;
-    const toName   = toCo.company_name;
+    const toName = toCo.company_name;
 
     let toDeptName = null;
     if (toDeptId) {
@@ -221,23 +212,27 @@ router.post("/bulk-transfer", async (req, res, next) => {
         await conn.beginTransaction();
 
         const [[asset]] = await conn.query(
-          `SELECT a.id, a.asset_name, a.department_id, a.assigned_to,
+          `SELECT a.id, a.asset_name, a.company_id, a.department_id, a.assigned_to,
                   a.generated_asset_id, a.transfer_count, a.original_company_id,
-                  d.name AS deptName
+                  d.name AS deptName, co.company_name AS companyName
            FROM assets a
            LEFT JOIN departments d ON d.id = a.department_id
-           WHERE a.id = ? AND a.company_id = ?`,
-          [assetId, fromId]
+           LEFT JOIN companies   co ON co.id = a.company_id
+           WHERE a.id = ? AND a.company_id IN (${accPh})`,
+          [assetId, ...accessibleIds]
         );
-        if (!asset) { results.push({ assetId, ok: false, message: "Not found in your company" }); await conn.rollback(); conn.release(); continue; }
+        if (!asset) { results.push({ assetId, ok: false, message: "Not found or not accessible" }); await conn.rollback(); conn.release(); continue; }
 
-        if (toId === fromId && (!toDeptId || toDeptId === asset.department_id)) {
+        const perFromId   = asset.company_id;
+        const perFromName = asset.companyName || `Company ${perFromId}`;
+
+        if (toId === perFromId && (!toDeptId || toDeptId === asset.department_id)) {
           results.push({ assetId, ok: false, message: "Already in this company/department" });
           await conn.rollback(); conn.release(); continue;
         }
 
         const transferRef = await nextTransferReference();
-        const snapshot = { assetId: asset.id, assetName: asset.asset_name, companyId: fromId, companyName: fromName, departmentId: asset.department_id, departmentName: asset.deptName, snapshotAt: new Date().toISOString() };
+        const snapshot = { assetId: asset.id, assetName: asset.asset_name, companyId: perFromId, companyName: perFromName, departmentId: asset.department_id, departmentName: asset.deptName, snapshotAt: new Date().toISOString() };
 
         await conn.query(
           `INSERT INTO asset_transfers
@@ -247,14 +242,14 @@ router.post("/bulk-transfer", async (req, res, next) => {
               from_assigned_to, transferred_by, transferred_by_name,
               reason, remarks, status, asset_snapshot)
            VALUES (?,?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,"completed",?)`,
-          [transferRef, assetId, fromId, toId, fromName, toName,
+          [transferRef, assetId, perFromId, toId, perFromName, toName,
            asset.department_id || null, asset.deptName || null, toDeptId, toDeptName,
            asset.assigned_to || null, uid(req), uname(req),
            reason.trim() || null, remarks.trim() || null, JSON.stringify(snapshot)]
         );
 
         const newCount = (asset.transfer_count || 0) + 1;
-        const origCoId = asset.original_company_id || fromId;
+        const origCoId = asset.original_company_id || perFromId;
 
         await conn.query(
           `UPDATE assets
@@ -266,7 +261,7 @@ router.post("/bulk-transfer", async (req, res, next) => {
                last_transferred_to_name = ?,
                last_transferred_dept_name = ?
            WHERE id = ?`,
-          [toId, toDeptId, newCount, origCoId, fromName, toName, toDeptName, assetId]
+          [toId, toDeptId, newCount, origCoId, perFromName, toName, toDeptName, assetId]
         );
 
         await conn.query("UPDATE asset_pre_qr SET company_id = ? WHERE asset_id = ?", [toId, assetId]).catch(() => {});
@@ -305,10 +300,13 @@ router.post("/:id/transfer", async (req, res, next) => {
       return res.status(400).json({ message: "toCompanyId is required" });
 
     const toId    = Number(toCompanyId);
-    const fromId  = cid(req);
     const toDeptId = toDepartmentId ? Number(toDepartmentId) : null;
 
-    // Fetch asset
+    // The source is wherever the asset actually lives among the companies this admin
+    // can access — NOT assumed to be their primary company. This lets an admin who
+    // manages multiple hospitals transfer an asset that sits in a non-primary one.
+    const accessibleIds = await getAccessibleCompanyIds(uid(req), cid(req));
+    const accPh = accessibleIds.map(() => "?").join(",");
     const [[asset]] = await conn.query(
       `SELECT a.id, a.asset_name, a.company_id, a.department_id, a.assigned_to,
               a.generated_asset_id, a.asset_unique_id,
@@ -317,10 +315,11 @@ router.post("/:id/transfer", async (req, res, next) => {
        FROM assets a
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN asset_details ad ON ad.asset_id = a.id
-       WHERE a.id = ? AND a.company_id = ?`,
-      [assetId, fromId]
+       WHERE a.id = ? AND a.company_id IN (${accPh})`,
+      [assetId, ...accessibleIds]
     );
-    if (!asset) return res.status(404).json({ message: "Asset not found in your company" });
+    if (!asset) return res.status(404).json({ message: "Asset not found or not accessible" });
+    const fromId = asset.company_id;   // actual source company of the asset
 
     // Prevent no-op transfers
     if (toId === fromId && (!toDeptId || toDeptId === asset.department_id))

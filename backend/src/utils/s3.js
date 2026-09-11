@@ -25,6 +25,13 @@ const BUCKET  = process.env.AWS_S3_BUCKET  || "catalysthtmappuploads";
 const REGION  = process.env.AWS_REGION     || "ap-south-1";
 const EXPIRY  = Number(process.env.AWS_S3_URL_EXPIRY || 3600); // seconds
 
+// Per-environment key prefix so dev/test/prod share one bucket without collisions.
+// Unset (production) → no prefix, so existing prod objects and paths are unchanged.
+// e.g. S3_PREFIX=dev  → keys become  dev/<folder>/<filename>
+const PREFIX = process.env.S3_PREFIX
+  ? `${String(process.env.S3_PREFIX).replace(/^\/+|\/+$/g, "")}/`
+  : "";
+
 // Use explicit credentials from env vars when provided; otherwise fall back to
 // the SDK default credential provider chain (reads ~/.aws/credentials, IAM roles,
 // environment variables etc.) — this lets EC2 instances with IAM roles or an
@@ -50,7 +57,7 @@ export const S3_FOLDERS = {
 
 // ── Upload a Buffer / Stream to S3 ────────────────────────────────────────────
 export async function uploadToS3({ buffer, stream, mimetype, folder, filename }) {
-  const key = `${folder}/${filename}`;
+  const key = `${PREFIX}${folder}/${filename}`;
   const body = buffer || stream;
 
   const upload = new Upload({

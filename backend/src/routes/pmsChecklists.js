@@ -1631,7 +1631,12 @@ router.get("/reports", async (req, res, next) => {
                JOIN pms_schedule_assets psa2 ON psa2.schedule_id = ps2.id AND psa2.asset_id = a.id
                WHERE ps2.company_id = a.company_id
                  AND ps2.maintenance_date > CURDATE()
-              ) AS nextPmsDate
+              ) AS nextPmsDate,
+              -- KPI bucket flags — MUST match /dashboard-stats definitions exactly so the
+              -- drill-down count equals the card value.
+              MAX(ps.maintenance_date < CURDATE() AND ps.status NOT IN ('completed','cancelled')) AS isOverdue,
+              MAX(ps.maintenance_date >= CURDATE() AND ps.maintenance_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) AND ps.status NOT IN ('completed','cancelled')) AS isUpcoming,
+              MAX(ps.status = 'completed') AS isCompleted
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        JOIN assets a ON a.id = psa.asset_id

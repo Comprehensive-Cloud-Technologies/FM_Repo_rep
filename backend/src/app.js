@@ -52,6 +52,7 @@ import statesRouter from "./routes/states.js";
 import adminSlaRouter from "./routes/adminSla.js";
 import companySlaRouter from "./routes/companySla.js";
 import trainingRouter from "./routes/training.js";
+import whatsappWebhookRouter from "./routes/whatsappWebhook.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -68,7 +69,11 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({
+  // Keep the raw body around so the WhatsApp webhook can verify Meta's
+  // X-Hub-Signature-256 HMAC. Harmless for every other route.
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(hpp()); // HTTP Parameter Pollution prevention
 app.use(morgan("tiny"));
 
@@ -161,6 +166,7 @@ app.use("/api/public", publicDashboardRouter);
 app.use("/api/mobile/case-logs", mobileCaseLogsRouter);
 app.use("/api/locations", locationsRouter);
 app.use("/api/states", statesRouter);
+app.use("/api/whatsapp", whatsappWebhookRouter);
 
 app.use("/uploads", (req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");

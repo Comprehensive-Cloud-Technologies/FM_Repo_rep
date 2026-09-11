@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
+### Added
+- **Scan a QR → report the issue on WhatsApp.** Scanning an asset QR from any
+  browser / phone camera / external scanner now opens WhatsApp (business number,
+  configurable via `VITE_WHATSAPP_NUMBER`) with a pre-filled message showing the
+  asset details and a fill-in report block (issue type / priority / details). The
+  HTM mobile app is unchanged — it keeps the in-app raise flow. **All** machine
+  stickers now encode a scan URL: per-asset QRs use `/asset-scan/:id`,
+  pre-generated stickers use the new `/q/:uid` route (existing printed bare-code
+  stickers must be reprinted to gain this behaviour).
+- **WhatsApp → Requests / Asset Queries (Cloud API webhook).** New
+  `/api/whatsapp/webhook` receives inbound WhatsApp Cloud API messages, maps them
+  to the asset via the pre-filled `Ref:` token, and inserts an `asset_queries`
+  row for the right company (so it appears in the Requests / Asset Queries panel),
+  then replies to confirm. Inert until the Meta credentials are configured
+  (`WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_TOKEN`,
+  `WHATSAPP_PHONE_NUMBER_ID`); requires migrating the number to the WhatsApp Cloud
+  API (the WhatsApp Business app can no longer be used on that number).
+
 ### Fixed
 - **Calibration module respects "All Hospitals"** — the Scheduler calendar and
   the asset-wise Reports now aggregate across all accessible hospitals (backend

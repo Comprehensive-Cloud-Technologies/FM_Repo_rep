@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "HTM",
+    "name": "AssetPro",
     "slug": "fmapp-mahesh9911",
     "version": "2.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "htmapp",
+    "icon": "./assets/images/AsstPro.jpg",
+    "scheme": "assetpro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -18,10 +18,24 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.cct123.htmappv2",
+      "package": "com.cct123.assetpro",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "htm.catalystservices.eco",
+              "pathPrefix": "/asset-scan"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {

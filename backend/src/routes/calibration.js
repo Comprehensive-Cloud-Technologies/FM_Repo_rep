@@ -735,7 +735,20 @@ router.get("/reports", async (req, res, next) => {
               WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id ORDER BY cs2.calibration_date DESC LIMIT 1) AS currentStatus,
              (SELECT IF(csa2.certificate_id IS NOT NULL,'uploaded','missing') FROM calibration_schedule_assets csa2
               JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
-              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed' ORDER BY cs2.calibration_date DESC LIMIT 1) AS certStatus
+              WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed' ORDER BY cs2.calibration_date DESC LIMIT 1) AS certStatus,
+             -- KPI bucket flags — MUST match the dashboard calibration snapshot definitions
+             -- (schedule-based) so the drill-down count equals the card value.
+             EXISTS(SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
+                    WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='pending'
+                      AND YEAR(cs2.calibration_date)=YEAR(CURDATE()) AND MONTH(cs2.calibration_date)=MONTH(CURDATE())) AS isDueThisMonth,
+             EXISTS(SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
+                    WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='pending' AND cs2.calibration_date < CURDATE()) AS isOverdue,
+             EXISTS(SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
+                    WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='pending'
+                      AND cs2.calibration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)) AS isUpcoming,
+             EXISTS(SELECT 1 FROM calibration_schedule_assets csa2 JOIN calibration_schedules cs2 ON cs2.id=csa2.schedule_id
+                    WHERE csa2.asset_id=a.id AND cs2.company_id=a.company_id AND csa2.status='completed'
+                      AND YEAR(cs2.calibration_date)=YEAR(CURDATE()) AND MONTH(cs2.calibration_date)=MONTH(CURDATE())) AS isCompletedThisMonth
       FROM assets a
       LEFT JOIN asset_details ad ON ad.asset_id = a.id
       LEFT JOIN departments d ON d.id = a.department_id

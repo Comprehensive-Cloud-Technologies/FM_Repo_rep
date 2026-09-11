@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AssetScanPage
  * Public page shown when a QR / barcode is scanned.
  * Shows full asset details + "Raise a Query" form.
@@ -119,8 +119,7 @@ export default function AssetScanPage() {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px 48px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
-        <img src={catalystLogo} alt="Catalyst FM" style={{ height: "36px", objectFit: "contain" }} />
-        <span style={{ fontSize: "15px", fontWeight: 800, color: "#1e3a8a" }}>Catalyst FM</span>
+        <img src={catalystLogo} alt="Catalyst" style={{ height: "40px", objectFit: "contain" }} />
       </div>
 
       <div style={{ width: "100%", maxWidth: "460px" }}>
@@ -160,24 +159,6 @@ export default function AssetScanPage() {
             <div style={{ padding: "20px" }}>
               {!showQueryForm ? (
                 <>
-                  {/* Equipment photos */}
-                  {Array.isArray(meta.hcImages) && meta.hcImages.length > 0 && (
-                    <Section title="Equipment Photos">
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {meta.hcImages.map((img, i) => {
-                          const rawUrl = typeof img === "string" ? img : (img?.url || img?.src || img?.path || "");
-                          const src = rawUrl.startsWith("http") ? rawUrl : `${BASE.replace(/\/$/, "")}${rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`}`;
-                          const label = typeof img === "object" ? (img?.name || `photo-${i+1}`) : `photo-${i+1}`;
-                          return (
-                            <a key={i} href={src} target="_blank" rel="noreferrer">
-                              <img src={src} alt={label} style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "6px", border: "1px solid #e2e8f0", cursor: "pointer" }} />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </Section>
-                  )}
-
                   <Section title="Equipment Information">
                     <InfoRow label="Make / Brand" value={meta.make || meta.manufacturer} />
                     <InfoRow label="Model" value={meta.model} />
@@ -203,33 +184,6 @@ export default function AssetScanPage() {
                         {meta.rber && <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>RBER</span>}
                       </div>
                       {maintenanceDates() && <InfoRow label="Period" value={maintenanceDates()} />}
-                    </Section>
-                  )}
-
-                  {(calibrationStatus || calibrationDueDate || calibrationVendor) && (
-                    <Section title="Calibration Status">
-                      <InfoRow label="Status" value={calibrationStatus} />
-                      <InfoRow label="Due Date" value={calibrationDueDate} />
-                      <InfoRow label="Vendor" value={calibrationVendor} />
-                      <InfoRow label="Certificate" value={calibrationCertificate} />
-                    </Section>
-                  )}
-
-                  {calibrationHistory.length > 0 && (
-                    <Section title="Calibration History">
-                      {calibrationHistory.slice(0, 5).map((row) => (
-                        <div key={row.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
-                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
-                            {row.calibrationDate} → {row.nextDueDate || "-"}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#64748b" }}>
-                            {(row.vendorName || "Vendor N/A")} · {(row.status || "Pending")}
-                            {row.certificateUrl ? (
-                              <a href={row.certificateUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "8px", color: "#2563eb", fontWeight: 600 }}>View PDF</a>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
                     </Section>
                   )}
 
@@ -303,7 +257,7 @@ export default function AssetScanPage() {
         )}
 
         <div style={{ textAlign: "center", marginTop: "24px", fontSize: "11px", color: "#94a3b8" }}>
-          Powered by <strong>Catalyst FM</strong> · Facility Management Platform
+          Powered by <strong>Catalyst Service Solutions</strong>
         </div>
       </div>
     </div>

@@ -297,6 +297,7 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_hours INT DEFAULT 24`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS cutoff_time DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS in_progress_at DATETIME DEFAULT NULL`,
+  `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS engineer_attended_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS assigned_at DATETIME DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS downtime_minutes INT DEFAULT NULL`,
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS prior_downtime_minutes INT NOT NULL DEFAULT 0`,
@@ -313,6 +314,9 @@ router.post("/departments-by-company/:companyId", async (req, res, next) => {
   `ALTER TABLE asset_queries ADD COLUMN IF NOT EXISTS after_photos JSON DEFAULT NULL`,
   // Ensure priority column is VARCHAR so mobile values ("normal","high",etc.) and SLA codes (P1-P4) both work
   `ALTER TABLE asset_queries MODIFY COLUMN priority VARCHAR(40) DEFAULT NULL`,
+  // Add 'assigned' to the status lifecycle so a QR ticket can move Open → Assigned when
+  // an engineer is assigned (matches work_orders). Idempotent MODIFY.
+  `ALTER TABLE asset_queries MODIFY COLUMN status ENUM('open','assigned','in_progress','resolved','closed') NOT NULL DEFAULT 'open'`,
   // Ensure notifications table has the right columns (may have been created by old flag engine)
   `CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -3152,6 +3156,12 @@ router.delete("/asset-queries/:id", async (req, res, next) => {
       `SELECT id FROM asset_queries WHERE id = ? AND company_id IN (${ph})`, [id, ...accessibleIds]
     );
     if (!check) return res.status(404).json({ message: "Request not found" });
+    // Cascade-delete the ticket's SLA snapshot + clocks so they don't linger as
+    // orphaned rows that keep counting in the SLA dashboard (MTTR, drill-downs, counts).
+    try {
+      await pool.query("DELETE FROM ticket_sla_clocks WHERE ticket_sla_id IN (SELECT id FROM ticket_sla WHERE query_id = ?)", [id]);
+      await pool.query("DELETE FROM ticket_sla WHERE query_id = ?", [id]);
+    } catch (e) { console.warn("[SLA] cascade cleanup on delete failed for query", id, e?.message); }
     await pool.query("DELETE FROM asset_queries WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -3207,15 +3217,23 @@ router.patch("/asset-queries/:id/assign", requirePermission("case_log:assign"), 
     );
     if (!query) return res.status(404).json({ message: "Request not found" });
     const assignedAt = assignedTo ? new Date() : null;
+    const newAssignedTo = assignedTo ? Number(assignedTo) : null;
     await pool.query(
-      "UPDATE asset_queries SET assigned_to = ?, assigned_at = CASE WHEN assigned_to IS NULL AND ? IS NOT NULL THEN ? ELSE assigned_at END, updated_at = NOW() WHERE id = ?",
-      [assignedTo ? Number(assignedTo) : null, assignedTo || null, assignedAt, id]
+      "UPDATE asset_queries SET assigned_to = ?, assigned_at = COALESCE(assigned_at, ?), updated_at = NOW() WHERE id = ?",
+      [newAssignedTo, assignedAt, id]
     );
+    // Reflect the assignment in the ticket lifecycle so the Assigned count + the
+    // Assign/Reassign button update. Only touch Open↔Assigned — never in-progress/resolved.
+    if (newAssignedTo) {
+      await pool.query("UPDATE asset_queries SET status = 'assigned' WHERE id = ? AND status = 'open'", [id]);
+    } else {
+      await pool.query("UPDATE asset_queries SET status = 'open' WHERE id = ? AND status = 'assigned'", [id]);
+    }
     const ticketCompanyId = query.company_id || cid(req);
     emitToCompany(ticketCompanyId, 'issue:updated', {
       id: Number(id),
-      status: 'in_progress',
-      assignedTo: assignedTo ? Number(assignedTo) : null,
+      status: assignedTo ? 'assigned' : 'open',
+      assignedTo: newAssignedTo,
     });
     // Notify the assigned engineer
     if (assignedTo) {

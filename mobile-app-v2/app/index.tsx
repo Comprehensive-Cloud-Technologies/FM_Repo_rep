@@ -34,7 +34,7 @@ export default function CompanyCodeScreen() {
         setUser(user);
         // Admins resume into the multi-company admin dashboard, not the
         // engineer/doctor home.
-        router.replace(user?.roleCapabilities?.isHCAdmin ? '/admin-dashboard' : '/(tabs)/home');
+        router.replace('/(tabs)/home');   // admins get the admin dashboard rendered inline on Home
       } else if (company) {
         router.replace({ pathname: '/login', params: { companyId: String(company.companyId), companyName: company.companyName } });
       } else {

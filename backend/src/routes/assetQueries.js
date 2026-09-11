@@ -8,7 +8,7 @@ import { body, param } from "express-validator";
 import pool from "../db.js";
 import { validate } from "../validators.js";
 import { requireAuth } from "../middleware/auth.js";
-import { completeClock as slaCompleteClock } from "../utils/slaV2Engine.js";
+import { completeClock as slaCompleteClock, initTicketSla } from "../utils/slaV2Engine.js";
 
 const router = Router();
 
@@ -64,10 +64,11 @@ export const DEFAULT_QUERIES = {
 // ── PUBLIC: Submit a query from QR scan page ──────────────────────────────────
 const submitRules = [
   body("requesterName").trim().notEmpty().withMessage("Name is required"),
-  body("requesterPhone").optional().isString().isLength({ max: 32 }),
-  body("requesterEmail").optional().isEmail().withMessage("Invalid email"),
-  body("queryType").optional().isString().isLength({ max: 120 }),
-  body("message").optional().isString().isLength({ max: 2000 }),
+  // checkFalsy so empty strings from optional/unfilled fields are treated as "not provided"
+  body("requesterPhone").optional({ checkFalsy: true }).isString().isLength({ max: 32 }),
+  body("requesterEmail").optional({ checkFalsy: true }).isEmail().withMessage("Invalid email"),
+  body("queryType").optional({ checkFalsy: true }).isString().isLength({ max: 120 }),
+  body("message").optional({ checkFalsy: true }).isString().isLength({ max: 2000 }),
 ];
 
 router.post(
@@ -76,16 +77,17 @@ router.post(
   async (req, res, next) => {
     try {
       const { assetId } = req.params;
-      const { requesterName, requesterPhone, requesterEmail, queryType, message } = req.body;
+      const { requesterName, requesterPhone, requesterEmail, queryType, message, priority } = req.body;
+      const uiPriority = priority || "normal";
 
-      // Get asset + company info
+      // Get asset + company info (incl. the fields the SLA engine needs to resolve a policy)
       const [[asset]] = await pool.query(
-        `SELECT a.id, a.company_id, a.asset_name, cu.id AS assigned_user_id
+        `SELECT a.id, a.company_id, a.department_id, a.asset_category, a.criticality,
+                a.asset_name, d.name AS dept_name, c.company_name
          FROM assets a
-         LEFT JOIN company_users cu ON cu.company_id = a.company_id AND cu.role IN ('admin','supervisor','technician')
-         WHERE a.id = ?
-         ORDER BY cu.role ASC
-         LIMIT 1`,
+         LEFT JOIN departments d ON d.id = a.department_id
+         LEFT JOIN companies   c ON c.id = a.company_id
+         WHERE a.id = ?`,
         [assetId]
       );
 
@@ -93,10 +95,14 @@ router.post(
         return res.status(404).json({ message: "Asset not found" });
       }
 
+      // NOTE: leave assigned_to NULL — a newly raised issue must be UNASSIGNED (Open)
+      // until a supervisor assigns it. Auto-assigning here made every new ticket show
+      // "Reassign" and pre-completed the SLA response clock.
       const [result] = await pool.execute(
         `INSERT INTO asset_queries
-           (asset_id, company_id, requester_name, requester_phone, requester_email, query_type, message, assigned_to)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (asset_id, company_id, requester_name, requester_phone, requester_email,
+            query_type, message, title, description, priority, assigned_to)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
         [
           assetId,
           asset.company_id,
@@ -105,16 +111,35 @@ router.post(
           requesterEmail || null,
           queryType || null,
           message || null,
-          asset.assigned_user_id || null,
+          queryType || null,            // title
+          message || queryType || null, // description (shown as the issue)
+          uiPriority,
         ]
       );
 
-      return res.status(201).json({
+      res.status(201).json({
         id: result.insertId,
         assetName: asset.asset_name,
         status: "open",
         message: "Query submitted successfully. Our team will reach out to you.",
       });
+
+      // Initialise SLA clocks for this new complaint (same as the portal raise path);
+      // fire-and-forget so it never blocks the public response.
+      initTicketSla({
+        queryId:       result.insertId,
+        assetId,
+        deptId:        asset.department_id  || null,
+        companyId:     asset.company_id,
+        assetCategory: asset.asset_category || null,
+        criticality:   asset.criticality    || null,
+        uiPriority,
+        ticketType:    "complaint",
+        assetName:     asset.asset_name     || "",
+        deptName:      asset.dept_name      || "",
+        companyName:   asset.company_name   || "",
+      }).catch(e => console.warn("[SLA] initTicketSla failed for QR query", result.insertId, e?.message));
+      return;
     } catch (err) {
       return next(err);
     }

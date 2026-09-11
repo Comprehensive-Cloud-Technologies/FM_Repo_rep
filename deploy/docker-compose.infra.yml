@@ -1,0 +1,47 @@
+# ── Shared infrastructure for the dev/test box (run ONCE) ─────────────────────
+# One MySQL (two schemas) + one Caddy reverse proxy, on a shared external network
+# that the per-environment app stacks join.
+#
+#   docker network create htm_edge          # once
+#   docker compose -f docker-compose.infra.yml -p htm-infra up -d
+#
+# Requires deploy/.env  (MYSQL_ROOT_PASSWORD).
+
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro   # creates fmapp_dev + fmapp_test on first boot
+    networks:
+      htm_edge:
+        aliases: [mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [htm_edge]
+
+networks:
+  htm_edge:
+    external: true
+
+volumes:
+  dbdata:
+  caddy_data:
+  caddy_config:

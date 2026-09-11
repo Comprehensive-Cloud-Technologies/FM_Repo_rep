@@ -48,7 +48,7 @@ export default function LoginScreen() {
       void registerForPushNotifications();
       // Admins get the web-like multi-company admin experience; everyone else
       // lands on the role-appropriate home.
-      router.replace(user?.roleCapabilities?.isHCAdmin ? '/admin-dashboard' : '/(tabs)/home');
+      router.replace('/(tabs)/home');   // admins get the admin dashboard rendered inline on Home
     } catch (err: any) {
       Alert.alert('Login Failed', err.message ?? 'Invalid credentials. Please try again.');
     } finally {

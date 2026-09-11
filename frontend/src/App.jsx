@@ -267,6 +267,7 @@ function App() {
       <Route path="/company/submissions" element={<SubmissionsPage />} />
       <Route path="/public/:token" element={<PublicDashboard />} />
       <Route path="/asset-scan/:assetId" element={<AssetScanPage />} />
+      <Route path="/q/:uid" element={<AssetScanPage />} />
       <Route path="*" element={isRootAuthed ? <AdminShell onSignOut={handleRootSignOut} /> : <Navigate to="/root-login" replace />} />
     </Routes>
   );

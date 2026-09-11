@@ -289,13 +289,13 @@ router.get("/", async (req, res, next) => {
          aq.id, CONCAT('AQ-', aq.id) AS work_order_number,
          a.asset_name AS asset_name,
          CONCAT_WS(', ', a.building, a.floor, a.room) AS location,
-         COALESCE(NULLIF(aq.description, ''), aq.title) AS issue_description, aq.priority, aq.status,
+         COALESCE(NULLIF(aq.description, ''), NULLIF(aq.title, ''), NULLIF(CONCAT_WS(' — ', NULLIF(aq.query_type, ''), NULLIF(aq.message, '')), '')) AS issue_description, aq.priority, aq.status,
          aq.resolution_note AS remarks,
          'QR Scan' AS source_label, 'asset_query' AS source_type,
          aq.created_at,
          cu.full_name AS assigned_to_name,
          a.asset_unique_id,
-         raised_by.full_name AS raised_by_name
+         COALESCE(raised_by.full_name, NULLIF(aq.requester_name, '')) AS raised_by_name
        FROM asset_queries aq
        LEFT JOIN assets a              ON a.id  = aq.asset_id
        LEFT JOIN company_users cu      ON cu.id = aq.assigned_to
@@ -332,7 +332,7 @@ router.get("/:id", async (req, res, next) => {
            aq.id, CONCAT('AQ-', aq.id) AS work_order_number,
            a.asset_name AS asset_name,
            CONCAT_WS(', ', a.building, a.floor, a.room) AS location,
-           COALESCE(NULLIF(aq.description, ''), aq.title) AS issue_description, aq.priority, aq.status,
+           COALESCE(NULLIF(aq.description, ''), NULLIF(aq.title, ''), NULLIF(CONCAT_WS(' — ', NULLIF(aq.query_type, ''), NULLIF(aq.message, '')), '')) AS issue_description, aq.priority, aq.status,
            aq.resolution_note AS remarks,
            'QR Scan' AS source_label, 'asset_query' AS source_type,
            aq.created_at,
@@ -340,7 +340,7 @@ router.get("/:id", async (req, res, next) => {
            cu.designation AS assigned_to_designation,
            d.name AS department_name,
            a.asset_unique_id, a.asset_type, a.asset_category,
-           raised_by.full_name AS raised_by_name,
+           COALESCE(raised_by.full_name, NULLIF(aq.requester_name, '')) AS raised_by_name,
            raised_by.role AS raised_by_role
          FROM asset_queries aq
          LEFT JOIN assets a              ON a.id  = aq.asset_id

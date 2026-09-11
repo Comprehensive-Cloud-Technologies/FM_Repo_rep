@@ -51,7 +51,14 @@ export default function QRScannerScreen() {
     setLoading(true);
 
     try {
-      const raw = data.trim();
+      let raw = data.trim();
+
+      // 0. Machine stickers now encode a scan URL so a phone camera / browser can
+      //    open them. If this is our /q/<uid> pre-QR URL, pull the code back out so
+      //    the existing pre-QR lookup below handles it exactly like a bare code.
+      //    (/asset-scan/<id> URLs fall through to the numeric-id handling in step 2.)
+      const qUidMatch = raw.match(/\/q\/([^/?#]+)/i)?.[1];
+      if (qUidMatch) raw = decodeURIComponent(qUidMatch).trim();
 
       // 1. Pre-generated QR code (old "QR-" prefix OR new asset-ID format like CCT-MH-000001)
       //    Try the pre-QR lookup first for any barcode-shaped string, so both linked and

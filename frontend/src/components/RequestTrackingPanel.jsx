@@ -1554,7 +1554,7 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                             {canManage && !['completed', 'closed', 'resolved'].includes(wo.status) && (
                               <button onClick={() => setSelectedWO({ ...wo, _openTab: 'assign' })}
                                 style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#2563eb', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
-                                {wo.cp_assigned_to || wo.assigned_to_name ? 'Reassign' : 'Assign'}
+                                {(wo.cp_assigned_to || wo.assigned_to_name) && wo.status !== 'open' ? 'Reassign' : 'Assign'}
                               </button>
                             )}
 

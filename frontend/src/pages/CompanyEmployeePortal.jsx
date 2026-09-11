@@ -4200,7 +4200,6 @@ const NAV_ALL = [
   { key: "calibration",   label: "Calibration",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
   { key: "training",      label: "Training",         roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
   { key: "asset-intelligence", label: "Asset Pro Intelligence", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h2a2 2 0 0 1 2 2v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1v-1a2 2 0 0 1 2-2h2V9.5C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/><circle cx="12" cy="6" r="1.5" fill="currentColor"/></svg> },
-  { key: "mis", label: "MIS", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="4" rx="1"/><rect x="14" y="14" width="7" height="4" rx="1"/><line x1="3" y1="21" x2="20" y2="21"/></svg> },
 ];
 
 const getNav = (role) => NAV_ALL.filter((n) => n.roles.includes(role) || n.roles.includes("*"));
@@ -5428,6 +5427,14 @@ export default function CompanyEmployeePortal() {
         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
         if (assetStatusFilter === "Verified") return isVerified;
         if (assetStatusFilter === "Unverified") return !isVerified && (a.status === "Unverified" || !a.status || a.status === "Active");
+        if (assetStatusFilter === "Working") {
+          const ws = (m.workingStatus || a.workingStatus || "").toLowerCase().replace(/[_ ]/g, "");
+          return ws === "working" || ws === "";   // blank working-status defaults to Working
+        }
+        if (assetStatusFilter === "Active" || assetStatusFilter === "Inactive") {
+          const ws = (m.workingStatus || a.workingStatus || "").toLowerCase();
+          return ws === assetStatusFilter.toLowerCase() || (a.status || "").toLowerCase() === assetStatusFilter.toLowerCase();
+        }
         if (assetStatusFilter === "HNF") return (m.workingStatus || "").toLowerCase() === "hnf";
         if (assetStatusFilter === "WIP") return (m.workingStatus || "").toLowerCase() === "wip";
         if (assetStatusFilter === "Not Working") return (m.workingStatus || "").toLowerCase().replace(/[_ ]/g, "") === "notworking";
@@ -5632,13 +5639,19 @@ export default function CompanyEmployeePortal() {
   // Generate a QR code data URL from any string using the `qrcode` library
   const generateQRDataUrl = (content) => QRCode.toDataURL(content, { width: 280, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } });
 
+  // QR stickers pasted on machines must encode a scan URL (not a bare code) so a
+  // phone camera / any browser can open them and route to WhatsApp. Per-asset QRs
+  // use the numeric-id /asset-scan route; pre-generated stickers use /q/:uid.
+  const assetScanUrl = (assetId) => `${getPublicAppUrl()}/asset-scan/${assetId}`;
+  const preQrScanUrl = (uid) => `${getPublicAppUrl()}/q/${encodeURIComponent(uid)}`;
+
   // Stable QR card generation — runs only when the selected QR changes, avoiding modal remount loops
   useEffect(() => {
     if (!preQrLinkModal) { setViewQrCardHtml(null); return; }
     setViewQrCardHtml(null);
     (async () => {
       try {
-        const qrDataUrl = await generateQRDataUrl(preQrLinkModal.qrUniqueId);
+        const qrDataUrl = await generateQRDataUrl(preQrScanUrl(preQrLinkModal.qrUniqueId));
         const catalystLogo = await urlToDataUrl(`${window.location.origin}/catalyst-logo.png`).catch(() => null);
         const clientLogo = companyLogoUrl
           ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`).catch(() => null)
@@ -5657,7 +5670,7 @@ export default function CompanyEmployeePortal() {
       try {
         const uid = assetViewQrModal.assetUniqueId || assetViewQrModal.asset_unique_id || `ASSET-${assetViewQrModal.id}`;
         const displayId = assetViewQrModal.generatedAssetId || assetViewQrModal.generated_asset_id || uid;
-        const qrDataUrl = await generateQRDataUrl(uid);
+        const qrDataUrl = await generateQRDataUrl(assetScanUrl(assetViewQrModal.id));
         setViewRawQrDataUrl(qrDataUrl);
         setAssetViewQrCardHtml(buildQrCardHtml(qrDataUrl, displayId, assetViewQrModal.assetName || "", qrCardLabel));
       } catch (e) { console.error(e); }
@@ -5722,7 +5735,7 @@ export default function CompanyEmployeePortal() {
       const displayId = asset?.generatedAssetId || asset?.generated_asset_id || uid;
       const assetName = asset?.assetName || asset?.asset_name || "";
       const clientLabel = qrCardLabel || companyDisplayName || "CLIENT";
-      const qrDataUrl = viewRawQrDataUrl || await generateQRDataUrl(uid);
+      const qrDataUrl = viewRawQrDataUrl || await generateQRDataUrl(assetScanUrl(asset?.id));
       const qrImg = await loadImage(qrDataUrl);
 
       const pxPerMm = 8;
@@ -5809,7 +5822,7 @@ export default function CompanyEmployeePortal() {
       const cardHtmls = await Promise.all(assetsToPrint.map(async (asset) => {
         const barcodeStr = asset.assetUniqueId || asset.asset_unique_id || `ASSET-${asset.id}`;
         const cardId = asset.generatedAssetId || asset.generated_asset_id || barcodeStr;
-        const qrUrl = await generateQRDataUrl(barcodeStr);
+        const qrUrl = await generateQRDataUrl(assetScanUrl(asset.id));
         const name = asset.assetName || asset.asset_name || "";
         return buildQrCardHtml(qrUrl, cardId, name, qrCardLabel);
       }));
@@ -5846,7 +5859,7 @@ export default function CompanyEmployeePortal() {
         ? await urlToDataUrl(`${window.location.origin}${companyLogoUrl.startsWith("/") ? "" : "/"}${companyLogoUrl}`)
         : null);
       const cardHtmls = await Promise.all(qrList.map(async (qr) => {
-        const qrUrl = await generateQRDataUrl(qr.qrUniqueId);
+        const qrUrl = await generateQRDataUrl(preQrScanUrl(qr.qrUniqueId));
         const cardId = qr.generatedAssetId || qr.generated_asset_id || qr.qrUniqueId;
         return buildQrCardHtml(qrUrl, cardId, qr.assetName || "", qrCardLabel);
       }));
@@ -9740,23 +9753,7 @@ export default function CompanyEmployeePortal() {
           {/* Natural-language report generator */}
           <AssetIntelligenceReport token={token} companyId={allCompaniesMode ? undefined : currentUser?.companyId} userName={currentUser?.fullName} />
 
-          {/* KPI Banner */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "24px" }}>
-            {[
-              { label: "Assets Monitored",    val: snapshot?.total        || "—", icon: "📦", color: "#2563eb", bg: "#eff6ff" },
-              { label: "Health Score",         val: snapshot?.working && snapshot?.total ? `${((snapshot.working / snapshot.total) * 100).toFixed(1)}%` : "—", icon: "💚", color: "#16a34a", bg: "#f0fdf4" },
-              { label: "At-Risk Assets",       val: snapshot?.notWorking  || "—", icon: "⚠️", color: "#ea580c", bg: "#fff7ed" },
-              { label: "Avg MTTR (days)",      val: "—",                            icon: "⏱", color: "#7c3aed", bg: "#f5f3ff" },
-            ].map(({ label, val, icon, color, bg }) => (
-              <div key={label} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px" }}>
-                <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>{icon}</div>
-                <div>
-                  <div style={{ fontSize: "22px", fontWeight: 800, color, lineHeight: 1 }}>{val}</div>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", fontWeight: 500 }}>{label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* KPI Banner (Assets Monitored / Health Score / At-Risk / Avg MTTR) removed per request */}
 
           {/* Placeholder "coming soon" analytics — removed from UI (not in use) */}
           {false && (<>

@@ -1,0 +1,41 @@
+# ── One app stack (backend + frontend) for a single environment ───────────────
+# Parameterized so the SAME file runs both environments from their own checkouts,
+# giving develop and testing independent code versions. Both join the shared
+# htm_edge network (see docker-compose.infra.yml) so Caddy + MySQL can reach them.
+#
+# From the develop checkout:
+#   APP_ENV=dev  VITE_MODE=develop  BACKEND_ENV_FILE=../backend/.env.development \
+#     docker compose -p htm-dev  up -d --build
+#
+# From the testing checkout:
+#   APP_ENV=test VITE_MODE=testing BACKEND_ENV_FILE=../backend/.env.testing \
+#     docker compose -p htm-test up -d --build
+
+services:
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file: ${BACKEND_ENV_FILE}
+    volumes:
+      - ./uploads-${APP_ENV}:/app/uploads     # legacy local uploads persist per env
+    networks:
+      htm_edge:
+        aliases: ["${APP_ENV}-backend"]
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_MODE: ${VITE_MODE}
+    restart: unless-stopped
+    environment:
+      BACKEND_HOST: ${APP_ENV}-backend
+      BACKEND_PORT: "4000"
+    depends_on: [backend]
+    networks:
+      htm_edge:
+        aliases: ["${APP_ENV}-frontend"]
+
+networks:
+  htm_edge:
+    external: true

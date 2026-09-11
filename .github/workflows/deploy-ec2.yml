@@ -31,6 +31,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Release-candidate tags (v1.2.0-rc.1) go to the TESTING box, never production.
+    if: ${{ !contains(github.ref, '-rc') }}
     runs-on: ubuntu-latest
     environment: production
     steps:

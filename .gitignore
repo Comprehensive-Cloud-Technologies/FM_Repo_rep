@@ -5,3 +5,12 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# ── Multi-env (dev/test/prod) ─────────────────────────────────────────────────
+# Keep the templates and the non-secret frontend build files in git,
+# but never commit real secret env files or the local upload volumes.
+!.env.*.example
+!frontend/.env.develop
+!frontend/.env.testing
+deploy/uploads-dev/
+deploy/uploads-test/

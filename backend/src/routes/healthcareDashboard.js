@@ -1289,7 +1289,7 @@ router.get("/requests", validate([
     if (req.query.dateFrom)   { woWhere += " AND wo.created_at >= ?";    woP.push(req.query.dateFrom); }
     if (req.query.dateTo)     { woWhere += " AND DATE(wo.created_at) <= ?"; woP.push(req.query.dateTo); }
     if (req.query.escalated === "true") { woWhere += " AND wo.escalation_level > 0"; }
-    if (req.query.overdue === "true")   { woWhere += " AND wo.is_overdue = 1"; }
+    if (req.query.overdue === "true")   { woWhere += " AND (wo.is_overdue = 1 OR (wo.cutoff_time IS NOT NULL AND wo.cutoff_time < NOW() AND wo.status NOT IN ('completed','closed')))"; }
     if (req.query.source) { woWhere += " AND LOWER(wo.source_label) LIKE ?"; woP.push(`%${req.query.source.toLowerCase()}%`); }
     if (req.query.hospitalName) { woWhere += " AND c.company_name LIKE ?"; woP.push(`%${req.query.hospitalName}%`); }
     if (req.query.departmentId) { woWhere += " AND (wo.department_id = ? OR d.id = ?)"; woP.push(Number(req.query.departmentId), Number(req.query.departmentId)); }
@@ -1304,7 +1304,7 @@ router.get("/requests", validate([
     let aqWhere = `WHERE aq.company_id IN (${inClause})`;
     const aqP = [...companyIds];
     // Map WO status values to their AQ equivalents (AQ statuses: open, in_progress, resolved, closed)
-    const AQ_STATUS_MAP = { open: "open", in_progress: "in_progress", completed: "resolved", closed: "closed" };
+    const AQ_STATUS_MAP = { open: "open", assigned: "assigned", in_progress: "in_progress", completed: "resolved", closed: "closed" };
     const forceSkipAQStatus = req.query.status && req.query.status !== "all" && !AQ_STATUS_MAP[req.query.status];
     if (req.query.status && req.query.status !== "all") {
       const aqSt = AQ_STATUS_MAP[req.query.status];
@@ -1320,8 +1320,12 @@ router.get("/requests", validate([
       const s = `%${req.query.search}%`; aqP.push(s, s, s, s, s, s, s, s);
     }
     if (req.query.priority) { aqWhere += " AND aq.priority = ?"; aqP.push(req.query.priority.toLowerCase()); }
-    // Skip asset_queries only for escalated/overdue/assignedTo filters, or when status has no AQ equivalent
-    const skipAQ = forceSkipAQStatus || req.query.escalated === "true" || req.query.overdue === "true" || req.query.assignedTo;
+    // Overdue = past cutoff and not yet resolved/closed (AQ has no is_overdue flag; derive it here)
+    if (req.query.overdue === "true") {
+      aqWhere += " AND aq.cutoff_time IS NOT NULL AND aq.cutoff_time < NOW() AND aq.status NOT IN ('resolved','closed')";
+    }
+    // Skip asset_queries only for escalated/assignedTo filters, or when status has no AQ equivalent
+    const skipAQ = forceSkipAQStatus || req.query.escalated === "true" || req.query.assignedTo;
 
     const [woRows] = await pool.query(
       `SELECT
@@ -1376,7 +1380,9 @@ router.get("/requests", validate([
            CASE aq.status WHEN 'resolved' THEN 'completed' ELSE aq.status END AS status,
            aq.assigned_to AS cp_assigned_to,
            0 AS escalation_level,
-           0 AS is_overdue,
+           CASE WHEN aq.cutoff_time IS NOT NULL AND aq.cutoff_time < NOW()
+                     AND aq.status NOT IN ('resolved','closed')
+                THEN 1 ELSE 0 END AS is_overdue,
            DATE_FORMAT(aq.cutoff_time, '%Y-%m-%dT%H:%i:%s') AS cutoff_time,
            'QR Scan' AS source_label,
            aq.created_at,
@@ -1637,16 +1643,20 @@ router.get("/requests", validate([
          SUM(CASE WHEN wo.status = 'completed'   THEN 1 ELSE 0 END) AS completed,
          SUM(CASE WHEN wo.status = 'closed'      THEN 1 ELSE 0 END) AS closed,
          SUM(CASE WHEN wo.escalation_level > 0   THEN 1 ELSE 0 END) AS escalated,
-         SUM(CASE WHEN wo.is_overdue = 1         THEN 1 ELSE 0 END) AS overdue
+         SUM(CASE WHEN wo.is_overdue = 1
+                    OR (wo.cutoff_time IS NOT NULL AND wo.cutoff_time < NOW() AND wo.status NOT IN ('completed','closed'))
+                  THEN 1 ELSE 0 END) AS overdue
        FROM work_orders wo WHERE wo.company_id IN (${inClause})`,
       companyIds
     );
     const [aqCounts] = await pool.query(
       `SELECT
          SUM(CASE WHEN status = 'open'        THEN 1 ELSE 0 END) AS open,
+         SUM(CASE WHEN status = 'assigned'    THEN 1 ELSE 0 END) AS assigned,
          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
          SUM(CASE WHEN status = 'resolved'    THEN 1 ELSE 0 END) AS completed,
-         SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) AS closed
+         SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) AS closed,
+         SUM(CASE WHEN cutoff_time IS NOT NULL AND cutoff_time < NOW() AND status NOT IN ('resolved','closed') THEN 1 ELSE 0 END) AS overdue
        FROM asset_queries WHERE company_id IN (${inClause})`,
       companyIds
     );
@@ -1671,13 +1681,13 @@ router.get("/requests", validate([
       data: rows,
       summary: {
         open:       Number(woCounts[0].open       || 0) + Number(aqCounts[0].open       || 0),
-        assigned:   Number(woCounts[0].assigned   || 0),
+        assigned:   Number(woCounts[0].assigned   || 0) + Number(aqCounts[0].assigned   || 0),
         inProgress: Number(woCounts[0].in_progress|| 0) + Number(aqCounts[0].in_progress|| 0),
         onHold:     Number(woCounts[0].on_hold    || 0),
         completed:  Number(woCounts[0].completed  || 0) + Number(aqCounts[0].completed  || 0),
         closed:     Number(woCounts[0].closed     || 0) + Number(aqCounts[0].closed     || 0),
         escalated:  Number(woCounts[0].escalated  || 0),
-        overdue:    Number(woCounts[0].overdue    || 0),
+        overdue:    Number(woCounts[0].overdue    || 0) + Number(aqCounts[0].overdue    || 0),
       },
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });

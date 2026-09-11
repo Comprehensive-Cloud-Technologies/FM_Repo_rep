@@ -1,0 +1,125 @@
+name: Deploy dev/test
+
+# Deploys the develop + testing environments to the shared dev/test EC2 box
+# (Docker Compose). Production is unaffected — it deploys via deploy-ec2.yml.
+#
+#   push to `develop`        → redeploys the DEVELOP stack  (dev.htm.catalystservices.eco)
+#   push tag  v*.*.*-rc.*     → redeploys the TESTING stack  (test.htm.catalystservices.eco)
+#   manual run (workflow_dispatch) → pick the target + ref
+#
+# The box already holds two checkouts (~/htm-develop, ~/htm-testing) with their
+# real .env files and deploy/.env (see deploy/README.md). This workflow only SSHes
+# in, updates the checkout, and rebuilds that one stack.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   DEVTEST_SSH_KEY   – private SSH key (PEM) for the dev/test box
+#   DEVTEST_HOST      – dev/test box hostname or IP
+#   DEVTEST_USER      – SSH user (e.g. ec2-user)
+# Optional:
+#   DEVTEST_DEVELOP_DIR  – develop checkout path (default: /home/ec2-user/htm-develop)
+#   DEVTEST_TESTING_DIR  – testing checkout path (default: /home/ec2-user/htm-testing)
+
+on:
+  push:
+    branches: [develop]
+    tags: ["v*.*.*-rc.*"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which environment to deploy"
+        required: true
+        type: choice
+        options: [develop, testing]
+      ref:
+        description: "Git ref to deploy (branch for develop, tag for testing)"
+        required: false
+
+concurrency:
+  group: deploy-devtest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── DEVELOP ────────────────────────────────────────────────────────────────
+  develop:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'develop')
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEVTEST_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEVTEST_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: Deploy DEVELOP stack
+        env:
+          DEVTEST_USER: ${{ secrets.DEVTEST_USER }}
+          DEVTEST_HOST: ${{ secrets.DEVTEST_HOST }}
+          DIR: ${{ secrets.DEVTEST_DEVELOP_DIR || '/home/ec2-user/htm-develop' }}
+          REF: ${{ github.event.inputs.ref || 'develop' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$DEVTEST_USER@$DEVTEST_HOST" "DIR='$DIR' REF='$REF' bash -s" <<'REMOTE'
+          set -e
+          cd "$DIR"
+          git fetch origin --prune
+          git checkout "$REF"
+          git reset --hard "origin/$REF"
+          cd deploy
+          APP_ENV=dev VITE_MODE=develop BACKEND_ENV_FILE=../backend/.env.development \
+            docker compose -p htm-dev up -d --build
+          docker image prune -f >/dev/null 2>&1 || true
+          echo "====== DEVELOP deploy complete ======"
+          REMOTE
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://dev.htm.catalystservices.eco/api/health" || true)
+            if [ "$code" = "200" ]; then echo "DEVELOP health OK"; exit 0; fi
+            echo "Attempt $i: HTTP $code — retrying in 5s"; sleep 5
+          done
+          echo "DEVELOP health check failed"; exit 1
+
+  # ── TESTING ────────────────────────────────────────────────────────────────
+  testing:
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testing')
+    runs-on: ubuntu-latest
+    environment: testing
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEVTEST_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEVTEST_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: Deploy TESTING stack
+        env:
+          DEVTEST_USER: ${{ secrets.DEVTEST_USER }}
+          DEVTEST_HOST: ${{ secrets.DEVTEST_HOST }}
+          DIR: ${{ secrets.DEVTEST_TESTING_DIR || '/home/ec2-user/htm-testing' }}
+          REF: ${{ github.event.inputs.ref || github.ref_name }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$DEVTEST_USER@$DEVTEST_HOST" "DIR='$DIR' REF='$REF' bash -s" <<'REMOTE'
+          set -e
+          cd "$DIR"
+          git fetch --tags --force --prune
+          git checkout "$REF"
+          cd deploy
+          APP_ENV=test VITE_MODE=testing BACKEND_ENV_FILE=../backend/.env.testing \
+            docker compose -p htm-test up -d --build
+          docker image prune -f >/dev/null 2>&1 || true
+          echo "====== TESTING deploy complete ($REF) ======"
+          REMOTE
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://test.htm.catalystservices.eco/api/health" || true)
+            if [ "$code" = "200" ]; then echo "TESTING health OK"; exit 0; fi
+            echo "Attempt $i: HTTP $code — retrying in 5s"; sleep 5
+          done
+          echo "TESTING health check failed"; exit 1

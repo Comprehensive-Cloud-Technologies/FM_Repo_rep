@@ -457,6 +457,7 @@ router.get("/dashboard", async (req, res, next) => {
          FROM (
            SELECT ts.snapshot_asset_id, AVG(esc.actual_mins) AS asset_avg
            FROM ticket_sla ts
+           JOIN asset_queries aq ON aq.id = ts.query_id
            JOIN ticket_sla_clocks esc ON esc.ticket_sla_id = ts.id
              AND esc.clock_type = 'resolution' AND esc.status IN ('met','breached')
            ${where}

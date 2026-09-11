@@ -868,7 +868,7 @@ export default function ReportBuilderPanel({ token }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "#f1f5f9", fontFamily: "'Inter',system-ui,-apple-system,sans-serif" }}>
 
       {/* ══ TOP TOOLBAR — Row 1: Module Selector + Actions ══════════════════ */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "10px 20px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #eef2f6", padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
 
         {/* Module dropdown */}
         <ModuleDropdown moduleKey={moduleKey} setModuleKey={setModuleKey} />
@@ -910,33 +910,8 @@ export default function ReportBuilderPanel({ token }) {
         </div>
       </div>
 
-      {/* ══ TOP TOOLBAR — Row 2: View Toggle + Search ════════════════════════ */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "8px 20px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, flexWrap: "wrap" }}>
-
-        {/* View toggle */}
-        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2 }}>
-          {[["table", "⊞", "Table"], ["pivot", "↔", "Pivot"], ["chart", "📊", "Chart"], ["kpi", "🎯", "KPI"]].map(([v, ico, lbl]) => (
-            <button key={v} onClick={() => setView(v)}
-              style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: view === v ? "#fff" : "transparent", color: view === v ? "#2563eb" : "#64748b", fontWeight: view === v ? 700 : 500, fontSize: "12.5px", cursor: "pointer", boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.10)" : "none", display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s", whiteSpace: "nowrap" }}>
-              <span>{ico}</span> {lbl}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ flex: 1 }} />
-
-        {/* Search */}
-        <div style={{ position: "relative", width: 260 }}>
-          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={2.5} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input id="rb-s" type="text" placeholder="Quick search… (Ctrl+F)" value={globalSearch} onChange={e => { setGlobalSearch(e.target.value); setPage(1); }}
-            style={{ width: "100%", padding: "8px 30px 8px 30px", border: "1.5px solid #e2e8f0", borderRadius: 9, fontSize: "12.5px", outline: "none", background: "#f8fafc", boxSizing: "border-box", transition: "border-color 0.15s" }}
-            onFocus={e => e.target.style.borderColor = "#2563eb"} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-          {globalSearch && <button onClick={() => setGlobalSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center" }}>✕</button>}
-        </div>
-      </div>
-
       {/* ══ FILTER BAR ═══════════════════════════════════════════════════════ */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "8px 20px", flexShrink: 0 }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #eef2f6", padding: "7px 16px", flexShrink: 0 }}>
 
         {/* Chips row */}
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, minHeight: 32 }}>
@@ -1048,11 +1023,21 @@ export default function ReportBuilderPanel({ token }) {
         )}
       </div>
 
-      {/* ══ TABLE CONTROLS ════════════════════════════════════════════════════ */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "7px 20px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-        <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+      {/* ══ VIEW + TABLE CONTROLS (merged) ════════════════════════════════════ */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "7px 16px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+        {/* View toggle */}
+        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2 }}>
+          {[["table", "⊞", "Table"], ["pivot", "↔", "Pivot"], ["chart", "📊", "Chart"], ["kpi", "🎯", "KPI"]].map(([v, ico, lbl]) => (
+            <button key={v} onClick={() => setView(v)}
+              style={{ padding: "6px 13px", borderRadius: 7, border: "none", background: view === v ? "#fff" : "transparent", color: view === v ? "#2563eb" : "#64748b", fontWeight: view === v ? 700 : 500, fontSize: "12.5px", cursor: "pointer", boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.10)" : "none", display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s", whiteSpace: "nowrap" }}>
+              <span>{ico}</span> {lbl}
+            </button>
+          ))}
+        </div>
+
+        <span style={{ fontSize: "12px", color: "#64748b", marginLeft: 4, whiteSpace: "nowrap" }}>
           {loading ? <span style={{ color: "#94a3b8" }}>⏳ Loading…</span>
-            : <><b style={{ color: "#0f172a" }}>{processedData.length.toLocaleString("en-IN")}</b> of {rawData.length.toLocaleString("en-IN")} records{lastLoaded && <span style={{ color: "#94a3b8", fontSize: "11px" }}> · {lastLoaded}</span>}</>
+            : <><b style={{ color: "#0f172a" }}>{processedData.length.toLocaleString("en-IN")}</b> of {rawData.length.toLocaleString("en-IN")}{lastLoaded && <span style={{ color: "#94a3b8", fontSize: "11px" }}> · {lastLoaded}</span>}</>
           }
         </span>
         <div style={{ flex: 1 }} />
@@ -1081,6 +1066,15 @@ export default function ReportBuilderPanel({ token }) {
           style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 7, border: `1px solid ${showCF ? "#fde68a" : "#e2e8f0"}`, background: showCF ? "#fffbeb" : "#f8fafc", color: showCF ? "#92400e" : "#475569", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
           🎨 Format
         </button>
+
+        {/* Search */}
+        <div style={{ position: "relative", width: 220 }}>
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={2.5} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input id="rb-s" type="text" placeholder="Quick search… (Ctrl+F)" value={globalSearch} onChange={e => { setGlobalSearch(e.target.value); setPage(1); }}
+            style={{ width: "100%", padding: "7px 28px 7px 30px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: "12.5px", outline: "none", background: "#f8fafc", boxSizing: "border-box", transition: "border-color 0.15s" }}
+            onFocus={e => e.target.style.borderColor = "#2563eb"} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
+          {globalSearch && <button onClick={() => setGlobalSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center" }}>✕</button>}
+        </div>
       </div>
 
       {/* ══ COLLAPSIBLE SUB-PANELS ════════════════════════════════════════════ */}

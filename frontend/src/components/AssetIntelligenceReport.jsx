@@ -198,21 +198,6 @@ function ModulePicker({ greetingName, isGreeting, onPick, onRestart, busy, compa
       {isGreeting ? (
         <>
           <div style={{ fontSize: "14.5px", color: "#0f172a", fontWeight: 700, marginBottom: "3px" }}>Hi {firstName(greetingName)} 👋 I'm your Asset Pro assistant.</div>
-          {/* Proactive "at a glance" — tappable headline numbers */}
-          {Array.isArray(briefing) && briefing.length > 0 && (
-            <div style={{ margin: "8px 0 12px" }}>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "6px" }}>Today at a glance</div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {briefing.map((b, i) => (
-                  <button key={i} disabled={busy} onClick={() => onAsk && onAsk(b.q)} title={`See ${b.label.toLowerCase()}`}
-                    style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "1px solid #e7ebf3", background: "#fff", cursor: busy ? "default" : "pointer" }}>
-                    <span style={{ fontSize: "18px", fontWeight: 800, color: b.color, fontVariantNumeric: "tabular-nums" }}>{b.value}</span>
-                    <span style={{ fontSize: "12px", color: "#475569", fontWeight: 600 }}>{b.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <p style={{ fontSize: "13px", color: "#475569", margin: "0 0 13px" }}>
             <strong>What would you like a report on?</strong> Pick a module to get started {companyId ? "" : "— covering all facilities you manage"}.
           </p>
@@ -268,7 +253,7 @@ function QuestionPicker({ moduleKey, onPick, onBack, onRestart, busy }) {
 /* ── Answer bubble ────────────────────────────────────────────────────────── */
 function AnswerCard({ msg, onFollowUp, onBack, onRestart, busy }) {
   const { result, question, moduleKey } = msg;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);   // show the rows by default; "Hide table" collapses
   const empty = !result.rows?.length;
   const fups = followUps(result, question);
   const mod = moduleByKey(moduleKey) || moduleByKey(result.dataset);

@@ -1,4 +1,4 @@
-# ── Incremental Safe Deploy to EC2 ────────────────────────────────────────────
+﻿# ── Incremental Safe Deploy to EC2 ────────────────────────────────────────────
 # Pushes ONLY source code changes. Does NOT touch .env, database, or uploads.
 # Usage: .\deploy-incremental.ps1
 
