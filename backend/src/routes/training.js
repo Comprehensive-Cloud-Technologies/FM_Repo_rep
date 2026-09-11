@@ -161,6 +161,39 @@ const upload = multer({
   await safe(`ALTER TABLE training_attendance ADD COLUMN IF NOT EXISTS remarks TEXT NULL`);
   await safe(`ALTER TABLE training_documents ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1`);
   await safe(`ALTER TABLE training_documents ADD COLUMN IF NOT EXISTS is_current TINYINT(1) NOT NULL DEFAULT 1`);
+
+  // Questions (test) attached to a training session — the "question template".
+  await safe(`CREATE TABLE IF NOT EXISTS training_session_questions (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    session_id INT UNSIGNED NOT NULL,
+    company_id INT UNSIGNED NOT NULL,
+    question TEXT NOT NULL,
+    q_type ENUM('mcq','truefalse','text') NOT NULL DEFAULT 'mcq',
+    options JSON NULL,
+    correct_answer VARCHAR(500) NULL,
+    marks INT NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_tsq_session (session_id),
+    CONSTRAINT fk_tsq_session FOREIGN KEY (session_id) REFERENCES training_sessions(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  // Which engineers a training session (its question template) is assigned to.
+  await safe(`CREATE TABLE IF NOT EXISTS training_session_assignments (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    session_id INT UNSIGNED NOT NULL,
+    company_id INT UNSIGNED NOT NULL,
+    assigned_to INT UNSIGNED NOT NULL,
+    assigned_by INT UNSIGNED NULL,
+    assigned_by_name VARCHAR(160) NULL,
+    assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tsa (session_id, assigned_to),
+    KEY idx_tsa_session (session_id),
+    KEY idx_tsa_user (assigned_to),
+    CONSTRAINT fk_tsa_session FOREIGN KEY (session_id) REFERENCES training_sessions(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 })();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -729,6 +762,95 @@ router.get("/categories", async (req, res, next) => {
     const [rows] = await pool.query("SELECT DISTINCT category FROM training_sessions WHERE company_id = ? AND category IS NOT NULL ORDER BY category", [cid(req)]);
     res.json(rows.map(r => r.category));
   } catch (e) { next(e); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SESSION QUESTIONS (test template) + ENGINEER ASSIGNMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /sessions/:id/questions — questions for a session
+router.get("/sessions/:id/questions", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, question, q_type AS qType, options, correct_answer AS correctAnswer, marks, sort_order AS sortOrder
+       FROM training_session_questions WHERE session_id = ? ORDER BY sort_order, id`,
+      [Number(req.params.id)]
+    );
+    res.json(rows.map(r => ({ ...r, options: typeof r.options === "string" ? (() => { try { return JSON.parse(r.options); } catch { return []; } })() : (r.options || []) })));
+  } catch (err) { next(err); }
+});
+
+// PUT /sessions/:id/questions — replace the whole question set for a session
+router.put("/sessions/:id/questions", async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    const sessionId = Number(req.params.id);
+    const { questions = [] } = req.body;
+    // Verify the session belongs to the caller's company
+    const [[sess]] = await conn.query("SELECT id, company_id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
+    if (!sess) { conn.release(); return res.status(404).json({ message: "Session not found" }); }
+
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM training_session_questions WHERE session_id = ?", [sessionId]);
+    let order = 0;
+    for (const q of questions) {
+      if (!q || !String(q.question || "").trim()) continue;
+      const qType = ["mcq", "truefalse", "text"].includes(q.qType) ? q.qType : "mcq";
+      const opts = Array.isArray(q.options) ? q.options.filter(o => String(o).trim() !== "") : [];
+      await conn.query(
+        `INSERT INTO training_session_questions (session_id, company_id, question, q_type, options, correct_answer, marks, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sessionId, cid(req), String(q.question).trim(), qType,
+         opts.length ? JSON.stringify(opts) : null,
+         q.correctAnswer != null && q.correctAnswer !== "" ? String(q.correctAnswer) : null,
+         Number(q.marks) > 0 ? Number(q.marks) : 1, order++]
+      );
+    }
+    await conn.commit();
+    auditLog(cid(req), "training.questions.update", uid(req), uname(req), urole(req), "session", sessionId, { count: order }, req);
+    res.json({ ok: true, count: order });
+  } catch (err) { await conn.rollback().catch(() => {}); next(err); }
+  finally { conn.release(); }
+});
+
+// GET /sessions/:id/assignees — engineers the session is assigned to
+router.get("/sessions/:id/assignees", async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT tsa.assigned_to AS userId, cu.full_name AS name, cu.designation, cu.role, tsa.assigned_at AS assignedAt
+       FROM training_session_assignments tsa
+       LEFT JOIN company_users cu ON cu.id = tsa.assigned_to
+       WHERE tsa.session_id = ? ORDER BY cu.full_name`,
+      [Number(req.params.id)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PUT /sessions/:id/assignees — set the engineers assigned to this session
+router.put("/sessions/:id/assignees", async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    const sessionId = Number(req.params.id);
+    const { userIds = [] } = req.body;
+    const [[sess]] = await conn.query("SELECT id FROM training_sessions WHERE id = ? AND company_id = ?", [sessionId, cid(req)]);
+    if (!sess) { conn.release(); return res.status(404).json({ message: "Session not found" }); }
+
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM training_session_assignments WHERE session_id = ?", [sessionId]);
+    const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
+    for (const u of ids) {
+      await conn.query(
+        `INSERT INTO training_session_assignments (session_id, company_id, assigned_to, assigned_by, assigned_by_name)
+         VALUES (?, ?, ?, ?, ?)`,
+        [sessionId, cid(req), u, uid(req), uname(req)]
+      );
+    }
+    await conn.commit();
+    auditLog(cid(req), "training.assign", uid(req), uname(req), urole(req), "session", sessionId, { count: ids.length }, req);
+    res.json({ ok: true, count: ids.length });
+  } catch (err) { await conn.rollback().catch(() => {}); next(err); }
+  finally { conn.release(); }
 });
 
 export default router;

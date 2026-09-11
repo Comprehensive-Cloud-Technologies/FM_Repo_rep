@@ -4459,6 +4459,14 @@ function AssetTransferSection({ token, companyId, switcher }) {
             <div>
               {/* Filters */}
               <div style={{ display: "flex", gap: "10px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                {/* Source hospital — pick which hospital's assets to transfer FROM.
+                    Works regardless of the global All-Hospitals scope. */}
+                <select value={srcCompanyId} onChange={e => { setSrcCompanyId(e.target.value); setAtSelected(new Set()); setAtDeptFilter(""); setAtResult(null); setAtError(null); }}
+                  style={{ padding: "9px 12px", borderRadius: "8px", border: "1.5px solid #7c3aed", background: "#faf5ff", color: "#5b21b6", fontSize: "13px", fontWeight: 700, outline: "none", minWidth: "210px" }}
+                  title="Transfer assets FROM this hospital">
+                  <option value="">— Select Source Hospital —</option>
+                  {atCompanies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                </select>
                 <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   <input value={atSearch} onChange={e => setAtSearch(e.target.value)} placeholder="Search assets…"

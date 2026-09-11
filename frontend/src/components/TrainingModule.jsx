@@ -118,6 +118,30 @@ function SessionModal({ token, session, departments, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [questions, setQuestions] = useState([]);      // [{ question, qType, options[], correctAnswer, marks }]
+  const [assigneeIds, setAssigneeIds] = useState([]);  // company_user ids
+  const [employees, setEmployees] = useState([]);
+  const [empSearch, setEmpSearch] = useState("");
+
+  useEffect(() => {
+    apiFetch(`${TRN_API}/employees?pageSize=500`, {}, token)
+      .then(d => setEmployees(Array.isArray(d) ? d : (d?.rows || [])))
+      .catch(() => {});
+    if (session?.id) {
+      apiFetch(`${TRN_API}/sessions/${session.id}/questions`, {}, token)
+        .then(d => Array.isArray(d) && setQuestions(d.map(q => ({
+          question: q.question || "", qType: q.qType || "mcq",
+          options: Array.isArray(q.options) ? q.options : [], correctAnswer: q.correctAnswer ?? "", marks: q.marks || 1,
+        })))).catch(() => {});
+      apiFetch(`${TRN_API}/sessions/${session.id}/assignees`, {}, token)
+        .then(d => Array.isArray(d) && setAssigneeIds(d.map(a => Number(a.userId)))).catch(() => {});
+    }
+  }, [session?.id, token]);
+
+  const addQuestion = () => setQuestions(qs => [...qs, { question: "", qType: "mcq", options: ["", ""], correctAnswer: "", marks: 1 }]);
+  const updateQuestion = (i, patch) => setQuestions(qs => qs.map((q, idx) => idx === i ? { ...q, ...patch } : q));
+  const removeQuestion = (i) => setQuestions(qs => qs.filter((_, idx) => idx !== i));
+  const toggleAssignee = (id) => setAssigneeIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
 
   const calcDuration = () => {
     if (!form.startTime || !form.endTime) return null;
@@ -145,8 +169,18 @@ function SessionModal({ token, session, departments, onClose, onSaved }) {
     setErr(""); setSaving(true);
     try {
       const body = { ...form, durationMinutes: calcDuration() };
-      if (isEdit) await apiFetch(`${TRN_API}/sessions/${session.id}`, { method: "PATCH", body: JSON.stringify(body) }, token);
-      else await apiFetch(`${TRN_API}/sessions`, { method: "POST", body: JSON.stringify(body) }, token);
+      let sessionId = session?.id;
+      if (isEdit) {
+        await apiFetch(`${TRN_API}/sessions/${session.id}`, { method: "PATCH", body: JSON.stringify(body) }, token);
+      } else {
+        const created = await apiFetch(`${TRN_API}/sessions`, { method: "POST", body: JSON.stringify(body) }, token);
+        sessionId = created?.id || created?.session?.id;
+      }
+      // Persist the question template + engineer assignments for this session
+      if (sessionId) {
+        await apiFetch(`${TRN_API}/sessions/${sessionId}/questions`, { method: "PUT", body: JSON.stringify({ questions }) }, token);
+        await apiFetch(`${TRN_API}/sessions/${sessionId}/assignees`, { method: "PUT", body: JSON.stringify({ userIds: assigneeIds }) }, token);
+      }
       onSaved();
       onClose();
     } catch (e) { setErr(e.message); } finally { setSaving(false); }
@@ -210,6 +244,74 @@ function SessionModal({ token, session, departments, onClose, onSaved }) {
           <div>
             <label style={S.label}>Notes</label>
             <textarea value={form.notes} onChange={fld("notes")} rows={2} placeholder="Internal notes…" style={{ ...S.input, resize: "vertical" }} />
+          </div>
+
+          {/* ── Test Questions (question template) ─────────────────────────── */}
+          <div style={{ marginTop: 20, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <label style={{ ...S.label, marginBottom: 2 }}>Test Questions <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>(optional — becomes the assignable test)</span></label>
+                <div style={{ fontSize: 11.5, color: "#64748b" }}>{questions.length} question{questions.length === 1 ? "" : "s"} · {questions.reduce((s, q) => s + (Number(q.marks) || 0), 0)} marks</div>
+              </div>
+              <button type="button" onClick={addQuestion} style={{ ...S.btn("ghost"), padding: "7px 12px", fontSize: 13 }}>+ Add Question</button>
+            </div>
+
+            {questions.map((q, i) => (
+              <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 10, background: "#f8fafc" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", marginTop: 8 }}>Q{i + 1}</span>
+                  <textarea value={q.question} onChange={e => updateQuestion(i, { question: e.target.value })} rows={1} placeholder="Enter the question…" style={{ ...S.input, resize: "vertical", flex: 1 }} />
+                  <button type="button" onClick={() => removeQuestion(i)} title="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 20, lineHeight: 1, marginTop: 4 }}>×</button>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: q.qType === "mcq" ? 8 : 0 }}>
+                  <select value={q.qType} onChange={e => updateQuestion(i, { qType: e.target.value, options: e.target.value === "mcq" ? (q.options?.length ? q.options : ["", ""]) : [], correctAnswer: "" })}
+                    style={{ ...S.input, width: 150 }}>
+                    <option value="mcq">Multiple choice</option>
+                    <option value="truefalse">True / False</option>
+                    <option value="text">Short answer</option>
+                  </select>
+                  <input type="number" min="1" value={q.marks} onChange={e => updateQuestion(i, { marks: e.target.value })} placeholder="Marks" style={{ ...S.input, width: 90 }} />
+                  {q.qType === "truefalse" && (
+                    <select value={q.correctAnswer} onChange={e => updateQuestion(i, { correctAnswer: e.target.value })} style={{ ...S.input, width: 160 }}>
+                      <option value="">Correct answer…</option>
+                      <option value="True">True</option>
+                      <option value="False">False</option>
+                    </select>
+                  )}
+                </div>
+                {q.qType === "mcq" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {(q.options || []).map((opt, oi) => (
+                      <div key={oi} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input type="radio" name={`correct-${i}`} checked={String(q.correctAnswer) === String(opt) && opt !== ""} onChange={() => updateQuestion(i, { correctAnswer: opt })} title="Mark as correct" />
+                        <input value={opt} onChange={e => { const opts = [...q.options]; const old = opts[oi]; opts[oi] = e.target.value; updateQuestion(i, { options: opts, correctAnswer: String(q.correctAnswer) === String(old) ? e.target.value : q.correctAnswer }); }} placeholder={`Option ${oi + 1}`} style={{ ...S.input, flex: 1 }} />
+                        {q.options.length > 2 && <button type="button" onClick={() => updateQuestion(i, { options: q.options.filter((_, x) => x !== oi) })} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 16 }}>×</button>}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => updateQuestion(i, { options: [...(q.options || []), ""] })} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "#2563eb", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>+ Add option</button>
+                    <div style={{ fontSize: 10.5, color: "#94a3b8" }}>Select the radio button next to the correct option.</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* ── Assign to Engineers ────────────────────────────────────────── */}
+          <div style={{ marginTop: 20, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+            <label style={{ ...S.label, marginBottom: 2 }}>Assign to Engineers <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>({assigneeIds.length} selected)</span></label>
+            <input value={empSearch} onChange={e => setEmpSearch(e.target.value)} placeholder="Search engineers…" style={{ ...S.input, marginBottom: 8 }} />
+            <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
+              {employees.filter(emp => !empSearch || (emp.full_name || "").toLowerCase().includes(empSearch.toLowerCase())).length === 0 ? (
+                <div style={{ padding: 14, fontSize: 12.5, color: "#94a3b8", textAlign: "center" }}>No employees found</div>
+              ) : employees.filter(emp => !empSearch || (emp.full_name || "").toLowerCase().includes(empSearch.toLowerCase())).map(emp => (
+                <label key={emp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #f1f5f9", cursor: "pointer", background: assigneeIds.includes(emp.id) ? "#f5f3ff" : "#fff" }}>
+                  <input type="checkbox" checked={assigneeIds.includes(emp.id)} onChange={() => toggleAssignee(emp.id)} />
+                  <span style={{ fontSize: 13, color: "#0f172a", fontWeight: 600 }}>{emp.full_name || "—"}</span>
+                  {emp.designation && <span style={{ fontSize: 11.5, color: "#94a3b8" }}>· {emp.designation}</span>}
+                  {emp.department_name && <span style={{ fontSize: 11, color: "#cbd5e1", marginLeft: "auto" }}>{emp.department_name}</span>}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 

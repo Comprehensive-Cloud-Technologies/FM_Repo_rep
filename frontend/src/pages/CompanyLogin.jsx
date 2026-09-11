@@ -19,6 +19,9 @@ export default function CompanyLogin() {
       sessionStorage.setItem("cp_token", res.token);
       sessionStorage.setItem("cp_token_base", res.token); // preserved for All Hospitals mode
       sessionStorage.setItem("cp_user", JSON.stringify(res.user));
+      // Always start a fresh login in All-Hospitals view on the dashboard.
+      sessionStorage.setItem("cp_all_companies_mode", "true");
+      sessionStorage.removeItem("cp_nav");
       navigate("/company/portal", { replace: true });
     } catch (err) {
       setError(err.message || "Login failed");
