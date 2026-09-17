@@ -100,6 +100,53 @@ function scopeWhere(scopeType, scopeRef, companyIds) {
   return { where, params };
 }
 
+// Resolve a scanned QR/barcode (which may be a URL) to an asset id, matching the
+// same shapes the app's main QR scanner handles:
+//   • /q/<uid>            → asset_pre_qr.qr_unique_id
+//   • /asset-scan/<id>, /assets/<id>, ?assetId=<id>, or a bare number → assets.id
+//   • otherwise the raw string → qr_unique_id / asset_unique_id / generated_asset_id
+async function resolveScannedAsset(companyIds, code, assetId) {
+  const ph = companyIds.map(() => "?").join(",");
+  if (assetId) {
+    const [[a]] = await pool.query(`SELECT id FROM assets WHERE id = ? AND company_id IN (${ph}) LIMIT 1`, [Number(assetId), ...companyIds]);
+    return a ? a.id : null;
+  }
+  const raw = String(code || "").trim();
+  if (!raw) return null;
+  const qUid = raw.match(/\/q\/([^/?#]+)/i)?.[1];
+  const uid = qUid ? decodeURIComponent(qUid).trim() : null;
+  const numeric = raw.match(/\/asset-scan\/(\d+)/i)?.[1]
+    || raw.match(/\/assets?\/(\d+)/i)?.[1]
+    || raw.match(/[?&]assetId=(\d+)/i)?.[1]
+    || (/^\d+$/.test(raw) ? raw : null);
+
+  // 1) Match code/uid against QR + asset identifiers.
+  for (const c of [uid, raw].filter(Boolean)) {
+    const [[a]] = await pool.query(
+      `SELECT a.id FROM assets a
+       LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
+       WHERE a.company_id IN (${ph})
+         AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
+       LIMIT 1`, [...companyIds, c, c, c]
+    );
+    if (a) return a.id;
+  }
+  // 2) Pre-QR table directly by uid (linked pre-printed QR).
+  if (uid) {
+    const [[q]] = await pool.query(
+      `SELECT asset_id FROM asset_pre_qr WHERE qr_unique_id = ? AND company_id IN (${ph}) AND asset_id IS NOT NULL LIMIT 1`,
+      [uid, ...companyIds]
+    );
+    if (q?.asset_id) return q.asset_id;
+  }
+  // 3) Numeric asset id (from a /asset-scan/<id>-style URL or a bare number).
+  if (numeric) {
+    const [[a]] = await pool.query(`SELECT id FROM assets WHERE id = ? AND company_id IN (${ph}) LIMIT 1`, [Number(numeric), ...companyIds]);
+    if (a) return a.id;
+  }
+  return null;
+}
+
 // Per-audit found/not_found/pending counts.
 async function auditStats(auditId) {
   const [[s]] = await pool.query(
@@ -298,21 +345,10 @@ router.post("/lookup", requirePermission("audit:conduct"), async (req, res, next
     const ph = companyIds.map(() => "?").join(",");
     const clean = (v) => (v == null || v === "null" ? null : v);
 
-    // Resolve the asset (explicit id, else the scanned code).
-    let resolvedId = assetId ? Number(assetId) : null;
-    if (!resolvedId) {
-      if (!code) return res.status(400).json({ message: "code or assetId required" });
-      const c = String(code).trim();
-      const [[a]] = await pool.query(
-        `SELECT a.id FROM assets a
-         LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
-         WHERE a.company_id IN (${ph})
-           AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
-         LIMIT 1`, [...companyIds, c, c, c]
-      );
-      resolvedId = a ? a.id : null;
-      if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
-    }
+    // Resolve the asset (explicit id, or the scanned QR/URL/barcode).
+    if (!code && !assetId) return res.status(400).json({ message: "code or assetId required" });
+    const resolvedId = await resolveScannedAsset(companyIds, code, assetId);
+    if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
 
     const [[asset]] = await pool.query(
       `SELECT a.id, a.asset_name AS name,
@@ -360,21 +396,10 @@ router.post("/scan", requirePermission("audit:conduct"), async (req, res, next) 
     const companyIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
     const ph = companyIds.map(() => "?").join(",");
 
-    // Resolve the asset (explicit id, else match the scanned code).
-    let resolvedId = assetId ? Number(assetId) : null;
-    if (!resolvedId) {
-      if (!code) return res.status(400).json({ message: "code or assetId required" });
-      const c = String(code).trim();
-      const [[a]] = await pool.query(
-        `SELECT a.id FROM assets a
-         LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
-         WHERE a.company_id IN (${ph})
-           AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
-         LIMIT 1`, [...companyIds, c, c, c]
-      );
-      resolvedId = a ? a.id : null;
-      if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
-    }
+    // Resolve the asset (explicit id, or the scanned QR/URL/barcode).
+    if (!code && !assetId) return res.status(400).json({ message: "code or assetId required" });
+    const resolvedId = await resolveScannedAsset(companyIds, code, assetId);
+    if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
 
     // Find an in-progress audit (most recently started) that includes this asset.
     const [[item]] = await pool.query(
@@ -413,21 +438,10 @@ router.post("/:id/scan", requirePermission("audit:conduct"), async (req, res, ne
     if (!au) return res.status(404).json({ message: "Audit not found" });
     if (au.status !== "in_progress") return res.status(409).json({ message: "Start the audit before scanning." });
 
-    // Resolve the asset: prefer explicit assetId, else match the scanned code.
-    let resolvedId = assetId ? Number(assetId) : null;
-    if (!resolvedId) {
-      if (!code) return res.status(400).json({ message: "code or assetId required" });
-      const c = String(code).trim();
-      const [[a]] = await pool.query(
-        `SELECT a.id FROM assets a
-         LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
-         WHERE a.company_id = ?
-           AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
-         LIMIT 1`, [cid(req), c, c, c]
-      );
-      resolvedId = a ? a.id : null;
-      if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
-    }
+    // Resolve the asset (explicit id, or the scanned QR/URL/barcode).
+    if (!code && !assetId) return res.status(400).json({ message: "code or assetId required" });
+    const resolvedId = await resolveScannedAsset([cid(req)], code, assetId);
+    if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
 
     const [[item]] = await pool.query(
       `SELECT id, status, snapshot_name AS name, snapshot_code AS code FROM asset_audit_items WHERE audit_id=? AND asset_id=?`,
