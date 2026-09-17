@@ -212,6 +212,20 @@ export const createCalibrationVendor = (token, data) => request("POST", "/api/co
 export const getCalibrationDashboard = (token) => request("GET", "/api/company-portal/calibration/dashboard", undefined, { authToken: token });
 export const getAssetCalibrationRecords = (token, assetId) => request("GET", `/api/company-portal/assets/${assetId}/calibration-records`, undefined, { authToken: token });
 export const createAssetCalibrationRecord = (token, assetId, data) => request("POST", `/api/company-portal/assets/${assetId}/calibration-records`, data, { authToken: token });
+// ── Asset Audits (physical existence stock-take) ──────────────────────────────
+const auQS = (p = {}) => { const s = new URLSearchParams(); Object.entries(p).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") s.append(k, v); }); return s.toString() ? `?${s}` : ""; };
+export const getAudits            = (token, params = {}) => request("GET", `/api/company-portal/audits${auQS(params)}`, undefined, { authToken: token });
+export const getAudit             = (token, id) => request("GET", `/api/company-portal/audits/${id}`, undefined, { authToken: token });
+export const getAuditItems        = (token, id, params = {}) => request("GET", `/api/company-portal/audits/${id}/items${auQS(params)}`, undefined, { authToken: token });
+export const getAuditScopePreview = (token, params = {}) => request("GET", `/api/company-portal/audits/scope-preview${auQS(params)}`, undefined, { authToken: token });
+export const createAudit          = (token, data) => request("POST", "/api/company-portal/audits", data, { authToken: token });
+export const startAudit           = (token, id) => request("PATCH", `/api/company-portal/audits/${id}/start`, {}, { authToken: token });
+export const completeAudit        = (token, id) => request("PATCH", `/api/company-portal/audits/${id}/complete`, {}, { authToken: token });
+export const cancelAudit          = (token, id) => request("PATCH", `/api/company-portal/audits/${id}/cancel`, {}, { authToken: token });
+export const markAuditItem        = (token, id, itemId, data) => request("PATCH", `/api/company-portal/audits/${id}/items/${itemId}`, data, { authToken: token });
+export const scanAuditAsset       = (token, id, data) => request("POST", `/api/company-portal/audits/${id}/scan`, data, { authToken: token });
+export const getAuditReport       = (token, id) => request("GET", `/api/company-portal/audits/${id}/report`, undefined, { authToken: token });
+
 export const getCompanyPortalEmployees = (token) => request("GET", "/api/company-portal/employees", undefined, { authToken: token });
 export const createCompanyPortalEmployee = (token, data) => request("POST", "/api/company-portal/employees", data, { authToken: token });
 export const updateCompanyPortalEmployee = (token, id, data) => request("PUT", `/api/company-portal/employees/${id}`, data, { authToken: token });

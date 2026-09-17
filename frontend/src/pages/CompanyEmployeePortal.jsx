@@ -19,6 +19,7 @@ import AssetDashboard from "../components/AssetDashboard.jsx";
 import OjtTrainingBuilder, { TrainingPreviewModal, TrainingQRModal } from "../components/OjtTrainingBuilder.jsx";
 import PMSChecklistModule from "../components/PMSChecklistModule.jsx";
 import CalibrationModule from "../components/CalibrationModule.jsx";
+import AuditModule from "../components/AuditModule.jsx";
 import TrainingModule from "../components/TrainingModule.jsx";
 import RoleMatrixManager from "../components/RoleMatrixManager.jsx";
 import AssetIntelligenceReport from "../components/AssetIntelligenceReport.jsx";
@@ -4198,6 +4199,7 @@ const NAV_ALL = [
   { key: "asset_transfer", label: "Asset Transfers",  roles: ["admin"],                  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/><path d="M19 12H5M12 19l-7-7 7-7" opacity=".4"/></svg> },
   { key: "pms",           label: "PMS",              roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><polyline points="12 14 14 16 18 12"/></svg> },
   { key: "calibration",   label: "Calibration",      roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
+  { key: "audits",        label: "Asset Audits",     roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
   { key: "training",      label: "Training",         roles: ["admin","supervisor","*"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
   { key: "asset-intelligence", label: "Asset Pro Intelligence", roles: ["admin","supervisor"], icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h2a2 2 0 0 1 2 2v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1v-1a2 2 0 0 1 2-2h2V9.5C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/><circle cx="12" cy="6" r="1.5" fill="currentColor"/></svg> },
 ];
@@ -4765,6 +4767,7 @@ export default function CompanyEmployeePortal() {
       pms: ["pms", "preventive_maintenance", "preventivemaintenance"],
       calibration: ["calibration"],
       training: ["training"],
+      audits: ["audits", "audit", "assets"],
       "sla-dashboard": ["sla-dashboard", "sla"],
     };
 
@@ -9748,6 +9751,20 @@ export default function CompanyEmployeePortal() {
           <TrainingModule token={token} />
         </div>
       )}
+
+      {/* ── Asset Audits ────────────────────────────────────────── */}
+      {nav === "audits" && (() => {
+        const auditRole = (currentUser?.role || "").toLowerCase();
+        const canAuditManage = isAdmin || ["supervisor", "technical_lead"].includes(auditRole);
+        const canAuditConduct = isAdmin || ["supervisor", "technical_lead", "engineer", "technician"].includes(auditRole);
+        return (
+          <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
+            {companySwitcherBar}
+            <AuditModule token={token} companyId={allCompaniesMode ? undefined : currentUser?.companyId}
+              allCompaniesMode={allCompaniesMode} canManage={canAuditManage} canConduct={canAuditConduct} />
+          </div>
+        );
+      })()}
 
       {/* ── Asset Pro Intelligence ───────────────────────────── */}
       {nav === "asset-intelligence" && (currentUser.role === "admin" || currentUser.role === "supervisor") && (

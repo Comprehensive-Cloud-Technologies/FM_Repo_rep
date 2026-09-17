@@ -31,6 +31,8 @@ export const PERMISSIONS = Object.freeze([
   "training:view", "training:schedule", "training:delete", "training:mark_attendance",
   // Reports
   "report:view",
+  // Asset audits (physical existence stock-take)
+  "audit:view", "audit:manage", "audit:conduct",
   // Administration
   "role:manage", "user:manage",
 ]);
@@ -48,6 +50,7 @@ const B = {
     "case_log:view", "case_log:assign", "case_log:start", "case_log:resolve", "case_log:close",
     "work_order:view",
     "pms:view", "pms:fill", "calibration:view", "training:view", "report:view",
+    "audit:view", "audit:conduct",
   ]),
 
   supervisor: () => new Set([
@@ -58,6 +61,7 @@ const B = {
     "calibration:view", "calibration:schedule", "calibration:delete",
     "training:view", "training:schedule", "training:delete",
     "report:view",
+    "audit:view", "audit:manage", "audit:conduct",
   ]),
 
   technical_lead: () => B.supervisor(),
@@ -65,11 +69,12 @@ const B = {
   technician: () => new Set([
     "asset:view", "case_log:view", "work_order:view", "work_order:update_status",
     "pms:view", "pms:fill", "training:view",
+    "audit:view", "audit:conduct",
   ]),
 
   department_head: () => new Set([
     "asset:view", "case_log:view", "pms:view", "calibration:view",
-    "training:view", "report:view",
+    "training:view", "report:view", "audit:view",
   ]),
 
   doctor:   () => new Set(["case_log:create", "case_log:view", "case_log:close", "asset:view"]),
@@ -174,6 +179,7 @@ export const PERMISSION_LABELS = {
   "training:view": "View training", "training:schedule": "Create training sessions",
   "training:delete": "Delete training sessions", "training:mark_attendance": "Mark attendance",
   "report:view": "View reports",
+  "audit:view": "View asset audits", "audit:manage": "Create / manage audits", "audit:conduct": "Conduct audits (verify assets)",
   "role:manage": "Manage roles & permissions", "user:manage": "Manage users",
 };
 

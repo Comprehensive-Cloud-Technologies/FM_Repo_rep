@@ -15,6 +15,17 @@ _Changes merged to `develop` that have not yet been released. Move them under a
 new version heading when you cut a release tag._
 
 ### Added
+- **Asset Audit module (Phase 1)** — physical existence stock-take. Create an
+  audit scoped to a department or location; it snapshots the in-scope assets,
+  and field users verify each one as **Found / Not Found** (QR scan on mobile or
+  manual on web). On completion, remaining items become "Not Found" and a
+  reconciliation report (found/missing, per-department, Excel export) is produced.
+  New tables `asset_audits` / `asset_audit_items`, API under
+  `/api/company-portal/audits`, and permissions `audit:view` / `audit:manage` /
+  `audit:conduct` granted to Supervisor & Engineer (existing roles). Web: new
+  "Asset Audits" module. Mobile: Audits list + scan-to-verify screen + Home tile.
+
+### Added
 - **Scan a QR → report the issue on WhatsApp.** Scanning an asset QR from any
   browser / phone camera / external scanner now opens WhatsApp (business number,
   configurable via `VITE_WHATSAPP_NUMBER`) with a pre-filled message showing the

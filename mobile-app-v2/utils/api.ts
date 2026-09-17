@@ -1331,3 +1331,35 @@ export async function addAssetManually(
     payload,
   );
 }
+
+// ─── Asset Audits (physical existence stock-take) ─────────────────────────────
+export interface AuditSummary {
+  id: number; title: string; scopeType: string; scopeLabel: string | null;
+  status: string; expectedCount: number; foundCount: number; notFoundCount: number;
+  pendingCount: number; verifiedPct: number; createdByName?: string | null;
+}
+export interface AuditItem {
+  id: number; assetId: number; name: string | null; code: string | null;
+  department: string | null; location: string | null; status: string;
+  auditedByName?: string | null; auditedAt?: string | null;
+}
+export async function fetchAudits(status?: string): Promise<AuditSummary[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiGet<AuditSummary[]>(`/api/company-portal/audits${q}`);
+}
+export async function fetchAudit(id: number): Promise<any> {
+  return apiGet<any>(`/api/company-portal/audits/${id}`);
+}
+export async function fetchAuditItems(id: number, status?: string, search?: string): Promise<AuditItem[]> {
+  const p = new URLSearchParams();
+  if (status) p.append('status', status);
+  if (search) p.append('search', search);
+  const q = p.toString() ? `?${p}` : '';
+  return apiGet<AuditItem[]>(`/api/company-portal/audits/${id}/items${q}`);
+}
+export async function scanAuditAsset(id: number, body: { code?: string; assetId?: number }): Promise<any> {
+  return apiPost<any>(`/api/company-portal/audits/${id}/scan`, body);
+}
+export async function markAuditItem(id: number, itemId: number, status: 'found' | 'not_found' | 'pending'): Promise<any> {
+  return apiPatch<any>(`/api/company-portal/audits/${id}/items/${itemId}`, { status });
+}
