@@ -9755,8 +9755,9 @@ export default function CompanyEmployeePortal() {
       {/* ── Asset Audits ────────────────────────────────────────── */}
       {nav === "audits" && (() => {
         const auditRole = (currentUser?.role || "").toLowerCase();
-        const canAuditManage = isAdmin || ["supervisor", "technical_lead"].includes(auditRole);
-        const canAuditConduct = isAdmin || ["supervisor", "technical_lead", "engineer", "technician"].includes(auditRole);
+        const auditIsAdmin = auditRole === "admin" || auditRole === "catalyst_admin";
+        const canAuditManage = auditIsAdmin || ["supervisor", "technical_lead"].includes(auditRole);
+        const canAuditConduct = auditIsAdmin || ["supervisor", "technical_lead", "engineer", "technician"].includes(auditRole);
         return (
           <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
             {companySwitcherBar}
