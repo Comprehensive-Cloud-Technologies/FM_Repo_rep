@@ -23,7 +23,10 @@ new version heading when you cut a release tag._
   New tables `asset_audits` / `asset_audit_items`, API under
   `/api/company-portal/audits`, and permissions `audit:view` / `audit:manage` /
   `audit:conduct` granted to Supervisor & Engineer (existing roles). Web: new
-  "Asset Audits" module. Mobile: Audits list + scan-to-verify screen + Home tile.
+  "Asset Audits" module. Mobile: dedicated **Audits bottom tab**, scan-to-verify
+  screen, and a **Complete audit** action (supervisors) that instantly reflects
+  on the web audit dashboard. Completed audits stamp each asset's
+  `last_audited_at` / `last_audit_status`.
 
 ### Added
 - **Scan a QR → report the issue on WhatsApp.** Scanning an asset QR from any

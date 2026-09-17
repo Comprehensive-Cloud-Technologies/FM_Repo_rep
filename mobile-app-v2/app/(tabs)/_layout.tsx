@@ -57,6 +57,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="home"     options={{ title: 'Home',     tabBarIcon: icon('home-variant') }} />
       <Tabs.Screen name="assets"   options={tabOpts('asset:view',    'Assets',   'package-variant')} />
       <Tabs.Screen name="requests" options={tabOpts('case_log:view', 'Requests', 'briefcase-check-outline')} />
+      <Tabs.Screen name="audits"   options={tabOpts('audit:view',    'Audits',   'clipboard-check-multiple-outline')} />
       <Tabs.Screen name="reports"  options={tabOpts('report:view',   'Reports',  'chart-bar')} />
       <Tabs.Screen name="profile"  options={{ title: 'Profile',  tabBarIcon: icon('account-circle') }} />
       {/* Hidden legacy screens — kept for deep-link navigation */}

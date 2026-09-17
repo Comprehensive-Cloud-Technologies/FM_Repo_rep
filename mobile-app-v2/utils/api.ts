@@ -1363,3 +1363,9 @@ export async function scanAuditAsset(id: number, body: { code?: string; assetId?
 export async function markAuditItem(id: number, itemId: number, status: 'found' | 'not_found' | 'pending'): Promise<any> {
   return apiPatch<any>(`/api/company-portal/audits/${id}/items/${itemId}`, { status });
 }
+export async function completeAudit(id: number): Promise<any> {
+  return apiPatch<any>(`/api/company-portal/audits/${id}/complete`, {});
+}
+export async function startAudit(id: number): Promise<any> {
+  return apiPatch<any>(`/api/company-portal/audits/${id}/start`, {});
+}

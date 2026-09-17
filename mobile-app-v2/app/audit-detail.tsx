@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Modal, TextInput,
+  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Modal, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,7 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { withPermission } from '../components/withPermission';
 import { useAuth } from '../context/AuthContext';
-import { fetchAudit, fetchAuditItems, scanAuditAsset, markAuditItem, AuditItem } from '../utils/api';
+import { fetchAudit, fetchAuditItems, scanAuditAsset, markAuditItem, completeAudit, AuditItem } from '../utils/api';
 import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 const ITEM = {
@@ -27,6 +27,7 @@ function AuditDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const auditId = Number(id);
   const canConduct = can('audit:conduct');
+  const canManage = can('audit:manage');
 
   const [audit, setAudit] = useState<any>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
@@ -79,6 +80,33 @@ function AuditDetailScreen() {
     catch { /* ignore */ } finally { setBusy(false); }
   };
 
+  const doComplete = () => {
+    const pend = audit?.stats?.pending || 0;
+    Alert.alert(
+      'Complete audit?',
+      pend > 0
+        ? `${pend} asset${pend !== 1 ? 's are' : ' is'} still pending — they will be marked "Not Found" (missing). Continue?`
+        : 'This will finish the audit and lock in the results.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete', style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            try {
+              await completeAudit(auditId);
+              Alert.alert('Audit completed', 'Results are saved and now visible on the dashboard.', [
+                { text: 'OK', onPress: () => router.back() },
+              ]);
+            } catch (e: any) {
+              Alert.alert('Could not complete', e?.message || 'Please try again.');
+            } finally { setBusy(false); }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading || !audit) return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}><ActivityIndicator style={{ marginTop: 60 }} color={theme.primary} /></SafeAreaView>
   );
@@ -117,9 +145,17 @@ function AuditDetailScreen() {
 
         {inProgress && canConduct && (
           <TouchableOpacity onPress={() => { setBanner(null); setScanOpen(true); }}
-            style={{ backgroundColor: theme.primary, borderRadius: Radius.lg, padding: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
+            style={{ backgroundColor: theme.primary, borderRadius: Radius.lg, padding: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
             <MaterialCommunityIcons name="qrcode-scan" size={22} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Scan asset to verify</Text>
+          </TouchableOpacity>
+        )}
+
+        {inProgress && canManage && (
+          <TouchableOpacity disabled={busy} onPress={doComplete}
+            style={{ backgroundColor: '#059669', borderRadius: Radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 14, opacity: busy ? 0.6 : 1 }}>
+            <MaterialCommunityIcons name="check-circle-outline" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Complete audit</Text>
           </TouchableOpacity>
         )}
 

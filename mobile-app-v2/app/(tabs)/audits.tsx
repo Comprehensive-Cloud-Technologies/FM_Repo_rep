@@ -1,17 +1,16 @@
 /**
- * audits.tsx — list of asset audits the user can work on.
- * Tap an in-progress audit to scan/verify assets.
+ * (tabs)/audits.tsx — Asset Audits tab.
+ * Lists audits the user can work on; tap one to scan/verify and complete.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { withPermission } from '../components/withPermission';
-import { fetchAudits, AuditSummary } from '../utils/api';
-import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
+import { fetchAudits, AuditSummary } from '../../utils/api';
+import { useTheme, Spacing, Radius, Shadows } from '../../utils/theme';
 
 const STATUS = {
   draft: { label: 'Draft', color: '#64748b', bg: '#f1f5f9' },
@@ -20,7 +19,7 @@ const STATUS = {
   cancelled: { label: 'Cancelled', color: '#b91c1c', bg: '#fee2e2' },
 } as const;
 
-function AuditsScreen() {
+export default function AuditsTab() {
   const { theme } = useTheme();
   const [audits, setAudits] = useState<AuditSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,16 +29,17 @@ function AuditsScreen() {
     try { setAudits(await fetchAudits()); } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+
+  // Refresh every time the tab regains focus (so completing an audit is reflected).
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <MaterialCommunityIcons name="arrow-left" size={22} color={theme.textPrimary} />
-        </TouchableOpacity>
         <Text style={[styles.title, { color: theme.textPrimary }]}>Asset Audits</Text>
-        <View style={{ width: 26 }} />
+        <TouchableOpacity onPress={() => { setRefreshing(true); load(); }} style={{ padding: 4 }}>
+          <MaterialCommunityIcons name="refresh" size={22} color={theme.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -48,7 +48,10 @@ function AuditsScreen() {
         <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
           {audits.length === 0 ? (
-            <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 40 }}>No audits assigned yet.</Text>
+            <View style={{ alignItems: 'center', marginTop: 50 }}>
+              <MaterialCommunityIcons name="clipboard-check-multiple-outline" size={44} color={theme.textMuted} />
+              <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12 }}>No audits assigned yet.</Text>
+            </View>
           ) : audits.map((a) => {
             const st = STATUS[a.status as keyof typeof STATUS] ?? STATUS.draft;
             return (
@@ -85,9 +88,7 @@ function AuditsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: 1 },
-  title: { fontSize: 17, fontWeight: '800' },
+  title: { fontSize: 18, fontWeight: '800' },
   card: { borderRadius: Radius.lg, borderWidth: 1, padding: 14, marginBottom: 12 },
   cardTitle: { fontSize: 15, fontWeight: '700', flex: 1, marginRight: 8 },
 });
-
-export default withPermission(AuditsScreen, 'audit:view');
