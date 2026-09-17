@@ -287,6 +287,124 @@ router.patch("/:id/items/:itemId", requirePermission("audit:conduct"), async (re
   } catch (err) { next(err); }
 });
 
+/* ─── POST /scan — scan-first: find the active audit for this asset & mark Found ─
+ * No audit id needed. Resolves the scanned code → asset → an in-progress audit
+ * that includes it → marks it Found. Used by the mobile "Asset Audit" quick action.
+ */
+router.post("/lookup", requirePermission("audit:conduct"), async (req, res, next) => {
+  try {
+    const { code, assetId } = req.body || {};
+    const companyIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = companyIds.map(() => "?").join(",");
+    const clean = (v) => (v == null || v === "null" ? null : v);
+
+    // Resolve the asset (explicit id, else the scanned code).
+    let resolvedId = assetId ? Number(assetId) : null;
+    if (!resolvedId) {
+      if (!code) return res.status(400).json({ message: "code or assetId required" });
+      const c = String(code).trim();
+      const [[a]] = await pool.query(
+        `SELECT a.id FROM assets a
+         LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
+         WHERE a.company_id IN (${ph})
+           AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
+         LIMIT 1`, [...companyIds, c, c, c]
+      );
+      resolvedId = a ? a.id : null;
+      if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
+    }
+
+    const [[asset]] = await pool.query(
+      `SELECT a.id, a.asset_name AS name,
+              COALESCE(a.generated_asset_id, a.asset_unique_id) AS code,
+              d.name AS department,
+              NULLIF(CONCAT_WS(', ', a.building, a.floor, a.room), '') AS location,
+              a.asset_category AS category, a.working_status AS status, a.criticality,
+              CASE WHEN a.is_verified = 1 THEN 1 ELSE 0 END AS verified,
+              a.last_audited_at AS lastAuditedAt, a.last_audit_status AS lastAuditStatus,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.make')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.manufacturer'))) AS make,
+              JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.model')) AS model,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.serialNo')), JSON_UNQUOTE(JSON_EXTRACT(ad.metadata,'$.srNo'))) AS serialNo
+       FROM assets a
+       LEFT JOIN departments d ON d.id = a.department_id
+       LEFT JOIN asset_details ad ON ad.asset_id = a.id
+       WHERE a.id = ? AND a.company_id IN (${ph}) LIMIT 1`,
+      [resolvedId, ...companyIds]
+    );
+    if (!asset) return res.json({ outcome: "unknown", message: "Asset not found." });
+
+    const [[item]] = await pool.query(
+      `SELECT i.id, i.status, i.audit_id AS auditId, au.title AS auditTitle
+       FROM asset_audit_items i JOIN asset_audits au ON au.id = i.audit_id
+       WHERE i.company_id IN (${ph}) AND i.asset_id = ? AND au.status = 'in_progress'
+       ORDER BY au.started_at DESC LIMIT 1`,
+      [...companyIds, resolvedId]
+    );
+
+    res.json({
+      outcome: item ? "in_audit" : "no_audit",
+      asset: { ...asset, make: clean(asset.make), model: clean(asset.model), serialNo: clean(asset.serialNo), verified: !!asset.verified },
+      audit: item ? { id: item.auditId, title: item.auditTitle } : null,
+      item: item ? { id: item.id, status: item.status } : null,
+    });
+  } catch (err) { next(err); }
+});
+
+/* ─── POST /scan — scan-first: find the active audit for this asset & mark Found ─
+ * No audit id needed. Resolves the scanned code → asset → an in-progress audit
+ * that includes it → marks it Found. Used by the mobile "Asset Audit" quick action.
+ */
+router.post("/scan", requirePermission("audit:conduct"), async (req, res, next) => {
+  try {
+    const { code, assetId } = req.body || {};
+    const companyIds = await getAccessibleCompanyIds(req.companyUser.id, cid(req));
+    const ph = companyIds.map(() => "?").join(",");
+
+    // Resolve the asset (explicit id, else match the scanned code).
+    let resolvedId = assetId ? Number(assetId) : null;
+    if (!resolvedId) {
+      if (!code) return res.status(400).json({ message: "code or assetId required" });
+      const c = String(code).trim();
+      const [[a]] = await pool.query(
+        `SELECT a.id FROM assets a
+         LEFT JOIN asset_pre_qr q ON q.asset_id = a.id AND q.company_id = a.company_id
+         WHERE a.company_id IN (${ph})
+           AND (UPPER(a.generated_asset_id)=UPPER(?) OR UPPER(a.asset_unique_id)=UPPER(?) OR UPPER(q.qr_unique_id)=UPPER(?))
+         LIMIT 1`, [...companyIds, c, c, c]
+      );
+      resolvedId = a ? a.id : null;
+      if (!resolvedId) return res.json({ outcome: "unknown", message: "That code doesn't match any asset in your register." });
+    }
+
+    // Find an in-progress audit (most recently started) that includes this asset.
+    const [[item]] = await pool.query(
+      `SELECT i.id, i.audit_id AS auditId, i.status, i.snapshot_name AS name, i.snapshot_code AS code,
+              au.title AS auditTitle
+       FROM asset_audit_items i
+       JOIN asset_audits au ON au.id = i.audit_id
+       WHERE i.company_id IN (${ph}) AND i.asset_id = ? AND au.status = 'in_progress'
+       ORDER BY au.started_at DESC LIMIT 1`,
+      [...companyIds, resolvedId]
+    );
+    if (!item) {
+      const [[asset]] = await pool.query(`SELECT asset_name AS name FROM assets WHERE id=? LIMIT 1`, [resolvedId]);
+      return res.json({ outcome: "no_audit", assetName: asset?.name || null, message: "No active audit includes this asset." });
+    }
+
+    await pool.query(
+      `UPDATE asset_audit_items SET status='found', method='qr_scan', audited_by=?, audited_by_name=?, audited_at=NOW() WHERE id=?`,
+      [req.companyUser.id, req.companyUser.fullName || req.companyUser.name || null, item.id]
+    );
+    const stats = await auditStats(item.auditId);
+    emitToCompany(cid(req), "audit:progress", { id: item.auditId, stats });
+    res.json({
+      outcome: item.status === "found" ? "already_found" : "found",
+      auditId: item.auditId, auditTitle: item.auditTitle,
+      item: { id: item.id, name: item.name, code: item.code }, stats,
+    });
+  } catch (err) { next(err); }
+});
+
 /* ─── POST /:id/scan — resolve a scanned QR/code and mark Found ─────────────── */
 router.post("/:id/scan", requirePermission("audit:conduct"), async (req, res, next) => {
   try {

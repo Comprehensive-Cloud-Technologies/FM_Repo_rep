@@ -1366,6 +1366,14 @@ export async function markAuditItem(id: number, itemId: number, status: 'found' 
 export async function completeAudit(id: number): Promise<any> {
   return apiPatch<any>(`/api/company-portal/audits/${id}/complete`, {});
 }
+// Scan-first: find the active audit for a scanned asset and mark it Found.
+export async function scanAuditGlobal(body: { code?: string; assetId?: number }): Promise<any> {
+  return apiPost<any>(`/api/company-portal/audits/scan`, body);
+}
+// Scan-first lookup: return the asset's details + its active-audit item (no marking).
+export async function lookupAuditAsset(body: { code?: string; assetId?: number }): Promise<any> {
+  return apiPost<any>(`/api/company-portal/audits/lookup`, body);
+}
 export async function startAudit(id: number): Promise<any> {
   return apiPatch<any>(`/api/company-portal/audits/${id}/start`, {});
 }

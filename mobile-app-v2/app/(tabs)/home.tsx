@@ -334,7 +334,7 @@ export default function HomeTab() {
               {show('report:view')   && <ActionTile icon="chart-bar"              label="Reports"     color={theme.success}  onPress={() => router.push('/(tabs)/reports')} />}
               {show('asset:view')    && <ActionTile icon="qrcode-scan"          label="Scan QR"     color={theme.info}     onPress={() => router.push('/qr-scanner')} />}
               {show('pms:fill')      && <ActionTile icon="clipboard-check"        label="Checklists"  color="#7C3AED"        onPress={() => router.push('/(tabs)/checklists')} />}
-              {show('audit:view')    && <ActionTile icon="clipboard-check-multiple-outline" label="Audits" color="#0e7c74" onPress={() => router.push('/audits' as any)} />}
+              {show('audit:conduct') && <ActionTile icon="clipboard-search-outline" label="Asset Audit" color="#0e7c74" onPress={() => router.push('/audit-scan' as any)} />}
               <ActionTile icon="bell-outline"           label="Alerts"      color={theme.danger}   onPress={() => router.push('/notifications')} />
             </View>
 
