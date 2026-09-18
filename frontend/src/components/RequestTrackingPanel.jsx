@@ -1485,10 +1485,10 @@ export default function RequestTrackingPanel({ token, companyPortalToken, compan
                             <div style={{ fontSize: "11px", color: "#64748b" }}>{new Date(wo.wip_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></>
                         ) : <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
-                      {/* Response Time: assigned_at - created_at (time to assignment) */}
+                      {/* Response Time: time from raised → first action (assigned, else WIP). */}
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         {(() => {
-                          const assignedAt = wo.assigned_at || wo.sla_assigned_at;
+                          const assignedAt = wo.assigned_at || wo.sla_assigned_at || wo.wip_at || wo.in_progress_at;
                           if (!assignedAt || !wo.created_at) return <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>;
                           const mins = Math.max(0, Math.round((new Date(assignedAt) - new Date(wo.created_at)) / 60000));
                           const label = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;

@@ -344,6 +344,25 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
         </div>
       )}
 
+      {/* ── No-policy notice: SLA compliance needs a policy attached ── */}
+      {!slaLoading && d.slaConfigured === false && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px",
+          padding: "12px 16px", marginBottom: "18px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+          <span style={{ fontSize: "18px", lineHeight: 1 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#92400e", marginBottom: "3px" }}>
+              No SLA policy is attached to this company
+            </div>
+            <div style={{ fontSize: "12px", color: "#a16207", lineHeight: 1.5 }}>
+              Per-stage SLA compliance (Response, Attendance, Resolution) can’t be scored until an SLA
+              policy is assigned. <strong>Mean Time to Repair</strong> and <strong>Repeat Breakdown</strong>{" "}
+              below are computed from actual ticket data and are accurate regardless. Ask your administrator
+              to attach an SLA policy to start tracking compliance.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── KPI TILES — AssetPro Service Performance ── */}
       {(() => {
         const ragLevel = (value, target, higherIsBetter, band) => {
@@ -365,15 +384,15 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
           { id: "response",   label: "Response Time",      icon: "⚡",
             value: d.responseSla?.pct,   unit: "%", target: 95, higher: true, band: 5,
             targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.responseSla?.pct,
-            detail: d.responseSla ? `${d.responseSla.met ?? 0}/${d.responseSla.total ?? 0} tickets` : null },
+            detail: d.responseSla?.evaluated ? `${d.responseSla.met ?? 0}/${d.responseSla.evaluated} tickets` : null },
           { id: "attendance", label: "Attendance",         icon: "👨‍🔧",
             value: d.attendanceSla?.pct, unit: "%", target: 95, higher: true, band: 5,
             targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.attendanceSla?.pct,
-            detail: d.attendanceSla ? `${d.attendanceSla.met ?? 0}/${d.attendanceSla.total ?? 0} tickets` : null },
+            detail: d.attendanceSla?.evaluated ? `${d.attendanceSla.met ?? 0}/${d.attendanceSla.evaluated} tickets` : null },
           { id: "resolution", label: "Resolution",         icon: "✅",
             value: d.resolutionSla?.pct, unit: "%", target: 95, higher: true, band: 5,
             targetText: "New ≥ 95% · Old ≥ 85%", barPct: d.resolutionSla?.pct,
-            detail: d.resolutionSla ? `${d.resolutionSla.met ?? 0}/${d.resolutionSla.total ?? 0} tickets` : null },
+            detail: d.resolutionSla?.evaluated ? `${d.resolutionSla.met ?? 0}/${d.resolutionSla.evaluated} tickets` : null },
           { id: "pm",         label: "PM Compliance",      icon: "🗓",
             value: d.pmCompliance, unit: "%", target: 98, higher: true, band: 5,
             targetText: "≥ 98%", barPct: d.pmCompliance, noClick: true,
@@ -385,7 +404,7 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
           { id: "mttr",       label: "Mean Time to Repair", icon: "⏱",
             value: d.mttrHours, unit: " hrs", target: 4, higher: false, band: 1,
             targetText: "< 4 hrs", barPct: d.mttrHours == null ? null : Math.min((d.mttrHours / 8) * 100, 100),
-            detail: d.mttrHours != null ? `Target 4h · Actual ${d.mttrHours}h` : null },
+            detail: d.mttrHours != null ? `${d.mttrHours}h avg · ${d.mttrTickets ?? 0} resolved` : null },
         ];
         const loading = slaLoading || bdLoading;
         return (
@@ -589,7 +608,13 @@ export default function SlaDashboard({ token, allCompaniesMode = false, external
           {slaLoading ? (
             <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8" }}>Loading…</div>
           ) : slaByEng.length === 0 ? (
-            <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8" }}>No engineer data available.</div>
+            <div style={{ padding: "28px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: "22px", marginBottom: "6px" }}>👷</div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>No engineer activity yet</div>
+              <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "3px" }}>
+                Once tickets are assigned and resolved, each engineer’s workload and repair times appear here.
+              </div>
+            </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>

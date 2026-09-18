@@ -449,23 +449,34 @@ router.get("/dashboard", async (req, res, next) => {
       repeatBreakdown = assetsWithBreakdown > 0 ? +((assetsRepeat / assetsWithBreakdown) * 100).toFixed(1) : null;
     } catch { /* ignore */ }
 
-    // ── MTTR (SLA Dashboard: average of per-asset MTTRs) ─────────────────────
-    let mttrHours = null;
+    // ── MTTR (Mean Time To Repair, average of per-asset MTTRs) ───────────────
+    // Computed from ACTUAL ticket resolution times (created_at → resolved_at) on
+    // asset_queries, so it works for every company regardless of whether an SLA
+    // policy is attached or SLA clocks exist. Only resolved/closed tickets count.
+    let mttrHours = null, mttrTickets = 0;
     try {
+      let mttrWhere = `WHERE ${inFilter(cids, "aq.company_id")}
+        AND aq.status IN ('resolved','closed')
+        AND aq.resolved_at IS NOT NULL AND aq.created_at IS NOT NULL
+        AND aq.resolved_at >= aq.created_at`;
+      const mttrParams = [...cids];
+      if (dateFrom) { mttrWhere += " AND aq.created_at >= ?"; mttrParams.push(dateFrom); }
+      if (dateTo)   { mttrWhere += " AND aq.created_at <= ?"; mttrParams.push(dateTo + " 23:59:59"); }
       const [[mttrRow]] = await pool.query(
-        `SELECT ROUND(AVG(asset_avg) / 60, 1) AS mttr_hours
+        `SELECT ROUND(AVG(asset_avg) / 60, 1) AS mttr_hours,
+                SUM(cnt) AS ticket_count
          FROM (
-           SELECT ts.snapshot_asset_id, AVG(esc.actual_mins) AS asset_avg
-           FROM ticket_sla ts
-           JOIN asset_queries aq ON aq.id = ts.query_id
-           JOIN ticket_sla_clocks esc ON esc.ticket_sla_id = ts.id
-             AND esc.clock_type = 'resolution' AND esc.status IN ('met','breached')
-           ${where}
-           GROUP BY ts.snapshot_asset_id
+           SELECT aq.asset_id,
+                  AVG(TIMESTAMPDIFF(MINUTE, aq.created_at, aq.resolved_at)) AS asset_avg,
+                  COUNT(*) AS cnt
+           FROM asset_queries aq
+           ${mttrWhere}
+           GROUP BY aq.asset_id
          ) t`,
-        params
+        mttrParams
       );
-      mttrHours = mttrRow?.mttr_hours != null ? Number(mttrRow.mttr_hours) : null;
+      mttrHours   = mttrRow?.mttr_hours != null ? Number(mttrRow.mttr_hours) : null;
+      mttrTickets = Number(mttrRow?.ticket_count || 0);
     } catch { /* null fallback */ }
 
     // ── MTBF (Mean Time Between Failures), fleet approximation ────────────────
@@ -491,7 +502,25 @@ router.get("/dashboard", async (req, res, next) => {
       }
     } catch { /* ignore */ }
 
+    // ── Is an SLA policy actually attached for these companies? ───────────────
+    // When no policy is assigned, SLA compliance genuinely can't be computed
+    // (no clocks, no eligible tickets). The frontend uses this to show a clear
+    // "no SLA policy" state instead of a misleading 0% / BREACH mix.
+    let slaConfigured = false;
+    try {
+      const [[sc]] = await pool.query(
+        `SELECT COUNT(*) AS n FROM sla_assignments
+         WHERE is_active = 1 AND scope_type = 'company'
+           AND ${inFilter(cids, "scope_id")}
+           AND (effective_to IS NULL OR effective_to >= CURDATE())`,
+        cids
+      );
+      slaConfigured = Number(sc.n || 0) > 0;
+    } catch { /* table shape may vary; leave false */ }
+
     res.json({
+      slaConfigured,
+      eligibleTickets: totalTickets,
       totalTickets,
       activeTickets:   Number(stats.active_tickets  || 0),
       // Overall SLA Score Card
@@ -522,6 +551,7 @@ router.get("/dashboard", async (req, res, next) => {
         pct:  pct(stats.overall_met, stats.total_tickets),
       },
       mttrHours,
+      mttrTickets,
       // PM Compliance (current month)
       pmCompliance,
       pmDue,
@@ -669,11 +699,48 @@ router.get("/by-engineer", async (req, res, next) => {
       params
     );
 
-    res.json(rows.map(r => ({
-      ...r,
-      overallPct:  r.resEvaluated  > 0 ? +((r.overallMet  / r.resEvaluated)  * 100).toFixed(1) : null,
-      responsePct: r.respEvaluated > 0 ? +((r.responseMet / r.respEvaluated) * 100).toFixed(1) : null,
-      resPct:      r.resEvaluated  > 0 ? +((r.resMet      / r.resEvaluated)  * 100).toFixed(1) : null,
+    if (rows.length > 0) {
+      return res.json(rows.map(r => ({
+        ...r,
+        overallPct:  r.resEvaluated  > 0 ? +((r.overallMet  / r.resEvaluated)  * 100).toFixed(1) : null,
+        responsePct: r.respEvaluated > 0 ? +((r.responseMet / r.respEvaluated) * 100).toFixed(1) : null,
+        resPct:      r.resEvaluated  > 0 ? +((r.resMet      / r.resEvaluated)  * 100).toFixed(1) : null,
+      })));
+    }
+
+    // ── Fallback: no SLA-eligible tickets (e.g. no policy attached) ───────────
+    // Still show real engineer activity from asset_queries — assigned, resolved,
+    // avg repair time — so the panel is populated instead of empty. SLA % columns
+    // stay null (render as “—”) because there are no clocks to score against.
+    let fbWhere = `WHERE ${inFilter(cids, "aq.company_id")} AND aq.assigned_to IS NOT NULL`;
+    const fbParams = [...cids];
+    if (dateFrom) { fbWhere += " AND aq.created_at >= ?"; fbParams.push(dateFrom); }
+    if (dateTo)   { fbWhere += " AND aq.created_at <= ?"; fbParams.push(dateTo + " 23:59:59"); }
+    const [fbRows] = await pool.query(
+      `SELECT
+         cu.id AS engineerId, cu.full_name AS engineerName,
+         COUNT(*) AS totalCalls,
+         SUM(aq.status IN ('resolved','closed')) AS resolvedCount,
+         ROUND(AVG(CASE WHEN aq.status IN ('resolved','closed')
+                         AND aq.resolved_at IS NOT NULL AND aq.resolved_at >= aq.created_at
+                        THEN TIMESTAMPDIFF(MINUTE, aq.created_at, aq.resolved_at) END), 1) AS avgMttrMins,
+         MAX(aq.created_at) AS lastTicketAt
+       FROM asset_queries aq
+       JOIN company_users cu ON cu.id = aq.assigned_to
+       ${fbWhere}
+       GROUP BY cu.id, cu.full_name
+       ORDER BY totalCalls DESC`,
+      fbParams
+    );
+    res.json(fbRows.map(r => ({
+      engineerId: r.engineerId,
+      engineerName: r.engineerName,
+      totalCalls: Number(r.totalCalls || 0),
+      resolvedCount: Number(r.resolvedCount || 0),
+      overallMet: null, breachedCount: null,
+      avgMttrMins: r.avgMttrMins != null ? Number(r.avgMttrMins) : null,
+      lastTicketAt: r.lastTicketAt,
+      overallPct: null, responsePct: null, resPct: null,
     })));
   } catch (err) { next(err); }
 });
