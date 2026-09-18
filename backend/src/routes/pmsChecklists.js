@@ -1200,7 +1200,7 @@ router.get("/my-pms/stats", async (req, res, next) => {
          SUM(psa.status = 'missed')          AS missed
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
-       WHERE ps.company_id = ? AND psa.engineer_id = ?`,
+       WHERE ps.company_id = ? AND COALESCE(psa.engineer_id, ps.engineer_id) = ?`,
       [cid(req), userId]
     );
     res.json(stats || { total: 0, assigned: 0, inProgress: 0, completed: 0, missed: 0 });
@@ -1211,7 +1211,7 @@ router.get("/my-pms", async (req, res, next) => {
   try {
     const userId = req.companyUser.id;
     const { status } = req.query;
-    let where = "WHERE ps.company_id = ? AND psa.engineer_id = ?";
+    let where = "WHERE ps.company_id = ? AND COALESCE(psa.engineer_id, ps.engineer_id) = ?";
     const params = [cid(req), userId];
     if (status) { where += " AND psa.status = ?"; params.push(status); }
     const [rows] = await pool.query(
@@ -1259,7 +1259,7 @@ router.get("/my-pms/:id/checklist", async (req, res, next) => {
        JOIN assets a ON a.id = psa.asset_id
        LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN pms_checklists pc ON pc.id = psa.checklist_id
-       WHERE psa.id = ? AND ps.company_id = ? AND psa.engineer_id = ?`,
+       WHERE psa.id = ? AND ps.company_id = ? AND COALESCE(psa.engineer_id, ps.engineer_id) = ?`,
       [req.params.id, cid(req), userId]
     );
     if (!psa) return res.status(404).json({ message: "PMS assignment not found" });
@@ -1277,7 +1277,7 @@ router.patch("/my-pms/:id/start", requirePermission("pms:fill"), async (req, res
     const [[psa]] = await pool.query(
       `SELECT psa.id FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
-       WHERE psa.id = ? AND ps.company_id = ? AND psa.engineer_id = ?`,
+       WHERE psa.id = ? AND ps.company_id = ? AND COALESCE(psa.engineer_id, ps.engineer_id) = ?`,
       [req.params.id, cid(req), userId]
     );
     if (!psa) return res.status(404).json({ message: "Not found" });
@@ -1301,7 +1301,7 @@ router.patch("/my-pms/:id/complete", requirePermission("pms:fill"), async (req, 
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        JOIN assets a ON a.id = psa.asset_id
-       WHERE psa.id = ? AND ps.company_id = ? AND psa.engineer_id = ?`,
+       WHERE psa.id = ? AND ps.company_id = ? AND COALESCE(psa.engineer_id, ps.engineer_id) = ?`,
       [req.params.id, cid(req), userId]
     );
     if (!psa) return res.status(404).json({ message: "Not found" });

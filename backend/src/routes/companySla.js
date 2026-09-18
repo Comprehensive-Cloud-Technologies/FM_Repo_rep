@@ -34,6 +34,109 @@ async function getAccessibleCompanyIds(userId, primaryId) {
 const inFilter = (ids, col) =>
   ids.length === 1 ? `${col} = ?` : `${col} IN (${ids.map(() => "?").join(",")})`;
 
+// Built-in default targets (mins), mirror of slaV2Engine SYSTEM_DEFAULT.
+const SLA_DEFAULT_RULES = {
+  P1: { response_mins: 30,  attendance_mins: 120, resolution_mins: 240 },
+  P2: { response_mins: 60,  attendance_mins: 240, resolution_mins: 480 },
+  P3: { response_mins: 240, attendance_mins: 480, resolution_mins: 1440 },
+  P4: { response_mins: 480, attendance_mins: 960, resolution_mins: 2880 },
+};
+
+/**
+ * Timestamp-based SLA compliance over ALL tickets (not just SLA-clock-tracked
+ * ones), scored against the attached policy's target minutes using real
+ * lifecycle timestamps. This is what the dashboard falls back to when SLA clocks
+ * don't cover the tickets (e.g. a policy attached after most tickets were raised,
+ * or historical tickets that predate SLA tracking).
+ *
+ *  - Response  = created_at → first action (in_progress / attended / assigned / resolved)
+ *  - Attendance = created_at → engineer attended (attended / in_progress / resolved)
+ *  - Resolution = created_at → resolved_at (resolved/closed tickets only)
+ *
+ * Uses plain elapsed minutes (correct for policies with no business-hours calendar;
+ * an approximation for calendar-based policies, but complete coverage beats a
+ * 2-ticket clock sample). Priority strings (normal/high/…) map to P1–P4 like the engine.
+ */
+async function timestampCompliance(cids, opts = {}) {
+  const { dateFrom, dateTo, department, engineerId, priority } = opts;
+
+  // Resolve the company-scoped policy's per-priority rules (fallback to defaults).
+  const R = { ...SLA_DEFAULT_RULES };
+  try {
+    const [[asg]] = await pool.query(
+      `SELECT sa.policy_id FROM sla_assignments sa
+       WHERE sa.is_active = 1 AND sa.scope_type = 'company'
+         AND ${inFilter(cids, "sa.scope_id")}
+         AND (sa.effective_to IS NULL OR sa.effective_to >= CURDATE())
+       ORDER BY sa.id DESC LIMIT 1`,
+      cids
+    );
+    if (asg?.policy_id) {
+      const [rr] = await pool.query(
+        `SELECT priority, response_mins, attendance_mins, resolution_mins
+         FROM sla_policy_rules WHERE policy_id = ?`,
+        [asg.policy_id]
+      );
+      rr.forEach(r => { if (R[r.priority]) R[r.priority] = r; });
+    }
+  } catch { /* use defaults */ }
+
+  const normPrio = `CASE
+    WHEN aq.priority REGEXP '^[Pp][1-4]$' THEN UPPER(aq.priority)
+    WHEN LOWER(aq.priority) = 'critical' THEN 'P1'
+    WHEN LOWER(aq.priority) = 'high'     THEN 'P2'
+    WHEN LOWER(aq.priority) IN ('medium','normal') THEN 'P3'
+    WHEN LOWER(aq.priority) = 'low'      THEN 'P4'
+    ELSE 'P3' END`;
+  const tgt = (field) => `CASE ${normPrio}
+    WHEN 'P1' THEN ${Number(R.P1[field])} WHEN 'P2' THEN ${Number(R.P2[field])}
+    WHEN 'P3' THEN ${Number(R.P3[field])} WHEN 'P4' THEN ${Number(R.P4[field])} END`;
+
+  const respAt = `COALESCE(aq.in_progress_at, aq.engineer_attended_at, aq.assigned_at, aq.resolved_at)`;
+  const attAt  = `COALESCE(aq.engineer_attended_at, aq.in_progress_at, aq.resolved_at)`;
+  const resolved = `aq.status IN ('resolved','closed') AND aq.resolved_at IS NOT NULL`;
+  const respOk = `${respAt} IS NOT NULL AND TIMESTAMPDIFF(MINUTE, aq.created_at, ${respAt}) <= ${tgt("response_mins")}`;
+  const attOk  = `${attAt} IS NOT NULL AND TIMESTAMPDIFF(MINUTE, aq.created_at, ${attAt}) <= ${tgt("attendance_mins")}`;
+  const resOk  = `TIMESTAMPDIFF(MINUTE, aq.created_at, aq.resolved_at) <= ${tgt("resolution_mins")}`;
+
+  let where = `WHERE ${inFilter(cids, "aq.company_id")}`;
+  const params = [...cids];
+  const needAsset = !!department;
+  if (dateFrom)   { where += " AND aq.created_at >= ?"; params.push(dateFrom); }
+  if (dateTo)     { where += " AND aq.created_at <= ?"; params.push(dateTo + " 23:59:59"); }
+  if (engineerId) { where += " AND aq.assigned_to = ?"; params.push(engineerId); }
+  if (department) { where += " AND a.department_id = ?"; params.push(department); }
+  if (priority && /^P[1-4]$/i.test(priority)) { where += ` AND (${normPrio}) = ?`; params.push(priority.toUpperCase()); }
+
+  const [[r]] = await pool.query(
+    `SELECT
+       SUM(${resolved}) AS resolved_total,
+       SUM(${respAt} IS NOT NULL)                                   AS resp_eval,
+       SUM(CASE WHEN ${respAt} IS NOT NULL AND (${respOk}) THEN 1 ELSE 0 END) AS resp_met,
+       SUM(${attAt} IS NOT NULL)                                    AS att_eval,
+       SUM(CASE WHEN ${attAt} IS NOT NULL AND (${attOk}) THEN 1 ELSE 0 END)   AS att_met,
+       SUM(${resolved})                                             AS res_eval,
+       SUM(CASE WHEN (${resolved}) AND (${resOk}) THEN 1 ELSE 0 END) AS res_met,
+       SUM(CASE WHEN (${resolved}) AND (${respOk}) AND (${attOk}) AND (${resOk}) THEN 1 ELSE 0 END) AS overall_met
+     FROM asset_queries aq
+     ${needAsset ? "LEFT JOIN assets a ON a.id = aq.asset_id" : ""}
+     ${where}`,
+    params
+  );
+
+  const num = (v) => Number(v || 0);
+  const pct = (m, t) => (t > 0 ? +((m / t) * 100).toFixed(1) : null);
+  const respEval = num(r.resp_eval), attEval = num(r.att_eval), resEval = num(r.res_eval);
+  const resolvedTotal = num(r.resolved_total);
+  return {
+    resolvedTotal,
+    response:   { evaluated: respEval, met: num(r.resp_met), breached: respEval - num(r.resp_met), pct: pct(num(r.resp_met), respEval) },
+    attendance: { evaluated: attEval,  met: num(r.att_met),  breached: attEval  - num(r.att_met),  pct: pct(num(r.att_met),  attEval) },
+    resolution: { evaluated: resEval,  met: num(r.res_met),  breached: resEval  - num(r.res_met),  pct: pct(num(r.res_met),  resEval) },
+    overall:    { met: num(r.overall_met), pct: pct(num(r.overall_met), resolvedTotal) },
+  };
+}
+
 /**
  * GET /api/company-portal/sla/active
  * Does this company (or any accessible company) have an SLA policy attached?
@@ -401,6 +504,34 @@ router.get("/dashboard", async (req, res, next) => {
     // SLA Compliance % = (calls completed within SLA ÷ total eligible calls) × 100
     const slaScore = totalTickets > 0 ? +((slaCompliant / totalTickets) * 100).toFixed(1) : null;
 
+    // ── Complete-coverage compliance (timestamp + policy targets) ─────────────
+    // SLA clocks only exist for tickets tracked since a policy was attached, so a
+    // clock-only view can reflect a tiny slice (e.g. 2 of 70 resolved tickets).
+    // When clocks don't cover the resolved tickets, score every ticket from its
+    // real timestamps against the policy targets so the percentages are accurate.
+    const tsc = await timestampCompliance(cids, { dateFrom, dateTo, priority });
+    const coverageIncomplete = tsc.resolvedTotal > totalTickets;
+
+    // Final stage figures: prefer the complete timestamp-based view when the
+    // clock view is incomplete; otherwise keep the precise clock computation.
+    const respFinal = coverageIncomplete ? tsc.response : {
+      evaluated: Number(stats.resp_evaluated || 0), met: Number(stats.resp_met || 0),
+      breached: Number(stats.resp_breached || 0), pct: pct(stats.resp_met, stats.resp_evaluated),
+    };
+    const attFinal = coverageIncomplete ? tsc.attendance : {
+      evaluated: Number(stats.att_evaluated || 0), met: Number(stats.att_met || 0),
+      breached: Number(stats.att_breached || 0), pct: pct(stats.att_met, stats.att_evaluated),
+    };
+    const resFinal = coverageIncomplete ? tsc.resolution : {
+      evaluated: Number(stats.res_evaluated || 0), met: Number(stats.res_met || 0),
+      breached: Number(stats.res_breached || 0), pct: pct(stats.res_met, stats.res_evaluated),
+    };
+    const overallFinal = coverageIncomplete
+      ? { met: tsc.overall.met, pct: tsc.overall.pct }
+      : { met: slaCompliant, pct: pct(slaCompliant, totalTickets) };
+    const finalTotalTickets = coverageIncomplete ? tsc.resolvedTotal : totalTickets;
+    const finalScore        = coverageIncomplete ? tsc.overall.pct : slaScore;
+
     // ── PM Compliance (current calendar month) ────────────────────────────────
     // Completed preventive-maintenance schedules ÷ schedules due this month × 100
     const fmtDate = (d) => d.toISOString().slice(0, 10);
@@ -520,36 +651,21 @@ router.get("/dashboard", async (req, res, next) => {
 
     res.json({
       slaConfigured,
+      // True when compliance is scored from real timestamps (complete coverage)
+      // rather than SLA clocks (which may cover only recently-tracked tickets).
+      slaFromTimestamps: coverageIncomplete,
       eligibleTickets: totalTickets,
-      totalTickets,
+      totalTickets:    finalTotalTickets,
       activeTickets:   Number(stats.active_tickets  || 0),
       // Overall SLA Score Card
-      slaScore,
-      slaCompliant,
-      slaBreached,
+      slaScore:     finalScore,
+      slaCompliant: overallFinal.met,
+      slaBreached:  Math.max(0, finalTotalTickets - overallFinal.met),
       slaAtRisk,
-      responseSla: {
-        evaluated: Number(stats.resp_evaluated || 0),
-        met:       Number(stats.resp_met       || 0),
-        breached:  Number(stats.resp_breached  || 0),
-        pct:       pct(stats.resp_met, stats.resp_evaluated),
-      },
-      attendanceSla: {
-        evaluated: Number(stats.att_evaluated || 0),
-        met:       Number(stats.att_met       || 0),
-        breached:  Number(stats.att_breached  || 0),
-        pct:       pct(stats.att_met, stats.att_evaluated),
-      },
-      resolutionSla: {
-        evaluated: Number(stats.res_evaluated || 0),
-        met:       Number(stats.res_met       || 0),
-        breached:  Number(stats.res_breached  || 0),
-        pct:       pct(stats.res_met, stats.res_evaluated),
-      },
-      overallSla: {
-        met:  Number(stats.overall_met || 0),
-        pct:  pct(stats.overall_met, stats.total_tickets),
-      },
+      responseSla:   respFinal,
+      attendanceSla: attFinal,
+      resolutionSla: resFinal,
+      overallSla:    overallFinal,
       mttrHours,
       mttrTickets,
       // PM Compliance (current month)
@@ -1347,39 +1463,64 @@ router.get("/breakdown", async (req, res, next) => {
       ticketCompliant = n(tix.compliant);
       ticketBreached = ticketTotal - ticketCompliant;
     }
-    const overallCompliance = pct(ticketCompliant, ticketTotal);
+    // ── Complete-coverage override (timestamp + policy targets) ───────────────
+    // Clocks only cover recently-tracked tickets; when resolved tickets outnumber
+    // them, score every ticket from real timestamps so the numbers are accurate.
+    let ovOverall = pct(ticketCompliant, ticketTotal);
+    let ovTotal = ticketTotal, ovCompliant = ticketCompliant, ovBreached = ticketBreached;
+    let sResp = { applicable: n(resp.applicable), compliant: n(resp.compliant), breached: n(resp.breached) };
+    let sAtt  = { applicable: n(att.applicable),  compliant: n(att.compliant),  breached: n(att.breached) };
+    let sRes  = { applicable: n(resC.applicable), compliant: n(resC.compliant), breached: n(resC.breached) };
+    if (!serviceType || serviceType === "issue" || serviceType === "all") {
+      const tsc = await timestampCompliance(cids, { dateFrom, dateTo, department, engineerId });
+      if (tsc.resolvedTotal > ticketTotal) {
+        ovTotal = tsc.resolvedTotal; ovCompliant = tsc.overall.met;
+        ovBreached = Math.max(0, ovTotal - ovCompliant);
+        ovOverall = pct(ovCompliant, ovTotal);
+        sResp = { applicable: tsc.response.evaluated,   compliant: tsc.response.met,   breached: tsc.response.breached };
+        sAtt  = { applicable: tsc.attendance.evaluated, compliant: tsc.attendance.met, breached: tsc.attendance.breached };
+        sRes  = { applicable: tsc.resolution.evaluated, compliant: tsc.resolution.met, breached: tsc.resolution.breached };
+      }
+    }
+    const overallCompliance = ovOverall;
+    ticketTotal = ovTotal; ticketCompliant = ovCompliant; ticketBreached = ovBreached;
+
+    // Issue-resolution stage totals (from the coverage-corrected stage figures)
+    const issueApp2 = sResp.applicable + sAtt.applicable + sRes.applicable;
+    const issueCmp2 = sResp.compliant  + sAtt.compliant  + sRes.compliant;
+    const issueBrk2 = sResp.breached   + sAtt.breached   + sRes.breached;
 
     // Clock totals across all sources (for breakdown tables — informational only)
-    const clockGrandApplicable = issueTotalApplicable + pmsApplicable + calApplicable;
-    const clockGrandCompliant  = issueTotalCompliant  + pmsCompliant  + calCompliant;
-    const clockGrandBreached   = issueTotalBreached   + pmsBreached   + calBreached;
+    const clockGrandApplicable = issueApp2 + pmsApplicable + calApplicable;
+    const clockGrandCompliant  = issueCmp2 + pmsCompliant  + calCompliant;
+    const clockGrandBreached   = issueBrk2 + pmsBreached   + calBreached;
 
-    // Resolution clock-level bucket (issue only per spec)
-    const resApplicable = n(resC.applicable);
-    const resCompliant  = n(resC.compliant);
-    const resBreached   = n(resC.breached);
+    // Resolution stage bucket (issue only per spec)
+    const resApplicable = sRes.applicable;
+    const resCompliant  = sRes.compliant;
+    const resBreached   = sRes.breached;
 
     res.json({
       overallCompliance,
       ticketTotal, ticketCompliant, ticketBreached,
       bySourceType: [
-        { source: "Issue Resolution", applicable: issueTotalApplicable, compliant: issueTotalCompliant, breached: issueTotalBreached, compliance: pct(issueTotalCompliant, issueTotalApplicable) },
+        { source: "Issue Resolution", applicable: issueApp2,            compliant: issueCmp2,           breached: issueBrk2,          compliance: pct(issueCmp2, issueApp2) },
         { source: "PMS",              applicable: pmsApplicable,        compliant: pmsCompliant,        breached: pmsBreached,        compliance: pct(pmsCompliant, pmsApplicable) },
         { source: "Calibration",      applicable: calApplicable,        compliant: calCompliant,        breached: calBreached,        compliance: pct(calCompliant, calApplicable) },
         { source: "Total",            applicable: clockGrandApplicable, compliant: clockGrandCompliant, breached: clockGrandBreached, compliance: pct(clockGrandCompliant, clockGrandApplicable), isTotal: true },
       ],
       byStage: [
-        { stage: "Response",   applicable: n(resp.applicable), compliant: n(resp.compliant), breached: n(resp.breached), compliance: pct(n(resp.compliant), n(resp.applicable)) },
-        { stage: "Attendance", applicable: n(att.applicable),  compliant: n(att.compliant),  breached: n(att.breached),  compliance: pct(n(att.compliant),  n(att.applicable)) },
-        { stage: "Resolution", applicable: resApplicable,      compliant: resCompliant,      breached: resBreached,      compliance: pct(resCompliant, resApplicable) },
+        { stage: "Response",   applicable: sResp.applicable, compliant: sResp.compliant, breached: sResp.breached, compliance: pct(sResp.compliant, sResp.applicable) },
+        { stage: "Attendance", applicable: sAtt.applicable,  compliant: sAtt.compliant,  breached: sAtt.breached,  compliance: pct(sAtt.compliant,  sAtt.applicable) },
+        { stage: "Resolution", applicable: resApplicable,    compliant: resCompliant,    breached: resBreached,    compliance: pct(resCompliant, resApplicable) },
       ],
       bySourceStage: [
         {
           source: "Issue Resolution",
-          response:   { applicable: n(resp.applicable), compliant: n(resp.compliant), breached: n(resp.breached), pct: pct(n(resp.compliant), n(resp.applicable)) },
-          attendance: { applicable: n(att.applicable),  compliant: n(att.compliant),  breached: n(att.breached),  pct: pct(n(att.compliant),  n(att.applicable)) },
-          resolution: { applicable: n(resC.applicable), compliant: n(resC.compliant), breached: n(resC.breached), pct: pct(n(resC.compliant), n(resC.applicable)) },
-          overallPct: pct(issueTotalCompliant, issueTotalApplicable),
+          response:   { applicable: sResp.applicable, compliant: sResp.compliant, breached: sResp.breached, pct: pct(sResp.compliant, sResp.applicable) },
+          attendance: { applicable: sAtt.applicable,  compliant: sAtt.compliant,  breached: sAtt.breached,  pct: pct(sAtt.compliant,  sAtt.applicable) },
+          resolution: { applicable: sRes.applicable,  compliant: sRes.compliant,  breached: sRes.breached,  pct: pct(sRes.compliant,  sRes.applicable) },
+          overallPct: pct(issueCmp2, issueApp2),
         },
         {
           source: "PMS",
