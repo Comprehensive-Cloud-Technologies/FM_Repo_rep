@@ -232,6 +232,16 @@ export const getPartsSummary = (token) => request("GET", "/api/company-portal/pa
 export const createPart       = (token, data) => request("POST", "/api/company-portal/parts", data, { authToken: token });
 export const updatePart       = (token, id, data) => request("PATCH", `/api/company-portal/parts/${id}`, data, { authToken: token });
 export const deletePart       = (token, id) => request("DELETE", `/api/company-portal/parts/${id}`, undefined, { authToken: token });
+// ── Part Indents (spare-part requests / approvals) ────────────────────────────
+export const getIndents      = (token, params = {}) => request("GET", `/api/company-portal/indents${auQS(params)}`, undefined, { authToken: token });
+export const getIndent       = (token, id) => request("GET", `/api/company-portal/indents/${id}`, undefined, { authToken: token });
+export const getAssetIndents = (token, assetId) => request("GET", `/api/company-portal/indents/by-asset/${assetId}`, undefined, { authToken: token });
+export const createIndent    = (token, data) => request("POST", "/api/company-portal/indents", data, { authToken: token });
+export const approveIndent   = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/approve`, body, { authToken: token });
+export const rejectIndent    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/reject`, body, { authToken: token });
+export const issueIndent     = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/issue`, body, { authToken: token });
+export const cancelIndent    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/cancel`, body, { authToken: token });
+
 /** Upload a part photo (multipart) → returns { url }. */
 export const uploadPartPhoto = async (token, file) => {
   const formData = new FormData();

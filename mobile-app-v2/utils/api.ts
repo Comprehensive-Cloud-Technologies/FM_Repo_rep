@@ -619,6 +619,29 @@ export async function fetchParts(q?: string): Promise<Part[]> {
   return apiGet<Part[]>(`/api/company-portal/parts${qs}`);
 }
 
+// ─── Part Indents (spare-part requests) ───────────────────────────────────────
+export interface IndentSummary {
+  id: number; indentNumber?: string | null; assetId?: number | null; assetName?: string | null;
+  status: string; priority?: string; itemCount?: number; totalQty?: number;
+  raisedByName?: string | null; createdAt?: string;
+}
+
+export async function createIndent(input: {
+  ticketId?: number | null; assetId?: number | null; notes?: string | null;
+  items: { partId: number; qty: number }[];
+}): Promise<{ id: number }> {
+  return apiPost<{ id: number }>('/api/company-portal/indents', input);
+}
+export async function fetchIndents(scope: 'mine' | 'inbox' | 'all' = 'mine'): Promise<IndentSummary[]> {
+  return apiGet<IndentSummary[]>(`/api/company-portal/indents?scope=${scope}`);
+}
+export async function fetchIndent(id: number): Promise<any> {
+  return apiGet<any>(`/api/company-portal/indents/${id}`);
+}
+export async function cancelIndent(id: number): Promise<{ ok: boolean }> {
+  return apiPatch<{ ok: boolean }>(`/api/company-portal/indents/${id}/cancel`, {});
+}
+
 export async function fetchMyAssetQueries(): Promise<AssetQuery[]> {
   return apiGet<AssetQuery[]>('/api/company-portal/asset-queries');
 }

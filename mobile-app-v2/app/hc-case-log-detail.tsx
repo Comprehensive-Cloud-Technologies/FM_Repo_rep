@@ -281,6 +281,16 @@ export default function HCCaseLogDetail() {
                 </TouchableOpacity>
               )}
 
+              {/* Request a spare part while solving this ticket */}
+              {(wo.status === 'assigned' || wo.status === 'in_progress') && (
+                <TouchableOpacity
+                  style={[ss.actionBtn, { backgroundColor: '#4338ca' }]}
+                  onPress={() => router.push({ pathname: '/request-part', params: { ticketId: String(id), assetId: String(wo.asset_id ?? ''), assetName: wo.asset_name || '' } })}
+                >
+                  <Text style={ss.actionBtnText}>＋ Request a Part</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Remarks input */}
               <View style={[ss.section, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <Text style={[ss.sectionTitle, { color: theme.textMuted }]}>ADD WORK NOTES</Text>
