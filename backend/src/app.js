@@ -42,6 +42,7 @@ import assetTransferRouter from "./routes/assetTransfer.js";
 import pmsChecklistsRouter from "./routes/pmsChecklists.js";
 import calibrationRouter from "./routes/calibration.js";
 import assetAuditsRouter from "./routes/assetAudits.js";
+import partsRouter from "./routes/parts.js";
 import uploadRouter from "./routes/upload.js";
 // Soft Services feature removed from the product. Route left in the tree but not
 // mounted; existing data is preserved (dormant). See CHANGELOG.
@@ -139,6 +140,7 @@ app.use("/api/company-portal/calibration", calibrationRouter);
 app.use("/api/company-portal/sla", companySlaRouter);
 app.use("/api/company-portal/training", trainingRouter);
 app.use("/api/company-portal/audits", assetAuditsRouter);
+app.use("/api/company-portal/parts", partsRouter);
 app.use("/api/admin/sla", adminSlaRouter);
 app.use("/api/company-portal", companyPortalRouter);
 app.use("/api/company-portal/roles", companyRolesRouter);

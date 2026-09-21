@@ -53,6 +53,7 @@ export const S3_FOLDERS = {
   ojt:          "ojt",            // OJT training files (pdf, video, etc.)
   assets:       "asset-images",   // asset registration photos (mobile)
   excel:        "tmp-excel",      // bulk import xlsx (auto-cleaned)
+  parts:        "part-images",    // spare-part photos (mobile part generation)
 };
 
 // ── Upload a Buffer / Stream to S3 ────────────────────────────────────────────

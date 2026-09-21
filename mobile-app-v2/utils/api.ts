@@ -569,6 +569,52 @@ export async function uploadQueryImage(token: string, fileUri: string): Promise<
   return data.url as string;
 }
 
+// ─── Parts (spare-part register / "Part Generation") ──────────────────────────
+export interface Part {
+  id:            number;
+  partName:      string;
+  make?:         string | null;
+  model?:        string | null;
+  photoUrl?:     string | null;
+  createdByName?: string | null;
+  createdAt?:    string;
+}
+
+/** Upload a part photo → returns the stored (S3) URL. */
+export async function uploadPartPhoto(fileUri: string): Promise<string> {
+  const token = await getToken();
+  const filename = fileUri.split('/').pop() || 'part.jpg';
+  const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+  const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+  const type = mimeMap[ext] || 'image/jpeg';
+  const formData = new FormData();
+  formData.append('image', { uri: fileUri, name: filename, type } as any);
+  const res = await fetch(`${API_BASE}/api/company-portal/parts/upload-photo`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => 'Upload failed');
+    throw new ApiError(res.status, msg || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
+/** Create a part. */
+export async function createPart(input: {
+  partName: string; make?: string; model?: string; photoUrl?: string | null;
+}): Promise<{ id: number }> {
+  return apiPost<{ id: number }>('/api/company-portal/parts', input);
+}
+
+/** List parts for the company (optional search query). */
+export async function fetchParts(q?: string): Promise<Part[]> {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  return apiGet<Part[]>(`/api/company-portal/parts${qs}`);
+}
+
 export async function fetchMyAssetQueries(): Promise<AssetQuery[]> {
   return apiGet<AssetQuery[]>('/api/company-portal/asset-queries');
 }
