@@ -22,6 +22,7 @@ export default function PartsModule({ token, canManage = true }) {
   const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null); // part object being edited
+  const [viewImg, setViewImg] = useState(null); // photo URL shown in the lightbox
 
   const load = useCallback(async () => {
     setLoading(true); setErr("");
@@ -86,7 +87,8 @@ export default function PartsModule({ token, canManage = true }) {
                     <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "8px 12px" }}>
                         {p.photoUrl
-                          ? <img src={p.photoUrl} alt={p.partName} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: "1px solid #e2e8f0" }} />
+                          ? <img src={p.photoUrl} alt={p.partName} onClick={() => setViewImg(p.photoUrl)} title="Click to view"
+                              style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: "1px solid #e2e8f0", cursor: "pointer" }} />
                           : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "16px" }}>⚙</div>}
                       </td>
                       <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0f172a" }}>{p.partName}</td>
@@ -118,6 +120,13 @@ export default function PartsModule({ token, canManage = true }) {
         <PartForm token={token} part={editing}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); load(); }} />
+      )}
+
+      {viewImg && (
+        <div onClick={() => setViewImg(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.8)", zIndex: 3100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", cursor: "zoom-out" }}>
+          <img src={viewImg} alt="Part" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: "12px", boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }} />
+        </div>
       )}
     </div>
   );
@@ -159,7 +168,7 @@ function PartForm({ token, part, onClose, onSaved }) {
     if (!form.partName.trim()) { setErr("Part name is required"); return; }
     setSaving(true); setErr("");
     const payload = {
-      partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(), unit: form.unit.trim(),
+      partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(),
       totalQuantity: form.totalQuantity === "" ? 0 : Math.max(0, parseInt(form.totalQuantity, 10) || 0),
       availableQuantity: form.availableQuantity === "" ? undefined : Math.max(0, parseInt(form.availableQuantity, 10) || 0),
       photoUrl: photoUrl || null,
@@ -183,10 +192,9 @@ function PartForm({ token, part, onClose, onSaved }) {
             <div><label style={lbl}>Make</label><input style={inp} value={form.make} onChange={set("make")} placeholder="e.g. Philips" /></div>
             <div><label style={lbl}>Model</label><input style={inp} value={form.model} onChange={set("model")} placeholder="e.g. HR-2000" /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div><label style={lbl}>Total qty</label><input style={inp} type="number" min="0" value={form.totalQuantity} onChange={set("totalQuantity")} placeholder="0" /></div>
             <div><label style={lbl}>Available</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
-            <div><label style={lbl}>Unit</label><input style={inp} value={form.unit} onChange={set("unit")} placeholder="pcs" /></div>
           </div>
           <div>
             <label style={lbl}>Photo</label>

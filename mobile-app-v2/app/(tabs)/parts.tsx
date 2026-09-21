@@ -22,8 +22,6 @@ export default function PartsTab() {
   const [partName, setPartName] = useState('');
   const [make, setMake]         = useState('');
   const [model, setModel]       = useState('');
-  const [totalQty, setTotalQty] = useState('');
-  const [availQty, setAvailQty] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
 
@@ -55,13 +53,10 @@ export default function PartsTab() {
     } catch { Alert.alert('Error', 'Could not pick an image.'); }
   };
 
-  const reset = () => { setPartName(''); setMake(''); setModel(''); setTotalQty(''); setAvailQty(''); setPhotoUri(null); };
+  const reset = () => { setPartName(''); setMake(''); setModel(''); setPhotoUri(null); };
 
   const submit = async () => {
     if (!partName.trim()) { Alert.alert('Required', 'Please enter a part name.'); return; }
-    const total = totalQty.trim() ? Math.max(0, parseInt(totalQty, 10) || 0) : 0;
-    let avail = availQty.trim() ? Math.max(0, parseInt(availQty, 10) || 0) : total;
-    if (avail > total) avail = total;
     setSaving(true);
     try {
       let photoUrl: string | null = null;
@@ -69,7 +64,8 @@ export default function PartsTab() {
         try { photoUrl = await uploadPartPhoto(photoUri); }
         catch { Alert.alert('Photo not uploaded', 'The part will be saved without the photo (image upload failed).'); }
       }
-      await createPart({ partName: partName.trim(), make: make.trim(), model: model.trim(), photoUrl, totalQuantity: total, availableQuantity: avail });
+      // Quantities are managed from the web dashboard, not the mobile app.
+      await createPart({ partName: partName.trim(), make: make.trim(), model: model.trim(), photoUrl });
       reset();
       Alert.alert('Part added', 'The part has been saved.');
       await load();
@@ -107,19 +103,6 @@ export default function PartsTab() {
             <Text style={[styles.label, { color: theme.textMuted }]}>Model</Text>
             <TextInput style={inputStyle} value={model} onChangeText={setModel}
               placeholder="e.g. HR-2000" placeholderTextColor={theme.textMuted} />
-
-            <View style={{ flexDirection: 'row', gap: Spacing.md }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: theme.textMuted }]}>Total quantity</Text>
-                <TextInput style={inputStyle} value={totalQty} onChangeText={setTotalQty}
-                  placeholder="0" placeholderTextColor={theme.textMuted} keyboardType="number-pad" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: theme.textMuted }]}>Available</Text>
-                <TextInput style={inputStyle} value={availQty} onChangeText={setAvailQty}
-                  placeholder="= total" placeholderTextColor={theme.textMuted} keyboardType="number-pad" />
-              </View>
-            </View>
 
             <Text style={[styles.label, { color: theme.textMuted }]}>Photo</Text>
             {photoUri ? (

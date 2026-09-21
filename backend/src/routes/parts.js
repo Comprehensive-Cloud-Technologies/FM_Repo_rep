@@ -9,6 +9,8 @@
 import { Router } from "express";
 import crypto from "crypto";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import multer from "multer";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
@@ -17,7 +19,17 @@ import { uploadToS3, S3_FOLDERS, presignIfS3 } from "../utils/s3.js";
 const router = Router();
 router.use(requireCompanyAuth);
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cid = (req) => req.companyUser.companyId;
+
+// Turn a stored photo URL into something the client can load: pre-sign private
+// S3 objects, and make local /uploads paths absolute against the current host.
+const resolvePhotoUrl = async (req, url) => {
+  if (!url) return url;
+  const signed = await presignIfS3(url);
+  if (signed && signed.startsWith("/")) return `${req.protocol}://${req.get("host")}${signed}`;
+  return signed;
+};
 
 // ── Auto-migration ──────────────────────────────────────────────────────────
 (async () => {
@@ -81,12 +93,22 @@ router.post("/upload-photo", (req, res, next) => {
     if (!req.file) return res.status(400).json({ message: "No image provided" });
     const ext = path.extname(req.file.originalname).toLowerCase() || ".jpg";
     const filename = `part_${Date.now()}_${crypto.randomBytes(8).toString("hex")}${ext}`;
-    const url = await uploadToS3({
-      buffer:   req.file.buffer,
-      mimetype: req.file.mimetype,
-      folder:   S3_FOLDERS.parts,
-      filename,
-    });
+    let url;
+    try {
+      url = await uploadToS3({
+        buffer:   req.file.buffer,
+        mimetype: req.file.mimetype,
+        folder:   S3_FOLDERS.parts,
+        filename,
+      });
+    } catch (s3err) {
+      // Fallback to local disk when S3 isn't configured (e.g. local dev without
+      // AWS credentials). Served statically from /uploads. Production keeps S3.
+      const dir = path.join(__dirname, "../../uploads/parts");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+      url = `/uploads/parts/${filename}`;
+    }
     res.json({ url });
   } catch (err) { next(err); }
 });
@@ -207,10 +229,10 @@ router.get("/", async (req, res, next) => {
        LIMIT 500`,
       params
     );
-    // Pre-sign photo URLs so private S3 objects render in the app.
+    // Resolve photo URLs (pre-sign S3, absolutize local /uploads) so they render.
     const out = await Promise.all(rows.map(async (r) => ({
       ...r,
-      photoUrl: await presignIfS3(r.photoUrl),
+      photoUrl: await resolvePhotoUrl(req, r.photoUrl),
     })));
     res.json(out);
   } catch (err) { next(err); }
