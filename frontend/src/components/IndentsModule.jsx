@@ -4,20 +4,26 @@
  * stock via the ledger). Anyone can raise an indent and track their own.
  */
 import { useCallback, useEffect, useState } from "react";
-import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts } from "../api";
+import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts,
+  getVendors, createVendor, sendToProcurement, quoteIndent, approveIndentPrice, rejectIndentPrice, dispatchIndent, grnIndent } from "../api";
 
 const STATUS_CFG = {
-  pending_approval: { label: "Pending Approval", bg: "#fef3c7", color: "#b45309" },
-  approved:         { label: "Approved",         bg: "#e0e7ff", color: "#4338ca" },
-  issued:           { label: "Issued",           bg: "#dcfce7", color: "#15803d" },
-  rejected:         { label: "Rejected",         bg: "#fee2e2", color: "#b91c1c" },
-  cancelled:        { label: "Cancelled",        bg: "#f1f5f9", color: "#64748b" },
+  pending_approval:       { label: "Pending Approval", bg: "#fef3c7", color: "#b45309" },
+  approved:               { label: "Approved",         bg: "#e0e7ff", color: "#4338ca" },
+  in_procurement:         { label: "In Procurement",   bg: "#ffedd8", color: "#c2410c" },
+  pending_price_approval: { label: "Price Approval",   bg: "#fef3c7", color: "#b45309" },
+  po_created:             { label: "PO Created",        bg: "#e0f2fe", color: "#0369a1" },
+  dispatched:             { label: "Dispatched",       bg: "#ede9fe", color: "#6d28d9" },
+  received:               { label: "Received",         bg: "#d6f5f0", color: "#0d9488" },
+  issued:                 { label: "Issued",           bg: "#dcfce7", color: "#15803d" },
+  rejected:               { label: "Rejected",         bg: "#fee2e2", color: "#b91c1c" },
+  cancelled:              { label: "Cancelled",        bg: "#f1f5f9", color: "#64748b" },
 };
 const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" };
 const btn = (bg, color, border) => ({ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${border || bg}`, background: bg, color, fontWeight: 700, fontSize: "13px", cursor: "pointer" });
 const Chip = ({ s }) => { const c = STATUS_CFG[s] || STATUS_CFG.cancelled; return <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: c.bg, color: c.color, whiteSpace: "nowrap" }}>{c.label}</span>; };
 
-export default function IndentsModule({ token, canManage = false }) {
+export default function IndentsModule({ token, canManage = false, canProcure = false, canFinance = false }) {
   const [scope, setScope] = useState(canManage ? "inbox" : "mine");
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -35,9 +41,10 @@ export default function IndentsModule({ token, canManage = false }) {
   useEffect(() => { load(); }, [load]);
 
   const tabs = [
-    ...(canManage ? [{ k: "inbox", label: "Approvals" }] : []),
+    ...(canManage || canFinance ? [{ k: "inbox", label: "Approvals" }] : []),
+    ...(canProcure ? [{ k: "procurement", label: "Procurement" }] : []),
     { k: "mine", label: "My Indents" },
-    ...(canManage ? [{ k: "all", label: "All" }] : []),
+    ...(canManage || canProcure || canFinance ? [{ k: "all", label: "All" }] : []),
   ];
 
   return (
@@ -96,18 +103,20 @@ export default function IndentsModule({ token, canManage = false }) {
         )}
       </div>
 
-      {openId && <IndentDetail token={token} id={openId} canManage={canManage} onClose={() => setOpenId(null)} onChanged={() => { setOpenId(null); load(); }} />}
+      {openId && <IndentDetail token={token} id={openId} canManage={canManage} canProcure={canProcure} canFinance={canFinance} onClose={() => setOpenId(null)} onChanged={() => { setOpenId(null); load(); }} />}
       {showNew && <NewIndent token={token} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); load(); }} />}
     </div>
   );
 }
 
-function IndentDetail({ token, id, canManage, onClose, onChanged }) {
+function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, onChanged }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [quoting, setQuoting] = useState(false);
 
-  useEffect(() => { (async () => { try { setData(await getIndent(token, id)); } catch (e) { setErr(e.message); } })(); }, [token, id]);
+  const reload = async () => { try { setData(await getIndent(token, id)); } catch (e) { setErr(e.message); } };
+  useEffect(() => { reload(); }, [token, id]);
 
   const act = async (fn, confirmMsg) => {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -118,9 +127,14 @@ function IndentDetail({ token, id, canManage, onClose, onChanged }) {
 
   const st = data?.status;
   const canApprove = canManage && st === "pending_approval";
-  const canIssue = canManage && st === "approved";
+  const canIssue = canManage && (st === "approved" || st === "received");
   const canReject = canManage && ["pending_approval", "approved"].includes(st);
   const canCancel = ["pending_approval", "approved"].includes(st);
+  const canSendProc = canManage && ["pending_approval", "approved"].includes(st);
+  const canQuote = canProcure && ["in_procurement"].includes(st);
+  const canApprovePrice = (canManage || canFinance) && st === "pending_price_approval";
+  const canDispatch = canProcure && st === "po_created";
+  const canGrn = (canProcure || canManage) && ["dispatched", "po_created"].includes(st);
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
@@ -170,14 +184,83 @@ function IndentDetail({ token, id, canManage, onClose, onChanged }) {
             )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
-              {canCancel && <button disabled={busy} onClick={() => act(() => cancelIndent(token, id), "Cancel this indent?")} style={btn("#fff", "#64748b", "#cbd5e1")}>Cancel indent</button>}
+              {canCancel && <button disabled={busy} onClick={() => act(() => cancelIndent(token, id), "Cancel this indent?")} style={btn("#fff", "#64748b", "#cbd5e1")}>Cancel</button>}
               {canReject && <button disabled={busy} onClick={() => act(() => rejectIndent(token, id), "Reject this indent?")} style={btn("#fef2f2", "#dc2626", "#fecaca")}>Reject</button>}
+              {canSendProc && <button disabled={busy} onClick={() => act(() => sendToProcurement(token, id), "Send this indent to the purchase team? (buys new stock, no reservation)")} style={btn("#fff7ed", "#c2410c", "#fed7aa")}>Send to procurement</button>}
               {canApprove && <button disabled={busy} onClick={() => act(() => approveIndent(token, id))} style={btn("#4338ca", "#fff")}>Approve &amp; reserve</button>}
+              {canQuote && <button disabled={busy} onClick={() => setQuoting(true)} style={btn("#c2410c", "#fff")}>Add quote</button>}
+              {canApprovePrice && <button disabled={busy} onClick={() => act(() => rejectIndentPrice(token, id), "Reject the quote and send back for re-quote?")} style={btn("#fef2f2", "#dc2626", "#fecaca")}>Reject price</button>}
+              {canApprovePrice && <button disabled={busy} onClick={() => act(() => approveIndentPrice(token, id), "Approve price and generate the PO?")} style={btn("#0369a1", "#fff")}>Approve price &amp; make PO</button>}
+              {canDispatch && <button disabled={busy} onClick={() => act(() => dispatchIndent(token, id))} style={btn("#6d28d9", "#fff")}>Dispatch to site</button>}
+              {canGrn && <button disabled={busy} onClick={() => act(() => grnIndent(token, id), "Confirm goods received? This adds the parts to stock.")} style={btn("#0d9488", "#fff")}>Receive (GRN)</button>}
               {canIssue && <button disabled={busy} onClick={() => act(() => issueIndent(token, id), "Issue parts and deduct stock?")} style={btn("#15803d", "#fff")}>Issue &amp; deduct</button>}
-              {!canApprove && !canIssue && !canReject && !canCancel && <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Close</button>}
+              <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Close</button>
             </div>
+
+            {quoting && <QuoteForm token={token} indent={data} onClose={() => setQuoting(false)} onSaved={() => { setQuoting(false); onChanged(); }} />}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function QuoteForm({ token, indent, onClose, onSaved }) {
+  const [vendors, setVendors] = useState([]);
+  const [vendorId, setVendorId] = useState("");
+  const [prices, setPrices] = useState(() => Object.fromEntries((indent.items || []).map((it) => [it.id, it.unit_price ?? ""])));
+  const [newVendor, setNewVendor] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const loadV = async () => { try { setVendors(await getVendors(token)); } catch { /* ignore */ } };
+  useEffect(() => { loadV(); }, []);
+
+  const addVendor = async () => {
+    if (!newVendor.trim()) return;
+    try { const r = await createVendor(token, { name: newVendor.trim() }); setNewVendor(""); await loadV(); setVendorId(String(r.id)); }
+    catch (e) { setErr(e.message); }
+  };
+  const submit = async () => {
+    setSaving(true); setErr("");
+    const priceMap = {}; Object.entries(prices).forEach(([k, v]) => { if (v !== "") priceMap[k] = Number(v); });
+    try { await quoteIndent(token, indent.id, { vendorId: vendorId ? Number(vendorId) : null, prices: priceMap }); onSaved(); }
+    catch (e) { setErr(e.message || "Could not submit quote"); setSaving(false); }
+  };
+  const inp = { width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", boxSizing: "border-box" };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 3200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: "480px", maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", padding: "22px" }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>Vendor &amp; pricing</h3>
+        {err && <div style={{ padding: "9px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "12.5px", marginBottom: "12px" }}>{err}</div>}
+        <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>Vendor</label>
+        <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} style={{ ...inp, marginBottom: "8px" }}>
+          <option value="">Select vendor…</option>
+          {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          <input value={newVendor} onChange={(e) => setNewVendor(e.target.value)} placeholder="Add a new vendor…" style={inp} />
+          <button onClick={addVendor} style={btn("#f1f5f9", "#475569", "#e2e8f0")}>Add</button>
+        </div>
+        <div style={{ ...card, overflow: "hidden", marginBottom: "16px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead><tr style={{ background: "#f8fafc" }}>{["Part", "Qty", "Unit price"].map((h) => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {(indent.items || []).map((it) => (
+                <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                  <td style={{ padding: "8px 12px", fontWeight: 600 }}>{it.part_name || `Part #${it.part_id}`}</td>
+                  <td style={{ padding: "8px 12px" }}>{it.qty_approved ?? it.qty_requested}</td>
+                  <td style={{ padding: "8px 12px" }}><input type="number" min="0" step="0.01" value={prices[it.id] ?? ""} onChange={(e) => setPrices((p) => ({ ...p, [it.id]: e.target.value }))} style={{ ...inp, width: "120px" }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={btn("#c2410c", "#fff")}>{saving ? "Submitting…" : "Submit quote for approval"}</button>
+        </div>
       </div>
     </div>
   );

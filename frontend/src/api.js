@@ -241,6 +241,16 @@ export const approveIndent   = (token, id, body = {}) => request("PATCH", `/api/
 export const rejectIndent    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/reject`, body, { authToken: token });
 export const issueIndent     = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/issue`, body, { authToken: token });
 export const cancelIndent    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/cancel`, body, { authToken: token });
+// Phase 2 — procurement
+export const getVendors         = (token) => request("GET", "/api/company-portal/indents/vendors", undefined, { authToken: token });
+export const createVendor       = (token, data) => request("POST", "/api/company-portal/indents/vendors", data, { authToken: token });
+export const sendToProcurement  = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/send-to-procurement`, body, { authToken: token });
+export const quoteIndent        = (token, id, body) => request("PATCH", `/api/company-portal/indents/${id}/quote`, body, { authToken: token });
+export const approveIndentPrice = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/approve-price`, body, { authToken: token });
+export const rejectIndentPrice  = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/reject-price`, body, { authToken: token });
+export const dispatchIndent     = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/dispatch`, body, { authToken: token });
+export const grnIndent          = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/grn`, body, { authToken: token });
+export const getIndentPo        = (token, id) => request("GET", `/api/company-portal/indents/${id}/po`, undefined, { authToken: token });
 
 /** Upload a part photo (multipart) → returns { url }. */
 export const uploadPartPhoto = async (token, file) => {

@@ -9785,10 +9785,12 @@ export default function CompanyEmployeePortal() {
       {nav === "indents" && (() => {
         const r = (currentUser?.role || "").toLowerCase();
         const canManage = ["admin", "supervisor", "catalyst_admin"].includes(r);
+        const canProcure = ["admin", "supervisor", "catalyst_admin", "purchase", "procurement"].includes(r);
+        const canFinance = ["admin", "catalyst_admin", "finance", "accounts"].includes(r);
         return (
           <div className="cp-main-content" style={{ position: "fixed", left: "240px", top: 0, right: 0, bottom: 0, zIndex: 550, overflowY: "auto", overflowX: "hidden", background: "#f8fafc", padding: "16px 32px 28px" }}>
             {companySwitcherBar}
-            <IndentsModule token={token} canManage={canManage} />
+            <IndentsModule token={token} canManage={canManage} canProcure={canProcure} canFinance={canFinance} />
           </div>
         );
       })()}
