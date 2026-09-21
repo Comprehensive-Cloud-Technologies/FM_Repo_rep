@@ -576,6 +576,9 @@ export interface Part {
   make?:         string | null;
   model?:        string | null;
   photoUrl?:     string | null;
+  totalQuantity?:     number;
+  availableQuantity?: number;
+  unit?:         string | null;
   createdByName?: string | null;
   createdAt?:    string;
 }
@@ -605,6 +608,7 @@ export async function uploadPartPhoto(fileUri: string): Promise<string> {
 /** Create a part. */
 export async function createPart(input: {
   partName: string; make?: string; model?: string; photoUrl?: string | null;
+  totalQuantity?: number; availableQuantity?: number; unit?: string;
 }): Promise<{ id: number }> {
   return apiPost<{ id: number }>('/api/company-portal/parts', input);
 }

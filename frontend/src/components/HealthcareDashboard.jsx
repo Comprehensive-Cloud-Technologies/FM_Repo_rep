@@ -1923,7 +1923,47 @@ function ReviewsSection({ token, compact = false, allCompaniesMode = false }) {
   );
 }
 
-export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, externalRefreshKey, allCompaniesMode = false, showSla = true }) {
+/* ─── Parts / Inventory summary strip (dashboard) ─────────────────────────── */
+function PartsSummarySection({ token, onOpen }) {
+  const [sum, setSum] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${BASE}/api/company-portal/parts/summary`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok && alive) setSum(await res.json());
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, [token]);
+
+  const tiles = [
+    { label: "Distinct Parts",   value: sum?.totalParts,     color: "#2563eb" },
+    { label: "Total Units",      value: sum?.totalUnits,     color: "#0f172a" },
+    { label: "Available Units",  value: sum?.availableUnits, color: "#059669" },
+    { label: "Out of Stock",     value: sum?.outOfStock,     color: (sum?.outOfStock || 0) > 0 ? "#dc2626" : "#94a3b8" },
+  ];
+
+  return (
+    <section style={{ marginBottom: "16px" }}>
+      <h2 style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px", display: "flex", alignItems: "center", gap: "8px" }}>
+        Parts / Inventory
+        {onOpen && <button onClick={onOpen} style={{ fontSize: "11px", fontWeight: 600, color: "#2563eb", background: "none", border: "none", cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>Manage →</button>}
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
+        {tiles.map(t => (
+          <div key={t.label} onClick={onOpen}
+            style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "14px 16px", cursor: onOpen ? "pointer" : "default" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.label}</div>
+            <div style={{ fontSize: "24px", fontWeight: 900, color: t.color, marginTop: "4px", lineHeight: 1 }}>{t.value ?? "—"}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate, onOpenParts, externalRefreshKey, allCompaniesMode = false, showSla = true }) {
   const EMPTY_FILTERS = { dateFrom: "", dateTo: "", departmentId: "", assetCategory: "", location: "", status: "", criticality: "", search: "" };
 
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -2178,6 +2218,9 @@ export default function HealthcareDashboard({ token, onOpenAsset, onTileNavigate
           onReset={handleReset}
         />
       )}
+
+      {/* ── PARTS / INVENTORY SUMMARY ── */}
+      <PartsSummarySection token={token} onOpen={onOpenParts} />
 
       {/* ── ASSET SNAPSHOT KPI CARDS ── */}
       <section style={{ marginBottom: "16px" }}>

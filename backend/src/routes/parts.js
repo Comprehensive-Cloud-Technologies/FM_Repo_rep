@@ -30,6 +30,9 @@ const cid = (req) => req.companyUser.companyId;
         make           VARCHAR(160) DEFAULT NULL,
         model          VARCHAR(160) DEFAULT NULL,
         photo_url      VARCHAR(1024) DEFAULT NULL,
+        total_quantity     INT NOT NULL DEFAULT 0,
+        available_quantity INT NOT NULL DEFAULT 0,
+        unit           VARCHAR(40) DEFAULT NULL,
         created_by     INT UNSIGNED DEFAULT NULL,
         created_by_name VARCHAR(160) DEFAULT NULL,
         created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -40,7 +43,22 @@ const cid = (req) => req.companyUser.companyId;
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   } catch (err) { /* table may already exist */ }
+  // Add inventory columns for installs created before they existed.
+  for (const col of [
+    "ADD COLUMN total_quantity INT NOT NULL DEFAULT 0",
+    "ADD COLUMN available_quantity INT NOT NULL DEFAULT 0",
+    "ADD COLUMN unit VARCHAR(40) DEFAULT NULL",
+  ]) {
+    try { await pool.query(`ALTER TABLE parts ${col}`); } catch (err) { /* column exists */ }
+  }
 })();
+
+// Clamp a value to a non-negative integer (or null when not provided).
+const toQty = (v) => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
 
 // ── Photo upload → S3 ─────────────────────────────────────────────────────────
 const uploadPartPhoto = multer({
@@ -73,27 +91,99 @@ router.post("/upload-photo", (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /summary — inventory totals for the dashboard
+router.get("/summary", async (req, res, next) => {
+  try {
+    const [[s]] = await pool.query(
+      `SELECT COUNT(*) AS totalParts,
+              COALESCE(SUM(total_quantity), 0)     AS totalUnits,
+              COALESCE(SUM(available_quantity), 0) AS availableUnits,
+              SUM(available_quantity <= 0)         AS outOfStock
+       FROM parts WHERE company_id = ?`,
+      [cid(req)]
+    );
+    res.json({
+      totalParts:     Number(s.totalParts || 0),
+      totalUnits:     Number(s.totalUnits || 0),
+      availableUnits: Number(s.availableUnits || 0),
+      outOfStock:     Number(s.outOfStock || 0),
+    });
+  } catch (err) { next(err); }
+});
+
 // POST / — create a part
 router.post("/", async (req, res, next) => {
   try {
-    const { partName, make = null, model = null, photoUrl = null } = req.body || {};
+    const { partName, make = null, model = null, photoUrl = null,
+            totalQuantity, availableQuantity, unit = null } = req.body || {};
     if (!partName || !String(partName).trim()) {
       return res.status(400).json({ message: "Part name is required" });
     }
+    const total = toQty(totalQuantity) ?? 0;
+    // Available defaults to total when not supplied, and never exceeds total.
+    let avail = toQty(availableQuantity);
+    if (avail === null) avail = total;
+    if (avail > total) avail = total;
     const [result] = await pool.query(
-      `INSERT INTO parts (company_id, part_name, make, model, photo_url, created_by, created_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO parts
+         (company_id, part_name, make, model, photo_url, total_quantity, available_quantity, unit, created_by, created_by_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cid(req),
         String(partName).trim(),
         make ? String(make).trim() : null,
         model ? String(model).trim() : null,
         photoUrl || null,
+        total,
+        avail,
+        unit ? String(unit).trim() : null,
         req.companyUser.id,
         req.companyUser.fullName || req.companyUser.email || null,
       ]
     );
     res.status(201).json({ id: result.insertId, message: "Part added" });
+  } catch (err) { next(err); }
+});
+
+// PATCH /:id — edit a part / adjust inventory
+router.patch("/:id", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const [[existing]] = await pool.query(
+      `SELECT id, total_quantity, available_quantity FROM parts WHERE id = ? AND company_id = ?`,
+      [id, cid(req)]
+    );
+    if (!existing) return res.status(404).json({ message: "Part not found" });
+
+    const b = req.body || {};
+    const sets = [];
+    const params = [];
+    if (b.partName !== undefined) { sets.push("part_name = ?"); params.push(String(b.partName).trim()); }
+    if (b.make    !== undefined) { sets.push("make = ?");  params.push(b.make ? String(b.make).trim() : null); }
+    if (b.model   !== undefined) { sets.push("model = ?"); params.push(b.model ? String(b.model).trim() : null); }
+    if (b.unit    !== undefined) { sets.push("unit = ?");  params.push(b.unit ? String(b.unit).trim() : null); }
+    if (b.photoUrl !== undefined) { sets.push("photo_url = ?"); params.push(b.photoUrl || null); }
+
+    // Resolve final quantities, keeping available ≤ total.
+    let total = existing.total_quantity, avail = existing.available_quantity;
+    if (b.totalQuantity !== undefined)     total = toQty(b.totalQuantity) ?? 0;
+    if (b.availableQuantity !== undefined) avail = toQty(b.availableQuantity) ?? 0;
+    if (avail > total) avail = total;
+    if (b.totalQuantity !== undefined)     { sets.push("total_quantity = ?");     params.push(total); }
+    if (b.availableQuantity !== undefined || b.totalQuantity !== undefined) { sets.push("available_quantity = ?"); params.push(avail); }
+
+    if (!sets.length) return res.json({ ok: true });
+    params.push(id, cid(req));
+    await pool.query(`UPDATE parts SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`, params);
+    res.json({ ok: true, message: "Part updated" });
+  } catch (err) { next(err); }
+});
+
+// DELETE /:id — remove a part
+router.delete("/:id", async (req, res, next) => {
+  try {
+    await pool.query(`DELETE FROM parts WHERE id = ? AND company_id = ?`, [Number(req.params.id), cid(req)]);
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
@@ -110,10 +200,11 @@ router.get("/", async (req, res, next) => {
     }
     const [rows] = await pool.query(
       `SELECT id, part_name AS partName, make, model, photo_url AS photoUrl,
+              total_quantity AS totalQuantity, available_quantity AS availableQuantity, unit,
               created_by_name AS createdByName, created_at AS createdAt
        FROM parts ${where}
        ORDER BY created_at DESC
-       LIMIT 200`,
+       LIMIT 500`,
       params
     );
     // Pre-sign photo URLs so private S3 objects render in the app.

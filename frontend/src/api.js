@@ -226,6 +226,23 @@ export const markAuditItem        = (token, id, itemId, data) => request("PATCH"
 export const scanAuditAsset       = (token, id, data) => request("POST", `/api/company-portal/audits/${id}/scan`, data, { authToken: token });
 export const getAuditReport       = (token, id) => request("GET", `/api/company-portal/audits/${id}/report`, undefined, { authToken: token });
 
+// ── Parts / Inventory ─────────────────────────────────────────────────────────
+export const getParts        = (token, q) => request("GET", `/api/company-portal/parts${q ? `?q=${encodeURIComponent(q)}` : ""}`, undefined, { authToken: token });
+export const getPartsSummary = (token) => request("GET", "/api/company-portal/parts/summary", undefined, { authToken: token });
+export const createPart       = (token, data) => request("POST", "/api/company-portal/parts", data, { authToken: token });
+export const updatePart       = (token, id, data) => request("PATCH", `/api/company-portal/parts/${id}`, data, { authToken: token });
+export const deletePart       = (token, id) => request("DELETE", `/api/company-portal/parts/${id}`, undefined, { authToken: token });
+/** Upload a part photo (multipart) → returns { url }. */
+export const uploadPartPhoto = async (token, file) => {
+  const formData = new FormData();
+  formData.append("image", file);
+  const res = await fetch(`${BASE}/api/company-portal/parts/upload-photo`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+};
+
 export const getCompanyPortalEmployees = (token) => request("GET", "/api/company-portal/employees", undefined, { authToken: token });
 export const createCompanyPortalEmployee = (token, data) => request("POST", "/api/company-portal/employees", data, { authToken: token });
 export const updateCompanyPortalEmployee = (token, id, data) => request("PUT", `/api/company-portal/employees/${id}`, data, { authToken: token });
