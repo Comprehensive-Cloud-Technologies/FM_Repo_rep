@@ -82,6 +82,7 @@ const canFinance = (req) => ["admin", "catalyst_admin", "finance", "accounts"].i
         qty_requested  INT NOT NULL DEFAULT 1,
         qty_approved   INT DEFAULT NULL,
         qty_issued     INT NOT NULL DEFAULT 0,
+        item_status    VARCHAR(20) NOT NULL DEFAULT 'pending',
         unit_price     DECIMAL(12,2) DEFAULT NULL,
         vendor_id      INT UNSIGNED DEFAULT NULL,
         PRIMARY KEY (id),
@@ -126,6 +127,8 @@ const canFinance = (req) => ["admin", "catalyst_admin", "finance", "accounts"].i
     `);
     // parts needs a reserved_quantity column for the reserve/issue model.
     try { await pool.query(`ALTER TABLE parts ADD COLUMN reserved_quantity INT NOT NULL DEFAULT 0`); } catch { /* exists */ }
+    // per-item approve/reject status
+    try { await pool.query(`ALTER TABLE part_indent_items ADD COLUMN item_status VARCHAR(20) NOT NULL DEFAULT 'pending'`); } catch { /* exists */ }
 
     // ── Phase 2: procurement ──
     await pool.query(`
@@ -355,29 +358,51 @@ router.patch("/:id/approve", async (req, res, next) => {
     if (ind.status !== STATUS.PENDING) { await conn.rollback(); return res.status(409).json({ message: `Cannot approve an indent that is '${ind.status}'` }); }
 
     const [items] = await conn.query(`SELECT * FROM part_indent_items WHERE indent_id = ?`, [ind.id]);
-    // Optional per-item approved quantities from body { approvals: { itemId: qty } }
-    const approvals = req.body?.approvals || {};
+    // Per-item decisions from body:
+    //   { decisions: { itemId: { action: 'approve'|'reject', qty } } }
+    // Missing decision defaults to approving the full requested quantity.
+    const decisions = req.body?.decisions || {};
 
+    let approvedCount = 0, rejectedCount = 0;
+    const approvedNames = [], rejectedNames = [];
     for (const it of items) {
-      const approveQty = Math.max(0, Math.trunc(Number(approvals[it.id] ?? it.qty_requested)));
+      const d = decisions[it.id] || {};
+      const action = d.action || "approve";
+      if (action === "reject") {
+        await conn.query(`UPDATE part_indent_items SET item_status = 'rejected', qty_approved = 0 WHERE id = ?`, [it.id]);
+        rejectedCount++; rejectedNames.push(it.part_name || `#${it.part_id}`);
+        continue;
+      }
+      const approveQty = Math.max(0, Math.trunc(Number(d.qty ?? it.qty_requested)));
+      if (approveQty <= 0) {
+        await conn.query(`UPDATE part_indent_items SET item_status = 'rejected', qty_approved = 0 WHERE id = ?`, [it.id]);
+        rejectedCount++; rejectedNames.push(it.part_name || `#${it.part_id}`);
+        continue;
+      }
       const [[p]] = await conn.query(`SELECT available_quantity AS a FROM parts WHERE id = ? AND company_id = ? FOR UPDATE`, [it.part_id, cid(req)]);
       if (!p) { await conn.rollback(); return res.status(404).json({ message: `Part #${it.part_id} not found` }); }
       if (approveQty > Number(p.a)) {
         await conn.rollback();
-        return res.status(409).json({ message: `Not enough stock for "${it.part_name || 'part'}" — available ${p.a}, requested ${approveQty}. (Procurement for shortfalls arrives in Phase 2.)` });
+        return res.status(409).json({ message: `Not enough stock for "${it.part_name || 'part'}" — available ${p.a}, approving ${approveQty}. Reduce the quantity, reject this item, or send the indent to procurement.` });
       }
-      await conn.query(`UPDATE part_indent_items SET qty_approved = ? WHERE id = ?`, [approveQty, it.id]);
-      if (approveQty > 0) {
-        await applyStockMovement(conn, {
-          companyId: cid(req), partId: it.part_id, reason: "reserve",
-          deltaReserved: approveQty, qty: approveQty, refType: "indent", refId: ind.id, actorId: req.companyUser.id,
-        });
-      }
+      await conn.query(`UPDATE part_indent_items SET item_status = 'approved', qty_approved = ? WHERE id = ?`, [approveQty, it.id]);
+      await applyStockMovement(conn, {
+        companyId: cid(req), partId: it.part_id, reason: "reserve",
+        deltaReserved: approveQty, qty: approveQty, refType: "indent", refId: ind.id, actorId: req.companyUser.id,
+      });
+      approvedCount++; approvedNames.push(it.part_name || `#${it.part_id}`);
     }
-    await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.APPROVED, ind.id]);
-    await addHistory(conn, ind.id, ind.status, STATUS.APPROVED, req, "approved", req.body?.comments);
+
+    // Roll-up: at least one approved → indent approved; all rejected → rejected.
+    const newStatus = approvedCount > 0 ? STATUS.APPROVED : STATUS.REJECTED;
+    const summary = [
+      approvedCount ? `approved ${approvedNames.join(", ")}` : "",
+      rejectedCount ? `rejected ${rejectedNames.join(", ")}` : "",
+    ].filter(Boolean).join(" · ");
+    await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [newStatus, ind.id]);
+    await addHistory(conn, ind.id, ind.status, newStatus, req, approvedCount > 0 ? "approved (item-wise)" : "rejected", summary || req.body?.comments);
     await conn.commit();
-    res.json({ ok: true, message: "Indent approved and stock reserved" });
+    res.json({ ok: true, message: approvedCount > 0 ? `Approved ${approvedCount} item(s), reserved stock` : "All items rejected" });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
 });
@@ -433,6 +458,7 @@ router.patch("/:id/issue", async (req, res, next) => {
 
     const [items] = await conn.query(`SELECT * FROM part_indent_items WHERE indent_id = ?`, [ind.id]);
     for (const it of items) {
+      if (it.item_status === "rejected") continue;
       const q = Number(it.qty_approved ?? it.qty_requested ?? 0);
       if (q > 0) {
         await applyStockMovement(conn, {

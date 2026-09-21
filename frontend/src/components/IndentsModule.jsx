@@ -116,8 +116,22 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   const [err, setErr] = useState("");
   const [quoting, setQuoting] = useState(false);
 
+  const [decisions, setDecisions] = useState({});
   const reload = async () => { try { setData(await getIndent(token, id)); } catch (e) { setErr(e.message); } };
   useEffect(() => { reload(); }, [token, id]);
+
+  // Seed per-item approval decisions when a pending indent loads.
+  useEffect(() => {
+    if (data && data.status === "pending_approval") {
+      const init = {};
+      (data.items || []).forEach((it) => {
+        const avail = it.partAvailable ?? 0;
+        init[it.id] = { action: avail > 0 ? "approve" : "reject", qty: Math.min(it.qty_requested, avail || it.qty_requested) };
+      });
+      setDecisions(init);
+    }
+  }, [data]);
+  const setDec = (itemId, patch) => setDecisions((d) => ({ ...d, [itemId]: { ...d[itemId], ...patch } }));
 
   const act = async (fn, confirmMsg) => {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -160,18 +174,53 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
             <div style={{ ...card, overflow: "hidden", marginBottom: "16px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead><tr style={{ background: "#f8fafc" }}>
-                  {["Part", "Requested", "Approved", "Issued", "In stock"].map((h) => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{h}</th>)}
+                  {(canApprove
+                    ? ["Part", "Requested", "In stock", "Approve qty", "Decision"]
+                    : ["Part", "Requested", "Approved", "Issued", "Item"]
+                  ).map((h) => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {(data.items || []).map((it) => (
-                    <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
-                      <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
-                      <td style={{ padding: "8px 12px" }}>{it.qty_approved ?? "—"}</td>
-                      <td style={{ padding: "8px 12px" }}>{it.qty_issued}</td>
-                      <td style={{ padding: "8px 12px", color: (it.partAvailable ?? 0) <= 0 ? "#dc2626" : "#059669", fontWeight: 700 }}>{it.partAvailable ?? "—"}</td>
-                    </tr>
-                  ))}
+                  {(data.items || []).map((it) => {
+                    const avail = it.partAvailable ?? 0;
+                    if (canApprove) {
+                      const d = decisions[it.id] || { action: "approve", qty: Math.min(it.qty_requested, avail) };
+                      const rejected = d.action === "reject";
+                      return (
+                        <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9", opacity: rejected ? 0.55 : 1 }}>
+                          <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
+                          <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
+                          <td style={{ padding: "8px 12px", color: avail <= 0 ? "#dc2626" : "#059669", fontWeight: 700 }}>{avail}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <input type="number" min="0" max={Math.min(it.qty_requested, avail)} value={d.qty ?? 0} disabled={rejected}
+                              onChange={(e) => setDec(it.id, { qty: Math.max(0, Math.min(Number(e.target.value) || 0, Math.min(it.qty_requested, avail))) })}
+                              style={{ width: "70px", padding: "5px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }} />
+                          </td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <button onClick={() => setDec(it.id, { action: rejected ? "approve" : "reject", qty: rejected ? Math.min(it.qty_requested, avail) : 0 })}
+                              style={{ ...btn(rejected ? "#fee2e2" : "#dcfce7", rejected ? "#b91c1c" : "#15803d", rejected ? "#fecaca" : "#bbf7d0"), padding: "4px 10px" }}>
+                              {rejected ? "Rejected — undo" : "Approve"}
+                            </button>
+                            {avail <= 0 && !rejected && <span style={{ marginLeft: 8, fontSize: "11px", color: "#c2410c" }}>out of stock</span>}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
+                      <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
+                        <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
+                        <td style={{ padding: "8px 12px" }}>{it.qty_approved ?? "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>{it.qty_issued}</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          {it.item_status === "rejected"
+                            ? <span style={{ fontSize: "11px", fontWeight: 700, color: "#b91c1c", background: "#fee2e2", padding: "2px 8px", borderRadius: "10px" }}>Rejected</span>
+                            : it.item_status === "approved"
+                              ? <span style={{ fontSize: "11px", fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: "10px" }}>Approved</span>
+                              : <span style={{ color: avail <= 0 ? "#dc2626" : "#64748b", fontSize: "12px" }}>{avail} in stock</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -213,7 +262,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               {canCancel && <button disabled={busy} onClick={() => act(() => cancelIndent(token, id), "Cancel this indent?")} style={btn("#fff", "#64748b", "#cbd5e1")}>Cancel</button>}
               {canReject && <button disabled={busy} onClick={() => act(() => rejectIndent(token, id), "Reject this indent?")} style={btn("#fef2f2", "#dc2626", "#fecaca")}>Reject</button>}
               {canSendProc && <button disabled={busy} onClick={() => act(() => sendToProcurement(token, id), "Send this indent to the purchase team? (buys new stock, no reservation)")} style={btn("#fff7ed", "#c2410c", "#fed7aa")}>Send to procurement</button>}
-              {canApprove && <button disabled={busy} onClick={() => act(() => approveIndent(token, id))} style={btn("#4338ca", "#fff")}>Approve &amp; reserve</button>}
+              {canApprove && <button disabled={busy} onClick={() => act(() => approveIndent(token, id, { decisions }))} style={btn("#4338ca", "#fff")}>Confirm approval</button>}
               {canQuote && <button disabled={busy} onClick={() => setQuoting(true)} style={btn("#c2410c", "#fff")}>Add quote</button>}
               {canApprovePrice && <button disabled={busy} onClick={() => act(() => rejectIndentPrice(token, id), "Reject the quote and send back for re-quote?")} style={btn("#fef2f2", "#dc2626", "#fecaca")}>Reject price</button>}
               {canApprovePrice && <button disabled={busy} onClick={() => act(() => approveIndentPrice(token, id), "Approve price and generate the PO?")} style={btn("#0369a1", "#fff")}>Approve price &amp; make PO</button>}
