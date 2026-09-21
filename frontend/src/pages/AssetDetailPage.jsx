@@ -1354,9 +1354,12 @@ export default function AssetDetailPage() {
                 ))}
               </div>
               {[m.indentNo, m.poNumber, m.grnNumber, m.requestedBy].every(v => !v) && (
-                <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8", fontSize: "14px" }}>No indent details recorded for this asset.</div>
+                <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8", fontSize: "14px" }}>No legacy indent metadata recorded for this asset.</div>
               )}
             </div>
+
+            {/* Live spare-part indents & orders raised through the app */}
+            <AssetPartIndents token={token} assetId={id} />
           </div>
         )}
 
@@ -1464,5 +1467,70 @@ export default function AssetDetailPage() {
 
       </div>
     </div >
+  );
+}
+
+// ─── Live spare-part indents & orders for this asset (Phase 4) ─────────────────
+const IND_STATUS = {
+  pending_approval: { label: "Pending", bg: "#fef3c7", color: "#b45309" },
+  approved: { label: "Approved", bg: "#e0e7ff", color: "#4338ca" },
+  in_procurement: { label: "In Procurement", bg: "#ffedd8", color: "#c2410c" },
+  pending_price_approval: { label: "Price Approval", bg: "#fef3c7", color: "#b45309" },
+  po_created: { label: "PO Created", bg: "#e0f2fe", color: "#0369a1" },
+  dispatched: { label: "Dispatched", bg: "#ede9fe", color: "#6d28d9" },
+  received: { label: "Received", bg: "#d6f5f0", color: "#0d9488" },
+  issued: { label: "Issued", bg: "#dcfce7", color: "#15803d" },
+  rejected: { label: "Rejected", bg: "#fee2e2", color: "#b91c1c" },
+  cancelled: { label: "Cancelled", bg: "#f1f5f9", color: "#64748b" },
+};
+
+function AssetPartIndents({ token, assetId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!token || !assetId) return;
+    fetch(`${getApiBaseUrl()}/api/company-portal/indents/by-asset/${assetId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setRows(Array.isArray(d) ? d : []))
+      .catch(() => setRows([]));
+  }, [token, assetId]);
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 12px" }}>Part Indents &amp; Orders</h4>
+      <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+        {rows === null ? (
+          <div style={{ padding: "24px", color: "#94a3b8", fontSize: "13px" }}>Loading…</div>
+        ) : rows.length === 0 ? (
+          <div style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "13.5px" }}>No part indents raised for this asset yet.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc", textAlign: "left" }}>
+                  {["Indent #", "Parts", "Raised by", "Est. cost", "Status", "Date"].map(h => (
+                    <th key={h} style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1.5px solid #e2e8f0" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => {
+                  const s = IND_STATUS[r.status] || IND_STATUS.cancelled;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "9px 12px", fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>{r.indentNumber || `#${r.id}`}</td>
+                      <td style={{ padding: "9px 12px", color: "#475569" }}>{r.partsSummary || "—"}</td>
+                      <td style={{ padding: "9px 12px", color: "#64748b" }}>{r.raisedByName || "—"}</td>
+                      <td style={{ padding: "9px 12px", color: "#475569" }}>{Number(r.estCost || 0) > 0 ? `₹ ${Number(r.estCost).toLocaleString()}` : "—"}</td>
+                      <td style={{ padding: "9px 12px" }}><span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: s.bg, color: s.color }}>{s.label}</span></td>
+                      <td style={{ padding: "9px 12px", color: "#94a3b8", whiteSpace: "nowrap" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

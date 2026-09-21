@@ -251,6 +251,9 @@ export const rejectIndentPrice  = (token, id, body = {}) => request("PATCH", `/a
 export const dispatchIndent     = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/dispatch`, body, { authToken: token });
 export const grnIndent          = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/grn`, body, { authToken: token });
 export const getIndentPo        = (token, id) => request("GET", `/api/company-portal/indents/${id}/po`, undefined, { authToken: token });
+// Phase 3 — finance / books
+export const recordIndentBill   = (token, id, body) => request("POST", `/api/company-portal/indents/${id}/bill`, body, { authToken: token });
+export const closeIndentBill    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/close-bill`, body, { authToken: token });
 
 /** Upload a part photo (multipart) → returns { url }. */
 export const uploadPartPhoto = async (token, file) => {

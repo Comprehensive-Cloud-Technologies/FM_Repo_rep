@@ -641,6 +641,9 @@ export async function fetchIndent(id: number): Promise<any> {
 export async function cancelIndent(id: number): Promise<{ ok: boolean }> {
   return apiPatch<{ ok: boolean }>(`/api/company-portal/indents/${id}/cancel`, {});
 }
+export async function fetchAssetIndents(assetId: number): Promise<any[]> {
+  return apiGet<any[]>(`/api/company-portal/indents/by-asset/${assetId}`);
+}
 
 export async function fetchMyAssetQueries(): Promise<AssetQuery[]> {
   return apiGet<AssetQuery[]>('/api/company-portal/asset-queries');

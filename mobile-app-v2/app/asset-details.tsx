@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { API_BASE, fetchAssetByQR, fetchWorkOrdersByAsset, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus } from '../utils/api';
+import { API_BASE, fetchAssetByQR, fetchWorkOrdersByAsset, getStoredUser, getSoftRequestsForAsset, updateAssetWorkingStatus, fetchAssetIndents } from '../utils/api';
 import type { SoftRequest } from '../utils/api';
 import { useTheme, Typography, Spacing, Radius, Shadows } from '../utils/theme';
 import Header from '../components/Header';
@@ -80,6 +80,7 @@ export default function AssetDetailsScreen() {
   const [userCaps,     setUserCaps]     = useState<{ canRaiseSoftIssue: boolean; canResolveSoftIssue: boolean; isHCEngineer: boolean } | null>(null);
   const [recentSubmission, setRecentSubmission] = useState<any>(null);
   const [assetIssueCount, setAssetIssueCount]   = useState<number | null>(null);
+  const [indents, setIndents]                   = useState<any[]>([]);
   // Engineer editing state
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [updatingStatus,   setUpdatingStatus]   = useState(false);
@@ -104,6 +105,7 @@ export default function AssetDetailsScreen() {
         const reqs = await getSoftRequestsForAsset(Number(assetId)).catch(() => [] as SoftRequest[]);
         setOpenRequests((reqs as SoftRequest[]).filter((r) => r.status === 'open'));
       }
+      fetchAssetIndents(Number(assetId)).then((r) => setIndents(Array.isArray(r) ? r : [])).catch(() => {});
       setLoading(false);
     };
     load();
@@ -188,6 +190,35 @@ export default function AssetDetailsScreen() {
             <MaterialCommunityIcons name="package-variant" size={48} color="rgba(255,255,255,0.9)" />
             <Text style={styles.heroId}>{asset.assetUniqueId ?? asset.uniqueId}</Text>
           </View>
+
+          {/* Part indents & orders for this asset */}
+          {indents.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>PART INDENTS &amp; ORDERS</Text>
+              {indents.map((ind) => {
+                const IST: Record<string, [string, string]> = {
+                  pending_approval: ['Pending', '#b45309'], approved: ['Approved', '#4338ca'],
+                  in_procurement: ['In Procurement', '#c2410c'], pending_price_approval: ['Price Approval', '#b45309'],
+                  po_created: ['PO Created', '#0369a1'], dispatched: ['Dispatched', '#6d28d9'],
+                  received: ['Received', '#0d9488'], issued: ['Issued', '#15803d'],
+                  rejected: ['Rejected', '#b91c1c'], cancelled: ['Cancelled', '#64748b'],
+                };
+                const [lbl, col] = IST[ind.status] || ['—', '#64748b'];
+                return (
+                  <View key={ind.id} style={[styles.reqCard, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '700', color: theme.textPrimary, fontSize: 13.5 }}>{ind.indentNumber || `Indent #${ind.id}`}</Text>
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>{ind.partsSummary || '—'}</Text>
+                      {Number(ind.estCost || 0) > 0 && <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>₹ {Number(ind.estCost).toLocaleString()}</Text>}
+                    </View>
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: col + '22' }}>
+                      <Text style={{ color: col, fontWeight: '700', fontSize: 11 }}>{lbl}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </>
+          )}
 
           {/* Open issue banner */}
           <View style={[styles.alertBanner, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>

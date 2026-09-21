@@ -5,7 +5,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts,
-  getVendors, createVendor, sendToProcurement, quoteIndent, approveIndentPrice, rejectIndentPrice, dispatchIndent, grnIndent } from "../api";
+  getVendors, createVendor, sendToProcurement, quoteIndent, approveIndentPrice, rejectIndentPrice, dispatchIndent, grnIndent,
+  recordIndentBill, closeIndentBill } from "../api";
 
 const STATUS_CFG = {
   pending_approval:       { label: "Pending Approval", bg: "#fef3c7", color: "#b45309" },
@@ -135,6 +136,11 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   const canApprovePrice = (canManage || canFinance) && st === "pending_price_approval";
   const canDispatch = canProcure && st === "po_created";
   const canGrn = (canProcure || canManage) && ["dispatched", "po_created"].includes(st);
+  const hasPO = !!data?.po;
+  const bill = data?.bill;
+  const canRecordBill = (canFinance || canManage) && hasPO && (!bill);
+  const canCloseBill = (canFinance || canManage) && bill && bill.status === "open";
+  const [billing, setBilling] = useState(false);
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
@@ -170,6 +176,26 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               </table>
             </div>
 
+            {/* PO / Bill summary */}
+            {(data.po || data.bill) && (
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "16px" }}>
+                {data.po && (
+                  <div style={{ flex: "1 1 200px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", padding: "12px 14px" }}>
+                    <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em" }}>Purchase Order</div>
+                    <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{data.po.poNumber || `#${data.po.id}`}</div>
+                    <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>{data.po.vendorName || "—"} · ₹{Number(data.po.totalAmount || 0).toLocaleString()}</div>
+                  </div>
+                )}
+                {data.bill && (
+                  <div style={{ flex: "1 1 200px", background: data.bill.status === "closed" ? "#f0fdf4" : "#fffbeb", border: `1px solid ${data.bill.status === "closed" ? "#bbf7d0" : "#fde68a"}`, borderRadius: "10px", padding: "12px 14px" }}>
+                    <div style={{ fontSize: "10.5px", fontWeight: 700, color: data.bill.status === "closed" ? "#15803d" : "#b45309", textTransform: "uppercase", letterSpacing: "0.05em" }}>Bill · {data.bill.status}</div>
+                    <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{data.bill.billNumber || `#${data.bill.id}`}</div>
+                    <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>₹{Number(data.bill.amount || 0).toLocaleString()}{data.bill.closedByName ? ` · closed by ${data.bill.closedByName}` : ""}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* History */}
             {(data.history || []).length > 0 && (
               <div style={{ marginBottom: "16px" }}>
@@ -194,10 +220,13 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               {canDispatch && <button disabled={busy} onClick={() => act(() => dispatchIndent(token, id))} style={btn("#6d28d9", "#fff")}>Dispatch to site</button>}
               {canGrn && <button disabled={busy} onClick={() => act(() => grnIndent(token, id), "Confirm goods received? This adds the parts to stock.")} style={btn("#0d9488", "#fff")}>Receive (GRN)</button>}
               {canIssue && <button disabled={busy} onClick={() => act(() => issueIndent(token, id), "Issue parts and deduct stock?")} style={btn("#15803d", "#fff")}>Issue &amp; deduct</button>}
+              {canRecordBill && <button disabled={busy} onClick={() => setBilling(true)} style={btn("#b45309", "#fff")}>Record bill</button>}
+              {canCloseBill && <button disabled={busy} onClick={() => act(() => closeIndentBill(token, id), "Close this bill?")} style={btn("#15803d", "#fff")}>Close bill</button>}
               <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Close</button>
             </div>
 
             {quoting && <QuoteForm token={token} indent={data} onClose={() => setQuoting(false)} onSaved={() => { setQuoting(false); onChanged(); }} />}
+            {billing && <BillForm token={token} indent={data} onClose={() => setBilling(false)} onSaved={() => { setBilling(false); onChanged(); }} />}
           </>
         )}
       </div>
@@ -260,6 +289,35 @@ function QuoteForm({ token, indent, onClose, onSaved }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
           <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Cancel</button>
           <button onClick={submit} disabled={saving} style={btn("#c2410c", "#fff")}>{saving ? "Submitting…" : "Submit quote for approval"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BillForm({ token, indent, onClose, onSaved }) {
+  const [billNumber, setBillNumber] = useState("");
+  const [amount, setAmount] = useState(indent?.po?.totalAmount != null ? String(indent.po.totalAmount) : "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const inp = { width: "100%", padding: "9px 11px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", boxSizing: "border-box" };
+  const submit = async () => {
+    setSaving(true); setErr("");
+    try { await recordIndentBill(token, indent.id, { billNumber: billNumber.trim() || null, amount: amount === "" ? null : Number(amount) }); onSaved(); }
+    catch (e) { setErr(e.message || "Could not record bill"); setSaving(false); }
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 3200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: "420px", maxWidth: "100%", padding: "22px" }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>Record bill</h3>
+        {err && <div style={{ padding: "9px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "12.5px", marginBottom: "12px" }}>{err}</div>}
+        <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>Bill / Invoice number</label>
+        <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} style={{ ...inp, marginBottom: "12px" }} placeholder="e.g. INV-1023" />
+        <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>Amount</label>
+        <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} style={inp} placeholder="0.00" />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
+          <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={btn("#b45309", "#fff")}>{saving ? "Saving…" : "Record bill"}</button>
         </div>
       </div>
     </div>

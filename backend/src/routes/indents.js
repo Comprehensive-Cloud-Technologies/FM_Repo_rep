@@ -185,6 +185,26 @@ const canFinance = (req) => ["admin", "catalyst_admin", "finance", "accounts"].i
         PRIMARY KEY (id), KEY idx_grn_po (po_id), KEY idx_grn_indent (indent_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // ── Phase 3: finance / books ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bills (
+        id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        company_id   INT UNSIGNED NOT NULL,
+        po_id        INT UNSIGNED DEFAULT NULL,
+        indent_id    INT UNSIGNED DEFAULT NULL,
+        bill_number  VARCHAR(60) DEFAULT NULL,
+        amount       DECIMAL(14,2) NOT NULL DEFAULT 0,
+        status       VARCHAR(20) NOT NULL DEFAULT 'open',
+        external_ref VARCHAR(120) DEFAULT NULL,
+        created_by   INT UNSIGNED DEFAULT NULL,
+        created_by_name VARCHAR(160) DEFAULT NULL,
+        closed_by    INT UNSIGNED DEFAULT NULL,
+        closed_by_name VARCHAR(160) DEFAULT NULL,
+        closed_at    DATETIME DEFAULT NULL,
+        created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY idx_bill_company (company_id), KEY idx_bill_indent (indent_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
     // indent items carry vendor + price during procurement (columns already exist).
   } catch (err) { /* tables may already exist */ }
 })();
@@ -315,7 +335,9 @@ router.get("/:id(\\d+)", async (req, res, next) => {
        FROM part_indent_history WHERE indent_id = ? ORDER BY id`,
       [ind.id]
     );
-    res.json({ ...ind, items, history });
+    const [[po]] = await pool.query(`SELECT id, po_number AS poNumber, vendor_name AS vendorName, total_amount AS totalAmount, status FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
+    const [[bill]] = await pool.query(`SELECT id, bill_number AS billNumber, amount, status, closed_by_name AS closedByName, closed_at AS closedAt FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
+    res.json({ ...ind, items, history, po: po || null, bill: bill || null });
   } catch (err) { next(err); }
 });
 
@@ -596,6 +618,45 @@ router.patch("/:id/grn", async (req, res, next) => {
     res.json({ ok: true, message: "Goods received and stock updated" });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHASE 3 — FINANCE / BOOKS (internal PO→bill; Zoho-ready via external_ref)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Record a bill against the indent's PO ─────────────────────────────────────
+router.post("/:id/bill", async (req, res, next) => {
+  if (!canFinance(req) && !isManager(req)) return res.status(403).json({ message: "Only finance can record bills" });
+  try {
+    const [[ind]] = await pool.query(`SELECT * FROM part_indents WHERE id = ? AND company_id = ?`, [Number(req.params.id), cid(req)]);
+    if (!ind) return res.status(404).json({ message: "Indent not found" });
+    const [[po]] = await pool.query(`SELECT * FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]);
+    const { billNumber = null, amount = null, externalRef = null } = req.body || {};
+    const amt = amount != null ? Number(amount) : Number(po?.total_amount || 0);
+    const [r] = await pool.query(
+      `INSERT INTO bills (company_id, po_id, indent_id, bill_number, amount, status, external_ref, created_by, created_by_name)
+       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+      [cid(req), po?.id || null, ind.id, billNumber, amt, externalRef, req.companyUser.id, actorName(req)]
+    );
+    const conn = await pool.getConnection();
+    try { await addHistory(conn, ind.id, ind.status, ind.status, req, "bill recorded", billNumber ? `Bill ${billNumber} · ₹${amt}` : `₹${amt}`); } finally { conn.release(); }
+    res.status(201).json({ id: r.insertId, message: "Bill recorded" });
+  } catch (err) { next(err); }
+});
+
+// ── Close a bill (finance) ────────────────────────────────────────────────────
+router.patch("/:id/close-bill", async (req, res, next) => {
+  if (!canFinance(req) && !isManager(req)) return res.status(403).json({ message: "Only finance can close bills" });
+  try {
+    const [[ind]] = await pool.query(`SELECT * FROM part_indents WHERE id = ? AND company_id = ?`, [Number(req.params.id), cid(req)]);
+    if (!ind) return res.status(404).json({ message: "Indent not found" });
+    const [[bill]] = await pool.query(`SELECT * FROM bills WHERE indent_id = ? AND company_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]);
+    if (!bill) return res.status(404).json({ message: "No open bill to close" });
+    await pool.query(`UPDATE bills SET status = 'closed', closed_by = ?, closed_by_name = ?, closed_at = NOW() WHERE id = ?`, [req.companyUser.id, actorName(req), bill.id]);
+    const conn = await pool.getConnection();
+    try { await addHistory(conn, ind.id, ind.status, ind.status, req, "bill closed", bill.bill_number || `#${bill.id}`); } finally { conn.release(); }
+    res.json({ ok: true, message: "Bill closed" });
+  } catch (err) { next(err); }
 });
 
 // ── GET /:id/po — the PO (if any) for an indent ───────────────────────────────
