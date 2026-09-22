@@ -333,7 +333,10 @@ async function createDraftPOForIndent(companyId, indentId, actorId) {
     const lineItems = items
       .filter((it) => it.item_status !== "rejected")
       .map((it) => ({ itemId: it.zohoItemId || undefined, name: it.part_name, rate: 0, quantity: Number(it.qty_approved ?? it.qty_requested) }));
-    const draft = await zohoCreateDraftPO({ referenceNumber: ind.indent_number, lineItems });
+    // Zoho requires a vendor on a PO; the purchase team reassigns it when pricing.
+    let vendorZohoId = null;
+    try { vendorZohoId = await zohoEnsureVendor({ name: process.env.ZOHO_DEFAULT_VENDOR || "To Be Assigned" }); } catch { /* leave null */ }
+    const draft = await zohoCreateDraftPO({ vendorId: vendorZohoId, referenceNumber: ind.indent_number, lineItems });
     // Internal PO row mirrors the Zoho draft.
     const [poRes] = await pool.query(
       `INSERT INTO purchase_orders (company_id, indent_id, status, zoho_po_id, zoho_po_number, sync_status, created_by)
@@ -940,11 +943,21 @@ router.patch("/:id/sync-books", async (req, res, next) => {
   try {
     if (!isZohoEnabled()) return res.status(400).json({ message: "Zoho Books is not enabled (set BOOKS_PROVIDER=zoho and credentials)" });
     const id = Number(req.params.id);
-    const [[po]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [id, cid(req)]);
+    const [[ind]] = await pool.query(`SELECT * FROM part_indents WHERE id = ? AND company_id = ?`, [id, cid(req)]);
+    if (!ind) return res.status(404).json({ message: "Indent not found" });
+
+    // If it's in procurement and has no successful Zoho draft yet, (re)create it.
+    let draftRes = null;
+    if (ind.status === STATUS.IN_PROCUREMENT) {
+      const [[hasDraft]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND zoho_po_id IS NOT NULL LIMIT 1`, [id]);
+      if (!hasDraft) draftRes = await createDraftPOForIndent(cid(req), id, req.companyUser.id);
+    }
+    const [[po]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND company_id = ? AND zoho_po_id IS NOT NULL ORDER BY id DESC LIMIT 1`, [id, cid(req)]);
     const [[bill]] = await pool.query(`SELECT id FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [id, cid(req)]);
-    const poRes = po ? await syncPurchaseOrderToBooks(cid(req), po.id) : null;
+    // Only re-push an issued PO (not a fresh draft) to avoid duplicates.
+    const poRes = (po && ind.status !== STATUS.IN_PROCUREMENT) ? await syncPurchaseOrderToBooks(cid(req), po.id) : null;
     const billRes = bill ? await syncBillToBooks(cid(req), bill.id) : null;
-    res.json({ ok: true, po: poRes || null, bill: billRes || null });
+    res.json({ ok: true, draft: draftRes ? "created" : null, po: poRes || null, bill: billRes || null });
   } catch (err) { next(err); }
 });
 
