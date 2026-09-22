@@ -86,7 +86,7 @@ export default function IndentsModule({ token, canManage = false, canProcure = f
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                  {["Indent #", "Asset", "Parts", "Qty", "Raised by", "Status", ""].map((h) => (
+                  {["Indent #", "Asset ID", "Asset Name", "Parts", "Qty", "Raised by", "Status", ""].map((h) => (
                     <th key={h} style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1.5px solid #e2e8f0" }}>{h}</th>
                   ))}
                 </tr>
@@ -95,9 +95,8 @@ export default function IndentsModule({ token, canManage = false, canProcure = f
                 {list.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "9px 12px", fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>{r.indentNumber || `#${r.id}`}</td>
-                    <td style={{ padding: "9px 12px", color: "#475569" }}>
-                      {r.assetName ? (<>{r.assetName}{r.assetCode ? <span style={{ fontFamily: "monospace", fontSize: "11.5px", color: "#94a3b8" }}> · {r.assetCode}</span> : null}</>) : "—"}
-                    </td>
+                    <td style={{ padding: "9px 12px", color: "#475569", fontFamily: "monospace", fontSize: "12.5px" }}>{r.assetCode || "—"}</td>
+                    <td style={{ padding: "9px 12px", color: "#475569" }}>{r.assetName || "—"}</td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.itemCount} item(s)</td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.totalQty}</td>
                     <td style={{ padding: "9px 12px", color: "#64748b" }}>{r.raisedByName || "—"}</td>

@@ -73,6 +73,10 @@ router.use(requireCompanyAuth);
 const isHCStaff    = r => ['nurse','doctor','ward_boy'].includes((r||'').toLowerCase());
 const isHCEngineer = r => (r||'').toLowerCase() === 'engineer';
 const isHCAdmin    = r => (r||'').toLowerCase() === 'admin';
+// Admins & supervisors see every case log; all other field roles (engineer,
+// technician, technical_lead, …) see only issues assigned to them.
+const seesAllCaseLogs = r => ['admin','catalyst_admin','supervisor'].includes((r||'').toLowerCase());
+const seesOnlyAssigned = r => !seesAllCaseLogs(r) && !isHCStaff(r);
 
 // Companies this user may access = own company + rows in user_company_access.
 async function accessibleCompanyIds(userId, primaryId) {
@@ -110,7 +114,7 @@ router.get("/dashboard", async (req, res, next) => {
 
     if (isHCStaff(role)) {
       woWhere += " AND wo.company_user_id = ?"; woParams.push(userId);
-    } else if (isHCEngineer(role)) {
+    } else if (seesOnlyAssigned(role)) {
       woWhere += " AND wo.cp_assigned_to = ?"; woParams.push(userId);
     }
 
@@ -132,7 +136,7 @@ router.get("/dashboard", async (req, res, next) => {
 
     if (isHCStaff(role)) {
       aqWhere += " AND aq.raised_by = ?"; aqParams.push(userId);
-    } else if (isHCEngineer(role)) {
+    } else if (seesOnlyAssigned(role)) {
       aqWhere += " AND aq.assigned_to = ?"; aqParams.push(userId);
     }
 
@@ -151,7 +155,7 @@ router.get("/dashboard", async (req, res, next) => {
     const total      = Number(woRow.total      || 0) + Number(aqRow.total     || 0);
     const open       = Number(woRow.open       || 0) + Number(aqRow.open      || 0);
     // For engineers: AQ 'open' items assigned to them are actionable (map to 'assigned' for display)
-    const assigned   = Number(woRow.assigned   || 0) + (isHCEngineer(role) ? Number(aqRow.open || 0) : 0);
+    const assigned   = Number(woRow.assigned   || 0) + (seesOnlyAssigned(role) ? Number(aqRow.open || 0) : 0);
     const inProgress = Number(woRow.in_progress|| 0) + Number(aqRow.in_progress || 0);
     const resolved   = Number(woRow.resolved   || 0) + Number(aqRow.resolved  || 0);
     const closed     = Number(woRow.closed     || 0) + Number(aqRow.closed    || 0);
@@ -251,14 +255,14 @@ router.get("/", async (req, res, next) => {
     let woWhere = "WHERE wo.company_id = ? AND wo.source_label = 'Mobile Case Log'";
     const woParams = [companyId];
     if (isHCStaff(role))     { woWhere += " AND wo.company_user_id = ?"; woParams.push(userId); }
-    else if (isHCEngineer(role)) { woWhere += " AND wo.cp_assigned_to = ?"; woParams.push(userId); }
+    else if (seesOnlyAssigned(role)) { woWhere += " AND wo.cp_assigned_to = ?"; woParams.push(userId); }
     if (status && status !== "all") { woWhere += " AND wo.status = ?"; woParams.push(status); }
 
     // ── Asset queries (QR Scan requests) ──────────────────────────────────────
     let aqWhere = "WHERE aq.company_id = ?";
     const aqParams = [companyId];
     if (isHCStaff(role))     { aqWhere += " AND aq.raised_by = ?"; aqParams.push(userId); }
-    else if (isHCEngineer(role)) { aqWhere += " AND aq.assigned_to = ?"; aqParams.push(userId); }
+    else if (seesOnlyAssigned(role)) { aqWhere += " AND aq.assigned_to = ?"; aqParams.push(userId); }
     // Map status filter: 'assigned' → 'in_progress' for AQ (no 'assigned' status in AQ)
     if (status && status !== "all") {
       const aqStatus = status === 'assigned' ? 'in_progress' : status;
