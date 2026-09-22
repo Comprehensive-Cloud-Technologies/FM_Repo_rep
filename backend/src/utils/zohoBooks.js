@@ -140,6 +140,20 @@ export async function createBill({ vendorId, billNumber, referenceNumber, date, 
  * Zoho item_id. Used to keep the HTM parts master in sync with Zoho Items so
  * PO/bill line items reference real inventory items.
  */
+let _purchaseAccountId = null;
+async function getPurchaseAccountId() {
+  if (_purchaseAccountId) return _purchaseAccountId;
+  try {
+    const acc = await zoho("GET", "/chartofaccounts?filter_by=AccountType.Expense");
+    _purchaseAccountId = (acc.chartofaccounts || [])[0]?.account_id || null;
+  } catch { _purchaseAccountId = null; }
+  return _purchaseAccountId;
+}
+
+/**
+ * Find an item by name (exact, case-insensitive), else create it as a PURCHASE
+ * item (Zoho only allows purchase items on a PO). Returns the Zoho item_id.
+ */
 export async function ensureItem({ name, sku, rate } = {}) {
   if (!name) throw new Error("Item name required for Zoho sync");
   const found = await zoho("GET", `/items?search_text=${encodeURIComponent(name)}`);
@@ -147,16 +161,20 @@ export async function ensureItem({ name, sku, rate } = {}) {
     (i) => (i.name || "").trim().toLowerCase() === name.trim().toLowerCase()
   );
   if (match) return match.item_id;
-  const created = await zoho("POST", "/items", {
+  const purchaseAccountId = await getPurchaseAccountId();
+  const base = {
     name,
     ...(sku ? { sku } : {}),
     rate: Number(rate || 0),
     product_type: "goods",
-    item_type: "inventory",
-  }).catch(async (e) => {
-    // Some orgs don't have inventory enabled — fall back to a sales/purchase item.
-    return zoho("POST", "/items", { name, ...(sku ? { sku } : {}), rate: Number(rate || 0) });
-  });
+    // Mark it as a purchase item so it can be used on a Purchase Order.
+    is_purchase_item: true,
+    purchase_rate: Number(rate || 0),
+    ...(purchaseAccountId ? { purchase_account_id: purchaseAccountId } : {}),
+  };
+  const created = await zoho("POST", "/items", base).catch(() =>
+    zoho("POST", "/items", { name, ...(sku ? { sku } : {}), rate: Number(rate || 0), is_purchase_item: true, purchase_rate: Number(rate || 0) })
+  );
   return created.item.item_id;
 }
 

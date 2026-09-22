@@ -22,7 +22,8 @@ import { Router } from "express";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { isZohoEnabled, ensureVendor as zohoEnsureVendor, createPurchaseOrder as zohoCreatePO, createBill as zohoCreateBill,
-  createDraftPurchaseOrder as zohoCreateDraftPO, getPurchaseOrder as zohoGetPO, markPurchaseOrderIssued as zohoIssuePO } from "../utils/zohoBooks.js";
+  createDraftPurchaseOrder as zohoCreateDraftPO, getPurchaseOrder as zohoGetPO, markPurchaseOrderIssued as zohoIssuePO,
+  ensureItem as zohoEnsureItem } from "../utils/zohoBooks.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -328,11 +329,21 @@ async function createDraftPOForIndent(companyId, indentId, actorId) {
     const [[existing]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND zoho_po_id IS NOT NULL ORDER BY id DESC LIMIT 1`, [indentId]);
     if (existing) return existing;
     const [items] = await pool.query(
-      `SELECT ii.*, p.zoho_item_id AS zohoItemId FROM part_indent_items ii
+      `SELECT ii.*, p.zoho_item_id AS zohoItemId, p.make, p.model FROM part_indent_items ii
        LEFT JOIN parts p ON p.id = ii.part_id WHERE ii.indent_id = ?`, [indentId]);
-    const lineItems = items
-      .filter((it) => it.item_status !== "rejected")
-      .map((it) => ({ itemId: it.zohoItemId || undefined, name: it.part_name, rate: 0, quantity: Number(it.qty_approved ?? it.qty_requested) }));
+    const active = items.filter((it) => it.item_status !== "rejected");
+    // Zoho only allows purchase items on a PO, so ensure each part exists as a
+    // Zoho purchase item and reference it by id.
+    const lineItems = [];
+    for (const it of active) {
+      let itemId = it.zohoItemId;
+      if (!itemId && it.part_id) {
+        const sku = [it.make, it.model].filter(Boolean).join("-") || undefined;
+        itemId = await zohoEnsureItem({ name: it.part_name, sku });
+        if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, it.part_id]);
+      }
+      lineItems.push({ itemId, name: it.part_name, rate: 0, quantity: Number(it.qty_approved ?? it.qty_requested) });
+    }
     // Zoho requires a vendor on a PO; the purchase team reassigns it when pricing.
     let vendorZohoId = null;
     try { vendorZohoId = await zohoEnsureVendor({ name: process.env.ZOHO_DEFAULT_VENDOR || "To Be Assigned" }); } catch { /* leave null */ }
