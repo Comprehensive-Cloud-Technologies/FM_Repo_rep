@@ -387,6 +387,7 @@ router.get("/", async (req, res, next) => {
       `SELECT i.id, i.indent_number AS indentNumber, i.ticket_id AS ticketId, i.asset_id AS assetId,
               i.status, i.priority, i.notes, i.raised_by_name AS raisedByName, i.created_at AS createdAt,
               a.asset_name AS assetName,
+              COALESCE(a.generated_asset_id, a.asset_unique_id) AS assetCode,
               (SELECT COUNT(*) FROM part_indent_items x WHERE x.indent_id = i.id) AS itemCount,
               (SELECT COALESCE(SUM(x.qty_requested),0) FROM part_indent_items x WHERE x.indent_id = i.id) AS totalQty
        FROM part_indents i

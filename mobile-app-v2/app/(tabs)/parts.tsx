@@ -3,16 +3,16 @@
  * Add a spare part (name, make, model, photo → S3) and see the parts already
  * registered for the company.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator,
-  StyleSheet, RefreshControl, Image, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, Image, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { createPart, fetchParts, uploadPartPhoto, Part } from '../../utils/api';
+import { createPart, uploadPartPhoto } from '../../utils/api';
 import { useTheme, Spacing, Radius, Shadows } from '../../utils/theme';
 
 export default function PartsTab() {
@@ -24,18 +24,6 @@ export default function PartsTab() {
   const [model, setModel]       = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
-
-  // List state
-  const [parts, setParts]       = useState<Part[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try { setParts(await fetchParts()); } catch { /* ignore */ }
-    finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const pickFrom = async (mode: 'camera' | 'gallery') => {
     try {
@@ -67,8 +55,7 @@ export default function PartsTab() {
       // Quantities are managed from the web dashboard, not the mobile app.
       await createPart({ partName: partName.trim(), make: make.trim(), model: model.trim(), photoUrl });
       reset();
-      Alert.alert('Part added', 'The part has been saved.');
-      await load();
+      Alert.alert('Part added', 'The part has been saved. View it under Profile → Parts.');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not save the part.');
     } finally { setSaving(false); }
@@ -86,7 +73,6 @@ export default function PartsTab() {
         <ScrollView
           contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40, gap: Spacing.lg }}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.primary} />}
         >
           {/* ── Add-part form ── */}
           <View style={[styles.card, Shadows.sm, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
@@ -132,46 +118,12 @@ export default function PartsTab() {
             </TouchableOpacity>
           </View>
 
-          {/* ── Existing parts ── */}
-          <View>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-              Parts {parts.length > 0 ? `(${parts.length})` : ''}
-            </Text>
-            {loading ? (
-              <ActivityIndicator color={theme.primary} style={{ marginTop: 24 }} />
-            ) : parts.length === 0 ? (
-              <View style={styles.empty}>
-                <MaterialCommunityIcons name="cog-outline" size={44} color={theme.textMuted} />
-                <Text style={[styles.emptyText, { color: theme.textMuted }]}>No parts added yet.</Text>
-              </View>
-            ) : (
-              <View style={{ gap: Spacing.sm }}>
-                {parts.map((p) => (
-                  <View key={p.id} style={[styles.partRow, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
-                    {p.photoUrl ? (
-                      <Image source={{ uri: p.photoUrl }} style={styles.thumb} />
-                    ) : (
-                      <View style={[styles.thumb, styles.thumbPlaceholder, { backgroundColor: theme.background }]}>
-                        <MaterialCommunityIcons name="cog" size={22} color={theme.textMuted} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.partName, { color: theme.textPrimary }]} numberOfLines={1}>{p.partName}</Text>
-                      <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
-                        {[p.make, p.model].filter(Boolean).join(' · ') || 'No make / model'}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: (p.availableQuantity ?? 0) <= 0 ? '#dc2626' : theme.primary }}>
-                        {p.availableQuantity ?? 0}
-                      </Text>
-                      <Text style={{ fontSize: 10.5, color: theme.textMuted }}>of {p.totalQuantity ?? 0}{p.unit ? ` ${p.unit}` : ''}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
+          {/* View all registered parts (list lives under Profile → Parts) */}
+          <TouchableOpacity onPress={() => router.push('/parts-list')}
+            style={[styles.viewAll, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+            <MaterialCommunityIcons name="format-list-bulleted" size={20} color={theme.primary} />
+            <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>View all parts</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -193,6 +145,7 @@ const styles = StyleSheet.create({
   photoBtnText:{ fontSize: 13, fontWeight: '700' },
   submitBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Radius.md, paddingVertical: 14, marginTop: 16 },
   submitText:  { color: '#fff', fontWeight: '800', fontSize: 15 },
+  viewAll:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: Radius.md, paddingVertical: 13 },
   sectionTitle:{ fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
   empty:       { alignItems: 'center', paddingVertical: 40, gap: 10 },
   emptyText:   { fontSize: 14, fontWeight: '600' },

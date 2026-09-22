@@ -102,6 +102,7 @@ export default function ProfileTab() {
         <View style={[styles.section, styles.sectionPad, Shadows.sm, { backgroundColor: theme.surface }]}>
           {[
             { icon: 'history',       label: 'Submission History', color: theme.primary, onPress: () => router.push('/history')      },
+            { icon: 'cog-outline',   label: 'Parts',              color: theme.secondary, onPress: () => router.push('/parts-list') },
             { icon: 'alert-outline', label: 'My Warnings',        color: theme.warning, onPress: () => router.push('/warnings')     },
             { icon: 'school-outline',label: 'Training',           color: theme.success, onPress: () => router.push('/training')     },
             { icon: 'bell-outline',  label: 'Notifications',      color: theme.info,    onPress: () => router.push('/notifications') },

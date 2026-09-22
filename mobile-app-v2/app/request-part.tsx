@@ -50,10 +50,9 @@ export default function RequestPartScreen() {
         notes: notes.trim() || null,
         items,
       });
-      Alert.alert('Indent submitted', 'Your part request has been sent for approval.', [
-        { text: 'View my indents', onPress: () => router.replace('/my-indents') },
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      // Return to the previous screen; show a brief confirmation.
+      router.back();
+      setTimeout(() => Alert.alert('Indent submitted', 'Your part request has been sent for approval.'), 250);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not submit the indent.');
     } finally { setSaving(false); }

@@ -95,7 +95,9 @@ export default function IndentsModule({ token, canManage = false, canProcure = f
                 {list.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "9px 12px", fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>{r.indentNumber || `#${r.id}`}</td>
-                    <td style={{ padding: "9px 12px", color: "#475569" }}>{r.assetName || "—"}</td>
+                    <td style={{ padding: "9px 12px", color: "#475569" }}>
+                      {r.assetName ? (<>{r.assetName}{r.assetCode ? <span style={{ fontFamily: "monospace", fontSize: "11.5px", color: "#94a3b8" }}> · {r.assetCode}</span> : null}</>) : "—"}
+                    </td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.itemCount} item(s)</td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.totalQty}</td>
                     <td style={{ padding: "9px 12px", color: "#64748b" }}>{r.raisedByName || "—"}</td>
