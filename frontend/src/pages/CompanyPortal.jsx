@@ -13138,6 +13138,8 @@ const CompanyPortal = () => {
     { key: "training", label: "Training" },
     { key: "asset_transfer", label: "Asset Transfer" },
     { key: "audits", label: "Asset Audits" },
+    { key: "parts", label: "Parts / Inventory" },
+    { key: "indents", label: "Part Indents" },
   ];
 
   const normalizePortalModuleKey = (value) => {
