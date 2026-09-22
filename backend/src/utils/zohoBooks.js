@@ -144,8 +144,12 @@ let _purchaseAccountId = null;
 async function getPurchaseAccountId() {
   if (_purchaseAccountId) return _purchaseAccountId;
   try {
-    const acc = await zoho("GET", "/chartofaccounts?filter_by=AccountType.Expense");
-    _purchaseAccountId = (acc.chartofaccounts || [])[0]?.account_id || null;
+    const acc = await zoho("GET", "/chartofaccounts");
+    const all = acc.chartofaccounts || [];
+    const pick = all.find((a) => a.account_type === "cost_of_goods_sold")
+      || all.find((a) => a.account_type === "expense")
+      || all.find((a) => a.account_type === "other_expense");
+    _purchaseAccountId = pick?.account_id || null;
   } catch { _purchaseAccountId = null; }
   return _purchaseAccountId;
 }
@@ -162,19 +166,18 @@ export async function ensureItem({ name, sku, rate } = {}) {
   );
   if (match) return match.item_id;
   const purchaseAccountId = await getPurchaseAccountId();
+  // item_type sales_and_purchases + a purchase (COGS/expense) account is what
+  // makes Zoho treat the item as purchasable so it can go on a Purchase Order.
   const base = {
     name,
     ...(sku ? { sku } : {}),
     rate: Number(rate || 0),
     product_type: "goods",
-    // Mark it as a purchase item so it can be used on a Purchase Order.
-    is_purchase_item: true,
+    item_type: "sales_and_purchases",
     purchase_rate: Number(rate || 0),
     ...(purchaseAccountId ? { purchase_account_id: purchaseAccountId } : {}),
   };
-  const created = await zoho("POST", "/items", base).catch(() =>
-    zoho("POST", "/items", { name, ...(sku ? { sku } : {}), rate: Number(rate || 0), is_purchase_item: true, purchase_rate: Number(rate || 0) })
-  );
+  const created = await zoho("POST", "/items", base);
   return created.item.item_id;
 }
 
