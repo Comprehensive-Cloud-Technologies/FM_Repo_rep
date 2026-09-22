@@ -334,6 +334,7 @@ router.get("/:id", async (req, res, next) => {
       const [[aq]] = await pool.query(
         `SELECT
            aq.id, CONCAT('AQ-', aq.id) AS work_order_number,
+           aq.asset_id,
            a.asset_name AS asset_name,
            CONCAT_WS(', ', a.building, a.floor, a.room) AS location,
            COALESCE(NULLIF(aq.description, ''), NULLIF(aq.title, ''), NULLIF(CONCAT_WS(' — ', NULLIF(aq.query_type, ''), NULLIF(aq.message, '')), '')) AS issue_description, aq.priority, aq.status,

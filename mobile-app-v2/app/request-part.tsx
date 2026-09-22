@@ -11,12 +11,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { fetchParts, createIndent, Part } from '../utils/api';
+import { fetchParts, fetchAssets, createIndent, Part } from '../utils/api';
 import { useTheme, Spacing, Radius, Shadows } from '../utils/theme';
 
 export default function RequestPartScreen() {
   const { theme } = useTheme();
   const { ticketId, assetId, assetName } = useLocalSearchParams<{ ticketId?: string; assetId?: string; assetName?: string }>();
+  const hasTicketAsset = !!(assetId && assetId !== '');
 
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +25,22 @@ export default function RequestPartScreen() {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
+  // Asset picker (only when not launched from a ticket)
+  const [assets, setAssets] = useState<any[]>([]);
+  const [pickedAsset, setPickedAsset] = useState<{ id: number; name: string } | null>(null);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { setParts(await fetchParts()); } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }, []);
+    if (!hasTicketAsset) {
+      try { const a = await fetchAssets(); setAssets(Array.isArray(a) ? a : []); } catch { /* ignore */ }
+    }
+    setLoading(false);
+  }, [hasTicketAsset]);
   useEffect(() => { load(); }, [load]);
+
+  const effectiveAssetId = hasTicketAsset ? Number(assetId) : (pickedAsset?.id ?? null);
+  const effectiveAssetName = hasTicketAsset ? assetName : pickedAsset?.name;
 
   const setRow = (i: number, patch: Partial<{ partId: number | null; qty: string }>) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -46,7 +57,7 @@ export default function RequestPartScreen() {
     try {
       await createIndent({
         ticketId: ticketId ? Number(ticketId) : null,
-        assetId: assetId ? Number(assetId) : null,
+        assetId: effectiveAssetId,
         notes: notes.trim() || null,
         items,
       });
@@ -68,7 +79,7 @@ export default function RequestPartScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={[ss.title, { color: theme.textPrimary }]}>Request a Part</Text>
-          {assetName ? <Text style={{ fontSize: 12, color: theme.textMuted }} numberOfLines={1}>For: {assetName}</Text> : null}
+          {effectiveAssetName ? <Text style={{ fontSize: 12, color: theme.textMuted }} numberOfLines={1}>For: {effectiveAssetName}</Text> : null}
         </View>
         <TouchableOpacity onPress={() => router.push('/my-indents')} style={{ padding: 4 }}>
           <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 13 }}>My Indents</Text>
@@ -87,6 +98,34 @@ export default function RequestPartScreen() {
               </View>
             ) : (
               <>
+                {/* Asset picker — only when not opened from a ticket */}
+                {!hasTicketAsset && (
+                  <View style={[ss.rowCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+                    <Text style={[ss.label, { color: theme.textMuted, marginTop: 0 }]}>Asset (which machine is this for?)</Text>
+                    <TouchableOpacity onPress={() => setAssetPickerOpen(!assetPickerOpen)} style={[inputStyle, { justifyContent: 'center' }]}>
+                      <Text style={{ color: pickedAsset ? theme.textPrimary : theme.textMuted, fontSize: 14 }}>
+                        {pickedAsset ? pickedAsset.name : 'Select asset (optional)…'}
+                      </Text>
+                    </TouchableOpacity>
+                    {assetPickerOpen && (
+                      <View style={[ss.picker, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                        <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
+                          {assets.map((a: any) => {
+                            const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
+                            const code = a.generatedAssetId || a.assetUniqueId || a.generated_asset_id;
+                            return (
+                              <TouchableOpacity key={a.id} onPress={() => { setPickedAsset({ id: a.id, name }); setAssetPickerOpen(false); }}
+                                style={[ss.pickItem, { borderBottomColor: theme.borderLight }]}>
+                                <Text style={{ color: theme.textPrimary, fontSize: 13.5, fontWeight: '600' }}>{name}</Text>
+                                {code ? <Text style={{ color: theme.textMuted, fontSize: 11.5 }}>{code}</Text> : null}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+                )}
                 {rows.map((r, i) => (
                   <View key={i} style={[ss.rowCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                     <TouchableOpacity onPress={() => setPickerFor(pickerFor === i ? null : i)} style={[inputStyle, { justifyContent: 'center' }]}>
