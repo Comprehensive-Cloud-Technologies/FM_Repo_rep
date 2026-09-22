@@ -6,7 +6,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts,
   getVendors, createVendor, sendToProcurement, quoteIndent, approveIndentPrice, rejectIndentPrice, dispatchIndent, grnIndent,
-  recordIndentBill, closeIndentBill } from "../api";
+  recordIndentBill, closeIndentBill, syncIndentBooks } from "../api";
+
+const ZohoTag = ({ number, sync }) => {
+  if (number) return <span style={{ display: "inline-block", marginTop: "4px", fontSize: "10.5px", fontWeight: 700, color: "#c8402d", background: "#fdece8", padding: "2px 7px", borderRadius: "6px" }}>Zoho: {number}</span>;
+  if (sync === "failed") return <span style={{ display: "inline-block", marginTop: "4px", fontSize: "10.5px", fontWeight: 700, color: "#b91c1c", background: "#fee2e2", padding: "2px 7px", borderRadius: "6px" }}>Zoho sync failed</span>;
+  if (sync === "synced") return <span style={{ display: "inline-block", marginTop: "4px", fontSize: "10.5px", fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 7px", borderRadius: "6px" }}>Synced to Zoho</span>;
+  return null;
+};
 
 const STATUS_CFG = {
   pending_approval:       { label: "Pending Approval", bg: "#fef3c7", color: "#b45309" },
@@ -154,6 +161,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   const bill = data?.bill;
   const canRecordBill = (canFinance || canManage) && hasPO && (!bill);
   const canCloseBill = (canFinance || canManage) && bill && bill.status === "open";
+  const canRetrySync = (canFinance || canManage || canProcure) && ((data?.po?.syncStatus === "failed") || (data?.bill?.syncStatus === "failed"));
   const [billing, setBilling] = useState(false);
 
   return (
@@ -233,6 +241,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                     <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em" }}>Purchase Order</div>
                     <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{data.po.poNumber || `#${data.po.id}`}</div>
                     <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>{data.po.vendorName || "—"} · ₹{Number(data.po.totalAmount || 0).toLocaleString()}</div>
+                    <div><ZohoTag number={data.po.zohoPoNumber} sync={data.po.syncStatus} /></div>
                   </div>
                 )}
                 {data.bill && (
@@ -240,6 +249,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                     <div style={{ fontSize: "10.5px", fontWeight: 700, color: data.bill.status === "closed" ? "#15803d" : "#b45309", textTransform: "uppercase", letterSpacing: "0.05em" }}>Bill · {data.bill.status}</div>
                     <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{data.bill.billNumber || `#${data.bill.id}`}</div>
                     <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>₹{Number(data.bill.amount || 0).toLocaleString()}{data.bill.closedByName ? ` · closed by ${data.bill.closedByName}` : ""}</div>
+                    <div><ZohoTag number={data.bill.zohoBillNumber} sync={data.bill.syncStatus} /></div>
                   </div>
                 )}
               </div>
@@ -271,6 +281,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               {canIssue && <button disabled={busy} onClick={() => act(() => issueIndent(token, id), "Issue parts and deduct stock?")} style={btn("#15803d", "#fff")}>Issue &amp; deduct</button>}
               {canRecordBill && <button disabled={busy} onClick={() => setBilling(true)} style={btn("#b45309", "#fff")}>Record bill</button>}
               {canCloseBill && <button disabled={busy} onClick={() => act(() => closeIndentBill(token, id), "Close this bill?")} style={btn("#15803d", "#fff")}>Close bill</button>}
+              {canRetrySync && <button disabled={busy} onClick={() => act(() => syncIndentBooks(token, id))} style={btn("#fff1eb", "#c8402d", "#f6c9ba")}>Retry Zoho sync</button>}
               <button onClick={onClose} style={btn("#fff", "#475569", "#cbd5e1")}>Close</button>
             </div>
 

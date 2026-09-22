@@ -254,6 +254,7 @@ export const getIndentPo        = (token, id) => request("GET", `/api/company-po
 // Phase 3 — finance / books
 export const recordIndentBill   = (token, id, body) => request("POST", `/api/company-portal/indents/${id}/bill`, body, { authToken: token });
 export const closeIndentBill    = (token, id, body = {}) => request("PATCH", `/api/company-portal/indents/${id}/close-bill`, body, { authToken: token });
+export const syncIndentBooks     = (token, id) => request("PATCH", `/api/company-portal/indents/${id}/sync-books`, {}, { authToken: token });
 
 /** Upload a part photo (multipart) → returns { url }. */
 export const uploadPartPhoto = async (token, file) => {

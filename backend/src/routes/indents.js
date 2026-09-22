@@ -21,6 +21,7 @@
 import { Router } from "express";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
+import { isZohoEnabled, ensureVendor as zohoEnsureVendor, createPurchaseOrder as zohoCreatePO, createBill as zohoCreateBill } from "../utils/zohoBooks.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -209,8 +210,91 @@ const canFinance = (req) => ["admin", "catalyst_admin", "finance", "accounts"].i
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     // indent items carry vendor + price during procurement (columns already exist).
+
+    // ── Zoho Books sync columns (added when integration is enabled) ──
+    for (const sql of [
+      `ALTER TABLE vendors ADD COLUMN zoho_vendor_id VARCHAR(60) DEFAULT NULL`,
+      `ALTER TABLE purchase_orders ADD COLUMN zoho_po_id VARCHAR(60) DEFAULT NULL`,
+      `ALTER TABLE purchase_orders ADD COLUMN zoho_po_number VARCHAR(60) DEFAULT NULL`,
+      `ALTER TABLE purchase_orders ADD COLUMN sync_status VARCHAR(20) DEFAULT NULL`,
+      `ALTER TABLE purchase_orders ADD COLUMN sync_error VARCHAR(500) DEFAULT NULL`,
+      `ALTER TABLE bills ADD COLUMN zoho_bill_id VARCHAR(60) DEFAULT NULL`,
+      `ALTER TABLE bills ADD COLUMN zoho_bill_number VARCHAR(60) DEFAULT NULL`,
+      `ALTER TABLE bills ADD COLUMN sync_status VARCHAR(20) DEFAULT NULL`,
+      `ALTER TABLE bills ADD COLUMN sync_error VARCHAR(500) DEFAULT NULL`,
+    ]) { try { await pool.query(sql); } catch { /* column exists */ } }
   } catch (err) { /* tables may already exist */ }
 })();
+
+/**
+ * Best-effort push of a PO to Zoho Books. Never throws — records sync_status so
+ * the FM workflow is never blocked by Books being down. Returns the zoho ids.
+ */
+async function syncPurchaseOrderToBooks(companyId, poId) {
+  if (!isZohoEnabled()) return null;
+  try {
+    const [[po]] = await pool.query(`SELECT * FROM purchase_orders WHERE id = ? AND company_id = ?`, [poId, companyId]);
+    if (!po || po.zoho_po_id) return po?.zoho_po_id ? { id: po.zoho_po_id } : null; // idempotent
+    const [poItems] = await pool.query(`SELECT * FROM po_items WHERE po_id = ?`, [poId]);
+    let vendorZohoId = null, vendorName = po.vendor_name;
+    if (po.vendor_id) {
+      const [[v]] = await pool.query(`SELECT * FROM vendors WHERE id = ? AND company_id = ?`, [po.vendor_id, companyId]);
+      if (v) {
+        vendorName = v.name;
+        vendorZohoId = v.zoho_vendor_id || await zohoEnsureVendor({ name: v.name, gst: v.gst, email: v.email, phone: v.phone });
+        if (!v.zoho_vendor_id) await pool.query(`UPDATE vendors SET zoho_vendor_id = ? WHERE id = ?`, [vendorZohoId, v.id]);
+      }
+    }
+    if (!vendorZohoId) vendorZohoId = await zohoEnsureVendor({ name: vendorName || "Vendor" });
+    const result = await zohoCreatePO({
+      vendorId: vendorZohoId,
+      referenceNumber: po.po_number,
+      lineItems: poItems.map((i) => ({ name: i.part_name, rate: i.unit_price, quantity: i.qty })),
+    });
+    await pool.query(`UPDATE purchase_orders SET zoho_po_id = ?, zoho_po_number = ?, sync_status = 'synced', sync_error = NULL WHERE id = ?`,
+      [result.id, result.number, poId]);
+    return result;
+  } catch (e) {
+    await pool.query(`UPDATE purchase_orders SET sync_status = 'failed', sync_error = ? WHERE id = ?`, [String(e.message).slice(0, 500), poId]).catch(() => {});
+    return null;
+  }
+}
+
+/** Best-effort push of a bill to Zoho Books. Never throws. */
+async function syncBillToBooks(companyId, billId) {
+  if (!isZohoEnabled()) return null;
+  try {
+    const [[bill]] = await pool.query(`SELECT * FROM bills WHERE id = ? AND company_id = ?`, [billId, companyId]);
+    if (!bill || bill.zoho_bill_id) return null; // idempotent
+    const [[po]] = bill.po_id ? await pool.query(`SELECT * FROM purchase_orders WHERE id = ?`, [bill.po_id]) : [[]];
+    const [poItems] = bill.po_id ? await pool.query(`SELECT * FROM po_items WHERE po_id = ?`, [bill.po_id]) : [[]];
+    let vendorZohoId = null, vendorName = po?.vendor_name;
+    if (po?.vendor_id) {
+      const [[v]] = await pool.query(`SELECT * FROM vendors WHERE id = ?`, [po.vendor_id]);
+      if (v) {
+        vendorName = v.name;
+        vendorZohoId = v.zoho_vendor_id || await zohoEnsureVendor({ name: v.name, gst: v.gst, email: v.email, phone: v.phone });
+        if (!v.zoho_vendor_id) await pool.query(`UPDATE vendors SET zoho_vendor_id = ? WHERE id = ?`, [vendorZohoId, v.id]);
+      }
+    }
+    if (!vendorZohoId) vendorZohoId = await zohoEnsureVendor({ name: vendorName || "Vendor" });
+    const lineItems = (poItems && poItems.length)
+      ? poItems.map((i) => ({ name: i.part_name, rate: i.unit_price, quantity: i.qty }))
+      : [{ name: "Spare parts", rate: bill.amount, quantity: 1 }];
+    const result = await zohoCreateBill({
+      vendorId: vendorZohoId,
+      billNumber: bill.bill_number || undefined,
+      referenceNumber: po?.zoho_po_number || po?.po_number || undefined,
+      lineItems,
+    });
+    await pool.query(`UPDATE bills SET zoho_bill_id = ?, zoho_bill_number = ?, sync_status = 'synced', sync_error = NULL WHERE id = ?`,
+      [result.id, result.number, billId]);
+    return result;
+  } catch (e) {
+    await pool.query(`UPDATE bills SET sync_status = 'failed', sync_error = ? WHERE id = ?`, [String(e.message).slice(0, 500), billId]).catch(() => {});
+    return null;
+  }
+}
 
 /**
  * Apply a stock movement inside an open transaction connection.
@@ -338,8 +422,8 @@ router.get("/:id(\\d+)", async (req, res, next) => {
        FROM part_indent_history WHERE indent_id = ? ORDER BY id`,
       [ind.id]
     );
-    const [[po]] = await pool.query(`SELECT id, po_number AS poNumber, vendor_name AS vendorName, total_amount AS totalAmount, status FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
-    const [[bill]] = await pool.query(`SELECT id, bill_number AS billNumber, amount, status, closed_by_name AS closedByName, closed_at AS closedAt FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
+    const [[po]] = await pool.query(`SELECT id, po_number AS poNumber, vendor_name AS vendorName, total_amount AS totalAmount, status, zoho_po_number AS zohoPoNumber, sync_status AS syncStatus FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
+    const [[bill]] = await pool.query(`SELECT id, bill_number AS billNumber, amount, status, closed_by_name AS closedByName, closed_at AS closedAt, zoho_bill_number AS zohoBillNumber, sync_status AS syncStatus FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
     res.json({ ...ind, items, history, po: po || null, bill: bill || null });
   } catch (err) { next(err); }
 });
@@ -576,7 +660,9 @@ router.patch("/:id/approve-price", async (req, res, next) => {
     await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.PO_CREATED, ind.id]);
     await addHistory(conn, ind.id, ind.status, STATUS.PO_CREATED, req, "price approved · PO created", req.body?.comments);
     await conn.commit();
-    res.json({ ok: true, message: "Price approved and PO created", poId });
+    // Best-effort push to Zoho Books (no-op unless BOOKS_PROVIDER=zoho).
+    const zpo = await syncPurchaseOrderToBooks(cid(req), poId);
+    res.json({ ok: true, message: zpo ? "Price approved · PO created & synced to Zoho Books" : "Price approved and PO created", poId, zoho: zpo || undefined });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
 });
@@ -664,9 +750,11 @@ router.post("/:id/bill", async (req, res, next) => {
        VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
       [cid(req), po?.id || null, ind.id, billNumber, amt, externalRef, req.companyUser.id, actorName(req)]
     );
+    const billId = r.insertId;
     const conn = await pool.getConnection();
     try { await addHistory(conn, ind.id, ind.status, ind.status, req, "bill recorded", billNumber ? `Bill ${billNumber} · ₹${amt}` : `₹${amt}`); } finally { conn.release(); }
-    res.status(201).json({ id: r.insertId, message: "Bill recorded" });
+    const zbill = await syncBillToBooks(cid(req), billId);
+    res.status(201).json({ id: billId, message: zbill ? "Bill recorded & synced to Zoho Books" : "Bill recorded" });
   } catch (err) { next(err); }
 });
 
@@ -682,6 +770,20 @@ router.patch("/:id/close-bill", async (req, res, next) => {
     const conn = await pool.getConnection();
     try { await addHistory(conn, ind.id, ind.status, ind.status, req, "bill closed", bill.bill_number || `#${bill.id}`); } finally { conn.release(); }
     res.json({ ok: true, message: "Bill closed" });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /:id/sync-books — retry a failed Zoho Books sync (PO + bill) ─────────
+router.patch("/:id/sync-books", async (req, res, next) => {
+  if (!canFinance(req) && !isManager(req) && !canProcure(req)) return res.status(403).json({ message: "Not allowed" });
+  try {
+    if (!isZohoEnabled()) return res.status(400).json({ message: "Zoho Books is not enabled (set BOOKS_PROVIDER=zoho and credentials)" });
+    const id = Number(req.params.id);
+    const [[po]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [id, cid(req)]);
+    const [[bill]] = await pool.query(`SELECT id FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [id, cid(req)]);
+    const poRes = po ? await syncPurchaseOrderToBooks(cid(req), po.id) : null;
+    const billRes = bill ? await syncBillToBooks(cid(req), bill.id) : null;
+    res.json({ ok: true, po: poRes || null, bill: billRes || null });
   } catch (err) { next(err); }
 });
 
