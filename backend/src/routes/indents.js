@@ -603,46 +603,39 @@ router.patch("/:id/approve", async (req, res, next) => {
     // Missing decision defaults to approving the full requested quantity.
     const decisions = req.body?.decisions || {};
 
+    // Item-level decisions. Approval routes the indent straight into procurement
+    // (a draft PO in Zoho Books) — no stock reservation, since parts are bought.
     let approvedCount = 0, rejectedCount = 0;
     const approvedNames = [], rejectedNames = [];
     for (const it of items) {
       const d = decisions[it.id] || {};
       const action = d.action || "approve";
-      if (action === "reject") {
-        await conn.query(`UPDATE part_indent_items SET item_status = 'rejected', qty_approved = 0 WHERE id = ?`, [it.id]);
-        rejectedCount++; rejectedNames.push(it.part_name || `#${it.part_id}`);
-        continue;
-      }
       const approveQty = Math.max(0, Math.trunc(Number(d.qty ?? it.qty_requested)));
-      if (approveQty <= 0) {
+      if (action === "reject" || approveQty <= 0) {
         await conn.query(`UPDATE part_indent_items SET item_status = 'rejected', qty_approved = 0 WHERE id = ?`, [it.id]);
         rejectedCount++; rejectedNames.push(it.part_name || `#${it.part_id}`);
         continue;
-      }
-      const [[p]] = await conn.query(`SELECT available_quantity AS a FROM parts WHERE id = ? AND company_id = ? FOR UPDATE`, [it.part_id, cid(req)]);
-      if (!p) { await conn.rollback(); return res.status(404).json({ message: `Part #${it.part_id} not found` }); }
-      if (approveQty > Number(p.a)) {
-        await conn.rollback();
-        return res.status(409).json({ message: `Not enough stock for "${it.part_name || 'part'}" — available ${p.a}, approving ${approveQty}. Reduce the quantity, reject this item, or send the indent to procurement.` });
       }
       await conn.query(`UPDATE part_indent_items SET item_status = 'approved', qty_approved = ? WHERE id = ?`, [approveQty, it.id]);
-      await applyStockMovement(conn, {
-        companyId: cid(req), partId: it.part_id, reason: "reserve",
-        deltaReserved: approveQty, qty: approveQty, refType: "indent", refId: ind.id, actorId: req.companyUser.id,
-      });
       approvedCount++; approvedNames.push(it.part_name || `#${it.part_id}`);
     }
 
-    // Roll-up: at least one approved → indent approved; all rejected → rejected.
-    const newStatus = approvedCount > 0 ? STATUS.APPROVED : STATUS.REJECTED;
+    // Roll-up: any approved → straight to procurement; all rejected → rejected.
+    const newStatus = approvedCount > 0 ? STATUS.IN_PROCUREMENT : STATUS.REJECTED;
     const summary = [
       approvedCount ? `approved ${approvedNames.join(", ")}` : "",
       rejectedCount ? `rejected ${rejectedNames.join(", ")}` : "",
     ].filter(Boolean).join(" · ");
     await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [newStatus, ind.id]);
-    await addHistory(conn, ind.id, ind.status, newStatus, req, approvedCount > 0 ? "approved (item-wise)" : "rejected", summary || req.body?.comments);
+    await addHistory(conn, ind.id, ind.status, newStatus, req,
+      approvedCount > 0 ? "approved · sent to procurement" : "rejected", summary || req.body?.comments);
     await conn.commit();
-    res.json({ ok: true, message: approvedCount > 0 ? `Approved ${approvedCount} item(s), reserved stock` : "All items rejected" });
+    // Create the draft PO in Zoho Books for the purchase team to price.
+    let draft = null;
+    if (approvedCount > 0) draft = await createDraftPOForIndent(cid(req), ind.id, req.companyUser.id);
+    res.json({ ok: true, message: approvedCount > 0
+      ? (draft ? "Approved · draft PO created in Zoho Books for pricing" : "Approved · sent to procurement")
+      : "All items rejected" });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
 });

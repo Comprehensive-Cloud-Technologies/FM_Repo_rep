@@ -132,10 +132,8 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   useEffect(() => {
     if (data && data.status === "pending_approval") {
       const init = {};
-      (data.items || []).forEach((it) => {
-        const avail = it.partAvailable ?? 0;
-        init[it.id] = { action: avail > 0 ? "approve" : "reject", qty: Math.min(it.qty_requested, avail || it.qty_requested) };
-      });
+      // Parts are procured, so default to approving the full requested qty.
+      (data.items || []).forEach((it) => { init[it.id] = { action: "approve", qty: it.qty_requested }; });
       setDecisions(init);
     }
   }, [data]);
@@ -154,7 +152,8 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   const canReject = canManage && ["pending_approval", "approved"].includes(st);
   const canCancel = ["pending_approval", "approved"].includes(st);
   const zohoDraft = !!data?.po?.zohoPoNumber && data?.po?.status === "draft";
-  const canSendProc = canManage && ["pending_approval", "approved"].includes(st);
+  // Approval now routes straight to procurement, so no separate "send" button.
+  const canSendProc = false;
   // HTM quoting is only for the internal flow; when a Zoho draft PO exists the
   // purchase team prices it in Zoho Books instead.
   const canQuote = canProcure && st === "in_procurement" && !zohoDraft;
@@ -241,24 +240,23 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                   {(data.items || []).map((it) => {
                     const avail = it.partAvailable ?? 0;
                     if (canApprove) {
-                      const d = decisions[it.id] || { action: "approve", qty: Math.min(it.qty_requested, avail) };
+                      const d = decisions[it.id] || { action: "approve", qty: it.qty_requested };
                       const rejected = d.action === "reject";
                       return (
                         <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9", opacity: rejected ? 0.55 : 1 }}>
                           <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
                           <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
-                          <td style={{ padding: "8px 12px", color: avail <= 0 ? "#dc2626" : "#059669", fontWeight: 700 }}>{avail}</td>
+                          <td style={{ padding: "8px 12px", color: "#64748b" }}>{avail}</td>
                           <td style={{ padding: "8px 12px" }}>
-                            <input type="number" min="0" max={Math.min(it.qty_requested, avail)} value={d.qty ?? 0} disabled={rejected}
-                              onChange={(e) => setDec(it.id, { qty: Math.max(0, Math.min(Number(e.target.value) || 0, Math.min(it.qty_requested, avail))) })}
+                            <input type="number" min="0" max={it.qty_requested} value={d.qty ?? 0} disabled={rejected}
+                              onChange={(e) => setDec(it.id, { qty: Math.max(0, Math.min(Number(e.target.value) || 0, it.qty_requested)) })}
                               style={{ width: "70px", padding: "5px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }} />
                           </td>
                           <td style={{ padding: "8px 12px" }}>
-                            <button onClick={() => setDec(it.id, { action: rejected ? "approve" : "reject", qty: rejected ? Math.min(it.qty_requested, avail) : 0 })}
+                            <button onClick={() => setDec(it.id, { action: rejected ? "approve" : "reject", qty: rejected ? it.qty_requested : 0 })}
                               style={{ ...btn(rejected ? "#fee2e2" : "#dcfce7", rejected ? "#b91c1c" : "#15803d", rejected ? "#fecaca" : "#bbf7d0"), padding: "4px 10px" }}>
                               {rejected ? "Rejected — undo" : "Approve"}
                             </button>
-                            {avail <= 0 && !rejected && <span style={{ marginLeft: 8, fontSize: "11px", color: "#c2410c" }}>out of stock</span>}
                           </td>
                         </tr>
                       );
