@@ -424,7 +424,32 @@ router.get("/:id(\\d+)", async (req, res, next) => {
     );
     const [[po]] = await pool.query(`SELECT id, po_number AS poNumber, vendor_name AS vendorName, total_amount AS totalAmount, status, zoho_po_number AS zohoPoNumber, sync_status AS syncStatus FROM purchase_orders WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
     const [[bill]] = await pool.query(`SELECT id, bill_number AS billNumber, amount, status, closed_by_name AS closedByName, closed_at AS closedAt, zoho_bill_number AS zohoBillNumber, sync_status AS syncStatus FROM bills WHERE indent_id = ? AND company_id = ? ORDER BY id DESC LIMIT 1`, [ind.id, cid(req)]).catch(() => [[]]);
-    res.json({ ...ind, items, history, po: po || null, bill: bill || null });
+
+    // Enrich with the linked asset's details (identity · location · make/model/serial).
+    let asset = null;
+    if (ind.asset_id) {
+      const [[a]] = await pool.query(
+        `SELECT a.id, a.asset_name AS name, COALESCE(a.generated_asset_id, a.asset_unique_id) AS code,
+                a.asset_type AS category, a.building, a.floor, a.room,
+                d.name AS department, ad.metadata
+         FROM assets a
+         LEFT JOIN departments d ON d.id = a.department_id
+         LEFT JOIN asset_details ad ON ad.asset_id = a.id
+         WHERE a.id = ? AND a.company_id = ?`,
+        [ind.asset_id, cid(req)]
+      ).catch(() => [[]]);
+      if (a) {
+        let meta = {};
+        try { meta = typeof a.metadata === "string" ? JSON.parse(a.metadata) : (a.metadata || {}); } catch { meta = {}; }
+        asset = {
+          id: a.id, name: a.name, code: a.code, category: a.category,
+          department: a.department,
+          location: [a.building, a.floor, a.room].filter(Boolean).join(", ") || null,
+          make: meta.make || null, model: meta.model || null, serialNo: meta.serialNo || meta.serial_no || null,
+        };
+      }
+    }
+    res.json({ ...ind, items, history, po: po || null, bill: bill || null, asset });
   } catch (err) { next(err); }
 });
 

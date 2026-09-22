@@ -66,6 +66,25 @@ export default function MyIndentsScreen() {
           </View>
           {detail.notes ? <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{detail.notes}</Text> : null}
 
+          {detail.asset && (
+            <View style={[ss.card, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+              <Text style={[ss.cardTitle, { color: theme.textMuted }]}>ASSET</Text>
+              <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>
+                {detail.asset.name || '—'}{detail.asset.code ? `  ·  ${detail.asset.code}` : ''}
+              </Text>
+              {([
+                ['Category', detail.asset.category], ['Department', detail.asset.department],
+                ['Location', detail.asset.location], ['Make', detail.asset.make],
+                ['Model', detail.asset.model], ['Serial No', detail.asset.serialNo],
+              ] as [string, any][]).filter(([, v]) => v).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: 'row', paddingVertical: 3 }}>
+                  <Text style={{ width: 96, color: theme.textMuted, fontSize: 12 }}>{k}</Text>
+                  <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 12.5, fontWeight: '600' }}>{String(v)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View style={[ss.card, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <Text style={[ss.cardTitle, { color: theme.textMuted }]}>PARTS</Text>
             {(detail.items || []).map((it: any) => (

@@ -4,7 +4,7 @@
  * stock via the ledger). Anyone can raise an indent and track their own.
  */
 import { useCallback, useEffect, useState } from "react";
-import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts,
+import { getIndents, getIndent, createIndent, approveIndent, rejectIndent, issueIndent, cancelIndent, getParts, getCompanyPortalAssets,
   getVendors, createVendor, sendToProcurement, quoteIndent, approveIndentPrice, rejectIndentPrice, dispatchIndent, grnIndent,
   recordIndentBill, closeIndentBill, syncIndentBooks } from "../api";
 
@@ -174,8 +174,35 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               <Chip s={data.status} />
             </div>
             <p style={{ margin: "0 0 14px", fontSize: "12.5px", color: "#64748b" }}>
-              {data.assetName ? `Asset: ${data.assetName} · ` : ""}Raised by {data.raised_by_name || "—"}{data.notes ? ` · ${data.notes}` : ""}
+              Raised by {data.raised_by_name || "—"}{data.notes ? ` · ${data.notes}` : ""}
             </p>
+
+            {/* Asset the parts are used on */}
+            {data.asset && (
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Asset</div>
+                  <a href={`/company/asset/${data.asset.id}`} target="_blank" rel="noreferrer" style={{ fontSize: "12px", fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>Open asset →</a>
+                </div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
+                  {data.asset.name || "—"} {data.asset.code ? <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#64748b", fontSize: "12.5px" }}>· {data.asset.code}</span> : null}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "6px 16px", marginTop: "8px" }}>
+                  {[
+                    ["Category", data.asset.category],
+                    ["Department", data.asset.department],
+                    ["Location", data.asset.location],
+                    ["Make", data.asset.make],
+                    ["Model", data.asset.model],
+                    ["Serial No", data.asset.serialNo],
+                  ].filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k} style={{ fontSize: "12px" }}>
+                      <span style={{ color: "#94a3b8" }}>{k}: </span><span style={{ color: "#334155", fontWeight: 600 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {err && <div style={{ padding: "9px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "12.5px", marginBottom: "12px" }}>{err}</div>}
 
@@ -386,12 +413,21 @@ function BillForm({ token, indent, onClose, onSaved }) {
 
 function NewIndent({ token, onClose, onSaved }) {
   const [parts, setParts] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [assetId, setAssetId] = useState("");
   const [rows, setRows] = useState([{ partId: "", qty: "1" }]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => { (async () => { try { setParts(await getParts(token)); } catch { /* ignore */ } })(); }, [token]);
+  useEffect(() => { (async () => {
+    try { setParts(await getParts(token)); } catch { /* ignore */ }
+    try {
+      const r = await getCompanyPortalAssets(token, { limit: 2000 });
+      const list = Array.isArray(r) ? r : (r?.assets || r?.data || r?.rows || []);
+      setAssets(list);
+    } catch { /* ignore */ }
+  })(); }, [token]);
 
   const setRow = (i, k, v) => setRows((rs) => rs.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
   const addRow = () => setRows((rs) => [...rs, { partId: "", qty: "1" }]);
@@ -401,7 +437,7 @@ function NewIndent({ token, onClose, onSaved }) {
     const items = rows.map((r) => ({ partId: Number(r.partId), qty: Math.max(1, parseInt(r.qty, 10) || 0) })).filter((r) => r.partId && r.qty > 0);
     if (!items.length) { setErr("Add at least one part"); return; }
     setSaving(true); setErr("");
-    try { await createIndent(token, { items, notes: notes.trim() || null }); onSaved(); }
+    try { await createIndent(token, { items, assetId: assetId ? Number(assetId) : null, notes: notes.trim() || null }); onSaved(); }
     catch (e) { setErr(e.message || "Could not submit"); setSaving(false); }
   };
 
@@ -414,6 +450,17 @@ function NewIndent({ token, onClose, onSaved }) {
         {err && <div style={{ padding: "9px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "12.5px", marginBottom: "12px" }}>{err}</div>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>Asset (which machine are these parts for?)</label>
+            <select value={assetId} onChange={(e) => setAssetId(e.target.value)} style={inp}>
+              <option value="">— No specific asset —</option>
+              {assets.map((a) => {
+                const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
+                const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
+                return <option key={a.id} value={a.id}>{name}{code ? ` (${code})` : ""}</option>;
+              })}
+            </select>
+          </div>
           {rows.map((r, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 90px auto", gap: "8px", alignItems: "center" }}>
               <select value={r.partId} onChange={(e) => setRow(i, "partId", e.target.value)} style={inp}>
