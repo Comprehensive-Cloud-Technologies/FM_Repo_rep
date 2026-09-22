@@ -21,7 +21,8 @@
 import { Router } from "express";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
-import { isZohoEnabled, ensureVendor as zohoEnsureVendor, createPurchaseOrder as zohoCreatePO, createBill as zohoCreateBill } from "../utils/zohoBooks.js";
+import { isZohoEnabled, ensureVendor as zohoEnsureVendor, createPurchaseOrder as zohoCreatePO, createBill as zohoCreateBill,
+  createDraftPurchaseOrder as zohoCreateDraftPO, getPurchaseOrder as zohoGetPO, markPurchaseOrderIssued as zohoIssuePO } from "../utils/zohoBooks.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -294,6 +295,121 @@ async function syncBillToBooks(companyId, billId) {
     await pool.query(`UPDATE bills SET sync_status = 'failed', sync_error = ? WHERE id = ?`, [String(e.message).slice(0, 500), billId]).catch(() => {});
     return null;
   }
+}
+
+// ── Notify a company's admins (web dashboard "Alerts") ────────────────────────
+async function notifyCompanyAdmins(companyId, title, message) {
+  try {
+    const [admins] = await pool.query(
+      `SELECT id FROM company_users WHERE company_id = ? AND role IN ('admin','catalyst_admin') AND status = 'Active'`,
+      [companyId]
+    );
+    for (const a of admins) {
+      await pool.query(
+        `INSERT INTO notifications (company_id, recipient_id, type, title, message, is_read, created_at)
+         VALUES (?, ?, 'indent', ?, ?, FALSE, NOW())`,
+        [companyId, a.id, title, message]
+      ).catch(() => {});
+    }
+  } catch { /* notifications table may vary; non-fatal */ }
+}
+
+/**
+ * Zoho procurement: when an indent is sent to procurement, create a DRAFT PO in
+ * Zoho Books (the quotation the purchase team prices) and an internal draft PO
+ * row that links to it. Best-effort — records sync_status; never throws.
+ */
+async function createDraftPOForIndent(companyId, indentId, actorId) {
+  if (!isZohoEnabled()) return null;
+  try {
+    const [[ind]] = await pool.query(`SELECT * FROM part_indents WHERE id = ? AND company_id = ?`, [indentId, companyId]);
+    if (!ind) return null;
+    // Don't create twice.
+    const [[existing]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND zoho_po_id IS NOT NULL ORDER BY id DESC LIMIT 1`, [indentId]);
+    if (existing) return existing;
+    const [items] = await pool.query(
+      `SELECT ii.*, p.zoho_item_id AS zohoItemId FROM part_indent_items ii
+       LEFT JOIN parts p ON p.id = ii.part_id WHERE ii.indent_id = ?`, [indentId]);
+    const lineItems = items
+      .filter((it) => it.item_status !== "rejected")
+      .map((it) => ({ itemId: it.zohoItemId || undefined, name: it.part_name, rate: 0, quantity: Number(it.qty_approved ?? it.qty_requested) }));
+    const draft = await zohoCreateDraftPO({ referenceNumber: ind.indent_number, lineItems });
+    // Internal PO row mirrors the Zoho draft.
+    const [poRes] = await pool.query(
+      `INSERT INTO purchase_orders (company_id, indent_id, status, zoho_po_id, zoho_po_number, sync_status, created_by)
+       VALUES (?, ?, 'draft', ?, ?, 'synced', ?)`,
+      [companyId, indentId, draft.id, draft.number, actorId]
+    );
+    const poId = poRes.insertId;
+    await pool.query(`UPDATE purchase_orders SET po_number = CONCAT('PO-', YEAR(created_at), '-', LPAD(id,5,'0')) WHERE id = ?`, [poId]);
+    for (const it of items.filter((x) => x.item_status !== "rejected")) {
+      await pool.query(
+        `INSERT INTO po_items (po_id, indent_item_id, part_id, part_name, qty, unit_price) VALUES (?, ?, ?, ?, ?, 0)`,
+        [poId, it.id, it.part_id, it.part_name, Number(it.qty_approved ?? it.qty_requested)]
+      );
+    }
+    return { id: poId, zohoDraft: draft };
+  } catch (e) {
+    await pool.query(
+      `INSERT INTO purchase_orders (company_id, indent_id, status, sync_status, sync_error, created_by) VALUES (?, ?, 'draft', 'failed', ?, ?)`,
+      [companyId, indentId, String(e.message).slice(0, 500), actorId]
+    ).catch(() => {});
+    return null;
+  }
+}
+
+/**
+ * Auto-poll: for indents in procurement whose Zoho draft PO has been priced by
+ * the purchase team, pull the prices back into HTM, move the indent to
+ * price-approval and notify the company admins on the web dashboard.
+ */
+async function pollZohoQuotes() {
+  if (!isZohoEnabled()) return;
+  try {
+    const [rows] = await pool.query(
+      `SELECT i.id AS indentId, i.company_id AS companyId, i.indent_number AS indentNumber, po.id AS poId, po.zoho_po_id AS zohoPoId
+       FROM part_indents i
+       JOIN purchase_orders po ON po.indent_id = i.id AND po.zoho_po_id IS NOT NULL
+       WHERE i.status = ?
+       LIMIT 50`,
+      [STATUS.IN_PROCUREMENT]
+    );
+    for (const r of rows) {
+      try {
+        const zpo = await zohoGetPO(r.zohoPoId);
+        const priced = (zpo.lineItems || []).some((li) => Number(li.rate) > 0) || Number(zpo.total) > 0;
+        if (!priced) continue;
+        // Pull rates back by matching on item name (fallback: order).
+        const [items] = await pool.query(`SELECT * FROM part_indent_items WHERE indent_id = ?`, [r.indentId]);
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          const match = (zpo.lineItems || []).find((li) => (li.name || "").trim().toLowerCase() === (it.part_name || "").trim().toLowerCase())
+            || zpo.lineItems[idx];
+          if (match && Number(match.rate) > 0) {
+            await pool.query(`UPDATE part_indent_items SET unit_price = ? WHERE id = ?`, [Number(match.rate), it.id]);
+            await pool.query(`UPDATE po_items SET unit_price = ? WHERE po_id = ? AND indent_item_id = ?`, [Number(match.rate), r.poId, it.id]);
+          }
+        }
+        await pool.query(`UPDATE purchase_orders SET total_amount = ?, vendor_name = COALESCE(?, vendor_name) WHERE id = ?`, [zpo.total || 0, zpo.vendorName || null, r.poId]);
+        await pool.query(`UPDATE part_indents SET status = ? WHERE id = ? AND status = ?`, [STATUS.PENDING_PRICE, r.indentId, STATUS.IN_PROCUREMENT]);
+        const conn = await pool.getConnection();
+        try {
+          await conn.query(
+            `INSERT INTO part_indent_history (indent_id, from_status, to_status, actor_name, action, comments)
+             VALUES (?, ?, ?, 'Zoho Books', 'quote priced', ?)`,
+            [r.indentId, STATUS.IN_PROCUREMENT, STATUS.PENDING_PRICE, `₹${zpo.total} · PO ${zpo.number}`]
+          );
+        } finally { conn.release(); }
+        await notifyCompanyAdmins(r.companyId, "Quote ready for approval",
+          `Indent ${r.indentNumber}: purchase team priced the quote in Zoho (₹${zpo.total}). Approve the price to raise the PO.`);
+      } catch { /* skip this one, try next tick */ }
+    }
+  } catch { /* non-fatal */ }
+}
+
+// Poll every 3 minutes when Zoho procurement is enabled.
+if (isZohoEnabled()) {
+  setInterval(() => { pollZohoQuotes().catch(() => {}); }, Number(process.env.ZOHO_POLL_MS || 180000));
 }
 
 /**
@@ -627,7 +743,9 @@ router.patch("/:id/send-to-procurement", async (req, res, next) => {
     await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.IN_PROCUREMENT, ind.id]);
     await addHistory(conn, ind.id, ind.status, STATUS.IN_PROCUREMENT, req, "sent to procurement", req.body?.comments);
     await conn.commit();
-    res.json({ ok: true, message: "Sent to procurement" });
+    // Zoho: create the DRAFT PO the purchase team will price in Zoho Books.
+    const draft = await createDraftPOForIndent(cid(req), ind.id, req.companyUser.id);
+    res.json({ ok: true, message: draft ? "Sent to procurement — draft PO created in Zoho Books for pricing" : "Sent to procurement" });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
 });
@@ -665,30 +783,47 @@ router.patch("/:id/approve-price", async (req, res, next) => {
     if (!ind) { await conn.rollback(); return res.status(404).json({ message: "Indent not found" }); }
     if (ind.status !== STATUS.PENDING_PRICE) { await conn.rollback(); return res.status(409).json({ message: `No pending quote to approve (status '${ind.status}')` }); }
     const [items] = await conn.query(`SELECT * FROM part_indent_items WHERE indent_id = ?`, [ind.id]);
-    const vendorId = items.find((i) => i.vendor_id)?.vendor_id || null;
-    let vendorName = null;
-    if (vendorId) { const [[v]] = await conn.query(`SELECT name FROM vendors WHERE id = ? AND company_id = ?`, [vendorId, cid(req)]); vendorName = v?.name || null; }
     const total = items.reduce((s, it) => s + Number(it.unit_price || 0) * Number(it.qty_approved ?? it.qty_requested), 0);
-    const [poRes] = await conn.query(
-      `INSERT INTO purchase_orders (company_id, indent_id, vendor_id, vendor_name, total_amount, status, created_by)
-       VALUES (?, ?, ?, ?, ?, 'open', ?)`,
-      [cid(req), ind.id, vendorId, vendorName, total, req.companyUser.id]
-    );
-    const poId = poRes.insertId;
-    await conn.query(`UPDATE purchase_orders SET po_number = CONCAT('PO-', YEAR(created_at), '-', LPAD(id,5,'0')) WHERE id = ?`, [poId]);
-    for (const it of items) {
-      const q = Number(it.qty_approved ?? it.qty_requested);
-      await conn.query(
-        `INSERT INTO po_items (po_id, indent_item_id, part_id, part_name, qty, unit_price) VALUES (?, ?, ?, ?, ?, ?)`,
-        [poId, it.id, it.part_id, it.part_name, q, Number(it.unit_price || 0)]
+
+    // Is this the Zoho flow (a draft PO already exists in Zoho)?
+    const [[zohoPo]] = await conn.query(`SELECT * FROM purchase_orders WHERE indent_id = ? AND zoho_po_id IS NOT NULL ORDER BY id DESC LIMIT 1`, [ind.id]);
+
+    let poId, zpo = null;
+    if (zohoPo) {
+      // Zoho flow: the PO already exists in Zoho as a draft priced by purchase.
+      // Approving here marks it ISSUED in Zoho and opens the internal record.
+      poId = zohoPo.id;
+      await conn.query(`UPDATE purchase_orders SET status = 'open', total_amount = ? WHERE id = ?`, [total, poId]);
+      await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.PO_CREATED, ind.id]);
+      await addHistory(conn, ind.id, ind.status, STATUS.PO_CREATED, req, "price approved · PO issued in Zoho", req.body?.comments);
+      await conn.commit();
+      try { await zohoIssuePO(zohoPo.zoho_po_id); zpo = { id: zohoPo.zoho_po_id, number: zohoPo.zoho_po_number }; }
+      catch (e) { await pool.query(`UPDATE purchase_orders SET sync_status = 'failed', sync_error = ? WHERE id = ?`, [String(e.message).slice(0, 500), poId]).catch(() => {}); }
+    } else {
+      // Internal flow (pricing done in HTM): create the PO, then push to Zoho.
+      const vendorId = items.find((i) => i.vendor_id)?.vendor_id || null;
+      let vendorName = null;
+      if (vendorId) { const [[v]] = await conn.query(`SELECT name FROM vendors WHERE id = ? AND company_id = ?`, [vendorId, cid(req)]); vendorName = v?.name || null; }
+      const [poRes] = await conn.query(
+        `INSERT INTO purchase_orders (company_id, indent_id, vendor_id, vendor_name, total_amount, status, created_by)
+         VALUES (?, ?, ?, ?, ?, 'open', ?)`,
+        [cid(req), ind.id, vendorId, vendorName, total, req.companyUser.id]
       );
+      poId = poRes.insertId;
+      await conn.query(`UPDATE purchase_orders SET po_number = CONCAT('PO-', YEAR(created_at), '-', LPAD(id,5,'0')) WHERE id = ?`, [poId]);
+      for (const it of items) {
+        const q = Number(it.qty_approved ?? it.qty_requested);
+        await conn.query(
+          `INSERT INTO po_items (po_id, indent_item_id, part_id, part_name, qty, unit_price) VALUES (?, ?, ?, ?, ?, ?)`,
+          [poId, it.id, it.part_id, it.part_name, q, Number(it.unit_price || 0)]
+        );
+      }
+      await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.PO_CREATED, ind.id]);
+      await addHistory(conn, ind.id, ind.status, STATUS.PO_CREATED, req, "price approved · PO created", req.body?.comments);
+      await conn.commit();
+      zpo = await syncPurchaseOrderToBooks(cid(req), poId);
     }
-    await conn.query(`UPDATE part_indents SET status = ? WHERE id = ?`, [STATUS.PO_CREATED, ind.id]);
-    await addHistory(conn, ind.id, ind.status, STATUS.PO_CREATED, req, "price approved · PO created", req.body?.comments);
-    await conn.commit();
-    // Best-effort push to Zoho Books (no-op unless BOOKS_PROVIDER=zoho).
-    const zpo = await syncPurchaseOrderToBooks(cid(req), poId);
-    res.json({ ok: true, message: zpo ? "Price approved · PO created & synced to Zoho Books" : "Price approved and PO created", poId, zoho: zpo || undefined });
+    res.json({ ok: true, message: zpo ? "Price approved · PO issued in Zoho Books" : "Price approved and PO created", poId, zoho: zpo || undefined });
   } catch (err) { await conn.rollback().catch(() => {}); next(err); }
   finally { conn.release(); }
 });

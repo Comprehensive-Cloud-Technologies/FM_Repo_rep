@@ -135,6 +135,75 @@ export async function createBill({ vendorId, billNumber, referenceNumber, date, 
   return { id: data.bill.bill_id, number: data.bill.bill_number };
 }
 
+/**
+ * Find an item by name (exact, case-insensitive), else create it. Returns the
+ * Zoho item_id. Used to keep the HTM parts master in sync with Zoho Items so
+ * PO/bill line items reference real inventory items.
+ */
+export async function ensureItem({ name, sku, rate } = {}) {
+  if (!name) throw new Error("Item name required for Zoho sync");
+  const found = await zoho("GET", `/items?search_text=${encodeURIComponent(name)}`);
+  const match = (found.items || []).find(
+    (i) => (i.name || "").trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  if (match) return match.item_id;
+  const created = await zoho("POST", "/items", {
+    name,
+    ...(sku ? { sku } : {}),
+    rate: Number(rate || 0),
+    product_type: "goods",
+    item_type: "inventory",
+  }).catch(async (e) => {
+    // Some orgs don't have inventory enabled — fall back to a sales/purchase item.
+    return zoho("POST", "/items", { name, ...(sku ? { sku } : {}), rate: Number(rate || 0) });
+  });
+  return created.item.item_id;
+}
+
+/**
+ * Create a DRAFT purchase order in Zoho (the "quotation" the purchase team
+ * prices). Line items may carry an item_id (preferred) or a name. Rates start
+ * at 0 — the purchase team fills them in Zoho. @returns { id, number }
+ */
+export async function createDraftPurchaseOrder({ vendorId, referenceNumber, date, lineItems }) {
+  const body = {
+    reference_number: referenceNumber || undefined,
+    date: date || undefined,
+    line_items: (lineItems || []).map((li) => ({
+      ...(li.itemId ? { item_id: li.itemId } : {}),
+      name: li.name || "Part",
+      rate: Number(li.rate || 0),
+      quantity: Number(li.quantity || 1),
+    })),
+  };
+  // vendor_id is required by Zoho for a PO; use a placeholder vendor if none yet.
+  if (vendorId) body.vendor_id = vendorId;
+  const data = await zoho("POST", "/purchaseorders", body);
+  return { id: data.purchaseorder.purchaseorder_id, number: data.purchaseorder.purchaseorder_number };
+}
+
+/** Read a purchase order (line items, rates, vendor, total, status). */
+export async function getPurchaseOrder(poId) {
+  const data = await zoho("GET", `/purchaseorders/${poId}`);
+  const po = data.purchaseorder || {};
+  return {
+    id: po.purchaseorder_id,
+    number: po.purchaseorder_number,
+    status: po.status,
+    vendorId: po.vendor_id,
+    vendorName: po.vendor_name,
+    total: Number(po.total || 0),
+    lineItems: (po.line_items || []).map((li) => ({
+      itemId: li.item_id, name: li.name, rate: Number(li.rate || 0), quantity: Number(li.quantity || 0),
+    })),
+  };
+}
+
+/** Mark a draft PO as issued/open (called after HTM price approval). */
+export async function markPurchaseOrderIssued(poId) {
+  return zoho("POST", `/purchaseorders/${poId}/status/open`, {});
+}
+
 export const zohoDeepLink = {
   po: (id) => `https://books.zoho.${DC}/app#/purchaseorders/${id}`,
   bill: (id) => `https://books.zoho.${DC}/app#/bills/${id}`,

@@ -15,6 +15,7 @@ import multer from "multer";
 import pool from "../db.js";
 import { requireCompanyAuth } from "../middleware/companyAuth.js";
 import { uploadToS3, S3_FOLDERS, presignIfS3 } from "../utils/s3.js";
+import { isZohoEnabled, ensureItem as zohoEnsureItem } from "../utils/zohoBooks.js";
 
 const router = Router();
 router.use(requireCompanyAuth);
@@ -60,10 +61,23 @@ const resolvePhotoUrl = async (req, url) => {
     "ADD COLUMN total_quantity INT NOT NULL DEFAULT 0",
     "ADD COLUMN available_quantity INT NOT NULL DEFAULT 0",
     "ADD COLUMN unit VARCHAR(40) DEFAULT NULL",
+    "ADD COLUMN zoho_item_id VARCHAR(60) DEFAULT NULL",
   ]) {
     try { await pool.query(`ALTER TABLE parts ${col}`); } catch (err) { /* column exists */ }
   }
 })();
+
+/** Best-effort: upsert a part into Zoho Books Items and cache its id. Never throws. */
+async function syncPartToZoho(companyId, partId) {
+  if (!isZohoEnabled()) return;
+  try {
+    const [[p]] = await pool.query(`SELECT id, part_name, make, model, zoho_item_id FROM parts WHERE id = ? AND company_id = ?`, [partId, companyId]);
+    if (!p || p.zoho_item_id) return;
+    const sku = [p.make, p.model].filter(Boolean).join("-") || undefined;
+    const itemId = await zohoEnsureItem({ name: p.part_name, sku });
+    if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, p.id]);
+  } catch { /* leave unsynced; retried on next touch */ }
+}
 
 // Clamp a value to a non-negative integer (or null when not provided).
 const toQty = (v) => {
@@ -163,6 +177,7 @@ router.post("/", async (req, res, next) => {
         req.companyUser.fullName || req.companyUser.email || null,
       ]
     );
+    syncPartToZoho(cid(req), result.insertId); // fire-and-forget Zoho Items sync
     res.status(201).json({ id: result.insertId, message: "Part added" });
   } catch (err) { next(err); }
 });

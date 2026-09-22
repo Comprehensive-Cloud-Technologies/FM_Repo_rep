@@ -153,8 +153,11 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
   const canIssue = canManage && (st === "approved" || st === "received");
   const canReject = canManage && ["pending_approval", "approved"].includes(st);
   const canCancel = ["pending_approval", "approved"].includes(st);
+  const zohoDraft = !!data?.po?.zohoPoNumber && data?.po?.status === "draft";
   const canSendProc = canManage && ["pending_approval", "approved"].includes(st);
-  const canQuote = canProcure && ["in_procurement"].includes(st);
+  // HTM quoting is only for the internal flow; when a Zoho draft PO exists the
+  // purchase team prices it in Zoho Books instead.
+  const canQuote = canProcure && st === "in_procurement" && !zohoDraft;
   const canApprovePrice = (canManage || canFinance) && st === "pending_price_approval";
   const canDispatch = canProcure && st === "po_created";
   const canGrn = (canProcure || canManage) && ["dispatched", "po_created"].includes(st);
@@ -174,9 +177,28 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>{data.indent_number || `Indent #${data.id}`}</h3>
               <Chip s={data.status} />
             </div>
-            <p style={{ margin: "0 0 14px", fontSize: "12.5px", color: "#64748b" }}>
+            <p style={{ margin: "0 0 10px", fontSize: "12.5px", color: "#64748b" }}>
               Raised by {data.raised_by_name || "—"}{data.notes ? ` · ${data.notes}` : ""}
             </p>
+
+            {/* Billed amount (once a bill exists) */}
+            {data.bill && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: data.bill.status === "closed" ? "#f0fdf4" : "#fffbeb", border: `1px solid ${data.bill.status === "closed" ? "#bbf7d0" : "#fde68a"}`, borderRadius: "8px", padding: "8px 12px", marginBottom: "14px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>Billed amount</span>
+                <span style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>₹{Number(data.bill.amount || 0).toLocaleString()}</span>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: data.bill.status === "closed" ? "#15803d" : "#b45309" }}>({data.bill.status})</span>
+              </div>
+            )}
+
+            {/* Zoho procurement: pricing happens in Zoho Books */}
+            {st === "in_procurement" && zohoDraft && (
+              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "10px", padding: "12px 14px", marginBottom: "16px" }}>
+                <span>⏳</span>
+                <div style={{ fontSize: "12.5px", color: "#9a3412" }}>
+                  Draft PO <strong>{data.po.poNumber}</strong>{data.po.zohoPoNumber ? ` (Zoho ${data.po.zohoPoNumber})` : ""} is with the purchase team in <strong>Zoho Books</strong> for vendor &amp; pricing. Once they price it, this indent moves to price approval automatically.
+                </div>
+              </div>
+            )}
 
             {/* Asset the parts are used on */}
             {data.asset && (
