@@ -62,6 +62,14 @@ const resolvePhotoUrl = async (req, url) => {
     "ADD COLUMN available_quantity INT NOT NULL DEFAULT 0",
     "ADD COLUMN unit VARCHAR(40) DEFAULT NULL",
     "ADD COLUMN zoho_item_id VARCHAR(60) DEFAULT NULL",
+    // Healthcare spare-part item fields (v1)
+    "ADD COLUMN sku VARCHAR(80) DEFAULT NULL",
+    "ADD COLUMN hsn VARCHAR(20) DEFAULT NULL",
+    "ADD COLUMN gst_rate DECIMAL(5,2) DEFAULT NULL",
+    "ADD COLUMN purchase_rate DECIMAL(12,2) DEFAULT NULL",
+    "ADD COLUMN mpn VARCHAR(120) DEFAULT NULL",
+    "ADD COLUMN compatible_equipment VARCHAR(200) DEFAULT NULL",
+    "ADD COLUMN criticality VARCHAR(20) DEFAULT NULL",
   ]) {
     try { await pool.query(`ALTER TABLE parts ${col}`); } catch (err) { /* column exists */ }
   }
@@ -71,10 +79,24 @@ const resolvePhotoUrl = async (req, url) => {
 async function syncPartToZoho(companyId, partId) {
   if (!isZohoEnabled()) return;
   try {
-    const [[p]] = await pool.query(`SELECT id, part_name, make, model, zoho_item_id FROM parts WHERE id = ? AND company_id = ?`, [partId, companyId]);
+    const [[p]] = await pool.query(
+      `SELECT id, part_name, make, model, sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality, unit, zoho_item_id
+       FROM parts WHERE id = ? AND company_id = ?`, [partId, companyId]);
     if (!p || p.zoho_item_id) return;
-    const sku = [p.make, p.model].filter(Boolean).join("-") || undefined;
-    const itemId = await zohoEnsureItem({ name: p.part_name, sku });
+    const itemId = await zohoEnsureItem({
+      name: p.part_name,
+      sku: p.sku || [p.make, p.model].filter(Boolean).join("-") || undefined,
+      hsn: p.hsn || undefined,
+      rate: p.purchase_rate != null ? Number(p.purchase_rate) : 0,
+      taxRate: p.gst_rate != null ? Number(p.gst_rate) : undefined,
+      unit: p.unit || undefined,
+      // Healthcare traceability packed into the item description.
+      description: [
+        p.make && `Make: ${p.make}`, p.model && `Model: ${p.model}`,
+        p.mpn && `MPN: ${p.mpn}`, p.compatible_equipment && `Fits: ${p.compatible_equipment}`,
+        p.criticality && `Criticality: ${p.criticality}`,
+      ].filter(Boolean).join(" · ") || undefined,
+    });
     if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, p.id]);
   } catch { /* leave unsynced; retried on next touch */ }
 }
@@ -151,7 +173,9 @@ router.get("/summary", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const { partName, make = null, model = null, photoUrl = null,
-            totalQuantity, availableQuantity, unit = null } = req.body || {};
+            totalQuantity, availableQuantity, unit = null,
+            sku = null, hsn = null, gstRate = null, purchaseRate = null,
+            mpn = null, compatibleEquipment = null, criticality = null } = req.body || {};
     if (!partName || !String(partName).trim()) {
       return res.status(400).json({ message: "Part name is required" });
     }
@@ -160,19 +184,19 @@ router.post("/", async (req, res, next) => {
     let avail = toQty(availableQuantity);
     if (avail === null) avail = total;
     if (avail > total) avail = total;
+    const str = (v) => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
+    const num = (v) => (v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
     const [result] = await pool.query(
       `INSERT INTO parts
-         (company_id, part_name, make, model, photo_url, total_quantity, available_quantity, unit, created_by, created_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (company_id, part_name, make, model, photo_url, total_quantity, available_quantity, unit,
+          sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality,
+          created_by, created_by_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cid(req),
         String(partName).trim(),
-        make ? String(make).trim() : null,
-        model ? String(model).trim() : null,
-        photoUrl || null,
-        total,
-        avail,
-        unit ? String(unit).trim() : null,
+        str(make), str(model), photoUrl || null, total, avail, str(unit),
+        str(sku), str(hsn), num(gstRate), num(purchaseRate), str(mpn), str(compatibleEquipment), str(criticality),
         req.companyUser.id,
         req.companyUser.fullName || req.companyUser.email || null,
       ]
@@ -200,6 +224,15 @@ router.patch("/:id", async (req, res, next) => {
     if (b.model   !== undefined) { sets.push("model = ?"); params.push(b.model ? String(b.model).trim() : null); }
     if (b.unit    !== undefined) { sets.push("unit = ?");  params.push(b.unit ? String(b.unit).trim() : null); }
     if (b.photoUrl !== undefined) { sets.push("photo_url = ?"); params.push(b.photoUrl || null); }
+    const s = (v) => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
+    const n = (v) => (v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+    if (b.sku !== undefined) { sets.push("sku = ?"); params.push(s(b.sku)); }
+    if (b.hsn !== undefined) { sets.push("hsn = ?"); params.push(s(b.hsn)); }
+    if (b.gstRate !== undefined) { sets.push("gst_rate = ?"); params.push(n(b.gstRate)); }
+    if (b.purchaseRate !== undefined) { sets.push("purchase_rate = ?"); params.push(n(b.purchaseRate)); }
+    if (b.mpn !== undefined) { sets.push("mpn = ?"); params.push(s(b.mpn)); }
+    if (b.compatibleEquipment !== undefined) { sets.push("compatible_equipment = ?"); params.push(s(b.compatibleEquipment)); }
+    if (b.criticality !== undefined) { sets.push("criticality = ?"); params.push(s(b.criticality)); }
 
     // Resolve final quantities, keeping available ≤ total.
     let total = existing.total_quantity, avail = existing.available_quantity;
@@ -238,6 +271,8 @@ router.get("/", async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT id, part_name AS partName, make, model, photo_url AS photoUrl,
               total_quantity AS totalQuantity, available_quantity AS availableQuantity, unit,
+              sku, hsn, gst_rate AS gstRate, purchase_rate AS purchaseRate,
+              mpn, compatible_equipment AS compatibleEquipment, criticality,
               created_by_name AS createdByName, created_at AS createdAt
        FROM parts ${where}
        ORDER BY created_at DESC

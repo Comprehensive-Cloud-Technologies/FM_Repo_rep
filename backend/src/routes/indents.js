@@ -329,8 +329,9 @@ async function createDraftPOForIndent(companyId, indentId, actorId) {
     const [[existing]] = await pool.query(`SELECT id FROM purchase_orders WHERE indent_id = ? AND zoho_po_id IS NOT NULL ORDER BY id DESC LIMIT 1`, [indentId]);
     if (existing) return existing;
     const [items] = await pool.query(
-      `SELECT ii.*, p.zoho_item_id AS zohoItemId, p.make, p.model FROM part_indent_items ii
-       LEFT JOIN parts p ON p.id = ii.part_id WHERE ii.indent_id = ?`, [indentId]);
+      `SELECT ii.*, p.zoho_item_id AS zohoItemId, p.make, p.model, p.sku, p.hsn,
+              p.gst_rate, p.purchase_rate, p.mpn, p.compatible_equipment, p.criticality, p.unit
+       FROM part_indent_items ii LEFT JOIN parts p ON p.id = ii.part_id WHERE ii.indent_id = ?`, [indentId]);
     const active = items.filter((it) => it.item_status !== "rejected");
     // Zoho only allows purchase items on a PO, so ensure each part exists as a
     // Zoho purchase item and reference it by id.
@@ -338,8 +339,19 @@ async function createDraftPOForIndent(companyId, indentId, actorId) {
     for (const it of active) {
       let itemId = it.zohoItemId;
       if (!itemId && it.part_id) {
-        const sku = [it.make, it.model].filter(Boolean).join("-") || undefined;
-        itemId = await zohoEnsureItem({ name: it.part_name, sku });
+        itemId = await zohoEnsureItem({
+          name: it.part_name,
+          sku: it.sku || [it.make, it.model].filter(Boolean).join("-") || undefined,
+          hsn: it.hsn || undefined,
+          rate: it.purchase_rate != null ? Number(it.purchase_rate) : 0,
+          taxRate: it.gst_rate != null ? Number(it.gst_rate) : undefined,
+          unit: it.unit || undefined,
+          description: [
+            it.make && `Make: ${it.make}`, it.model && `Model: ${it.model}`,
+            it.mpn && `MPN: ${it.mpn}`, it.compatible_equipment && `Fits: ${it.compatible_equipment}`,
+            it.criticality && `Criticality: ${it.criticality}`,
+          ].filter(Boolean).join(" · ") || undefined,
+        });
         if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, it.part_id]);
       }
       lineItems.push({ itemId, name: it.part_name, rate: 0, quantity: Number(it.qty_approved ?? it.qty_requested) });

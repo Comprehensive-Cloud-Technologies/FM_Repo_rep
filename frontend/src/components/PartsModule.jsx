@@ -12,7 +12,8 @@ const btn = (bg, color, border) => ({ padding: "8px 14px", borderRadius: "8px", 
 const inp = { width: "100%", padding: "9px 11px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", boxSizing: "border-box" };
 const lbl = { display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" };
 
-const EMPTY = { partName: "", make: "", model: "", unit: "", totalQuantity: "", availableQuantity: "" };
+const EMPTY = { partName: "", make: "", model: "", unit: "", totalQuantity: "", availableQuantity: "",
+  sku: "", hsn: "", gstRate: "", purchaseRate: "", mpn: "", compatibleEquipment: "", criticality: "" };
 
 export default function PartsModule({ token, canManage = true }) {
   const [parts, setParts] = useState([]);
@@ -145,7 +146,10 @@ function PartForm({ token, part, onClose, onSaved }) {
   const isEdit = !!part;
   const [form, setForm] = useState(isEdit
     ? { partName: part.partName || "", make: part.make || "", model: part.model || "", unit: part.unit || "",
-        totalQuantity: String(part.totalQuantity ?? ""), availableQuantity: String(part.availableQuantity ?? "") }
+        totalQuantity: String(part.totalQuantity ?? ""), availableQuantity: String(part.availableQuantity ?? ""),
+        sku: part.sku || "", hsn: part.hsn || "", gstRate: part.gstRate != null ? String(part.gstRate) : "",
+        purchaseRate: part.purchaseRate != null ? String(part.purchaseRate) : "", mpn: part.mpn || "",
+        compatibleEquipment: part.compatibleEquipment || "", criticality: part.criticality || "" }
     : { ...EMPTY });
   const [photoUrl, setPhotoUrl] = useState(part?.photoUrl || null);
   const [uploading, setUploading] = useState(false);
@@ -171,6 +175,8 @@ function PartForm({ token, part, onClose, onSaved }) {
       partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(),
       totalQuantity: form.totalQuantity === "" ? 0 : Math.max(0, parseInt(form.totalQuantity, 10) || 0),
       availableQuantity: form.availableQuantity === "" ? undefined : Math.max(0, parseInt(form.availableQuantity, 10) || 0),
+      sku: form.sku.trim(), hsn: form.hsn.trim(), gstRate: form.gstRate, purchaseRate: form.purchaseRate,
+      mpn: form.mpn.trim(), compatibleEquipment: form.compatibleEquipment.trim(), criticality: form.criticality,
       photoUrl: photoUrl || null,
     };
     try {
@@ -195,6 +201,25 @@ function PartForm({ token, part, onClose, onSaved }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div><label style={lbl}>Total qty</label><input style={inp} type="number" min="0" value={form.totalQuantity} onChange={set("totalQuantity")} placeholder="0" /></div>
             <div><label style={lbl}>Available</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div><label style={lbl}>SKU / Part code</label><input style={inp} value={form.sku} onChange={set("sku")} placeholder="e.g. AF-1024" /></div>
+            <div><label style={lbl}>MPN (mfr part no.)</label><input style={inp} value={form.mpn} onChange={set("mpn")} placeholder="OEM part no." /></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+            <div><label style={lbl}>HSN code</label><input style={inp} value={form.hsn} onChange={set("hsn")} placeholder="e.g. 9018" /></div>
+            <div><label style={lbl}>GST %</label><input style={inp} type="number" min="0" step="0.01" value={form.gstRate} onChange={set("gstRate")} placeholder="e.g. 12" /></div>
+            <div><label style={lbl}>Purchase rate</label><input style={inp} type="number" min="0" step="0.01" value={form.purchaseRate} onChange={set("purchaseRate")} placeholder="₹ cost" /></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px" }}>
+            <div><label style={lbl}>Compatible equipment</label><input style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")} placeholder="e.g. HFNC ventilator" /></div>
+            <div><label style={lbl}>Criticality</label>
+              <select style={inp} value={form.criticality} onChange={set("criticality")}>
+                <option value="">—</option>
+                <option value="Critical">Critical</option>
+                <option value="Non-critical">Non-critical</option>
+              </select>
+            </div>
           </div>
           <div>
             <label style={lbl}>Photo</label>
