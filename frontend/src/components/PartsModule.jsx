@@ -5,7 +5,7 @@
  * here too — both use the same company-scoped /api/company-portal/parts endpoints.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto } from "../api";
+import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto, getCompanyPortalAssets } from "../api";
 
 const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" };
 const btn = (bg, color, border) => ({ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${border || bg}`, background: bg, color, fontWeight: 700, fontSize: "13px", cursor: "pointer" });
@@ -155,7 +155,17 @@ function PartForm({ token, part, onClose, onSaved }) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [assets, setAssets] = useState([]);
   const fileRef = useRef(null);
+
+  // Assets of the currently-selected company — for the Compatible Equipment dropdown.
+  useEffect(() => { (async () => {
+    try {
+      const r = await getCompanyPortalAssets(token, { limit: 2000 });
+      const list = Array.isArray(r) ? r : (r?.assets || r?.data || r?.rows || []);
+      setAssets(list);
+    } catch { /* ignore */ }
+  })(); }, [token]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -175,7 +185,7 @@ function PartForm({ token, part, onClose, onSaved }) {
       partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(),
       totalQuantity: form.totalQuantity === "" ? 0 : Math.max(0, parseInt(form.totalQuantity, 10) || 0),
       availableQuantity: form.availableQuantity === "" ? undefined : Math.max(0, parseInt(form.availableQuantity, 10) || 0),
-      sku: form.sku.trim(), hsn: form.hsn.trim(), gstRate: form.gstRate, purchaseRate: form.purchaseRate,
+      sku: form.sku.trim(), hsn: form.hsn.trim(),
       mpn: form.mpn.trim(), compatibleEquipment: form.compatibleEquipment.trim(), criticality: form.criticality,
       photoUrl: photoUrl || null,
     };
@@ -202,17 +212,27 @@ function PartForm({ token, part, onClose, onSaved }) {
             <div><label style={lbl}>Total qty</label><input style={inp} type="number" min="0" value={form.totalQuantity} onChange={set("totalQuantity")} placeholder="0" /></div>
             <div><label style={lbl}>Available</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
             <div><label style={lbl}>SKU / Part code</label><input style={inp} value={form.sku} onChange={set("sku")} placeholder="e.g. AF-1024" /></div>
             <div><label style={lbl}>MPN (mfr part no.)</label><input style={inp} value={form.mpn} onChange={set("mpn")} placeholder="OEM part no." /></div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
             <div><label style={lbl}>HSN code</label><input style={inp} value={form.hsn} onChange={set("hsn")} placeholder="e.g. 9018" /></div>
-            <div><label style={lbl}>GST %</label><input style={inp} type="number" min="0" step="0.01" value={form.gstRate} onChange={set("gstRate")} placeholder="e.g. 12" /></div>
-            <div><label style={lbl}>Purchase rate</label><input style={inp} type="number" min="0" step="0.01" value={form.purchaseRate} onChange={set("purchaseRate")} placeholder="₹ cost" /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px" }}>
-            <div><label style={lbl}>Compatible equipment</label><input style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")} placeholder="e.g. HFNC ventilator" /></div>
+            <div><label style={lbl}>Compatible equipment (asset)</label>
+              <select style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")}>
+                <option value="">— Select asset —</option>
+                {(() => {
+                  const opts = assets.map((a) => {
+                    const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
+                    const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
+                    return code ? `${name} (${code})` : name;
+                  });
+                  // Preserve a previously-saved value that isn't in the current asset list.
+                  if (form.compatibleEquipment && !opts.includes(form.compatibleEquipment)) opts.unshift(form.compatibleEquipment);
+                  return opts.map((label, i) => <option key={i} value={label}>{label}</option>);
+                })()}
+              </select>
+            </div>
             <div><label style={lbl}>Criticality</label>
               <select style={inp} value={form.criticality} onChange={set("criticality")}>
                 <option value="">—</option>
