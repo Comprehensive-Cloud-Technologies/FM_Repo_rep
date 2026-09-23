@@ -75,6 +75,24 @@ const resolvePhotoUrl = async (req, url) => {
   }
 })();
 
+// Build the Zoho Item payload from a part row (shared by single + bulk sync).
+function zohoItemInputFromPart(p) {
+  return {
+    name: p.part_name,
+    sku: p.sku || [p.make, p.model].filter(Boolean).join("-") || undefined,
+    hsn: p.hsn || undefined,
+    rate: p.purchase_rate != null ? Number(p.purchase_rate) : 0,
+    taxRate: p.gst_rate != null ? Number(p.gst_rate) : undefined,
+    unit: p.unit || undefined,
+    // Healthcare traceability packed into the item description.
+    description: [
+      p.make && `Make: ${p.make}`, p.model && `Model: ${p.model}`,
+      p.mpn && `MPN: ${p.mpn}`, p.compatible_equipment && `Fits: ${p.compatible_equipment}`,
+      p.criticality && `Criticality: ${p.criticality}`,
+    ].filter(Boolean).join(" · ") || undefined,
+  };
+}
+
 /** Best-effort: upsert a part into Zoho Books Items and cache its id. Never throws. */
 async function syncPartToZoho(companyId, partId) {
   if (!isZohoEnabled()) return;
@@ -83,20 +101,7 @@ async function syncPartToZoho(companyId, partId) {
       `SELECT id, part_name, make, model, sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality, unit, zoho_item_id
        FROM parts WHERE id = ? AND company_id = ?`, [partId, companyId]);
     if (!p || p.zoho_item_id) return;
-    const itemId = await zohoEnsureItem({
-      name: p.part_name,
-      sku: p.sku || [p.make, p.model].filter(Boolean).join("-") || undefined,
-      hsn: p.hsn || undefined,
-      rate: p.purchase_rate != null ? Number(p.purchase_rate) : 0,
-      taxRate: p.gst_rate != null ? Number(p.gst_rate) : undefined,
-      unit: p.unit || undefined,
-      // Healthcare traceability packed into the item description.
-      description: [
-        p.make && `Make: ${p.make}`, p.model && `Model: ${p.model}`,
-        p.mpn && `MPN: ${p.mpn}`, p.compatible_equipment && `Fits: ${p.compatible_equipment}`,
-        p.criticality && `Criticality: ${p.criticality}`,
-      ].filter(Boolean).join(" · ") || undefined,
-    });
+    const itemId = await zohoEnsureItem(zohoItemInputFromPart(p));
     if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, p.id]);
   } catch { /* leave unsynced; retried on next touch */ }
 }
@@ -166,6 +171,32 @@ router.get("/summary", async (req, res, next) => {
       availableUnits: Number(s.availableUnits || 0),
       outOfStock:     Number(s.outOfStock || 0),
     });
+  } catch (err) { next(err); }
+});
+
+// POST /sync-zoho — bulk-push all not-yet-synced parts to Zoho Books as items
+router.post("/sync-zoho", async (req, res, next) => {
+  try {
+    const role = (req.companyUser.role || "").toLowerCase();
+    if (!["admin", "catalyst_admin", "supervisor", "finance", "accounts", "purchase", "procurement"].includes(role)) {
+      return res.status(403).json({ message: "Not allowed to synchronise" });
+    }
+    if (!isZohoEnabled()) return res.status(400).json({ message: "Zoho Books is not enabled (set BOOKS_PROVIDER=zoho and credentials)" });
+    const [parts] = await pool.query(
+      `SELECT id, part_name, make, model, sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality, unit, zoho_item_id
+       FROM parts WHERE company_id = ? ORDER BY id`, [cid(req)]
+    );
+    let synced = 0, failed = 0, already = 0;
+    const errors = [];
+    for (const p of parts) {
+      if (p.zoho_item_id) { already++; continue; }
+      try {
+        const itemId = await zohoEnsureItem(zohoItemInputFromPart(p));
+        if (itemId) { await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, p.id]); synced++; }
+        else failed++;
+      } catch (e) { failed++; if (errors.length < 5) errors.push(`${p.part_name}: ${e.message}`); }
+    }
+    res.json({ ok: true, total: parts.length, synced, alreadySynced: already, failed, errors });
   } catch (err) { next(err); }
 });
 

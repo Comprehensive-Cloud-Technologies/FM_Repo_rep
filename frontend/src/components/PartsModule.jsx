@@ -5,7 +5,7 @@
  * here too — both use the same company-scoped /api/company-portal/parts endpoints.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto, getCompanyPortalAssets } from "../api";
+import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto, getCompanyPortalAssets, syncPartsToZoho } from "../api";
 
 const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" };
 const btn = (bg, color, border) => ({ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${border || bg}`, background: bg, color, fontWeight: 700, fontSize: "13px", cursor: "pointer" });
@@ -24,6 +24,17 @@ export default function PartsModule({ token, canManage = true }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null); // part object being edited
   const [viewImg, setViewImg] = useState(null); // photo URL shown in the lightbox
+  const [syncing, setSyncing] = useState(false);
+
+  const doSync = async () => {
+    setSyncing(true); setErr("");
+    try {
+      const r = await syncPartsToZoho(token);
+      alert(`Synchronised to Zoho Books\n\nNewly synced: ${r.synced}\nAlready synced: ${r.alreadySynced}\nFailed: ${r.failed}${r.errors?.length ? "\n\n" + r.errors.join("\n") : ""}`);
+      load();
+    } catch (e) { setErr(e.message || "Sync failed"); }
+    finally { setSyncing(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true); setErr("");
@@ -45,7 +56,10 @@ export default function PartsModule({ token, canManage = true }) {
           <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Parts / Inventory</h2>
           <p style={{ margin: "3px 0 0", fontSize: "13px", color: "#64748b" }}>Add spare parts and track total &amp; available quantity. Parts added from the mobile app appear here too.</p>
         </div>
-        {canManage && <button onClick={() => { setEditing(null); setShowForm(true); }} style={btn("#2563eb", "#fff")}>+ Add Part</button>}
+        <div style={{ display: "flex", gap: "8px" }}>
+          {canManage && <button onClick={doSync} disabled={syncing} style={btn("#0f766e", "#fff")}>{syncing ? "Synchronising…" : "⟳ Synchronise to Zoho"}</button>}
+          {canManage && <button onClick={() => { setEditing(null); setShowForm(true); }} style={btn("#2563eb", "#fff")}>+ Add Part</button>}
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "18px" }}>
