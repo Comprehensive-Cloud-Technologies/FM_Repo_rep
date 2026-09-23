@@ -233,7 +233,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                 <thead><tr style={{ background: "#f8fafc" }}>
                   {(canApprove
                     ? ["Part", "Requested", "In stock", "Approve qty", "Decision"]
-                    : ["Part", "Requested", "Approved", "Issued", "Item"]
+                    : ["Part", "Requested", "Approved", "Issued", "Item", ...(data.bill ? ["Unit price", "Amount"] : [])]
                   ).map((h) => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>
@@ -274,6 +274,14 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                               ? <span style={{ fontSize: "11px", fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: "10px" }}>Approved</span>
                               : <span style={{ color: avail <= 0 ? "#dc2626" : "#64748b", fontSize: "12px" }}>{avail} in stock</span>}
                         </td>
+                        {data.bill && (() => {
+                          const price = it.unit_price != null ? Number(it.unit_price) : null;
+                          const qty = Number(it.qty_approved ?? it.qty_requested);
+                          return (<>
+                            <td style={{ padding: "8px 12px", color: "#334155" }}>{price != null ? `₹${price.toLocaleString()}` : "—"}</td>
+                            <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0f172a" }}>{price != null ? `₹${(price * qty).toLocaleString()}` : "—"}</td>
+                          </>);
+                        })()}
                       </tr>
                     );
                   })}

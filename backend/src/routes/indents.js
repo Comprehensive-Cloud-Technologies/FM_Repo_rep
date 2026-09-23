@@ -351,6 +351,10 @@ async function createDraftPOForIndent(companyId, indentId, actorId) {
             it.mpn && `MPN: ${it.mpn}`, it.compatible_equipment && `Fits: ${it.compatible_equipment}`,
             it.criticality && `Criticality: ${it.criticality}`,
           ].filter(Boolean).join(" · ") || undefined,
+          custom: {
+            make: it.make, model: it.model, mpn: it.mpn,
+            compatibleEquipment: it.compatible_equipment, criticality: it.criticality,
+          },
         });
         if (itemId) await pool.query(`UPDATE parts SET zoho_item_id = ? WHERE id = ?`, [itemId, it.part_id]);
       }

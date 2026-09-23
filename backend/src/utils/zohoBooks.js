@@ -170,11 +170,28 @@ async function getTaxIdForRate(rate) {
   return id;
 }
 
+// Map of item custom-field label → api_name (from Zoho settings). Cached.
+let _itemCfMap = null;
+async function getItemCustomFieldMap() {
+  if (_itemCfMap) return _itemCfMap;
+  try {
+    const res = await zoho("GET", "/settings/fields?entity=item");
+    const m = {};
+    (res.fields || []).filter((f) => f.is_custom_field && f.api_name).forEach((f) => {
+      m[(f.label || "").trim().toLowerCase()] = f.api_name;
+    });
+    _itemCfMap = m;
+  } catch { _itemCfMap = {}; }
+  return _itemCfMap;
+}
+
 /**
  * Find an item by name (exact, case-insensitive), else create it as a PURCHASE
- * item (Zoho only allows purchase items on a PO). Returns the Zoho item_id.
+ * item (Zoho only allows purchase items on a PO). `custom` carries the healthcare
+ * fields, mapped to Zoho item custom fields by label when those exist.
+ * Returns the Zoho item_id.
  */
-export async function ensureItem({ name, sku, rate, hsn, taxRate, unit, description } = {}) {
+export async function ensureItem({ name, sku, rate, hsn, taxRate, unit, description, custom } = {}) {
   if (!name) throw new Error("Item name required for Zoho sync");
   const found = await zoho("GET", `/items?search_text=${encodeURIComponent(name)}`);
   const match = (found.items || []).find(
@@ -183,6 +200,17 @@ export async function ensureItem({ name, sku, rate, hsn, taxRate, unit, descript
   if (match) return match.item_id;
   const purchaseAccountId = await getPurchaseAccountId();
   const taxId = await getTaxIdForRate(taxRate);
+  // Match our healthcare fields to any matching Zoho item custom fields.
+  const cfMap = await getItemCustomFieldMap();
+  const customFields = [];
+  const addCf = (label, value) => {
+    const api = cfMap[label.toLowerCase()];
+    if (api && value != null && String(value).trim() !== "") customFields.push({ api_name: api, value: String(value) });
+  };
+  if (custom) {
+    addCf("make", custom.make); addCf("model", custom.model); addCf("mpn", custom.mpn);
+    addCf("compatible equipment", custom.compatibleEquipment); addCf("criticality", custom.criticality);
+  }
   // item_type sales_and_purchases + a purchase (COGS/expense) account is what
   // makes Zoho treat the item as purchasable so it can go on a Purchase Order.
   const base = {
@@ -197,6 +225,7 @@ export async function ensureItem({ name, sku, rate, hsn, taxRate, unit, descript
     item_type: "sales_and_purchases",
     purchase_rate: Number(rate || 0),
     ...(purchaseAccountId ? { purchase_account_id: purchaseAccountId } : {}),
+    ...(customFields.length ? { custom_fields: customFields } : {}),
   };
   const created = await zoho("POST", "/items", base);
   return created.item.item_id;

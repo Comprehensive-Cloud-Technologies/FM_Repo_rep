@@ -25,12 +25,26 @@ export default function PartsModule({ token, canManage = true }) {
   const [editing, setEditing] = useState(null); // part object being edited
   const [viewImg, setViewImg] = useState(null); // photo URL shown in the lightbox
   const [syncing, setSyncing] = useState(false);
+  const [syncAsset, setSyncAsset] = useState(""); // "" = all assets
+  const [assets, setAssets] = useState([]);
+
+  useEffect(() => { (async () => {
+    try {
+      const r = await getCompanyPortalAssets(token, { limit: 2000 });
+      const list = Array.isArray(r) ? r : (r?.assets || r?.data || r?.rows || []);
+      setAssets(list.map((a) => {
+        const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
+        const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
+        return code ? `${name} (${code})` : name;
+      }));
+    } catch { /* ignore */ }
+  })(); }, [token]);
 
   const doSync = async () => {
     setSyncing(true); setErr("");
     try {
-      const r = await syncPartsToZoho(token);
-      alert(`Synchronised to Zoho Books\n\nNewly synced: ${r.synced}\nAlready synced: ${r.alreadySynced}\nFailed: ${r.failed}${r.errors?.length ? "\n\n" + r.errors.join("\n") : ""}`);
+      const r = await syncPartsToZoho(token, syncAsset || undefined);
+      alert(`Synchronised to Zoho Books${syncAsset ? ` (asset: ${syncAsset})` : " (all parts)"}\n\nNewly synced: ${r.synced}\nAlready synced: ${r.alreadySynced}\nFailed: ${r.failed}${r.errors?.length ? "\n\n" + r.errors.join("\n") : ""}`);
       load();
     } catch (e) { setErr(e.message || "Sync failed"); }
     finally { setSyncing(false); }
@@ -56,7 +70,14 @@ export default function PartsModule({ token, canManage = true }) {
           <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>Parts / Inventory</h2>
           <p style={{ margin: "3px 0 0", fontSize: "13px", color: "#64748b" }}>Add spare parts and track total &amp; available quantity. Parts added from the mobile app appear here too.</p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {canManage && (
+            <select value={syncAsset} onChange={(e) => setSyncAsset(e.target.value)} title="Choose an asset to sync its parts, or all"
+              style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", maxWidth: "220px" }}>
+              <option value="">All assets</option>
+              {assets.map((a, i) => <option key={i} value={a}>{a}</option>)}
+            </select>
+          )}
           {canManage && <button onClick={doSync} disabled={syncing} style={btn("#0f766e", "#fff")}>{syncing ? "Synchronising…" : "⟳ Synchronise to Zoho"}</button>}
           {canManage && <button onClick={() => { setEditing(null); setShowForm(true); }} style={btn("#2563eb", "#fff")}>+ Add Part</button>}
         </div>

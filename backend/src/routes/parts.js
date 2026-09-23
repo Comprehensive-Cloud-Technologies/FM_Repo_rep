@@ -84,12 +84,17 @@ function zohoItemInputFromPart(p) {
     rate: p.purchase_rate != null ? Number(p.purchase_rate) : 0,
     taxRate: p.gst_rate != null ? Number(p.gst_rate) : undefined,
     unit: p.unit || undefined,
-    // Healthcare traceability packed into the item description.
+    // Healthcare traceability packed into the item description (fallback if the
+    // Zoho custom fields don't exist), plus structured custom-field values.
     description: [
       p.make && `Make: ${p.make}`, p.model && `Model: ${p.model}`,
       p.mpn && `MPN: ${p.mpn}`, p.compatible_equipment && `Fits: ${p.compatible_equipment}`,
       p.criticality && `Criticality: ${p.criticality}`,
     ].filter(Boolean).join(" · ") || undefined,
+    custom: {
+      make: p.make, model: p.model, mpn: p.mpn,
+      compatibleEquipment: p.compatible_equipment, criticality: p.criticality,
+    },
   };
 }
 
@@ -182,9 +187,14 @@ router.post("/sync-zoho", async (req, res, next) => {
       return res.status(403).json({ message: "Not allowed to synchronise" });
     }
     if (!isZohoEnabled()) return res.status(400).json({ message: "Zoho Books is not enabled (set BOOKS_PROVIDER=zoho and credentials)" });
+    // Optional: only sync parts for a chosen asset (compatible_equipment value).
+    const asset = (req.body?.compatibleEquipment || "").toString().trim();
+    let where = "WHERE company_id = ?";
+    const params = [cid(req)];
+    if (asset) { where += " AND compatible_equipment = ?"; params.push(asset); }
     const [parts] = await pool.query(
       `SELECT id, part_name, make, model, sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality, unit, zoho_item_id
-       FROM parts WHERE company_id = ? ORDER BY id`, [cid(req)]
+       FROM parts ${where} ORDER BY id`, params
     );
     let synced = 0, failed = 0, already = 0;
     const errors = [];
