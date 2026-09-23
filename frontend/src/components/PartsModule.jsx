@@ -25,26 +25,20 @@ export default function PartsModule({ token, canManage = true }) {
   const [editing, setEditing] = useState(null); // part object being edited
   const [viewImg, setViewImg] = useState(null); // photo URL shown in the lightbox
   const [syncing, setSyncing] = useState(false);
-  const [syncAsset, setSyncAsset] = useState(""); // "" = all assets
-  const [assets, setAssets] = useState([]);
+  const [selected, setSelected] = useState(() => new Set()); // selected part ids to sync
 
-  useEffect(() => { (async () => {
-    try {
-      const r = await getCompanyPortalAssets(token, { limit: 2000 });
-      const list = Array.isArray(r) ? r : (r?.assets || r?.data || r?.rows || []);
-      setAssets(list.map((a) => {
-        const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
-        const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
-        return code ? `${name} (${code})` : name;
-      }));
-    } catch { /* ignore */ }
-  })(); }, [token]);
+  const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allSelected = parts.length > 0 && parts.every((p) => selected.has(p.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(parts.map((p) => p.id)));
 
   const doSync = async () => {
+    const ids = [...selected];
+    if (!ids.length && !window.confirm("No parts selected — synchronise ALL parts to Zoho Books?")) return;
     setSyncing(true); setErr("");
     try {
-      const r = await syncPartsToZoho(token, syncAsset || undefined);
-      alert(`Synchronised to Zoho Books${syncAsset ? ` (asset: ${syncAsset})` : " (all parts)"}\n\nNewly synced: ${r.synced}\nAlready synced: ${r.alreadySynced}\nFailed: ${r.failed}${r.errors?.length ? "\n\n" + r.errors.join("\n") : ""}`);
+      const r = await syncPartsToZoho(token, ids.length ? ids : undefined);
+      alert(`Synchronised to Zoho Books${ids.length ? ` (${ids.length} selected)` : " (all parts)"}\n\nNewly synced: ${r.synced}\nAlready synced: ${r.alreadySynced}\nFailed: ${r.failed}${r.errors?.length ? "\n\n" + r.errors.join("\n") : ""}`);
+      setSelected(new Set());
       load();
     } catch (e) { setErr(e.message || "Sync failed"); }
     finally { setSyncing(false); }
@@ -71,14 +65,7 @@ export default function PartsModule({ token, canManage = true }) {
           <p style={{ margin: "3px 0 0", fontSize: "13px", color: "#64748b" }}>Add spare parts and track total &amp; available quantity. Parts added from the mobile app appear here too.</p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          {canManage && (
-            <select value={syncAsset} onChange={(e) => setSyncAsset(e.target.value)} title="Choose an asset to sync its parts, or all"
-              style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", maxWidth: "220px" }}>
-              <option value="">All assets</option>
-              {assets.map((a, i) => <option key={i} value={a}>{a}</option>)}
-            </select>
-          )}
-          {canManage && <button onClick={doSync} disabled={syncing} style={btn("#0f766e", "#fff")}>{syncing ? "Synchronising…" : "⟳ Synchronise to Zoho"}</button>}
+          {canManage && <button onClick={doSync} disabled={syncing} style={btn("#0f766e", "#fff")}>{syncing ? "Synchronising…" : selected.size ? `⟳ Synchronise ${selected.size} to Zoho` : "⟳ Synchronise to Zoho"}</button>}
           {canManage && <button onClick={() => { setEditing(null); setShowForm(true); }} style={btn("#2563eb", "#fff")}>+ Add Part</button>}
         </div>
       </div>
@@ -111,6 +98,11 @@ export default function PartsModule({ token, canManage = true }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", textAlign: "left" }}>
+                  {canManage && (
+                    <th style={{ padding: "10px 12px", borderBottom: "1.5px solid #e2e8f0", width: "28px" }}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" />
+                    </th>
+                  )}
                   {["Photo", "Part", "Make", "Model", "Total", "Available", "Added by", ...(canManage ? ["Actions"] : [])].map((h, i) => (
                     <th key={h} style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1.5px solid #e2e8f0", textAlign: ["Total", "Available"].includes(h) ? "center" : "left" }}>{h}</th>
                   ))}
@@ -120,7 +112,12 @@ export default function PartsModule({ token, canManage = true }) {
                 {parts.map((p) => {
                   const out = (p.availableQuantity ?? 0) <= 0;
                   return (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selected.has(p.id) ? "#f0fdfa" : "transparent" }}>
+                      {canManage && (
+                        <td style={{ padding: "8px 12px" }}>
+                          <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
+                        </td>
+                      )}
                       <td style={{ padding: "8px 12px" }}>
                         {p.photoUrl
                           ? <img src={p.photoUrl} alt={p.partName} onClick={() => setViewImg(p.photoUrl)} title="Click to view"

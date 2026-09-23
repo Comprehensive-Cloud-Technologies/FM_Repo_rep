@@ -229,7 +229,7 @@ export const getAuditReport       = (token, id) => request("GET", `/api/company-
 // ── Parts / Inventory ─────────────────────────────────────────────────────────
 export const getParts        = (token, q) => request("GET", `/api/company-portal/parts${q ? `?q=${encodeURIComponent(q)}` : ""}`, undefined, { authToken: token });
 export const getPartsSummary = (token) => request("GET", "/api/company-portal/parts/summary", undefined, { authToken: token });
-export const syncPartsToZoho = (token, compatibleEquipment) => request("POST", "/api/company-portal/parts/sync-zoho", compatibleEquipment ? { compatibleEquipment } : {}, { authToken: token });
+export const syncPartsToZoho = (token, partIds) => request("POST", "/api/company-portal/parts/sync-zoho", (partIds && partIds.length) ? { partIds } : {}, { authToken: token });
 export const createPart       = (token, data) => request("POST", "/api/company-portal/parts", data, { authToken: token });
 export const updatePart       = (token, id, data) => request("PATCH", `/api/company-portal/parts/${id}`, data, { authToken: token });
 export const deletePart       = (token, id) => request("DELETE", `/api/company-portal/parts/${id}`, undefined, { authToken: token });

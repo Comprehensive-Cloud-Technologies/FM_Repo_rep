@@ -187,11 +187,11 @@ router.post("/sync-zoho", async (req, res, next) => {
       return res.status(403).json({ message: "Not allowed to synchronise" });
     }
     if (!isZohoEnabled()) return res.status(400).json({ message: "Zoho Books is not enabled (set BOOKS_PROVIDER=zoho and credentials)" });
-    // Optional: only sync parts for a chosen asset (compatible_equipment value).
-    const asset = (req.body?.compatibleEquipment || "").toString().trim();
+    // Optional: only sync the selected parts (by id). Empty = all parts.
+    const ids = Array.isArray(req.body?.partIds) ? req.body.partIds.map(Number).filter(Boolean) : [];
     let where = "WHERE company_id = ?";
     const params = [cid(req)];
-    if (asset) { where += " AND compatible_equipment = ?"; params.push(asset); }
+    if (ids.length) { where += ` AND id IN (${ids.map(() => "?").join(",")})`; params.push(...ids); }
     const [parts] = await pool.query(
       `SELECT id, part_name, make, model, sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality, unit, zoho_item_id
        FROM parts ${where} ORDER BY id`, params
