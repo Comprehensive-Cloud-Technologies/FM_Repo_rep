@@ -5439,24 +5439,24 @@ export default function CompanyEmployeePortal() {
         maintStr,
       ].some(v => v && String(v).toLowerCase().includes(term));
 
+      // Resolve the working status EXACTLY like the STATUS badge does, so filters
+      // match what's shown: a.workingStatus → a.working_status → meta.workingStatus.
+      const ws = (a.workingStatus || a.working_status || m.workingStatus || "").toString().toLowerCase().replace(/[_ ]/g, "");
+      const isRber = ws === "rber" || !!m.rber;
+
       const matchStatus = (() => {
         if (!assetStatusFilter) return true;
         const isVerified = Number(a.isVerified) === 1 || a.isVerified === true;
         if (assetStatusFilter === "Verified") return isVerified;
         if (assetStatusFilter === "Unverified") return !isVerified && (a.status === "Unverified" || !a.status || a.status === "Active");
-        if (assetStatusFilter === "Working") {
-          const ws = (m.workingStatus || a.workingStatus || "").toLowerCase().replace(/[_ ]/g, "");
-          return ws === "working" || ws === "";   // blank working-status defaults to Working
-        }
-        if (assetStatusFilter === "Active" || assetStatusFilter === "Inactive") {
-          const ws = (m.workingStatus || a.workingStatus || "").toLowerCase();
-          return ws === assetStatusFilter.toLowerCase() || (a.status || "").toLowerCase() === assetStatusFilter.toLowerCase();
-        }
-        if (assetStatusFilter === "HNF") return (m.workingStatus || "").toLowerCase() === "hnf";
-        if (assetStatusFilter === "WIP") return (m.workingStatus || "").toLowerCase() === "wip";
-        if (assetStatusFilter === "Not Working") return (m.workingStatus || "").toLowerCase().replace(/[_ ]/g, "") === "notworking";
-        if (assetStatusFilter === "RBER") return !!m.rber;
-        if (assetStatusFilter === "Condemned") return (m.workingStatus || "").toLowerCase() === "condemned";
+        if (assetStatusFilter === "RBER") return isRber;
+        if (assetStatusFilter === "Working") return !isRber && (ws === "working" || ws === "");
+        if (assetStatusFilter === "Active") return !isRber && ws === "active";
+        if (assetStatusFilter === "Inactive") return !isRber && ws === "inactive";
+        if (assetStatusFilter === "HNF") return !isRber && ws === "hnf";
+        if (assetStatusFilter === "WIP") return !isRber && ws === "wip";
+        if (assetStatusFilter === "Not Working") return !isRber && ws === "notworking";
+        if (assetStatusFilter === "Condemned") return ws === "condemned";
         if (assetStatusFilter === "Critical") return (a.criticality || m.criticality || "").toLowerCase() === "critical";
         if (assetStatusFilter === "Non_Critical") return (a.criticality || m.criticality || "non_critical").toLowerCase() !== "critical";
         return (a.status || "").toLowerCase() === assetStatusFilter.toLowerCase();
@@ -5466,14 +5466,13 @@ export default function CompanyEmployeePortal() {
       const matchAdvBuilding = !advFilterBuilding || (a.building || "").toLowerCase().includes(advFilterBuilding.toLowerCase());
       const matchAdvCategory = !advFilterCategory || (m.criticality || a.criticality || "").toLowerCase().replace(/[_-]/g, "") === advFilterCategory.toLowerCase().replace(/[_-]/g, "");
       const matchAdvMaint = !advFilterMaint || maintStr.includes(advFilterMaint.toLowerCase());
-      const matchAdvRber = !advFilterRber || (advFilterRber === "yes" ? !!m.rber : !m.rber);
+      const matchAdvRber = !advFilterRber || (advFilterRber === "yes" ? isRber : !isRber);
       const matchAdvDateFrom = !advFilterDateFrom || (a.createdAt && new Date(a.createdAt) >= new Date(advFilterDateFrom));
       const matchAdvDateTo = !advFilterDateTo || (a.createdAt && new Date(a.createdAt) <= new Date(advFilterDateTo + "T23:59:59"));
       const matchAdvMake = !advFilterMake || (m.make || m.manufacturer || "").toLowerCase().includes(advFilterMake.toLowerCase());
       const matchAdvModel = !advFilterModel || (m.model || "").toLowerCase().includes(advFilterModel.toLowerCase());
       const matchAdvWorkingStatus = !advFilterWorkingStatus || (() => {
-        const ws = (m.workingStatus || a.workingStatus || "").replace(/_/g, " ").toLowerCase().trim();
-        const fv = advFilterWorkingStatus.replace(/_/g, " ").toLowerCase().trim();
+        const fv = advFilterWorkingStatus.toLowerCase().replace(/[_ ]/g, "").trim();
         if (fv === "working") return ws === "working" || ws === "";
         return ws === fv;
       })();
