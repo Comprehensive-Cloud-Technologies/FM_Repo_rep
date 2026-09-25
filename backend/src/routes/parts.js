@@ -70,6 +70,7 @@ const resolvePhotoUrl = async (req, url) => {
     "ADD COLUMN mpn VARCHAR(120) DEFAULT NULL",
     "ADD COLUMN compatible_equipment VARCHAR(200) DEFAULT NULL",
     "ADD COLUMN criticality VARCHAR(20) DEFAULT NULL",
+    "ADD COLUMN photos JSON DEFAULT NULL",
   ]) {
     try { await pool.query(`ALTER TABLE parts ${col}`); } catch (err) { /* column exists */ }
   }
@@ -213,9 +214,9 @@ router.post("/sync-zoho", async (req, res, next) => {
 // POST / — create a part
 router.post("/", async (req, res, next) => {
   try {
-    const { partName, make = null, model = null, photoUrl = null,
+    const { partName, make = null, model = null, photoUrl = null, photos = null,
             totalQuantity, availableQuantity, unit = null,
-            sku = null, hsn = null, gstRate = null, purchaseRate = null,
+            hsn = null, gstRate = null, purchaseRate = null,
             mpn = null, compatibleEquipment = null, criticality = null } = req.body || {};
     if (!partName || !String(partName).trim()) {
       return res.status(400).json({ message: "Part name is required" });
@@ -227,21 +228,26 @@ router.post("/", async (req, res, next) => {
     if (avail > total) avail = total;
     const str = (v) => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
     const num = (v) => (v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+    // Multiple photos: array of URLs; keep photo_url = first for list thumbnails.
+    const photoList = Array.isArray(photos) ? photos.filter(Boolean) : (photoUrl ? [photoUrl] : []);
+    const firstPhoto = photoList[0] || photoUrl || null;
     const [result] = await pool.query(
       `INSERT INTO parts
-         (company_id, part_name, make, model, photo_url, total_quantity, available_quantity, unit,
-          sku, hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality,
+         (company_id, part_name, make, model, photo_url, photos, total_quantity, available_quantity, unit,
+          hsn, gst_rate, purchase_rate, mpn, compatible_equipment, criticality,
           created_by, created_by_name)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cid(req),
         String(partName).trim(),
-        str(make), str(model), photoUrl || null, total, avail, str(unit),
-        str(sku), str(hsn), num(gstRate), num(purchaseRate), str(mpn), str(compatibleEquipment), str(criticality),
+        str(make), str(model), firstPhoto, JSON.stringify(photoList), total, avail, str(unit),
+        str(hsn), num(gstRate), num(purchaseRate), str(mpn), str(compatibleEquipment), str(criticality),
         req.companyUser.id,
         req.companyUser.fullName || req.companyUser.email || null,
       ]
     );
+    // Auto-generate a part code (SKU) from the new id.
+    await pool.query(`UPDATE parts SET sku = CONCAT('PRT-', LPAD(id, 5, '0')) WHERE id = ? AND (sku IS NULL OR sku = '')`, [result.insertId]);
     syncPartToZoho(cid(req), result.insertId); // fire-and-forget Zoho Items sync
     res.status(201).json({ id: result.insertId, message: "Part added" });
   } catch (err) { next(err); }
@@ -265,6 +271,11 @@ router.patch("/:id", async (req, res, next) => {
     if (b.model   !== undefined) { sets.push("model = ?"); params.push(b.model ? String(b.model).trim() : null); }
     if (b.unit    !== undefined) { sets.push("unit = ?");  params.push(b.unit ? String(b.unit).trim() : null); }
     if (b.photoUrl !== undefined) { sets.push("photo_url = ?"); params.push(b.photoUrl || null); }
+    if (b.photos !== undefined) {
+      const list = Array.isArray(b.photos) ? b.photos.filter(Boolean) : [];
+      sets.push("photos = ?"); params.push(JSON.stringify(list));
+      sets.push("photo_url = ?"); params.push(list[0] || null);
+    }
     const s = (v) => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
     const n = (v) => (v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
     if (b.sku !== undefined) { sets.push("sku = ?"); params.push(s(b.sku)); }
@@ -310,7 +321,7 @@ router.get("/", async (req, res, next) => {
       params.push(like, like, like);
     }
     const [rows] = await pool.query(
-      `SELECT id, part_name AS partName, make, model, photo_url AS photoUrl,
+      `SELECT id, part_name AS partName, make, model, photo_url AS photoUrl, photos,
               total_quantity AS totalQuantity, available_quantity AS availableQuantity, unit,
               sku, hsn, gst_rate AS gstRate, purchase_rate AS purchaseRate,
               mpn, compatible_equipment AS compatibleEquipment, criticality,
@@ -321,10 +332,13 @@ router.get("/", async (req, res, next) => {
       params
     );
     // Resolve photo URLs (pre-sign S3, absolutize local /uploads) so they render.
-    const out = await Promise.all(rows.map(async (r) => ({
-      ...r,
-      photoUrl: await resolvePhotoUrl(req, r.photoUrl),
-    })));
+    const out = await Promise.all(rows.map(async (r) => {
+      let photoList = [];
+      try { photoList = typeof r.photos === "string" ? JSON.parse(r.photos) : (Array.isArray(r.photos) ? r.photos : []); } catch { photoList = []; }
+      if (!photoList.length && r.photoUrl) photoList = [r.photoUrl];
+      const resolved = await Promise.all(photoList.map((u) => resolvePhotoUrl(req, u)));
+      return { ...r, photoUrl: await resolvePhotoUrl(req, r.photoUrl), photos: resolved };
+    }));
     res.json(out);
   } catch (err) { next(err); }
 });

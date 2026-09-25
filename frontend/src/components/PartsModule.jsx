@@ -5,15 +5,12 @@
  * here too — both use the same company-scoped /api/company-portal/parts endpoints.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto, getCompanyPortalAssets, syncPartsToZoho } from "../api";
+import { getParts, getPartsSummary, createPart, updatePart, deletePart, uploadPartPhoto, syncPartsToZoho } from "../api";
 
 const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" };
 const btn = (bg, color, border) => ({ padding: "8px 14px", borderRadius: "8px", border: `1px solid ${border || bg}`, background: bg, color, fontWeight: 700, fontSize: "13px", cursor: "pointer" });
 const inp = { width: "100%", padding: "9px 11px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", boxSizing: "border-box" };
 const lbl = { display: "block", fontSize: "11.5px", fontWeight: 700, color: "#475569", marginBottom: "4px" };
-
-const EMPTY = { partName: "", make: "", model: "", unit: "", totalQuantity: "", availableQuantity: "",
-  sku: "", hsn: "", gstRate: "", purchaseRate: "", mpn: "", compatibleEquipment: "", criticality: "" };
 
 export default function PartsModule({ token, canManage = true }) {
   const [parts, setParts] = useState([]);
@@ -177,38 +174,32 @@ function SummaryTile({ label, value, color }) {
 function PartForm({ token, part, onClose, onSaved }) {
   const isEdit = !!part;
   const [form, setForm] = useState(isEdit
-    ? { partName: part.partName || "", make: part.make || "", model: part.model || "", unit: part.unit || "",
-        totalQuantity: String(part.totalQuantity ?? ""), availableQuantity: String(part.availableQuantity ?? ""),
-        sku: part.sku || "", hsn: part.hsn || "", gstRate: part.gstRate != null ? String(part.gstRate) : "",
-        purchaseRate: part.purchaseRate != null ? String(part.purchaseRate) : "", mpn: part.mpn || "",
-        compatibleEquipment: part.compatibleEquipment || "", criticality: part.criticality || "" }
-    : { ...EMPTY });
-  const [photoUrl, setPhotoUrl] = useState(part?.photoUrl || null);
+    ? { partName: part.partName || "", make: part.make || "", model: part.model || "",
+        totalQuantity: String(part.totalQuantity ?? ""), availableQuantity: String(part.availableQuantity ?? "") }
+    : { partName: "", make: "", model: "", totalQuantity: "", availableQuantity: "" });
+  const [photos, setPhotos] = useState(
+    (part?.photos && part.photos.length) ? part.photos : (part?.photoUrl ? [part.photoUrl] : [])
+  );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [assets, setAssets] = useState([]);
   const fileRef = useRef(null);
-
-  // Assets of the currently-selected company — for the Compatible Equipment dropdown.
-  useEffect(() => { (async () => {
-    try {
-      const r = await getCompanyPortalAssets(token, { limit: 2000 });
-      const list = Array.isArray(r) ? r : (r?.assets || r?.data || r?.rows || []);
-      setAssets(list);
-    } catch { /* ignore */ }
-  })(); }, [token]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const pickPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const pickPhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploading(true); setErr("");
-    try { const r = await uploadPartPhoto(token, file); setPhotoUrl(r.url); }
-    catch (ex) { setErr(ex.message || "Photo upload failed"); }
-    finally { setUploading(false); }
+    try {
+      for (const file of files) {
+        const r = await uploadPartPhoto(token, file);
+        if (r?.url) setPhotos((ph) => [...ph, r.url]);
+      }
+    } catch (ex) { setErr(ex.message || "Photo upload failed"); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   };
+  const removePhoto = (i) => setPhotos((ph) => ph.filter((_, idx) => idx !== i));
 
   const submit = async () => {
     if (!form.partName.trim()) { setErr("Part name is required"); return; }
@@ -217,8 +208,7 @@ function PartForm({ token, part, onClose, onSaved }) {
       partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(),
       totalQuantity: form.totalQuantity === "" ? 0 : Math.max(0, parseInt(form.totalQuantity, 10) || 0),
       availableQuantity: form.availableQuantity === "" ? undefined : Math.max(0, parseInt(form.availableQuantity, 10) || 0),
-      sku: form.sku.trim(), compatibleEquipment: form.compatibleEquipment.trim(),
-      photoUrl: photoUrl || null,
+      photos,
     };
     try {
       if (isEdit) await updatePart(token, part.id, payload);
@@ -234,6 +224,9 @@ function PartForm({ token, part, onClose, onSaved }) {
         {err && <div style={{ padding: "9px 12px", background: "#fef2f2", color: "#dc2626", borderRadius: "8px", fontSize: "12.5px", marginBottom: "12px" }}>{err}</div>}
 
         <div style={{ display: "grid", gap: "12px" }}>
+          {isEdit && part.sku && (
+            <div style={{ fontSize: "12px", color: "#64748b" }}>Part code: <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>{part.sku}</span></div>
+          )}
           <div><label style={lbl}>Part name *</label><input style={inp} value={form.partName} onChange={set("partName")} placeholder="e.g. Air filter" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div><label style={lbl}>Make</label><input style={inp} value={form.make} onChange={set("make")} placeholder="e.g. Philips" /></div>
@@ -244,34 +237,21 @@ function PartForm({ token, part, onClose, onSaved }) {
             <div><label style={lbl}>Available quantity</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
           </div>
           <div>
-            <label style={lbl}>SKU / Part code</label>
-            <input style={inp} value={form.sku} onChange={set("sku")} placeholder="e.g. AF-1024" />
-          </div>
-          <div>
-            <label style={lbl}>Compatible equipment (asset)</label>
-            <select style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")}>
-              <option value="">— Select asset —</option>
-              {(() => {
-                const opts = assets.map((a) => {
-                  const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
-                  const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
-                  return code ? `${name} (${code})` : name;
-                });
-                if (form.compatibleEquipment && !opts.includes(form.compatibleEquipment)) opts.unshift(form.compatibleEquipment);
-                return opts.map((label, i) => <option key={i} value={label}>{label}</option>);
-              })()}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>Photo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              {photoUrl && <img src={photoUrl} alt="part" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid #e2e8f0" }} />}
-              <input ref={fileRef} type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={btn("#f1f5f9", "#475569", "#cbd5e1")}>
-                {uploading ? "Uploading…" : photoUrl ? "Change photo" : "Upload photo"}
+            <label style={lbl}>Photos</label>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {photos.map((url, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={url} alt={`part ${i + 1}`} style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid #e2e8f0" }} />
+                  <button onClick={() => removePhoto(i)} title="Remove"
+                    style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", border: "none", background: "#dc2626", color: "#fff", fontSize: "11px", lineHeight: "18px", cursor: "pointer", padding: 0 }}>×</button>
+                </div>
+              ))}
+              <input ref={fileRef} type="file" accept="image/*" multiple onChange={pickPhotos} style={{ display: "none" }} />
+              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...btn("#f1f5f9", "#475569", "#cbd5e1"), width: 56, height: 56, fontSize: "22px", padding: 0 }}>
+                {uploading ? "…" : "+"}
               </button>
-              {photoUrl && <button onClick={() => setPhotoUrl(null)} style={btn("#fef2f2", "#dc2626", "#fecaca")}>Remove</button>}
             </div>
+            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>Add one or more photos.</div>
           </div>
         </div>
 

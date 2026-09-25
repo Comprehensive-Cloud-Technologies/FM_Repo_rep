@@ -22,7 +22,7 @@ export default function PartsTab() {
   const [partName, setPartName] = useState('');
   const [make, setMake]         = useState('');
   const [model, setModel]       = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [saving, setSaving]     = useState(false);
 
   const pickFrom = async (mode: 'camera' | 'gallery') => {
@@ -31,29 +31,30 @@ export default function PartsTab() {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access to take a photo.'); return; }
         const r = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-        if (!r.canceled && r.assets?.[0]) setPhotoUri(r.assets[0].uri);
+        if (!r.canceled && r.assets?.length) setPhotoUris((p) => [...p, ...r.assets.map((a) => a.uri)]);
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo library access.'); return; }
-        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-        if (!r.canceled && r.assets?.[0]) setPhotoUri(r.assets[0].uri);
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsMultipleSelection: true });
+        if (!r.canceled && r.assets?.length) setPhotoUris((p) => [...p, ...r.assets.map((a) => a.uri)]);
       }
     } catch { Alert.alert('Error', 'Could not pick an image.'); }
   };
+  const removePhoto = (i: number) => setPhotoUris((p) => p.filter((_, idx) => idx !== i));
 
-  const reset = () => { setPartName(''); setMake(''); setModel(''); setPhotoUri(null); };
+  const reset = () => { setPartName(''); setMake(''); setModel(''); setPhotoUris([]); };
 
   const submit = async () => {
     if (!partName.trim()) { Alert.alert('Required', 'Please enter a part name.'); return; }
     setSaving(true);
     try {
-      let photoUrl: string | null = null;
-      if (photoUri) {
-        try { photoUrl = await uploadPartPhoto(photoUri); }
-        catch { Alert.alert('Photo not uploaded', 'The part will be saved without the photo (image upload failed).'); }
+      const photos: string[] = [];
+      for (const uri of photoUris) {
+        try { const url = await uploadPartPhoto(uri); if (url) photos.push(url); } catch { /* skip failed */ }
       }
+      if (photoUris.length && !photos.length) Alert.alert('Photos not uploaded', 'The part will be saved without photos (image upload failed).');
       // Quantities are managed from the web dashboard, not the mobile app.
-      await createPart({ partName: partName.trim(), make: make.trim(), model: model.trim(), photoUrl });
+      await createPart({ partName: partName.trim(), make: make.trim(), model: model.trim(), photos });
       reset();
       Alert.alert('Part added', 'The part has been saved. View it under Profile → Parts.');
     } catch (e: any) {
@@ -90,26 +91,29 @@ export default function PartsTab() {
             <TextInput style={inputStyle} value={model} onChangeText={setModel}
               placeholder="e.g. HR-2000" placeholderTextColor={theme.textMuted} />
 
-            <Text style={[styles.label, { color: theme.textMuted }]}>Photo</Text>
-            {photoUri ? (
-              <View style={styles.photoWrap}>
-                <Image source={{ uri: photoUri }} style={styles.photo} />
-                <TouchableOpacity style={styles.photoRemove} onPress={() => setPhotoUri(null)}>
-                  <MaterialCommunityIcons name="close-circle" size={26} color="#dc2626" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', gap: Spacing.md }}>
-                <TouchableOpacity style={[styles.photoBtn, { borderColor: theme.border }]} onPress={() => pickFrom('camera')}>
-                  <MaterialCommunityIcons name="camera" size={20} color={theme.primary} />
-                  <Text style={[styles.photoBtnText, { color: theme.primary }]}>Camera</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.photoBtn, { borderColor: theme.border }]} onPress={() => pickFrom('gallery')}>
-                  <MaterialCommunityIcons name="image-multiple" size={20} color={theme.primary} />
-                  <Text style={[styles.photoBtnText, { color: theme.primary }]}>Gallery</Text>
-                </TouchableOpacity>
+            <Text style={[styles.label, { color: theme.textMuted }]}>Photos</Text>
+            {photoUris.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                {photoUris.map((uri, i) => (
+                  <View key={i} style={styles.photoWrap}>
+                    <Image source={{ uri }} style={styles.photo} />
+                    <TouchableOpacity style={styles.photoRemove} onPress={() => removePhoto(i)}>
+                      <MaterialCommunityIcons name="close-circle" size={24} color="#dc2626" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             )}
+            <View style={{ flexDirection: 'row', gap: Spacing.md }}>
+              <TouchableOpacity style={[styles.photoBtn, { borderColor: theme.border }]} onPress={() => pickFrom('camera')}>
+                <MaterialCommunityIcons name="camera" size={20} color={theme.primary} />
+                <Text style={[styles.photoBtnText, { color: theme.primary }]}>Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.photoBtn, { borderColor: theme.border }]} onPress={() => pickFrom('gallery')}>
+                <MaterialCommunityIcons name="image-multiple" size={20} color={theme.primary} />
+                <Text style={[styles.photoBtnText, { color: theme.primary }]}>Gallery</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={[styles.submitBtn, { backgroundColor: theme.primary, opacity: saving ? 0.6 : 1 }]}
               onPress={submit} disabled={saving}>
@@ -138,8 +142,8 @@ const styles = StyleSheet.create({
   cardTitle:   { fontSize: 15, fontWeight: '800', marginBottom: 6 },
   label:       { fontSize: 12, fontWeight: '600', marginTop: 8, marginBottom: 4 },
   input:       { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-  photoWrap:   { marginTop: 4, position: 'relative', alignSelf: 'flex-start' },
-  photo:       { width: 120, height: 120, borderRadius: Radius.md },
+  photoWrap:   { position: 'relative' },
+  photo:       { width: 76, height: 76, borderRadius: Radius.md },
   photoRemove: { position: 'absolute', top: -8, right: -8, backgroundColor: '#fff', borderRadius: 13 },
   photoBtn:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: Radius.md, paddingVertical: 12 },
   photoBtnText:{ fontSize: 13, fontWeight: '700' },

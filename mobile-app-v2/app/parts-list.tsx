@@ -50,13 +50,20 @@ export default function PartsListScreen() {
           <Text style={[ss.title, { color: theme.textPrimary, marginLeft: 10 }]} numberOfLines={1}>{p.partName}</Text>
         </View>
         <ScrollView contentContainerStyle={{ padding: Spacing.lg, gap: Spacing.md }}>
-          {p.photoUrl ? (
-            <Image source={{ uri: p.photoUrl }} style={ss.hero} resizeMode="cover" />
-          ) : (
-            <View style={[ss.hero, ss.heroPlaceholder, { backgroundColor: theme.surface }]}>
-              <MaterialCommunityIcons name="cog" size={56} color={theme.textMuted} />
-            </View>
-          )}
+          {(() => {
+            const gallery = (p.photos && p.photos.length) ? p.photos : (p.photoUrl ? [p.photoUrl] : []);
+            if (!gallery.length) return (
+              <View style={[ss.hero, ss.heroPlaceholder, { backgroundColor: theme.surface }]}>
+                <MaterialCommunityIcons name="cog" size={56} color={theme.textMuted} />
+              </View>
+            );
+            if (gallery.length === 1) return <Image source={{ uri: gallery[0] }} style={ss.hero} resizeMode="cover" />;
+            return (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                {gallery.map((u, i) => <Image key={i} source={{ uri: u }} style={{ width: 260, height: 200, borderRadius: Radius.lg }} resizeMode="cover" />)}
+              </ScrollView>
+            );
+          })()}
           <View style={[ss.card, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary }}>{p.partName}</Text>
             <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
