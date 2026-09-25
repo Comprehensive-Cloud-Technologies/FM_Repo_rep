@@ -563,7 +563,8 @@ router.get("/:id(\\d+)", async (req, res, next) => {
     );
     if (!ind) return res.status(404).json({ message: "Indent not found" });
     const [items] = await pool.query(
-      `SELECT ii.*, p.available_quantity AS partAvailable, p.total_quantity AS partTotal, p.photo_url AS photoUrl
+      `SELECT ii.*, p.available_quantity AS partAvailable, p.total_quantity AS partTotal, p.photo_url AS photoUrl,
+              p.sku AS partSku, COALESCE(p.part_name, ii.part_name) AS partNameCurrent
        FROM part_indent_items ii LEFT JOIN parts p ON p.id = ii.part_id
        WHERE ii.indent_id = ? ORDER BY ii.id`,
       [ind.id]

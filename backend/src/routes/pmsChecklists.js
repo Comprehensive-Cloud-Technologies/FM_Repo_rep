@@ -1193,11 +1193,11 @@ router.get("/my-pms/stats", async (req, res, next) => {
     const userId = req.companyUser.id;
     const [[stats]] = await pool.query(
       `SELECT
-         COUNT(*)                            AS total,
-         SUM(psa.status = 'pending')         AS assigned,
-         SUM(psa.status = 'in_progress')     AS inProgress,
-         SUM(psa.status = 'completed')       AS completed,
-         SUM(psa.status = 'missed')          AS missed
+         COUNT(DISTINCT psa.asset_id)                                              AS total,
+         COUNT(DISTINCT CASE WHEN psa.status = 'pending'     THEN psa.asset_id END) AS assigned,
+         COUNT(DISTINCT CASE WHEN psa.status = 'in_progress' THEN psa.asset_id END) AS inProgress,
+         COUNT(DISTINCT CASE WHEN psa.status = 'completed'   THEN psa.asset_id END) AS completed,
+         COUNT(DISTINCT CASE WHEN psa.status = 'missed'      THEN psa.asset_id END) AS missed
        FROM pms_schedule_assets psa
        JOIN pms_schedules ps ON ps.id = psa.schedule_id
        WHERE ps.company_id = ?

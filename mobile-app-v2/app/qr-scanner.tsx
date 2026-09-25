@@ -16,9 +16,13 @@ export default function QRScannerScreen() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const isTablet    = Math.min(width, height) >= 600;
-  // Viewfinder: wider on tablets/landscape, taller on phones
-  const vfWidth  = isTablet ? Math.min(width * 0.55, 520) : width * 0.84;
-  const vfHeight = isTablet ? 160 : isLandscape ? 110 : 130;
+  // Square viewfinder — QR codes are square, so the scan window is 1:1.
+  const vfSize   = Math.min(
+    Math.min(width, height) * (isTablet ? 0.5 : 0.72),
+    isTablet ? 360 : 300,
+  );
+  const vfWidth  = vfSize;
+  const vfHeight = vfSize;
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);

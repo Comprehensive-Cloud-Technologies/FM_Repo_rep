@@ -94,8 +94,11 @@ export default function MyIndentsScreen() {
             <Text style={[ss.cardTitle, { color: theme.textMuted }]}>PARTS</Text>
             {(detail.items || []).map((it: any) => (
               <View key={it.id} style={[ss.itemRow, { borderTopColor: theme.borderLight }]}>
-                <Text style={{ color: theme.textPrimary, fontWeight: '600', flex: 1 }}>{it.part_name || `Part #${it.part_id}`}</Text>
-                <Text style={{ color: theme.textMuted, fontSize: 12.5 }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ color: theme.textPrimary, fontWeight: '600' }}>{it.partNameCurrent || it.part_name || `Part #${it.part_id}`}</Text>
+                  {it.partSku ? <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 11.5, fontFamily: 'monospace', marginTop: 2 }}>{it.partSku}</Text> : null}
+                </View>
+                <Text style={{ color: theme.textMuted, fontSize: 12.5, textAlign: 'right' }}>
                   req {it.qty_requested}{it.qty_approved != null ? ` · appr ${it.qty_approved}` : ''}{it.qty_issued ? ` · issued ${it.qty_issued}` : ''}
                 </Text>
               </View>

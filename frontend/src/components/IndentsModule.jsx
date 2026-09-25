@@ -245,7 +245,10 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                       const rejected = d.action === "reject";
                       return (
                         <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9", opacity: rejected ? 0.55 : 1 }}>
-                          <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
+                          <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>
+                            {it.partNameCurrent || it.part_name || `Part #${it.part_id}`}
+                            {it.partSku ? <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f766e", fontSize: "11px", marginTop: "2px" }}>{it.partSku}</div> : null}
+                          </td>
                           <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
                           <td style={{ padding: "8px 12px", color: "#64748b" }}>{avail}</td>
                           <td style={{ padding: "8px 12px" }}>
@@ -264,7 +267,10 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
                     }
                     return (
                       <tr key={it.id} style={{ borderTop: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>{it.part_name || `Part #${it.part_id}`}</td>
+                        <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0f172a" }}>
+                          {it.partNameCurrent || it.part_name || `Part #${it.part_id}`}
+                          {it.partSku ? <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f766e", fontSize: "11px", marginTop: "2px" }}>{it.partSku}</div> : null}
+                        </td>
                         <td style={{ padding: "8px 12px" }}>{it.qty_requested}</td>
                         <td style={{ padding: "8px 12px" }}>{it.qty_approved ?? "—"}</td>
                         <td style={{ padding: "8px 12px" }}>{it.qty_issued}</td>
