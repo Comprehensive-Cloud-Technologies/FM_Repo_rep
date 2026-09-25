@@ -37,7 +37,7 @@ export default function PartsListScreen() {
   if (selected) {
     const p = selected;
     const rows: [string, any][] = [
-      ['Make', p.make], ['Model', p.model], ['Unit', p.unit],
+      ['Part code', p.sku], ['Make', p.make], ['Model', p.model], ['Unit', p.unit],
       ['Total quantity', p.totalQuantity], ['Available', p.availableQuantity],
       ['Added by', p.createdByName], ['Added on', p.createdAt ? new Date(p.createdAt).toLocaleDateString() : null],
     ];
@@ -125,6 +125,9 @@ export default function PartsListScreen() {
               )}
               <View style={{ flex: 1 }}>
                 <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{p.partName}</Text>
+                {p.sku ? (
+                  <Text style={{ color: theme.primary, fontSize: 11.5, fontWeight: '700', marginTop: 2, fontFamily: 'monospace' }} numberOfLines={1}>{p.sku}</Text>
+                ) : null}
                 <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
                   {[p.make, p.model].filter(Boolean).join(' · ') || 'No make / model'}
                 </Text>

@@ -100,7 +100,7 @@ export default function PartsModule({ token, canManage = true }) {
                       <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" />
                     </th>
                   )}
-                  {["Photo", "Part", "Make", "Model", "Total", "Available", "Added by", ...(canManage ? ["Actions"] : [])].map((h, i) => (
+                  {["Photo", "Part", "Code", "Make", "Model", "Total", "Available", "Added by", ...(canManage ? ["Actions"] : [])].map((h, i) => (
                     <th key={h} style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1.5px solid #e2e8f0", textAlign: ["Total", "Available"].includes(h) ? "center" : "left" }}>{h}</th>
                   ))}
                 </tr>
@@ -122,6 +122,7 @@ export default function PartsModule({ token, canManage = true }) {
                           : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "16px" }}>⚙</div>}
                       </td>
                       <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0f172a" }}>{p.partName}</td>
+                      <td style={{ padding: "8px 12px", fontFamily: "monospace", fontWeight: 700, color: "#0f766e", whiteSpace: "nowrap" }}>{p.sku || "—"}</td>
                       <td style={{ padding: "8px 12px", color: "#475569" }}>{p.make || "—"}</td>
                       <td style={{ padding: "8px 12px", color: "#475569" }}>{p.model || "—"}</td>
                       <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, color: "#0f172a" }}>{p.totalQuantity ?? 0}{p.unit ? ` ${p.unit}` : ""}</td>

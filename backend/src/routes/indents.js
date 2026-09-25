@@ -534,10 +534,12 @@ router.get("/", async (req, res, next) => {
               i.status, i.priority, i.notes, i.raised_by_name AS raisedByName, i.created_at AS createdAt,
               a.asset_name AS assetName,
               COALESCE(a.generated_asset_id, a.asset_unique_id) AS assetCode,
+              co.company_name AS companyName,
               (SELECT COUNT(*) FROM part_indent_items x WHERE x.indent_id = i.id) AS itemCount,
               (SELECT COALESCE(SUM(x.qty_requested),0) FROM part_indent_items x WHERE x.indent_id = i.id) AS totalQty
        FROM part_indents i
        LEFT JOIN assets a ON a.id = i.asset_id
+       LEFT JOIN companies co ON co.id = i.company_id
        ${where}
        ORDER BY i.created_at DESC
        LIMIT 300`,
@@ -552,8 +554,10 @@ router.get("/", async (req, res, next) => {
 router.get("/:id(\\d+)", async (req, res, next) => {
   try {
     const [[ind]] = await pool.query(
-      `SELECT i.*, a.asset_name AS assetName
-       FROM part_indents i LEFT JOIN assets a ON a.id = i.asset_id
+      `SELECT i.*, a.asset_name AS assetName, co.company_name AS companyName
+       FROM part_indents i
+       LEFT JOIN assets a ON a.id = i.asset_id
+       LEFT JOIN companies co ON co.id = i.company_id
        WHERE i.id = ? AND i.company_id = ?`,
       [Number(req.params.id), cid(req)]
     );

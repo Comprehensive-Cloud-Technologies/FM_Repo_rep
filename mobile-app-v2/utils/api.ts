@@ -624,6 +624,7 @@ export async function fetchParts(q?: string): Promise<Part[]> {
 // ─── Part Indents (spare-part requests) ───────────────────────────────────────
 export interface IndentSummary {
   id: number; indentNumber?: string | null; assetId?: number | null; assetName?: string | null;
+  assetCode?: string | null; companyName?: string | null;
   status: string; priority?: string; itemCount?: number; totalQty?: number;
   raisedByName?: string | null; createdAt?: string;
 }

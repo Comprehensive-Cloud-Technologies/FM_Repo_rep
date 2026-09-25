@@ -64,6 +64,11 @@ export default function MyIndentsScreen() {
             <View style={[ss.badge, { backgroundColor: c.bg }]}><Text style={{ color: c.color, fontWeight: '700', fontSize: 12 }}>{c.label}</Text></View>
             {detail.assetName ? <Text style={{ color: theme.textMuted, fontSize: 13 }}>{detail.assetName}</Text> : null}
           </View>
+          {detail.companyName ? (
+            <Text style={{ color: theme.textPrimary, fontSize: 13.5, fontWeight: '700' }}>
+              <MaterialCommunityIcons name="hospital-building" size={13} color={theme.textMuted} /> {detail.companyName}
+            </Text>
+          ) : null}
           {detail.notes ? <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{detail.notes}</Text> : null}
 
           {detail.asset && (
@@ -154,6 +159,11 @@ export default function MyIndentsScreen() {
                 style={[ss.listCard, Shadows.xs, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>{r.indentNumber || `Indent #${r.id}`}</Text>
+                  {r.companyName ? (
+                    <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
+                      <MaterialCommunityIcons name="hospital-building" size={12} color={theme.textMuted} /> {r.companyName}
+                    </Text>
+                  ) : null}
                   <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
                     {r.itemCount} item(s) · {r.totalQty} qty{r.assetName ? ` · ${r.assetName}` : ''}
                   </Text>

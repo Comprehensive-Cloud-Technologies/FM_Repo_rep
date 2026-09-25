@@ -86,7 +86,7 @@ export default function IndentsModule({ token, canManage = false, canProcure = f
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                  {["Indent #", "Asset ID", "Asset Name", "Parts", "Qty", "Raised by", "Status", ""].map((h) => (
+                  {["Indent #", "Hospital", "Asset ID", "Asset Name", "Parts", "Qty", "Raised by", "Status", ""].map((h) => (
                     <th key={h} style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1.5px solid #e2e8f0" }}>{h}</th>
                   ))}
                 </tr>
@@ -95,6 +95,7 @@ export default function IndentsModule({ token, canManage = false, canProcure = f
                 {list.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "9px 12px", fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>{r.indentNumber || `#${r.id}`}</td>
+                    <td style={{ padding: "9px 12px", color: "#0f172a", fontWeight: 600 }}>{r.companyName || "—"}</td>
                     <td style={{ padding: "9px 12px", color: "#475569", fontFamily: "monospace", fontSize: "12.5px" }}>{r.assetCode || "—"}</td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.assetName || "—"}</td>
                     <td style={{ padding: "9px 12px", color: "#475569" }}>{r.itemCount} item(s)</td>
@@ -177,7 +178,7 @@ function IndentDetail({ token, id, canManage, canProcure, canFinance, onClose, o
               <Chip s={data.status} />
             </div>
             <p style={{ margin: "0 0 10px", fontSize: "12.5px", color: "#64748b" }}>
-              Raised by {data.raised_by_name || "—"}{data.notes ? ` · ${data.notes}` : ""}
+              {data.companyName ? <><b style={{ color: "#0f172a" }}>{data.companyName}</b> · </> : null}Raised by {data.raised_by_name || "—"}{data.notes ? ` · ${data.notes}` : ""}
             </p>
 
             {/* Billed amount (once a bill exists) */}
