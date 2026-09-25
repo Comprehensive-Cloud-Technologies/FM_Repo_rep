@@ -217,8 +217,7 @@ function PartForm({ token, part, onClose, onSaved }) {
       partName: form.partName.trim(), make: form.make.trim(), model: form.model.trim(),
       totalQuantity: form.totalQuantity === "" ? 0 : Math.max(0, parseInt(form.totalQuantity, 10) || 0),
       availableQuantity: form.availableQuantity === "" ? undefined : Math.max(0, parseInt(form.availableQuantity, 10) || 0),
-      sku: form.sku.trim(), hsn: form.hsn.trim(),
-      mpn: form.mpn.trim(), compatibleEquipment: form.compatibleEquipment.trim(), criticality: form.criticality,
+      sku: form.sku.trim(), compatibleEquipment: form.compatibleEquipment.trim(),
       photoUrl: photoUrl || null,
     };
     try {
@@ -241,37 +240,27 @@ function PartForm({ token, part, onClose, onSaved }) {
             <div><label style={lbl}>Model</label><input style={inp} value={form.model} onChange={set("model")} placeholder="e.g. HR-2000" /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div><label style={lbl}>Total qty</label><input style={inp} type="number" min="0" value={form.totalQuantity} onChange={set("totalQuantity")} placeholder="0" /></div>
-            <div><label style={lbl}>Available</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
+            <div><label style={lbl}>Total Quantity required</label><input style={inp} type="number" min="0" value={form.totalQuantity} onChange={set("totalQuantity")} placeholder="0" /></div>
+            <div><label style={lbl}>Available quantity</label><input style={inp} type="number" min="0" value={form.availableQuantity} onChange={set("availableQuantity")} placeholder="= total" /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-            <div><label style={lbl}>SKU / Part code</label><input style={inp} value={form.sku} onChange={set("sku")} placeholder="e.g. AF-1024" /></div>
-            <div><label style={lbl}>MPN (mfr part no.)</label><input style={inp} value={form.mpn} onChange={set("mpn")} placeholder="OEM part no." /></div>
-            <div><label style={lbl}>HSN code</label><input style={inp} value={form.hsn} onChange={set("hsn")} placeholder="e.g. 9018" /></div>
+          <div>
+            <label style={lbl}>SKU / Part code</label>
+            <input style={inp} value={form.sku} onChange={set("sku")} placeholder="e.g. AF-1024" />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px" }}>
-            <div><label style={lbl}>Compatible equipment (asset)</label>
-              <select style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")}>
-                <option value="">— Select asset —</option>
-                {(() => {
-                  const opts = assets.map((a) => {
-                    const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
-                    const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
-                    return code ? `${name} (${code})` : name;
-                  });
-                  // Preserve a previously-saved value that isn't in the current asset list.
-                  if (form.compatibleEquipment && !opts.includes(form.compatibleEquipment)) opts.unshift(form.compatibleEquipment);
-                  return opts.map((label, i) => <option key={i} value={label}>{label}</option>);
-                })()}
-              </select>
-            </div>
-            <div><label style={lbl}>Criticality</label>
-              <select style={inp} value={form.criticality} onChange={set("criticality")}>
-                <option value="">—</option>
-                <option value="Critical">Critical</option>
-                <option value="Non-critical">Non-critical</option>
-              </select>
-            </div>
+          <div>
+            <label style={lbl}>Compatible equipment (asset)</label>
+            <select style={inp} value={form.compatibleEquipment} onChange={set("compatibleEquipment")}>
+              <option value="">— Select asset —</option>
+              {(() => {
+                const opts = assets.map((a) => {
+                  const name = a.assetName || a.name || a.asset_name || `Asset #${a.id}`;
+                  const code = a.generatedAssetId || a.assetUniqueId || a.code || a.generated_asset_id;
+                  return code ? `${name} (${code})` : name;
+                });
+                if (form.compatibleEquipment && !opts.includes(form.compatibleEquipment)) opts.unshift(form.compatibleEquipment);
+                return opts.map((label, i) => <option key={i} value={label}>{label}</option>);
+              })()}
+            </select>
           </div>
           <div>
             <label style={lbl}>Photo</label>
